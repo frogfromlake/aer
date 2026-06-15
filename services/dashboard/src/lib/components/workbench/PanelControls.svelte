@@ -24,10 +24,8 @@
   } from '$lib/api/queries';
   import { setUrl, urlState } from '$lib/state/url.svelte';
   import {
-    CROSS_PROBE_DEFAULT_METRIC,
     DEFAULT_METRIC_NAME,
     isMetadataMetric,
-    metricSupportsPresentation,
     presentationsForPillar,
     resolvePresentation
   } from '$lib/presentations';
@@ -44,7 +42,7 @@
     updatePanel,
     type PanelPath
   } from '$lib/workbench/panel-mutators';
-  import { availabilityScope, defaultMetricForScopes } from '$lib/workbench/panel-queries';
+  import { availabilityScope } from '$lib/workbench/panel-queries';
   import { viewerLabelLanguage } from '$lib/presentations/viewer-language';
   // Phase 126 — shared lever constants (defaults + network channel tables) so
   // the panel controls and the per-cell override popover cannot drift.
@@ -55,6 +53,25 @@
     NET_COLOR_CHANNELS,
     NET_SIZE_CHANNELS
   } from '$lib/workbench/cell-levers';
+  // Phase 141 — pure derivation + reconciliation logic (unit-tested in
+  // tests/unit/panel-controls-derive.test.ts). The component reads the reactive
+  // inputs and passes them in; the math + view-switch reconciliation live here.
+  import {
+    computeWindowBounds,
+    toDateWindow,
+    toWindowIso,
+    isScopeAvailable,
+    missingSourcesFor as missingSourcesForOf,
+    offerableMetadataFields as offerableMetadataFieldsOf,
+    buildMetadataFields,
+    firstMetadataField,
+    buildMetricList,
+    resetMetricForScope as resetMetricForScopeOf,
+    buildScalarMetricOptions,
+    computeTopNMax,
+    reconcilePanelForView,
+    type ScopeGate
+  } from '$lib/workbench/panel-controls-derive';
 
   interface Props {
     pillar: PillarId;
@@ -88,51 +105,23 @@
   // bound panel's own windowStart/windowEnd when set; otherwise falls
   // back to the global url.from/url.to. The Window date inputs below
   // mutate panel.windowStart/windowEnd via updatePanel.
-  const windowBounds = $derived.by(() => {
-    const panelStart = boundPanel?.windowStart;
-    const panelEnd = boundPanel?.windowEnd;
-    const fromSrc = panelStart ?? url.from;
-    const toSrc = panelEnd ?? url.to;
-    const fromMs = fromSrc ? Date.parse(fromSrc) : NaN;
-    const toMs = toSrc ? Date.parse(toSrc) : NaN;
-    // Episteme (diachronic) defaults to a disclosed recent window (mirrors
-    // EpistemeShell) so the date inputs + availability query reflect the same
-    // effective window the cells use — otherwise the window is invisible.
-    // Aleph/Rhizome stay unbounded (undefined ⇒ whole dataset, the optional
-    // time-limit is off by default there).
-    const epistemeDefault = pillar === 'episteme';
-    const now = Date.now();
-    return {
-      startMs: Number.isFinite(fromMs)
-        ? fromMs
-        : epistemeDefault
-          ? now - DEFAULT_LOOKBACK_MS
-          : undefined,
-      endMs: Number.isFinite(toMs) ? toMs : epistemeDefault ? now : undefined,
-      isPanelOverride: panelStart !== undefined || panelEnd !== undefined
-    };
-  });
-  // Date-only form for the `/metrics/available` window + the native date
-  // inputs (YYYY-MM-DD). Undefined when that side is unbounded — the input
-  // renders empty and the query omits the bound.
-  const dateWindow = $derived({
-    startDate:
-      windowBounds.startMs !== undefined
-        ? new Date(windowBounds.startMs).toISOString().slice(0, 10)
-        : undefined,
-    endDate:
-      windowBounds.endMs !== undefined
-        ? new Date(windowBounds.endMs).toISOString().slice(0, 10)
-        : undefined,
-    isPanelOverride: windowBounds.isPanelOverride
-  });
-  // Phase 123c (C1) — full RFC 3339 form for `/scope/available-metrics`,
-  // whose `start`/`end` parameters are `format: date-time` (both optional).
-  const windowIso = $derived({
-    start:
-      windowBounds.startMs !== undefined ? new Date(windowBounds.startMs).toISOString() : undefined,
-    end: windowBounds.endMs !== undefined ? new Date(windowBounds.endMs).toISOString() : undefined
-  });
+  // Episteme (diachronic) defaults to a disclosed recent window (mirrors
+  // EpistemeShell); Aleph/Rhizome stay unbounded. See computeWindowBounds.
+  const windowBounds = $derived.by(() =>
+    computeWindowBounds({
+      panelStart: boundPanel?.windowStart,
+      panelEnd: boundPanel?.windowEnd,
+      urlFrom: url.from,
+      urlTo: url.to,
+      isEpisteme: pillar === 'episteme',
+      now: Date.now(),
+      lookbackMs: DEFAULT_LOOKBACK_MS
+    })
+  );
+  // Date-only form (YYYY-MM-DD) for the `/metrics/available` window + the native
+  // date inputs; full RFC 3339 form for `/scope/available-metrics` (date-time).
+  const dateWindow = $derived(toDateWindow(windowBounds));
+  const windowIso = $derived(toWindowIso(windowBounds));
   // Today (YYYY-MM-DD) — the native date inputs use it to forbid future dates
   // and to keep TO ≥ FROM (no inverted/future windows can be picked at all).
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -207,29 +196,20 @@
   const scopedSourceCount = $derived(scopedSourceNames.length);
   // Issue 6 — "show anyway": when on, the picker also offers partial metrics.
   const activeShowWithheld = $derived(boundPanel?.showWithheld === true);
-  // ADR-038 — a metric is offerable when there is no scope constraint yet, OR it
-  // is in the all-source intersection (`available`), OR it is a PARTIAL metric
-  // (present on some scoped source) AND the user opted to "show anyway". Filters
-  // both the metric picker and the scatter selectors.
-  //
-  // The catalog is the GLOBAL `/metrics/available` union; this gate constrains it
-  // to the SCOPE's INTERSECTION by default (Tier 1) so every cell is populated and
-  // the comparison is apples-to-apples. Partials sit behind the uniform
-  // "show anyway" toggle (Tier 2) — within-frame and cross-probe alike, no silent
-  // within-frame folding. A single-source scope has no partials, so it collapses
-  // to exactly that source's dimensions — matching its metadata-coverage matrix.
-  function isScopeAvailable(name: string): boolean {
-    if (scopeAvailableSet === null) return true;
-    if (scopeAvailableSet.has(name)) return true;
-    if (partialMetricSet.has(name) && activeShowWithheld) return true;
-    return false;
-  }
-  // Issue 6 — the scoped sources that LACK a given partial metric (the "cause"
-  // of the withholding), so the hint can name them instead of leaving the
-  // user to trial-and-error.
+  // ADR-038 — the scope-availability gate (see panel-controls-derive.isScopeAvailable):
+  // a metric is offerable when there is no scope constraint yet, OR it is in the
+  // all-source INTERSECTION (`available`, the apples-to-apples default, Tier 1), OR
+  // it is a PARTIAL metric the user opted to "show anyway" (Tier 2). Constrains both
+  // the metric picker and the scatter selectors — within-frame and cross-probe alike.
+  const scopeGate = $derived<ScopeGate>({
+    scopeAvailableSet,
+    partialMetricSet,
+    showWithheld: activeShowWithheld
+  });
+  // Issue 6 — the scoped sources that LACK a given partial metric (the "cause" of
+  // the withholding), so the hint can name them.
   function missingSourcesFor(have: readonly string[]): string[] {
-    const haveSet = new Set(have);
-    return scopedSourceNames.filter((s) => !haveSet.has(s));
+    return missingSourcesForOf(have, scopedSourceNames);
   }
 
   // Phase 133 — categorical metadata field availability for the scope (the
@@ -271,45 +251,22 @@
   // cross-probe alike — never folded in silently. View-independent so it is
   // correct even when read from pickView during a switch INTO a field view.
   function offerableMetadataFields(): string[] {
-    const seen: Record<string, true> = {};
-    const out: string[] = [];
-    const add = (f: string) => {
-      if (f && !seen[f]) {
-        seen[f] = true;
-        out.push(f);
-      }
-    };
-    for (const f of availableMetadataFields) add(f);
-    if (activeShowWithheld) {
-      for (const p of partialMetadataFields) add(p.field);
-    }
-    out.sort();
-    return out;
+    return offerableMetadataFieldsOf({
+      availableMetadataFields,
+      partialMetadataFields,
+      showWithheld: activeShowWithheld
+    });
   }
   // The picker list: offerable fields + the active field surfaced so the picker
   // reflects the current selection. Gated on the active view (only consumed
   // under `{#if viewUsesMetadataField}`).
-  const metadataFields = $derived.by<string[]>(() => {
-    if (!viewUsesMetadataField) return [];
-    const out = offerableMetadataFields();
-    if (activeMetric && !out.includes(activeMetric)) {
-      out.push(activeMetric);
-      out.sort();
-    }
-    return out;
-  });
-  // ADR-038 — the field to seed when switching to a field-driven view: the first
-  // INTERSECTION field (deterministic, sorted), NO hard-coded field-name bias and
-  // NO partial (a partial would seed a field some scoped source lacks → an
-  // off-comparison default). Returns '' when the scope shares no categorical field
-  // at all — the cell then shows honest Negative Space instead of querying a
-  // non-existent field. Reads `availableMetadataFields` directly so it is correct
-  // at the instant pickView runs (the active view is still the old one); the
-  // reconcile $effect below repairs the seed once the availability query resolves.
-  function firstMetadataField(): string {
-    return [...availableMetadataFields].sort()[0] ?? '';
-  }
-
+  const metadataFields = $derived.by<string[]>(() =>
+    buildMetadataFields({
+      viewUsesMetadataField,
+      offerable: offerableMetadataFields(),
+      activeMetric
+    })
+  );
   const activeMetric = $derived(boundPanel ? boundPanel.metric : DEFAULT_METRIC_NAME);
   const activeLayer = $derived<'gold' | 'silver'>(boundPanel ? boundPanel.layer : 'gold');
   const activeNormalization = $derived<Normalization>(
@@ -374,26 +331,14 @@
   // (metric × view) pair — `pickView` reconciles the metric on every view
   // change — so an incompatible active metric can only come from a
   // hand-crafted URL, in which case it is simply absent from the picker.
-  const metrics = $derived.by<string[]>(() => {
-    const view = activePresentation.id;
-    const seen: Record<string, true> = {};
-    const merged: string[] = [];
-    for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
-      if (!name || seen[name]) continue;
-      if (!metricSupportsPresentation(name, view)) continue;
-      // Phase 123c (C1) — withhold metrics absent from any scoped source.
-      if (!isScopeAvailable(name)) continue;
-      seen[name] = true;
-      merged.push(name);
-    }
-    // The active metric is always surfaced (even if it has since become
-    // partial across the scope) so the picker reflects the current
-    // selection rather than dropping it silently.
-    if (activeMetric && !seen[activeMetric] && metricSupportsPresentation(activeMetric, view)) {
-      merged.push(activeMetric);
-    }
-    return merged;
-  });
+  const metrics = $derived.by<string[]>(() =>
+    buildMetricList({
+      view: activePresentation.id,
+      availableMetricNames,
+      gate: scopeGate,
+      activeMetric
+    })
+  );
 
   // Phase 133 (Issue 4) — split the offered metrics into the analytical
   // measures (sentiment, entity_count, …) and the publisher-declared metadata
@@ -411,139 +356,23 @@
     // panel context (the empty-state path will be wired in K3 to open the
     // ScopeEditor instead of rendering PanelControls).
   }
-  // Phase 130 — pick the first metric the target view can render, preferring
-  // the canonical default. Used to reconcile a Panel whose current metric is
-  // incompatible with a newly-chosen view (e.g. switching a `publication_hour`
-  // distribution to a time-series, which the cyclic metric cannot render).
-  function firstMetricSupporting(view: Presentation): string {
-    if (metricSupportsPresentation(DEFAULT_METRIC_NAME, view)) return DEFAULT_METRIC_NAME;
-    return (
-      availableMetricNames.find((m) => metricSupportsPresentation(m, view)) ?? DEFAULT_METRIC_NAME
-    );
-  }
-
   function pickView(id: Presentation) {
     if (id === activePresentation.id) return;
     if (!panelPath) return;
-    updatePanel(panelPath, (p) => {
-      const next = { ...p, view: id };
-      // Phase 126 — per-cell overrides are presentation-specific (a bins
-      // override is meaningless for a network view; a scatter-axis override for
-      // a distribution). A view change discards them so they neither apply
-      // silently nor linger in the URL without an affordance to clear them.
-      delete next.cellOverrides;
-      const pres = presentations.find((x) => x.id === id);
-      // Phase 125a — metricSet (metric names) and fieldChain (categorical
-      // fields) are now distinct Panel fields and can never collide. Drop
-      // whichever the new view does not consume so a stale list neither lingers
-      // in the URL nor blocks the seed below. Same-kind switches (matrix↔
-      // parallel) keep metricSet; switching into sankey keeps fieldChain.
-      const nextParams = pres?.configurableParams ?? [];
-      if (!nextParams.includes('metricSet')) delete next.metricSet;
-      if (!nextParams.includes('sankeyFields')) delete next.fieldChain;
-      // Phase 125a — drop a stale facet field when the new view cannot facet, so
-      // it neither lingers in the URL nor silently reactivates on a later switch
-      // back (symmetry with metricSet/fieldChain/cellOverrides above).
-      if (!(pres?.supportsFaceting ?? false)) delete next.facetField;
-      const usesMetric = pres?.usesMetric ?? true;
-      const nextUsesMetadataField = pres?.usesMetadataField ?? false;
-      const prevUsesMetadataField = activePresentation.usesMetadataField ?? false;
-      // Phase 133 — `Panel.metric` carries a categorical FIELD for field-driven
-      // views and a Gold metric otherwise. Reconcile across that boundary so the
-      // cell never receives the wrong kind of identifier: switching INTO a
-      // field-driven view (from a metric view) seeds a default field; switching
-      // OUT of one (into a metric view) must reset, because a field name like
-      // "section" spuriously passes metricSupportsPresentation (scalar default).
-      if (nextUsesMetadataField) {
-        if (!prevUsesMetadataField || !next.metric) {
-          next.metric = firstMetadataField();
-        }
-      } else if (usesMetric) {
-        // Keep the Panel coherent: swap to a compatible metric when the current
-        // identifier is a field (came from a field view) or an incompatible
-        // metric, so the cell never renders a nonsensical (metric × view) pair.
-        if (prevUsesMetadataField || !metricSupportsPresentation(next.metric, id)) {
-          next.metric = firstMetricSupporting(id);
-        }
-      }
-      // Phase 131 (bugfix) — reconcile composition: if the panel was in
-      // overlay but the new view cannot render overlay (only time-series
-      // can), fall back to split — the per-scope equivalent of "keep the
-      // sources distinct" — so the panel never sits in a no-op composition.
-      if (next.composition === 'overlay' && !(pres?.supportsOverlay ?? false)) {
-        next.composition = 'split';
-      }
-      // Phase 131 — seed scatter position channels on first switch so the
-      // cell renders immediately rather than waiting for the user to pick
-      // both axes. Distinct x/y when the corpus offers >1 metric.
-      if (id === 'metric_scatter' && (!next.channels?.x || !next.channels?.y)) {
-        const opts = scalarMetricOptions;
-        // Issue 5 — a more interesting default than the alphabetical first
-        // two (entity_count × language_confidence): put a sentiment metric on
-        // X (prefer the multilingual backbone) and word_count on Y. Fall back
-        // gracefully to whatever the scope actually offers.
-        const sentiment =
-          opts.find((m) => m === 'sentiment_score_bert_multilingual') ??
-          opts.find((m) => m.startsWith('sentiment_score'));
-        const x = next.channels?.x ?? sentiment ?? opts[0] ?? DEFAULT_METRIC_NAME;
-        let y = next.channels?.y;
-        if (!y) {
-          y =
-            opts.includes('word_count') && x !== 'word_count'
-              ? 'word_count'
-              : (opts.find((m) => m !== x) ?? x);
-        }
-        next.channels = { ...(next.channels ?? {}), x, y };
-      }
-      // Phase 125 — seed the N-metric set on first switch into a metricSet-driven
-      // view (correlation_matrix, parallel_coordinates) so it renders at once.
-      // The first up-to-4 scope-available scalar metrics; needs ≥2.
-      if (
-        (pres?.configurableParams ?? []).includes('metricSet') &&
-        (next.metricSet?.length ?? 0) < 2
-      ) {
-        next.metricSet = scalarMetricOptions.slice(0, 4);
-      }
-      // Phase 125 — seed the Sankey field chain (Phase 125a: in `fieldChain`)
-      // with the first up-to-3 offerable categorical fields.
-      if (
-        (pres?.configurableParams ?? []).includes('sankeyFields') &&
-        (next.fieldChain?.length ?? 0) < 2
-      ) {
-        next.fieldChain = offerableMetadataFields().slice(0, 3);
-      }
-      // Phase 125 — seed the cross-tab numeric metric (channels.x) on first
-      // switch so it renders at once; prefer a sentiment metric.
-      if ((pres?.configurableParams ?? []).includes('crossMetric') && !next.channels?.x) {
-        const opts = scalarMetricOptions;
-        const seed =
-          opts.find((m) => m === 'sentiment_score_bert_multilingual') ??
-          opts.find((m) => m.startsWith('sentiment_score')) ??
-          opts.find((m) => m === 'word_count') ??
-          opts[0];
-        if (seed) next.channels = { ...(next.channels ?? {}), x: seed };
-      }
-      // Phase 125 — seed the lead-lag x/y metrics on first switch (two distinct
-      // metrics so the cell renders at once).
-      if (
-        (pres?.configurableParams ?? []).includes('leadLagAxes') &&
-        (!next.channels?.x || !next.channels?.y)
-      ) {
-        const opts = scalarMetricOptions;
-        const x =
-          next.channels?.x ??
-          opts.find((m) => m.startsWith('sentiment_score')) ??
-          opts[0] ??
-          DEFAULT_METRIC_NAME;
-        const y =
-          next.channels?.y ??
-          (opts.includes('word_count') && x !== 'word_count'
-            ? 'word_count'
-            : (opts.find((m) => m !== x) ?? x));
-        next.channels = { ...(next.channels ?? {}), x, y };
-      }
-      return next;
-    });
+    // The full view-switch reconciliation (discard presentation-specific
+    // overrides, reconcile metric↔field, drop no-op overlay, seed channels /
+    // metric-set / field-chain) is the pure reconcilePanelForView. Reactive
+    // inputs are snapshotted at click time and passed in.
+    updatePanel(panelPath, (p) =>
+      reconcilePanelForView(p, id, {
+        presentations,
+        prevUsesMetadataField: activePresentation.usesMetadataField ?? false,
+        scalarMetricOptions,
+        offerableFields: offerableMetadataFields(),
+        availableMetricNames,
+        availableMetadataFields
+      })
+    );
   }
   function pickLayer(next: 'gold' | 'silver') {
     if (next === activeLayer) return;
@@ -587,29 +416,16 @@
     const next = !(boundPanel.cellControlsCollapsed === true);
     updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
   }
-  // A scope-valid metric to snap to when the active metric is not offerable
-  // for the scope (e.g. the German-only SentiWS default on a French single-
-  // probe panel, or after "show anyway" is turned off). Preference order:
-  //   1. the scope's canonical default — SentiWS for a German single-probe
-  //      panel — when the scope actually carries it (keeps Probe 0's tuned
-  //      lexicon as its default);
-  //   2. the multilingual sentiment backbone, the one sentiment EVERY probe
-  //      carries, so a probe without a probe/language-specific model (e.g.
-  //      Probe 1, French) defaults to backbone sentiment — not an arbitrary
-  //      first metric;
-  //   3. any available sentiment metric, then any available metric.
+  // A scope-valid metric to snap to when the active metric is not offerable for
+  // the scope (see panel-controls-derive.resetMetricForScope: canonical default →
+  // multilingual backbone → any available sentiment → any available metric).
   function resetMetricForScope(): string {
-    const view = activePresentation.id;
-    const ok = (m: string) =>
-      (scopeAvailableSet?.has(m) ?? true) && metricSupportsPresentation(m, view);
-    const canonical = defaultMetricForScopes(boundPanel?.scopes ?? []);
-    if (ok(canonical)) return canonical;
-    if (ok(CROSS_PROBE_DEFAULT_METRIC)) return CROSS_PROBE_DEFAULT_METRIC;
-    const firstSentiment = availableMetricNames.find(
-      (m) => m.startsWith('sentiment_score') && ok(m)
-    );
-    if (firstSentiment) return firstSentiment;
-    return availableMetricNames.find(ok) ?? canonical;
+    return resetMetricForScopeOf({
+      view: activePresentation.id,
+      scopeAvailableSet,
+      scopes: boundPanel?.scopes ?? [],
+      availableMetricNames
+    });
   }
   // Issue 6 — "show anyway": offer the withheld (partial) metrics in the
   // picker. PanelHost still renders only the sources that carry the chosen
@@ -651,7 +467,7 @@
     // absence), so this fires for a single-source scope too: a stale/URL-set
     // metadata metric the lone source never emits snaps back to a valid one.
     if (scopeAvailableSet === null || activeShowWithheld) return;
-    if (isScopeAvailable(activeMetric)) return;
+    if (isScopeAvailable(activeMetric, scopeGate)) return;
     if (!availableMetricNames.includes(activeMetric)) return;
     const next = resetMetricForScope();
     if (next && next !== activeMetric) {
@@ -673,7 +489,7 @@
     if (metadataAvail === null) return; // query pending / refused / errored
     const fields = offerableMetadataFields();
     if (activeMetric && fields.includes(activeMetric)) return;
-    const next = firstMetadataField();
+    const next = firstMetadataField(availableMetadataFields);
     if (next !== activeMetric) {
       updatePanel(panelPath, (p) => ({ ...p, metric: next }));
     }
@@ -751,7 +567,7 @@
   // ~500 auto-switches the network to the large-scale WebGL renderer (no
   // Maximize needed). Other views cap at 500 so the slider never silently noops.
   const isCooccurrenceView = $derived((boundPanel?.view ?? '') === 'cooccurrence_network');
-  const topNMax = $derived(isCooccurrenceView ? 6000 : viewUsesMetadataField ? 200 : 500);
+  const topNMax = $derived(computeTopNMax({ isCooccurrenceView, viewUsesMetadataField }));
   const activeShowBand = $derived(boundPanel?.showBand ?? true);
   const activeShowEdges = $derived(boundPanel?.showEdges ?? false);
   const activeChannels = $derived<CellChannelBinding>(boundPanel?.channels ?? {});
@@ -822,33 +638,9 @@
   // real metric from /metrics/available, default-prepended so the picker is
   // never empty (cooccurrence's pair-shaped pseudo-metric never appears here
   // because it is not a /metrics/available entry).
-  const scalarMetricOptions = $derived.by<string[]>(() => {
-    const seen: Record<string, true> = {};
-    const out: string[] = [];
-    for (const name of [DEFAULT_METRIC_NAME, ...availableMetricNames]) {
-      if (!name || seen[name]) continue;
-      // Phase 123c (C1) — same all-source intersection guard as the metric
-      // picker; the scatter axes must not bind a metric missing from a
-      // scoped source.
-      if (!isScopeAvailable(name)) continue;
-      seen[name] = true;
-      out.push(name);
-    }
-    // Keep any currently-bound channel metric visible even if it has since
-    // become partial across the scope, so the selects reflect the binding.
-    for (const bound of [
-      activeChannels.x,
-      activeChannels.y,
-      activeChannels.size,
-      activeChannels.color
-    ]) {
-      if (bound && !seen[bound]) {
-        seen[bound] = true;
-        out.push(bound);
-      }
-    }
-    return out;
-  });
+  const scalarMetricOptions = $derived.by<string[]>(() =>
+    buildScalarMetricOptions({ availableMetricNames, gate: scopeGate, activeChannels })
+  );
 
   // Live slider read-outs. The range sliders update these on every `oninput`
   // tick for instant visual feedback, but COMMIT to Panel state (and thus the
