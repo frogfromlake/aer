@@ -54,6 +54,14 @@
     type ProbeDto,
     type QueryOutcome
   } from '$lib/api/queries';
+  import {
+    buildProbeMarkers,
+    computeWindow,
+    computeActivity,
+    resolveFlyTo,
+    buildFlatProbes,
+    type FlatProbe
+  } from './atmosphere-surface-internals';
 
   // The BFF is reachable at `/api/v1` via Traefik in every deployment.
   // Traefik attaches X-API-Key to every /api/* request (see compose.yaml
@@ -108,31 +116,9 @@
     return d?.kind === 'success' ? d.data : [];
   });
 
-  // Probe → engine model. Each emission point carries the canonical
-  // source name aligned positionally with `probe.sources[i]` (Phase 110:
-  // satellite click routes to /dossier/{probeId} with sourceIds pre-set). When
-  // sources and emissionPoints have unequal lengths the trailing entries
-  // get no sourceName and the engine renders no satellite for them.
-  let probeMarkers = $derived.by<ProbeMarker[]>(() =>
-    probeDtos.map((p) => ({
-      id: p.probeId,
-      language: p.language,
-      // Phase 123 — render the human-friendly short name on the globe marker,
-      // never the raw machine probeId. `id` remains the probeId (selection key).
-      label: p.shortName,
-      emissionPoints: p.emissionPoints.map((ep, i) => {
-        const source = p.sources[i];
-        return source !== undefined
-          ? {
-              latitude: ep.latitude,
-              longitude: ep.longitude,
-              label: ep.label,
-              sourceName: source
-            }
-          : { latitude: ep.latitude, longitude: ep.longitude, label: ep.label };
-      })
-    }))
-  );
+  // Probe → engine model (buildProbeMarkers): source names aligned positionally
+  // with emission points; the marker label is the human-friendly short name.
+  let probeMarkers = $derived.by<ProbeMarker[]>(() => buildProbeMarkers(probeDtos));
 
   // Phase 123a — stable selection object for the engine (memoised: a new
   // reference only when activeProbeId changes, so the canvas effect does not
@@ -147,26 +133,14 @@
   // the active probe is unchanged.
   const activeFlyTo = $derived.by<{ latitude: number; longitude: number } | null>(() => {
     void flyToNonce;
-    if (!activeProbeId) return null;
-    const p = probeDtos.find((d) => d.probeId === activeProbeId);
-    const ep = p?.emissionPoints[0];
-    return ep ? { latitude: ep.latitude, longitude: ep.longitude } : null;
+    return resolveFlyTo(probeDtos, activeProbeId);
   });
 
   // --- Time window (URL-backed) ---------------------------------------
   const url = $derived(urlState());
-  const windowMs = $derived.by<{ start: string; end: string; hours: number }>(() => {
-    const now = Date.now();
-    const fromMs = url.from ? Date.parse(url.from) : now - DEFAULT_LOOKBACK_MS;
-    const toMs = url.to ? Date.parse(url.to) : now;
-    const safeFrom = Number.isFinite(fromMs) ? fromMs : now - DEFAULT_LOOKBACK_MS;
-    const safeTo = Number.isFinite(toMs) ? toMs : now;
-    return {
-      start: new Date(safeFrom).toISOString(),
-      end: new Date(safeTo).toISOString(),
-      hours: Math.max(1, (safeTo - safeFrom) / (60 * 60 * 1000))
-    };
-  });
+  const windowMs = $derived.by(() =>
+    computeWindow(url.from, url.to, Date.now(), DEFAULT_LOOKBACK_MS)
+  );
 
   // --- Metrics → per-probe activity -----------------------------------
   const metricsQ = createQuery<
@@ -186,14 +160,7 @@
   let activity = $derived.by<ProbeActivity[]>(() => {
     const m = metricsQ.data;
     if (m?.kind !== 'success' || probeDtos.length === 0) return [];
-    const perSource: Record<string, number> = {};
-    for (const row of m.data.data) {
-      perSource[row.source] = (perSource[row.source] ?? 0) + (row.count ?? 0);
-    }
-    return probeDtos.map((p) => {
-      const total = p.sources.reduce((sum, s) => sum + (perSource[s] ?? 0), 0);
-      return { probeId: p.probeId, documentsPerHour: total / windowMs.hours };
-    });
+    return computeActivity(m.data.data, probeDtos, windowMs.hours);
   });
 
   // --- Selection (highlight only) -------------------------------------
@@ -283,14 +250,7 @@
   }
 
   // --- Keyboard descent grammar ---------------------------------------
-  interface FlatProbe {
-    probeId: string;
-    displayName: string;
-    language: string;
-  }
-  let flatProbes = $derived.by<FlatProbe[]>(() =>
-    probeDtos.map((p) => ({ probeId: p.probeId, displayName: p.displayName, language: p.language }))
-  );
+  let flatProbes = $derived.by<FlatProbe[]>(() => buildFlatProbes(probeDtos));
 
   // Pre-resolve the hovered probe DTO so the tooltip can render the
   // semantic-register identity.
