@@ -29,6 +29,12 @@
     HIDDEN_READOUT,
     type ReadoutState
   } from '$lib/presentations/cell-readout';
+  import {
+    buildPlotRows,
+    isDegenerate,
+    computePlotDomain,
+    fmtBinRange
+  } from '$lib/presentations/distribution-cell-internals';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
@@ -78,18 +84,6 @@
   const integerValued = $derived(
     isIntegerMetric(dataLayer === 'silver' ? silverAggType : metricName)
   );
-
-  /** Bin-range readout label. For integer metrics the fractional binning
-   *  boundary is rounded to the integer it brackets; a bin that collapses to
-   *  a single integer (sub-unit bin width) shows that one value. */
-  function fmtBinRange(lower: number, upper: number): string {
-    if (integerValued) {
-      const lo = Math.round(lower);
-      const hi = Math.round(upper);
-      return lo === hi ? String(lo) : `${lo} – ${hi}`;
-    }
-    return `${fmtValue(lower)} – ${fmtValue(upper)}`;
-  }
 
   const distQ = createQuery<
     QueryOutcome<DistributionResponseDto>,
@@ -193,72 +187,13 @@
   // overflow only in the caption, not as a bar.
   const sharedXActive = $derived(!!sharedDomains?.value);
 
-  // Histogram rows = in-range bins + one explicit overflow bar (Phase
-  // 133 B) when the domain was clamped, values fell beyond it, AND the
-  // axis is per-cell (free). The bar sits one bin-width past
-  // `clampedUpper`, styled distinctly; its count is never folded silently
-  // into the last bin (the caption always discloses it).
-  const plotRows = $derived.by(() => {
-    const d = activeDist;
-    if (!d)
-      return [] as Array<{
-        center: number;
-        width: number;
-        rw: number;
-        lower: number;
-        upper: number;
-        count: number;
-        overflow: boolean;
-      }>;
-    // Phase 133 (Issue 1) — `rw` is the half-width used for RENDERING. A
-    // degenerate bin (lower == upper, the BFF's single-bin response for a
-    // constant metric) has width 0, which draws a zero-width, un-hittable rect
-    // and collapses the x-axis. Give it a nominal render width (1 unit for an
-    // integer metric, 0.5 otherwise) so the bar is finite and centred on the
-    // real value; `lower`/`upper` stay exact for the readout.
-    const nominal = integerValued ? 1 : 0.5;
-    const rows = d.bins.map((b) => {
-      const width = b.upper - b.lower;
-      return {
-        center: (b.lower + b.upper) / 2,
-        width,
-        rw: (width || nominal) / 2,
-        lower: b.lower,
-        upper: b.upper,
-        count: b.count,
-        overflow: false
-      };
-    });
-    const cu = d.clampedUpper;
-    const last = rows[rows.length - 1];
-    if (d.overflowCount > 0 && cu != null && last && !sharedXActive) {
-      const w = last.width || 1;
-      rows.push({
-        center: cu + w / 2,
-        width: w,
-        rw: w / 2,
-        lower: cu,
-        upper: d.summary.max,
-        count: d.overflowCount,
-        overflow: true
-      });
-    }
-    return rows;
-  });
-
-  // Phase 133 (Issue 1/2) — a degenerate distribution: every bin is zero-width,
-  // i.e. every in-scope article shares one value (a constant metric like a
-  // paywall flag that is always 0, or image_count that is always 3). Drives an
-  // explicit x-domain (so the axis reads the real value, not an auto-domain "0")
-  // and an honest caption instead of a misleading single full-width bar.
-  const degenerate = $derived(plotRows.length > 0 && plotRows.every((r) => r.width === 0));
+  // Histogram rows (in-range bins + an explicit overflow bar when the domain was
+  // clamped on a free axis) + degenerate-distribution detection + x-domain are
+  // pure functions in `distribution-cell-internals.ts`.
+  const plotRows = $derived.by(() => buildPlotRows(activeDist, integerValued, sharedXActive));
+  const degenerate = $derived(isDegenerate(plotRows));
   const degenerateValue = $derived(degenerate ? (plotRows[0]?.lower ?? null) : null);
-  const plotDomain = $derived.by<[number, number] | null>(() => {
-    if (!degenerate) return null;
-    const los = plotRows.map((r) => r.lower);
-    const his = plotRows.map((r) => r.upper);
-    return [Math.min(...los) - 1, Math.max(...his) + 1];
-  });
+  const plotDomain = $derived(computePlotDomain(plotRows, degenerate));
 
   let host: HTMLDivElement | undefined = $state();
   let plotEl: HTMLElement | null = null;
@@ -352,7 +287,9 @@
       rows: [
         {
           label: 'range',
-          value: b.overflow ? `> ${fmtBinRange(b.lower, b.lower)}` : fmtBinRange(b.lower, b.upper)
+          value: b.overflow
+            ? `> ${fmtBinRange(b.lower, b.lower, integerValued)}`
+            : fmtBinRange(b.lower, b.upper, integerValued)
         },
         { label: 'articles', value: fmtValue(b.count) }
       ]
@@ -462,8 +399,8 @@
     {/if}
     {#if activeDist.overflowCount > 0 && activeDist.clampedUpper != null}
       <p class="overflow-note">
-        Binned up to {fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper)} (robust upper bound)
-        so outliers don't flatten the shape ·
+        Binned up to {fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper, integerValued)} (robust
+        upper bound) so outliers don't flatten the shape ·
         <strong>{fmtValue(activeDist.overflowCount)}</strong>
         article{activeDist.overflowCount === 1 ? '' : 's'} above it{sharedXActive
           ? ''

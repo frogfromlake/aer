@@ -58,7 +58,7 @@ Proposed thresholds (~500 Go/Py, ~400 Svelte, ~500 TS) **match current norms** �
 - [ ] `src/lib/components/atmosphere/AtmosphereSurface.svelte` — **682** · extract probe-selection + flyTo/banner handlers from engine-3d glue · atmosphere · **M** · 500
 - [ ] `src/lib/components/workbench/CellConfigPopover.svelte` — **660** · extract per-`configurableParams` field renderers · workbench · **S/M** · 500
 - [ ] `src/routes/(app)/reflection/wp/[id]/+page.svelte` — **642** · move markdown/section rendering to a component · routes · **S** · 500
-- [ ] `src/lib/components/presentations/DistributionCell.svelte` — **587** · bin-axis math → pure helper · presentations · **S** · 500
+- [x] `src/lib/components/presentations/DistributionCell.svelte` — **587 → 526** · extracted `distribution-cell-internals.ts` (buildPlotRows/isDegenerate/computePlotDomain/fmtBinRange — pure) + **8 new unit tests**; reactivity preserved ($derived calls the pure fns). svelte-check + fe-lint + fe-test green. *(pattern-establisher for medium pure-extractions)*
 - [ ] `src/lib/components/dossier/ProbeCard.svelte` — **568** · extract capability-matrix sub-component · dossier · **S** · 500
 - [~] `src/lib/components/chrome/SideRail.svelte` — **533** · **WITHIN TOLERANCE** (≤530-ish) — leave; markup-dominated, splitting for 3 LOC would degrade cohesion.
 - [~] `src/lib/components/source/SourceCard.svelte` — **526** · **WITHIN TOLERANCE** — leave.
