@@ -22,6 +22,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import audit_source
+import audit_core
+import audit_reaudit
 
 
 def _fake_resp(status: int = 200, body: str = "<html><body>x</body></html>",
@@ -131,8 +133,8 @@ def test_audit_source_identifies_archive_index_hits() -> None:
 def test_audit_source_trafilatura_skipped_when_unimportable() -> None:
     """When trafilatura is not installed, the report records the
     documented marker rather than crashing."""
-    with patch.object(audit_source, "_try_trafilatura_feeds", return_value=None), \
-         patch.object(audit_source, "_try_trafilatura_sitemaps", return_value=None):
+    with patch.object(audit_core, "_try_trafilatura_feeds", return_value=None), \
+         patch.object(audit_core, "_try_trafilatura_sitemaps", return_value=None):
         report = audit_source.audit_source(
             "https://example.com",
             http_get=MagicMock(return_value=_fake_resp(status=404)),
@@ -533,7 +535,7 @@ def test_run_reaudit_declined_returns_zero(tmp_path, monkeypatch) -> None:
     }
     monkeypatch.setattr("builtins.input", lambda _prompt: "n")
     original_body = yaml_path.read_text(encoding="utf-8")
-    with patch.object(audit_source, "audit_source", return_value=fake_report):
+    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
             yaml_path=yaml_path,
             source_name="example",
@@ -566,7 +568,7 @@ def test_run_reaudit_no_changes_returns_zero(tmp_path, capsys) -> None:
         "homepage_inline_feeds": [],
         "html_sitemap_candidates": [], "archive_index_candidates": [],
     }
-    with patch.object(audit_source, "audit_source", return_value=fake_report):
+    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
             yaml_path=yaml_path,
             source_name="example",
@@ -598,7 +600,7 @@ def test_run_reaudit_dry_run_does_not_write(tmp_path, capsys) -> None:
         "html_sitemap_candidates": [], "archive_index_candidates": [],
     }
     original_body = yaml_path.read_text(encoding="utf-8")
-    with patch.object(audit_source, "audit_source", return_value=fake_report):
+    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
             yaml_path=yaml_path,
             source_name="example",
@@ -773,9 +775,9 @@ def test_audit_source_rejects_static_archive_pages(monkeypatch) -> None:
         return resp
 
     # Avoid trafilatura side-effects.
-    monkeypatch.setattr(audit_source, "_try_trafilatura_feeds",
+    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds",
                         lambda _hp: [])
-    monkeypatch.setattr(audit_source, "_try_trafilatura_sitemaps",
+    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps",
                         lambda _hp: [])
 
     report = audit_source.audit_source(
@@ -812,9 +814,9 @@ def test_audit_source_accepts_real_date_walker(monkeypatch) -> None:
         resp.url = url
         return resp
 
-    monkeypatch.setattr(audit_source, "_try_trafilatura_feeds",
+    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds",
                         lambda _hp: [])
-    monkeypatch.setattr(audit_source, "_try_trafilatura_sitemaps",
+    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps",
                         lambda _hp: [])
 
     report = audit_source.audit_source(
@@ -846,7 +848,7 @@ def test_run_reaudit_auto_yes_applies_diff(tmp_path) -> None:
         "homepage_inline_feeds": [],
         "html_sitemap_candidates": [], "archive_index_candidates": [],
     }
-    with patch.object(audit_source, "audit_source", return_value=fake_report):
+    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
             yaml_path=yaml_path,
             source_name="example",
