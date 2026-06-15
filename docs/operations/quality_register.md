@@ -60,9 +60,11 @@ Proposed thresholds (~500 Go/Py, ~400 Svelte, ~500 TS) **match current norms** �
 - [ ] `src/routes/(app)/reflection/wp/[id]/+page.svelte` — **642** · move markdown/section rendering to a component · routes · **S** · 500
 - [ ] `src/lib/components/presentations/DistributionCell.svelte` — **587** · bin-axis math → pure helper · presentations · **S** · 500
 - [ ] `src/lib/components/dossier/ProbeCard.svelte` — **568** · extract capability-matrix sub-component · dossier · **S** · 500
-- [ ] `src/lib/components/chrome/SideRail.svelte` — **533** · extract anchor list · chrome · **S** · 500
-- [ ] `src/lib/components/source/SourceCard.svelte` — **526** · extract register/authorship block · source · **S** · 500
-- [ ] `src/lib/components/article/ArticleListModal.svelte` — **502** · extract row component · article · **S** · 500
+- [~] `src/lib/components/chrome/SideRail.svelte` — **533** · **WITHIN TOLERANCE** (≤530-ish) — leave; markup-dominated, splitting for 3 LOC would degrade cohesion.
+- [~] `src/lib/components/source/SourceCard.svelte` — **526** · **WITHIN TOLERANCE** — leave.
+- [~] `src/lib/components/article/ArticleListModal.svelte` — **502** · **WITHIN TOLERANCE** — leave.
+
+> **Svelte verification reality (operator decision 2026-06-15):** no Svelte component-render test setup exists (vitest is `node`-env). Components verify via svelte-check (types/template) + E2E (Playwright, image not pulled) only. So ALL component work uses the **Tier-2 approach: svelte-check + careful manual review, git as the safety net** — distinct from the unit-tested TS modules above. Sub-tiers: **(a) pure-logic extraction** (the 568–728 components — lift `$derived`/helpers into a companion `.ts` + ADD unit tests for the pure helper; reactivity/template untouched → low risk) · **(b) markup-giant sub-componentisation** (PanelControls/PanelHost/L5EvidenceReader/CoOccurrenceNetworkCell/ScopeEditor/AnalysesOverlay — props/state/CSS-scope/bindings risk; svelte-check + review only).
 
 **Go (ratchet 500):** — ✅ all split (golangci clean, bff tests green incl. Testcontainers)
 - [x] `view_mode_handlers.go` 1334 → `view_mode_handlers.go` (132, shared scope/window) + `distribution_handlers.go` (384) + `heatmap_correlation_handlers.go` (381) + `cooccurrence_handlers.go` (455)
@@ -79,13 +81,15 @@ Proposed thresholds (~500 Go/Py, ~400 Svelte, ~500 TS) **match current norms** �
 - [~] `services/analysis-worker/internal/processor.py` — **642** · **EXCEPTION.** The core extractor-pipeline processor — one cohesive unit (language-detection-first ordering + Gold enrichment). The census itself flagged it "marginal; extract only if it grows." *Allowlisted.*
 - [~] `crawlers/web-crawler/main.py` — **577** · **EXCEPTION.** Crawler entrypoint, only marginally over (Scrapy bootstrap + CLI + per-channel orchestration are tightly coupled to the run setup). *Allowlisted.*
 
-**TS (ratchet 500):**
-- [ ] `src/lib/api/queries.ts` — **1239** · split by domain into `queries/{metrics,revisions,cooccurrence,probes,articles}.ts` + barrel · api · **M** · 500
-- [ ] `src/lib/state/url-internals.ts` — **985** · split `url-codec.ts` + `url-guards.ts` off the read/write core · state · **M** · 500
-- [ ] `src/lib/presentations/registry.ts` — **784** · move data tables to `registry-data.ts`, keep types+accessors (CLAUDE.md SoT — preserve export surface exactly) · presentations · **M** · 500
-- [ ] `packages/engine-3d/src/engine.ts` — **937** · split `engine-scene.ts` + `engine-loop.ts` (camera/marker/glow already seam'd) · engine-3d · **M** · 500
-- [ ] `src/lib/workbench/panel-queries.ts` — **526** · marginal; cohesive — low priority · workbench · **S** · 500
-- [~] `src/lib/reflection/open-questions.ts` — **743** · **data-dominated, recommend EXEMPT from ratchet** (content array); relocate to `.json`/generated table rather than decompose · dashboard · **S (exempt)** · n/a · *(NB: `viridis.ts` 570, the other exemption candidate, turned out fully dead and was DELETED in Phase 139, see §2)*
+**Ratchet threshold = 530 (operator decision 2026-06-15): 500 + a ±20–30 line tolerance — do NOT degrade code quality just to force <500.** Files within ~530 that are cohesive stay as-is (not split, not "exceptions" — within tolerance).
+
+**TS — unit-tested modules (the safe split tier), all DONE + green (svelte-check 0 errors, fe-test + fe-lint pass):**
+- [x] `src/lib/api/queries.ts` — **1239** → `queries/` barrel-dir: `shared.ts`(325) + `probes.ts`(255) + `articles.ts`(208) + `analytics.ts`(354) + `revisions.ts`(158) + `index.ts`(6). Stable `$lib/api/queries` path preserved (dir index). 3 query test files green.
+- [x] `src/lib/state/url-internals.ts` — **985** → `url-types.ts`(499, types+consts+Compact) + `url-codec.ts`(391, compact/expand/encode/decode/guards/base64) + `url-internals.ts`(127, read/write + re-exports). `import type` circular-safe; 4 url test files green.
+- [x] `src/lib/presentations/registry.ts` — **784** → `registry.ts`(465, types+accessors) + `registry-data.ts`(324, PRESENTATIONS table). SoT export surface preserved.
+- [~] `src/lib/workbench/panel-queries.ts` — **526** · **WITHIN TOLERANCE** (≤530) — cohesive panel→query mapping (CLAUDE.md SoT); not split.
+- [ ] `packages/engine-3d/src/engine.ts` — **937** · → **Tier 2** (Three.js; behaviour verifiable only via E2E/WebGL, no node unit path) — handle with svelte-check + review, not in the safe tier.
+- [~] `src/lib/reflection/open-questions.ts` — **743** · **data-dominated** (content array); relocate to `.json`/generated OR keep as data exemption. (`viridis.ts` 570, the other candidate, was deleted dead in Phase 139.)
 
 ### Long test files (→ Phase 142, listed only — NOT Phase 141)
 - [ ] Go: `bff-api/internal/handler/metrics_handler_test.go` 988 · `…/storage/metrics_query_test.go` 944 · `…/handler/view_mode_handlers_test.go` 671 · `…/storage/view_mode_queries_test.go` 637
