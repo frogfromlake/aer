@@ -391,3 +391,78 @@ test.describe('Phase 141 — Workbench ScopeEditor characterization', () => {
     await expect(cards.nth(1).locator('.step[data-step="3"]')).toBeVisible();
   });
 });
+
+// CellConfigPopover decomposition net (Phase 141). None of the tests above open
+// the per-cell config popover — offered only on a multi-cell panel (Split). These
+// pin ITS rendered structure (the dialog shell, the per-lever rows with their
+// override dots, and the override → custom-note → Reset lifecycle) so a markup/CSS
+// sub-componentisation of CellConfigPopover (per-type lever children) stays
+// behaviour-preserving. The distribution seed declares `bins` + `scales` and (it
+// usesMetric) a dimension peek, so a single cheap seed exercises all THREE popover
+// control primitives — select (dimension) / slider (bins) / switch (scale) — plus
+// the override path; the cooccurrence/scatter lever branches are structurally
+// identical markup, so no extra d3 seed is needed.
+test.describe('Phase 141 — Workbench CellConfigPopover characterization', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockBff(page);
+  });
+
+  async function openFirstCellPopover(page: Page) {
+    await page.goto(WORKBENCH_URL);
+    const panel = page.locator('article.panel-host');
+    const strip = page.getByRole('region', { name: 'Panel controls' });
+    // Split → two source cells, each carrying the per-cell config affordance.
+    await strip
+      .getByRole('radiogroup', { name: 'Composition' })
+      .getByRole('radio', { name: 'Split', exact: true })
+      .click();
+    await expect(panel.locator('.panel-cell')).toHaveCount(2);
+    // Open the first cell's popover.
+    await panel
+      .locator('.panel-cell')
+      .first()
+      .getByRole('button', { name: 'Configure this cell' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: /Cell configuration for/ });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  test('⚙ Cell opens the per-cell popover with the distribution levers', async ({ page }) => {
+    const dialog = await openFirstCellPopover(page);
+
+    // Header eyebrow.
+    await expect(dialog.getByText('Cell config')).toBeVisible();
+
+    // Starts inheriting → muted note + Reset disabled.
+    await expect(dialog.getByText('Inheriting the panel default for every lever.')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Reset to panel default/ })).toBeDisabled();
+
+    // All three popover control primitives render for a distribution cell:
+    //   dimension peek (select), bins (slider), scale (switch).
+    await expect(dialog.getByRole('group', { name: 'Cell dimension' })).toBeVisible();
+    await expect(dialog.getByRole('group', { name: 'Histogram bins' })).toBeVisible();
+    await expect(dialog.getByRole('group', { name: 'Axis scale' })).toBeVisible();
+  });
+
+  test('toggling a lever overrides the cell, shows the dot, and Reset clears it', async ({
+    page
+  }) => {
+    const dialog = await openFirstCellPopover(page);
+
+    // Flip the Scale switch → the cell goes onto a custom config.
+    const scaleGroup = dialog.getByRole('group', { name: 'Axis scale' });
+    await expect(scaleGroup.locator('.ccp-dot')).toHaveCount(0);
+    await scaleGroup.getByRole('switch').click();
+
+    // Custom note replaces the inherit note; the Scale row shows its override dot.
+    await expect(dialog.getByText(/not directly comparable to its sibling/)).toBeVisible();
+    await expect(scaleGroup.locator('.ccp-dot')).toHaveCount(1);
+
+    // Reset becomes enabled, clears the override, and closes the popover.
+    const reset = dialog.getByRole('button', { name: /Reset to panel default/ });
+    await expect(reset).toBeEnabled();
+    await reset.click();
+    await expect(dialog).toBeHidden();
+  });
+});

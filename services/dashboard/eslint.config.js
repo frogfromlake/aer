@@ -26,20 +26,21 @@ const FILE_LENGTH_MAX = 530;
 // because `+page.svelte` is not unique and `(app)`/`[id]` are glob-special.
 const FILE_LENGTH_ALLOWLIST = [
   // PanelControls.svelte + PanelHost.svelte + L5EvidenceReader.svelte +
-  // ScopeEditor.svelte + AnalysesOverlay.svelte — decomposed in Phase 141 into
-  // per-lever (./levers/*) and per-region children (PanelToolbar /
-  // PanelScopeChips / PanelDisclosureNotes / PanelCellGrid / PanelCell; L5MetaGrid
-  // / L5NegativeSpaceSection / L5DiffTab / L5RevisionHistory + pure logic in
-  // l5-evidence-internals.ts, unit-tested; ScopeGroupCard / ScopeGroupSources
-  // + pure mutators in scope-editor-internals.ts, unit-tested; AnalysisTable /
-  // AnalysisDrawer + pure filter/sort/deep-link logic in
-  // analyses-overlay-internals.ts, unit-tested) each <530; all parents are now
+  // ScopeEditor.svelte + AnalysesOverlay.svelte + CellConfigPopover.svelte —
+  // decomposed in Phase 141 into per-lever (./levers/*) and per-region children
+  // (PanelToolbar / PanelScopeChips / PanelDisclosureNotes / PanelCellGrid /
+  // PanelCell; L5MetaGrid / L5NegativeSpaceSection / L5DiffTab / L5RevisionHistory
+  // + pure logic in l5-evidence-internals.ts, unit-tested; ScopeGroupCard /
+  // ScopeGroupSources + pure mutators in scope-editor-internals.ts, unit-tested;
+  // AnalysisTable / AnalysisDrawer + pure filter/sort/deep-link logic in
+  // analyses-overlay-internals.ts, unit-tested; CellConfigValueLevers /
+  // CellConfigChannelLevers + pure clamps/option-builders in
+  // cell-config-popover-internals.ts, unit-tested) each <530; all parents are now
   // thin orchestrators under the global cap (no entry needed).
   ['**/CoOccurrenceNetworkCell.svelte', 1222], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue
   ['**/packages/engine-3d/src/engine.ts', 937], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable
   ['**/open-questions.ts', 743], // DATA table (open research-question content), not logic; relocate-to-JSON deferred
   ['**/CoOccurrenceNetworkAtScale.svelte', 728], // logic in cooccurrence-network-shared.ts (tested); residual = sigma/FA2/WebGL glue
-  ['**/CellConfigPopover.svelte', 660], // per-configurableParams field-renderer markup; field-renderer split = Tier-2b
   ['**/reflection/wp/*/+page.svelte', 642], // markdown/section rendering markup; section-renderer split = Tier-2b
   ['**/AtmosphereSurface.svelte', 642], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers
   ['**/ProbeCard.svelte', 568], // capability-matrix markup; matrix child split = Tier-2b

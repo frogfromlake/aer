@@ -4795,7 +4795,8 @@ This phase enforces the following — every implementation choice must satisfy t
   * [x] `L5EvidenceReader` 1286→395 (Tier-2b: L5MetaGrid/L5NegativeSpaceSection/L5DiffTab/L5RevisionHistory + tested `l5-evidence-internals.ts` +29t).
   * [x] `ScopeEditor` 997→457 (ScopeGroupCard/ScopeGroupSources + tested `scope-editor-internals.ts` +20t; behind extended Workbench e2e).
   * [x] `AnalysesOverlay` 974→489 (AnalysisTable/AnalysisDrawer + tested `analyses-overlay-internals.ts` +19t; behind a new `analyses.spec.ts` e2e).
-  * [ ] `CellConfigPopover` 660, `wp/[id]/+page` 642, `ProbeCard` 568 — remaining.
+  * [x] `CellConfigPopover` 660→223 (order-preserving 2-child split CellConfigValueLevers/CellConfigChannelLevers + tested `cell-config-popover-internals.ts` +15t; behind an extended Workbench e2e). Did **not** reuse the `levers/*` strip primitives — the compact `.ccp-*` popover styling (Phase-126 overflow fixes + per-row override dots) differs from the roomier `.ctrl-*` strip, so reuse would have been a visual regression (technique #7).
+  * [ ] `wp/[id]/+page` 642, `ProbeCard` 568 — remaining.
 * [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
 
 ### Validation
