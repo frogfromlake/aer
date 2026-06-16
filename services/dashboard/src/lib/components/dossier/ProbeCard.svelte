@@ -8,15 +8,13 @@
   //     `[Metadata coverage]` modal trigger + expand toggle
   //   * Emic frame paragraph (semantic register from BFF /content)
   //   * Structural meta (sources, publication rate, function coverage)
-  //   * Discourse-Function Cards — each DF is a collapsable container
-  //     whose body holds the Source-Cards of sources classified under
-  //     it. The Phase-122i tile-grid is retired; the Phase-122k container
-  //     pattern groups sources under their primary function.
+  //   * Capability matrix (what AĒR CAN compute — no result claim)
+  //   * Discourse-Function Cards (the ProbeDfCards child) — each DF a
+  //     collapsable container holding the Source-Cards classified under it.
   //
-  // Removed in K2: per-probe FreeComposeSection, the legacy DF-tile-as-
-  // Workbench-Entry, inline MetadataCoveragePanel (now a modal opened
-  // from the header), the scope-summary chip strip (scope lives entirely
-  // in the Workbench's ScopeEditor now).
+  // Phase 141 — the DF-Cards region + its grouping/coverage logic moved to
+  // `ProbeDfCards.svelte` + `probe-card-internals.ts`; this file is the card
+  // shell (queries, header, structural meta, capabilities).
   import { createQuery } from '@tanstack/svelte-query';
   import {
     contentQuery,
@@ -24,17 +22,15 @@
     type ContentResponseDto,
     type FetchContext,
     type ProbeDossierDto,
-    type ProbeDossierSourceDto,
     type ProbeDto,
     type QueryOutcome
   } from '$lib/api/queries';
-  import {
-    DISCOURSE_FUNCTIONS,
-    FUNCTION_DEFINITIONS,
-    type DiscourseFunction
-  } from '$lib/discourse-function';
-  import SourceCard from '$lib/components/source/SourceCard.svelte';
   import MetadataCoverageModal from './MetadataCoverageModal.svelte';
+  import ProbeDfCards from './ProbeDfCards.svelte';
+  import {
+    coveragePercent as computeCoveragePercent,
+    publicationRatePerDay as computePublicationRate
+  } from './probe-card-internals';
 
   interface Props {
     probe: ProbeDto;
@@ -57,14 +53,6 @@
   // pattern re-evaluates the base value while still letting the user's
   // header click stamp a local override.
   let expanded = $derived(!startCollapsed);
-
-  // Per-DF expand state — default closed; user toggles per container.
-  let dfExpanded = $state<Record<DiscourseFunction, boolean>>({
-    epistemic_authority: false,
-    power_legitimation: false,
-    cohesion_identity: false,
-    subversion_friction: false
-  });
 
   // Metadata-Coverage Modal open state.
   let mdcOpen = $state(false);
@@ -94,56 +82,12 @@
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
 
-  // Group sources by primary discourse function for the DF-Card container
-  // pattern. Sources without a primaryFunction fall into the "unclassified"
-  // bucket (rendered after the four canonical functions when present).
-  const sourcesByFunction = $derived.by<Record<DiscourseFunction, ProbeDossierSourceDto[]>>(() => {
-    const out: Record<DiscourseFunction, ProbeDossierSourceDto[]> = {
-      epistemic_authority: [],
-      power_legitimation: [],
-      cohesion_identity: [],
-      subversion_friction: []
-    };
-    if (!dossier) return out;
-    for (const s of dossier.sources) {
-      const fn = s.primaryFunction as DiscourseFunction | null | undefined;
-      if (fn && fn in out) {
-        out[fn].push(s);
-      }
-    }
-    return out;
-  });
+  const publicationRatePerDay = $derived(dossier ? computePublicationRate(dossier.sources) : null);
 
-  const unclassifiedSources = $derived<ProbeDossierSourceDto[]>(
-    dossier ? dossier.sources.filter((s) => !s.primaryFunction) : []
-  );
-
-  const coveredFunctions = $derived<Set<DiscourseFunction>>(
-    new Set(
-      DISCOURSE_FUNCTIONS.filter(
-        (fn: DiscourseFunction) => sourcesByFunction[fn] && sourcesByFunction[fn].length > 0
-      )
-    )
-  );
-
-  const publicationRatePerDay = $derived.by<number | null>(() => {
-    if (!dossier) return null;
-    const total = dossier.sources.reduce((sum, s) => sum + (s.publicationFrequencyPerDay ?? 0), 0);
-    return total > 0 ? total : null;
-  });
-
-  const coveragePercent = $derived(
-    dossier && dossier.functionCoverage.total > 0
-      ? Math.round((dossier.functionCoverage.covered / dossier.functionCoverage.total) * 100)
-      : 0
-  );
+  const coveragePercent = $derived(dossier ? computeCoveragePercent(dossier.functionCoverage) : 0);
 
   function toggleExpanded() {
     expanded = !expanded;
-  }
-
-  function toggleDf(fn: DiscourseFunction) {
-    dfExpanded = { ...dfExpanded, [fn]: !dfExpanded[fn] };
   }
 
   function openMetadataModal() {
@@ -260,78 +204,13 @@
           </section>
         {/if}
 
-        <!-- Discourse-Function Cards as containers. Each is collapsable;
-             the body lists Source-Cards for sources whose primary
-             function matches. Uncovered DFs render with an explicit
-             "uncovered" hint to surface the Negative Space. -->
-        <section class="df-cards" aria-labelledby="df-heading">
-          <h3 id="df-heading" class="section-title">Discourse Functions</h3>
-          <ul class="df-list" role="list">
-            {#each DISCOURSE_FUNCTIONS as fn (fn)}
-              {@const meta = FUNCTION_DEFINITIONS[fn]}
-              {@const covered = coveredFunctions.has(fn)}
-              {@const sources = sourcesByFunction[fn] ?? []}
-              {@const isOpen = dfExpanded[fn]}
-              <li>
-                <article
-                  class="df-card"
-                  class:covered
-                  class:expanded={isOpen}
-                  style:--fn-color={meta.color}
-                >
-                  <button
-                    type="button"
-                    class="df-head"
-                    aria-expanded={isOpen}
-                    aria-controls="df-body-{probe.probeId}-{fn}"
-                    onclick={() => toggleDf(fn)}
-                  >
-                    <span class="df-chev" class:expanded={isOpen} aria-hidden="true">›</span>
-                    <span class="df-abbr">{meta.abbr}</span>
-                    <span class="df-label">{meta.label}</span>
-                    <span class="df-state" aria-hidden="true">
-                      {covered
-                        ? `${sources.length} source${sources.length === 1 ? '' : 's'}`
-                        : 'uncovered'}
-                    </span>
-                  </button>
-                  {#if isOpen}
-                    <div class="df-body" id="df-body-{probe.probeId}-{fn}">
-                      <p class="df-desc">{meta.description}</p>
-                      {#if sources.length > 0}
-                        <ul class="source-grid" role="list">
-                          {#each sources as source (source.name)}
-                            <li><SourceCard {source} {ctx} {windowStart} {windowEnd} /></li>
-                          {/each}
-                        </ul>
-                      {:else}
-                        <p class="muted">No sources in this probe carry this function.</p>
-                      {/if}
-                    </div>
-                  {/if}
-                </article>
-              </li>
-            {/each}
-          </ul>
-
-          {#if unclassifiedSources.length > 0}
-            <div class="df-card df-card-unclassified">
-              <header class="df-head df-head-static">
-                <span class="df-label">Unclassified sources</span>
-                <span class="df-state">
-                  {unclassifiedSources.length} source{unclassifiedSources.length === 1 ? '' : 's'}
-                </span>
-              </header>
-              <div class="df-body">
-                <ul class="source-grid" role="list">
-                  {#each unclassifiedSources as source (source.name)}
-                    <li><SourceCard {source} {ctx} {windowStart} {windowEnd} /></li>
-                  {/each}
-                </ul>
-              </div>
-            </div>
-          {/if}
-        </section>
+        <ProbeDfCards
+          probeId={probe.probeId}
+          sources={dossier.sources}
+          {ctx}
+          {windowStart}
+          {windowEnd}
+        />
       {/if}
     </div>
   {/if}
@@ -482,128 +361,10 @@
     color: var(--color-fg);
   }
 
-  .df-cards {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
   .section-title {
     margin: 0 0 var(--space-1) 0;
     font-size: var(--font-size-md);
     color: var(--color-fg);
-  }
-
-  .df-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    /* Phase 122k §6 finding — fixed 2x2 raster. The four DFs always
-       occupy two columns; expanding a card lets it grow downward inside
-       its column without breaking the layout. Each DF gets ~50% of the
-       probe-card width. */
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: min-content;
-    align-items: start;
-    gap: var(--space-2);
-  }
-  .df-list > li {
-    min-width: 0;
-  }
-
-  .df-card {
-    border: 1px solid var(--color-border);
-    border-left: 3px solid var(--fn-color, var(--color-border-strong));
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    overflow: hidden;
-  }
-  .df-card.covered .df-label {
-    color: var(--color-fg);
-  }
-  .df-card:not(.covered) .df-label {
-    color: var(--color-fg-subtle);
-  }
-
-  .df-card-unclassified {
-    border-left-color: var(--color-border);
-  }
-
-  .df-head {
-    appearance: none;
-    background: transparent;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-  }
-  .df-head-static {
-    cursor: default;
-  }
-  .df-head:hover,
-  .df-head:focus-visible {
-    background: var(--color-bg-elevated);
-  }
-
-  .df-chev {
-    color: var(--color-fg-subtle);
-    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
-    display: inline-block;
-  }
-  .df-chev.expanded {
-    transform: rotate(90deg);
-  }
-
-  .df-abbr {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-    color: var(--fn-color, var(--color-fg));
-    background: color-mix(in srgb, var(--fn-color, var(--color-surface)) 12%, var(--color-surface));
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-  }
-
-  .df-label {
-    font-size: var(--font-size-sm);
-  }
-
-  .df-state {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    margin-left: auto;
-  }
-
-  .df-body {
-    padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    border-top: 1px dashed var(--color-border);
-  }
-
-  .df-desc {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
-    line-height: 1.55;
-    max-width: 60rem;
-  }
-
-  .source-grid {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
   }
 
   .muted {

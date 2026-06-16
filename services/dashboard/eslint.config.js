@@ -35,15 +35,17 @@ const FILE_LENGTH_ALLOWLIST = [
   // AnalysisTable / AnalysisDrawer + pure filter/sort/deep-link logic in
   // analyses-overlay-internals.ts, unit-tested; CellConfigValueLevers /
   // CellConfigChannelLevers + pure clamps/option-builders in
-  // cell-config-popover-internals.ts, unit-tested) each <530; all parents are now
-  // thin orchestrators under the global cap (no entry needed).
+  // cell-config-popover-internals.ts, unit-tested; wp/[id]/+page → WpBreadcrumb /
+  // WpTableOfContents / WpPaperBody + wp-page-internals.ts, unit-tested; ProbeCard
+  // → ProbeDfCards + probe-card-internals.ts, unit-tested) each <530; all parents
+  // are now thin orchestrators under the global cap (no entry needed). Phase 141
+  // is COMPLETE: every remaining entry below is an operator-approved exception
+  // (render-glue / data table / within-tolerance), not pending decomposition.
   ['**/CoOccurrenceNetworkCell.svelte', 1222], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue
   ['**/packages/engine-3d/src/engine.ts', 937], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable
   ['**/open-questions.ts', 743], // DATA table (open research-question content), not logic; relocate-to-JSON deferred
   ['**/CoOccurrenceNetworkAtScale.svelte', 728], // logic in cooccurrence-network-shared.ts (tested); residual = sigma/FA2/WebGL glue
-  ['**/reflection/wp/*/+page.svelte', 642], // markdown/section rendering markup; section-renderer split = Tier-2b
   ['**/AtmosphereSurface.svelte', 642], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers
-  ['**/ProbeCard.svelte', 568], // capability-matrix markup; matrix child split = Tier-2b
   ['**/SideRail.svelte', 533] // markup-dominated; 3 LOC over — within the ±20-30 tolerance band
 ];
 

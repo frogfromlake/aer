@@ -4778,7 +4778,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 141: File Decomposition — Long-File Refactor [P2] - [ ] IN PROGRESS
+## Phase 141: File Decomposition — Long-File Refactor [P2] - [x] DONE
 
 *Split the over-long files from Phase 138's census into coherent units along existing architectural seams — Clean Architecture for Go (`cmd`→`config`→`core`→`storage`), extractor/adapter boundaries for the worker, component/store boundaries for the dashboard. Structural only: no behaviour change.*
 
@@ -4789,18 +4789,19 @@ This phase enforces the following — every implementation choice must satisfy t
 * [x] **Done — Phase-1 LOGIC extraction from the giants** (pure logic → tested companion modules; the components themselves are NOT yet <530): `PanelControls`→`panel-controls-derive.ts` (+21t incl. `reconcilePanelForView`), `PanelHost`→`panel-host-layout.ts` (+21t). Co-occurrence cells share `cooccurrence-network-shared.ts`.
 * [x] **Done — Ratchet** = ESLint **`max-lines`** (530 non-blank LOC) over production TS+Svelte, per-file no-growth caps for residuals in `eslint.config.js` (`FILE_LENGTH_ALLOWLIST`); runs in `make fe-lint` → pre-commit/-push + CI; teeth-tested. (Ruff/golangci have no file-length rule → Go 0 violations + 4 cohesive Python files documented in the register.)
 * [x] **Done — Playwright e2e net** validated (32/32 green) — the safety harness for the markup decomposition below.
-* [~] **IN PROGRESS — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net). Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530.
+* [x] **DONE — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net). Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530. All 8 giants done.
   * [x] `PanelControls` 2002→356 (`workbench/levers/*`: 2 shared primitives + 8 per-lever children).
   * [x] `PanelHost` 1364→312 (5 per-region children: PanelToolbar/PanelScopeChips/PanelDisclosureNotes/PanelCellGrid/PanelCell).
   * [x] `L5EvidenceReader` 1286→395 (Tier-2b: L5MetaGrid/L5NegativeSpaceSection/L5DiffTab/L5RevisionHistory + tested `l5-evidence-internals.ts` +29t).
   * [x] `ScopeEditor` 997→457 (ScopeGroupCard/ScopeGroupSources + tested `scope-editor-internals.ts` +20t; behind extended Workbench e2e).
   * [x] `AnalysesOverlay` 974→489 (AnalysisTable/AnalysisDrawer + tested `analyses-overlay-internals.ts` +19t; behind a new `analyses.spec.ts` e2e).
   * [x] `CellConfigPopover` 660→223 (order-preserving 2-child split CellConfigValueLevers/CellConfigChannelLevers + tested `cell-config-popover-internals.ts` +15t; behind an extended Workbench e2e). Did **not** reuse the `levers/*` strip primitives — the compact `.ccp-*` popover styling (Phase-126 overflow fixes + per-row override dots) differs from the roomier `.ctrl-*` strip, so reuse would have been a visual regression (technique #7).
-  * [ ] `wp/[id]/+page` 642, `ProbeCard` 568 — remaining.
+  * [x] `wp/[id]/+page` 642→91 (per-region WpBreadcrumb/WpTableOfContents/WpPaperBody + tested `wp-page-internals.ts` +7t; behind a new `reflection-wp.spec.ts` e2e). CSS-dominated; folded the always-on `.neg-space .toc` accent into base.
+  * [x] `ProbeCard` 568→381 (ProbeDfCards child + tested `probe-card-internals.ts` +8t; behind a new `dossier.spec.ts` e2e). The DF-region split is the cohesive cut (the census's capability-matrix-only idea was too small).
 * [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
 
 ### Validation
-* [ ] Full test suite green before and after each split; the ESLint `max-lines` ratchet active in fe-lint + CI; every census file either <530 or a justified allowlist entry. **Closes when the 8 open giants above are decomposed to <530** (their caps removed from the allowlist) — leaving only the operator-approved render-glue/data/entrypoint exceptions.
+* [x] **CLOSED (2026-06-16).** Full test suite green before and after each split; the ESLint `max-lines` ratchet active in fe-lint + CI; every census file is either <530 or a justified allowlist entry. All 8 open giants decomposed to <530 (their caps removed from the allowlist), leaving only the operator-approved render-glue/data/within-tolerance exceptions (`CoOccurrenceNetworkCell` 1222, `engine.ts` 937, `open-questions.ts` 743, `CoOccurrenceNetworkAtScale` 728, `AtmosphereSurface` 642, `SideRail` 533, + 4 Python residuals). Final sweep: fe-lint(+knip) green · fe-test 464 · full e2e 48 passed/3 skipped. **The 7 long TEST files are tracked separately in Phase 142.**
 
 ---
 
