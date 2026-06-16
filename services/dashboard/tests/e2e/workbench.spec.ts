@@ -309,3 +309,85 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     await expect(panel.locator('.panel-cell')).toHaveCount(2);
   });
 });
+
+// ScopeEditor decomposition net (Phase 141). The PanelControls/PanelHost tests
+// above never open the ScopeEditor — the Workbench's single configuration
+// surface. These pin ITS rendered structure (the modal dialog, the first-class
+// ScopeGroup cards, and the numbered probe/DF/source steps) and the two entry
+// paths (⚙ Edit scope → edit-mode, ＋ Panel → create-mode) so a markup/CSS
+// sub-componentisation of ScopeEditor (esp. a per-card ScopeGroupCard child)
+// stays behaviour-preserving.
+test.describe('Phase 141 — Workbench ScopeEditor characterization', () => {
+  // The modal is `width: min(84rem, 100%)`, centred. At the default 1280-px
+  // viewport it spans nearly full width, so its bottom-left footer button
+  // (Add scope group) falls under the fixed SideRail (z-index 450 > modal 50).
+  // A wider viewport centres the 84-rem modal clear of the ~184-px rail so the
+  // genuine click lands — orthogonal to what this net pins.
+  test.use({ viewport: { width: 1920, height: 1000 } });
+
+  test.beforeEach(async ({ page }) => {
+    await mockBff(page);
+  });
+
+  test('⚙ Edit scope opens the editor in edit-mode with the seed scope group card', async ({
+    page
+  }) => {
+    await page.goto(WORKBENCH_URL);
+
+    const panel = page.locator('article.panel-host');
+    await panel.getByRole('button', { name: 'Edit scope' }).click();
+
+    // The modal dialog mounts (shared aria-label across both modes).
+    const dialog = page.getByRole('dialog', { name: 'Configure panel scope' });
+    await expect(dialog).toBeVisible();
+    // Edit-mode heading + Apply label distinguish it from create-mode.
+    await expect(dialog.getByRole('heading', { name: 'Configure panel scope' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Apply changes' })).toBeVisible();
+
+    // ScopeGroups are first-class visible cards — exactly one for the seed panel.
+    const cards = dialog.locator('article.group');
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toHaveAttribute('aria-label', 'Scope group 1');
+
+    // Step 1 renders Probe 0 as a chip, checked (the seed scope selects it).
+    const probeChip = cards
+      .first()
+      .locator('.probe-chip', { hasText: 'Probe 0 — German institutional web' });
+    await expect(probeChip).toBeVisible();
+    await expect(probeChip).toHaveClass(/checked/);
+
+    // Step 3 lists the probe's sources from the dossier (tagesschau + bundesregierung).
+    await expect(dialog.locator('.source-row')).toHaveCount(2);
+
+    // Cancel closes the editor (backdrop-click never does — only Esc / Cancel / Apply).
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test('＋ Panel opens create-mode; Add scope group appends a second card', async ({ page }) => {
+    await page.goto(WORKBENCH_URL);
+
+    // The WindowHost `＋ Panel` primary action opens the create-mode editor.
+    await page.locator('button.window-action-primary').click();
+
+    const dialog = page.getByRole('dialog', { name: 'Configure panel scope' });
+    await expect(dialog).toBeVisible();
+    // Create-mode heading + Apply label.
+    await expect(dialog.getByRole('heading', { name: 'Configure new panel' })).toBeVisible();
+    const applyBtn = dialog.getByRole('button', { name: 'Create panel' });
+    // Create mode starts with one empty group → no probe yet → Apply disabled.
+    await expect(dialog.locator('article.group')).toHaveCount(1);
+    await expect(applyBtn).toBeDisabled();
+
+    // Add a parallel scope group → a second first-class card appears.
+    await dialog.getByRole('button', { name: 'Add scope group' }).click();
+    const cards = dialog.locator('article.group');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.nth(1)).toHaveAttribute('aria-label', 'Scope group 2');
+
+    // Each card carries the three numbered steps (probes / DF / sources).
+    await expect(cards.nth(1).locator('.step[data-step="1"]')).toBeVisible();
+    await expect(cards.nth(1).locator('.step[data-step="2"]')).toBeVisible();
+    await expect(cards.nth(1).locator('.step[data-step="3"]')).toBeVisible();
+  });
+});

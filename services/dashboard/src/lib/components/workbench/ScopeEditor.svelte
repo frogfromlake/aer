@@ -21,6 +21,15 @@
   import { probesQuery, probeDossierQuery } from '$lib/api/queries';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import { loadDraft, saveDraft, clearDraft } from '$lib/workbench/scope-editor-draft';
+  import {
+    toggleProbeInGroup,
+    toggleSourceInGroup,
+    selectAllSourcesInGroup,
+    clearSourcesInGroup,
+    pruneSourcesToLock,
+    resolvePanelLock
+  } from '$lib/workbench/scope-editor-internals';
+  import ScopeGroupCard from './ScopeGroupCard.svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import { onMount, onDestroy } from 'svelte';
 
@@ -116,32 +125,8 @@
   });
   const probeList = $derived<ProbeDto[]>(probesQ.data?.kind === 'success' ? probesQ.data.data : []);
 
-  const DISCOURSE_FUNCTIONS: ReadonlyArray<{
-    id: DiscourseFunction;
-    label: string;
-    color: string;
-  }> = [
-    { id: 'epistemic_authority', label: 'Epistemic Authority', color: '#7dc7e5' },
-    { id: 'power_legitimation', label: 'Power Legitimation', color: '#e8a25c' },
-    { id: 'cohesion_identity', label: 'Cohesion & Identity', color: '#a3c984' },
-    { id: 'subversion_friction', label: 'Subversion & Friction', color: '#d97a7a' }
-  ];
-
   function effectiveLockForGroup(groupIndex: number): DiscourseFunction | null {
     return perGroupLock[groupIndex] ?? null;
-  }
-
-  function sourceMatchesDf(
-    source: ProbeDossierDto['sources'][number],
-    df: DiscourseFunction | null
-  ): boolean {
-    if (df === null) return true;
-    // Phase 122k §11 finding — DF-lock matches on PRIMARY only. The
-    // secondary-function tag is a softer signal (Bundesregierung's
-    // secondary EA exists because policy reads as authoritative, but the
-    // source's structural role is PL). Locking on EA should NOT auto-
-    // include PL-primary sources just because they carry a secondary EA.
-    return source.primaryFunction === df;
   }
 
   // Phase 123c — per-probe dossier source cache. The `dossier` prop seeds the
@@ -197,60 +182,29 @@
     return !(probeId in dossierSourcesByProbe);
   }
 
+  // The per-group draft mutations delegate to the pure cores in
+  // `scope-editor-internals.ts` (unit-tested); this component only owns the
+  // `$state` assignment.
   function toggleProbe(groupIndex: number, probeId: string) {
-    const group = draftScopes[groupIndex];
-    if (!group) return;
-    const probeIds = group.probeIds.includes(probeId)
-      ? group.probeIds.filter((p) => p !== probeId)
-      : [...group.probeIds, probeId];
-    // Source-IDs orphaned by probe deselection are dropped automatically:
-    // sources from a probe that's no longer in the group are filtered out.
-    const remainingProbes = new Set(probeIds);
-    const liveSourceIds = group.sourceIds.filter((sid) => {
-      for (const pid of remainingProbes) {
-        if (sourcesForProbe(pid).some((s) => s.name === sid)) return true;
-      }
-      return false;
-    });
-    draftScopes = draftScopes.map((g, i) =>
-      i === groupIndex ? { probeIds, sourceIds: liveSourceIds } : g
-    );
+    draftScopes = toggleProbeInGroup(draftScopes, groupIndex, probeId, sourcesForProbe);
   }
 
   function toggleSource(groupIndex: number, sourceName: string) {
-    const group = draftScopes[groupIndex];
-    if (!group) return;
-    const sourceIds = group.sourceIds.includes(sourceName)
-      ? group.sourceIds.filter((s) => s !== sourceName)
-      : [...group.sourceIds, sourceName];
-    draftScopes = draftScopes.map((g, i) =>
-      i === groupIndex ? { probeIds: [...group.probeIds], sourceIds } : g
-    );
+    draftScopes = toggleSourceInGroup(draftScopes, groupIndex, sourceName);
   }
 
   function selectAllSourcesForProbe(groupIndex: number, probeId: string) {
-    const group = draftScopes[groupIndex];
-    if (!group) return;
-    const lock = effectiveLockForGroup(groupIndex);
-    const matching = sourcesForProbe(probeId)
-      .filter((s) => sourceMatchesDf(s, lock))
-      .map((s) => s.name);
-    const otherProbeSources = group.sourceIds.filter(
-      (sid) => !sourcesForProbe(probeId).some((s) => s.name === sid)
-    );
-    draftScopes = draftScopes.map((g, i) =>
-      i === groupIndex
-        ? { probeIds: [...group.probeIds], sourceIds: [...otherProbeSources, ...matching] }
-        : g
+    draftScopes = selectAllSourcesInGroup(
+      draftScopes,
+      groupIndex,
+      probeId,
+      effectiveLockForGroup(groupIndex),
+      sourcesForProbe
     );
   }
 
   function clearAllSources(groupIndex: number) {
-    const group = draftScopes[groupIndex];
-    if (!group) return;
-    draftScopes = draftScopes.map((g, i) =>
-      i === groupIndex ? { probeIds: [...group.probeIds], sourceIds: [] } : g
-    );
+    draftScopes = clearSourcesInGroup(draftScopes, groupIndex);
   }
 
   function addGroup() {
@@ -266,22 +220,8 @@
 
   function setGroupLock(groupIndex: number, df: DiscourseFunction | null) {
     perGroupLock = perGroupLock.map((v, i) => (i === groupIndex ? df : v));
-    const group = draftScopes[groupIndex];
-    if (group && df) {
-      // Prune sources that no longer match the new lock.
-      const filtered = group.sourceIds.filter((name) => {
-        for (const pid of group.probeIds) {
-          const src = sourcesForProbe(pid).find((s) => s.name === name);
-          if (src && sourceMatchesDf(src, df)) return true;
-        }
-        return false;
-      });
-      if (filtered.length !== group.sourceIds.length) {
-        draftScopes = draftScopes.map((g, i) =>
-          i === groupIndex ? { probeIds: [...group.probeIds], sourceIds: filtered } : g
-        );
-      }
-    }
+    // Prune sources that no longer match the new lock (no-op when df is null).
+    if (df) draftScopes = pruneSourcesToLock(draftScopes, groupIndex, df, sourcesForProbe);
   }
 
   function apply() {
@@ -289,11 +229,7 @@
     // restriction, surface it as panel.lockedFunction; otherwise leave
     // the panel unlocked. A future Phase 122k.2 lifts the lock into
     // per-ScopeGroup schema so multi-group DF mixes round-trip.
-    const uniqueLocks = new Set(perGroupLock);
-    const resolvedLock =
-      uniqueLocks.size === 1
-        ? ((Array.from(uniqueLocks)[0] as DiscourseFunction | null | undefined) ?? null)
-        : null;
+    const resolvedLock = resolvePanelLock(perGroupLock);
     // Phase 122k §11 — only the Workbench-page auto-open path
     // participates in draft persistence. Other Apply paths (+Panel,
     // Edit-Scope) deliberately don't save, so a +Panel apply never
@@ -362,190 +298,22 @@
 
     <div class="groups">
       {#each draftScopes as group, groupIndex (groupIndex)}
-        {@const lock = effectiveLockForGroup(groupIndex)}
-        {@const lockMeta = lock ? DISCOURSE_FUNCTIONS.find((d) => d.id === lock) : null}
-        <article
-          class="group"
-          aria-label="Scope group {groupIndex + 1}"
-          style:--lock-color={lockMeta?.color ?? 'var(--color-accent)'}
-        >
-          <header class="group-header">
-            <div class="group-title-line">
-              <span class="group-eyebrow">Group {groupIndex + 1}</span>
-              <span class="group-summary">
-                {group.probeIds.length} probe{group.probeIds.length === 1 ? '' : 's'} ·
-                {group.sourceIds.length} source{group.sourceIds.length === 1 ? '' : 's'}
-                {#if lockMeta}· locked to <strong>{lockMeta.label}</strong>{/if}
-              </span>
-              {#if draftScopes.length > 1}
-                <button
-                  type="button"
-                  class="group-remove-btn"
-                  onclick={() => removeGroup(groupIndex)}
-                  aria-label="Remove this scope group"
-                  title="Remove this scope group"
-                >
-                  × Remove group
-                </button>
-              {/if}
-            </div>
-          </header>
-
-          <!-- 1. Probes -->
-          <section class="step" data-step="1">
-            <header class="step-header">
-              <span class="step-num" aria-hidden="true">1</span>
-              <h3 class="step-title">Probes</h3>
-              <span class="step-hint">Pick one or more probes for this scope group.</span>
-            </header>
-            <div class="probe-grid">
-              {#if probesQ.isPending}
-                <p class="muted" aria-busy="true">Loading probes…</p>
-              {:else if probeList.length === 0}
-                <p class="muted">No probes available.</p>
-              {:else}
-                {#each probeList as probe (probe.probeId)}
-                  {@const checked = group.probeIds.includes(probe.probeId)}
-                  <label class="probe-chip" class:checked>
-                    <input
-                      type="checkbox"
-                      {checked}
-                      onchange={() => toggleProbe(groupIndex, probe.probeId)}
-                      aria-label="Include {probe.displayName}"
-                    />
-                    <span class="probe-name">{probe.displayName}</span>
-                    <span class="probe-lang">{probe.language.toUpperCase()}</span>
-                  </label>
-                {/each}
-              {/if}
-            </div>
-          </section>
-
-          <!-- 2. DF restriction -->
-          <section class="step" data-step="2">
-            <header class="step-header">
-              <span class="step-num" aria-hidden="true">2</span>
-              <h3 class="step-title">Discourse function</h3>
-              <span class="step-hint"
-                >Optional. Dim sources that don't carry the chosen function.</span
-              >
-            </header>
-            <div class="df-row">
-              <button
-                type="button"
-                class="df-chip df-chip-none"
-                class:active={lock === null}
-                onclick={() => setGroupLock(groupIndex, null)}
-              >
-                None — all functions
-              </button>
-              {#each DISCOURSE_FUNCTIONS as df (df.id)}
-                <button
-                  type="button"
-                  class="df-chip"
-                  class:active={lock === df.id}
-                  style:--chip-color={df.color}
-                  onclick={() => setGroupLock(groupIndex, df.id)}
-                >
-                  {df.label}
-                </button>
-              {/each}
-            </div>
-          </section>
-
-          <!-- 3. Sources -->
-          <section class="step" data-step="3">
-            <header class="step-header">
-              <span class="step-num" aria-hidden="true">3</span>
-              <h3 class="step-title">Sources</h3>
-              <span class="step-hint">
-                Within the selected probes. Leave empty to include the whole probe.
-              </span>
-            </header>
-            {#if group.probeIds.length === 0}
-              <p class="muted-large">Pick at least one probe in step 1 to see its sources here.</p>
-            {:else}
-              {#each group.probeIds as probeId (probeId)}
-                {@const probeSources = sourcesForProbe(probeId)}
-                {@const probeLabel =
-                  probeList.find((p) => p.probeId === probeId)?.displayName ?? probeId}
-                <div class="source-section">
-                  <header class="source-section-header">
-                    <span class="probe-section-label">{probeLabel}</span>
-                    {#if probeSources.length > 0}
-                      <span class="source-actions">
-                        <button
-                          type="button"
-                          class="source-action"
-                          onclick={() => selectAllSourcesForProbe(groupIndex, probeId)}
-                          title="Include all matching sources of this probe"
-                        >
-                          Select all
-                        </button>
-                        <button
-                          type="button"
-                          class="source-action"
-                          onclick={() => clearAllSources(groupIndex)}
-                          title="Whole-probe scope (no source narrowing)"
-                        >
-                          Clear all
-                        </button>
-                      </span>
-                    {/if}
-                  </header>
-                  {#if probeSources.length === 0}
-                    {#if sourcesLoading(probeId)}
-                      <p class="muted" aria-busy="true">Loading sources for {probeLabel}…</p>
-                    {:else}
-                      <p class="muted">No sources available for {probeLabel}.</p>
-                    {/if}
-                  {:else}
-                    <ul class="source-list" role="list">
-                      {#each probeSources as source (source.name)}
-                        {@const checked = group.sourceIds.includes(source.name)}
-                        {@const dim = !sourceMatchesDf(source, lock)}
-                        <li>
-                          <label class="source-row" class:checked class:dim>
-                            <input
-                              type="checkbox"
-                              {checked}
-                              disabled={dim}
-                              onchange={() => toggleSource(groupIndex, source.name)}
-                              aria-label="Include {source.emicDesignation ?? source.name}"
-                            />
-                            <span class="source-label">
-                              <span class="source-name">
-                                {source.emicDesignation ?? source.name}
-                              </span>
-                              {#if source.emicDesignation && source.emicDesignation !== source.name}
-                                <code class="source-id">{source.name}</code>
-                              {/if}
-                              {#if source.primaryFunction}
-                                {@const fnMeta = DISCOURSE_FUNCTIONS.find(
-                                  (d) => d.id === source.primaryFunction
-                                )}
-                                <span
-                                  class="source-df-tag"
-                                  style:--tag-color={fnMeta?.color ?? 'var(--color-fg-subtle)'}
-                                  title="Primary discourse function (provisional, source-level; per-article Phase 122a deferred)"
-                                >
-                                  {(source.primaryFunction ?? '').replace('_', ' ')}
-                                </span>
-                              {/if}
-                            </span>
-                            {#if dim}
-                              <span class="source-dim-hint">not matching {lockMeta?.label}</span>
-                            {/if}
-                          </label>
-                        </li>
-                      {/each}
-                    </ul>
-                  {/if}
-                </div>
-              {/each}
-            {/if}
-          </section>
-        </article>
+        <ScopeGroupCard
+          {group}
+          {groupIndex}
+          lock={effectiveLockForGroup(groupIndex)}
+          canRemove={draftScopes.length > 1}
+          {probeList}
+          probesPending={probesQ.isPending}
+          {sourcesForProbe}
+          {sourcesLoading}
+          onToggleProbe={(probeId) => toggleProbe(groupIndex, probeId)}
+          onToggleSource={(sourceName) => toggleSource(groupIndex, sourceName)}
+          onSetLock={(df) => setGroupLock(groupIndex, df)}
+          onSelectAll={(probeId) => selectAllSourcesForProbe(groupIndex, probeId)}
+          onClearAll={() => clearAllSources(groupIndex)}
+          onRemove={() => removeGroup(groupIndex)}
+        />
       {/each}
     </div>
 
@@ -664,349 +432,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-  }
-
-  .group {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-4) var(--space-5);
-    background: var(--color-surface);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.05),
-      inset 3px 0 0 var(--lock-color);
-  }
-
-  .group-header {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .group-title-line {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .group-eyebrow {
-    text-transform: uppercase;
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    color: var(--color-fg-subtle);
-    font-family: var(--font-mono);
-  }
-
-  .group-summary {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-  }
-
-  .group-remove-btn {
-    margin-left: auto;
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-xs);
-    padding: 4px var(--space-2);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-  .group-remove-btn:hover,
-  .group-remove-btn:focus-visible {
-    color: #d97a7a;
-    border-color: #d97a7a;
-  }
-
-  /* ---------- Steps (numbered sections) ---------- */
-  .step {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-  }
-  /* Phase 122k §10 finding — accent dimmed and pulled to a single
-     consistent border-left tint. The dimmed accents read as visual
-     organisation without competing with the DF chips and source rows. */
-  .step[data-step='1'] {
-    border-left: 2px solid color-mix(in srgb, #7dc7e5 50%, var(--color-border));
-  }
-  .step[data-step='2'] {
-    border-left: 2px solid color-mix(in srgb, #e8a25c 50%, var(--color-border));
-  }
-  .step[data-step='3'] {
-    border-left: 2px solid color-mix(in srgb, #a3c984 50%, var(--color-border));
-  }
-
-  .step-header {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .step-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 999px;
-    background: var(--color-bg-elevated);
-    color: var(--color-fg);
-    font-family: var(--font-mono);
-    font-weight: 700;
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
-    flex-shrink: 0;
-  }
-  /* Number badges stay neutral — the dim border-left does the
-     section-tinting work. */
-
-  .step-title {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-fg);
-  }
-
-  .step-hint {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-subtle);
-    font-style: italic;
-  }
-
-  /* ---------- Step 1 — probe grid ---------- */
-  .probe-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-
-  .probe-chip {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
-    transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .probe-chip:hover {
-    border-color: #7dc7e5;
-  }
-  .probe-chip.checked {
-    background: color-mix(in srgb, #7dc7e5 18%, var(--color-bg-elevated));
-    border-color: #7dc7e5;
-  }
-  .probe-chip input {
-    accent-color: #7dc7e5;
-  }
-
-  .probe-name {
-    font-family: var(--font-mono);
-  }
-
-  .probe-lang {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 1px 5px;
-    background: var(--color-bg);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-subtle);
-  }
-
-  /* ---------- Step 2 — DF chips ---------- */
-  .df-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-
-  .df-chip {
-    appearance: none;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-    cursor: pointer;
-    transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .df-chip:hover,
-  .df-chip:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--chip-color, var(--color-border-strong));
-  }
-  .df-chip.active {
-    background: color-mix(
-      in srgb,
-      var(--chip-color, var(--color-accent)) 20%,
-      var(--color-bg-elevated)
-    );
-    border-color: var(--chip-color, var(--color-accent));
-    color: var(--color-fg);
-    font-weight: 600;
-  }
-  .df-chip-none.active {
-    background: color-mix(in srgb, var(--color-fg-subtle) 12%, var(--color-bg-elevated));
-    border-color: var(--color-fg-subtle);
-  }
-
-  /* ---------- Step 3 — Sources ---------- */
-  .source-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
-  }
-  .source-section + .source-section {
-    border-top: 1px dashed var(--color-border);
-    margin-top: var(--space-2);
-    padding-top: var(--space-3);
-  }
-
-  .source-section-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .probe-section-label {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
-    background: color-mix(in srgb, #a3c984 14%, var(--color-bg-elevated));
-    border: 1px solid color-mix(in srgb, #a3c984 40%, transparent);
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-  }
-
-  .source-actions {
-    margin-left: auto;
-    display: flex;
-    gap: var(--space-2);
-  }
-
-  .source-action {
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-xs);
-    padding: 3px var(--space-2);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-  .source-action:hover,
-  .source-action:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-  }
-
-  .source-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .source-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .source-row:hover {
-    background: var(--color-bg-elevated);
-  }
-  .source-row.checked {
-    background: color-mix(in srgb, #a3c984 12%, var(--color-surface));
-  }
-  .source-row.dim {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-  .source-row.dim:hover {
-    background: transparent;
-  }
-  .source-row input {
-    accent-color: #a3c984;
-  }
-
-  .source-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex: 1 1 auto;
-    flex-wrap: wrap;
-  }
-
-  .source-name {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
-  }
-
-  .source-id {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-  }
-
-  .source-df-tag {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--tag-color, var(--color-fg-subtle)) 14%, transparent);
-    color: var(--tag-color, var(--color-fg-subtle));
-    border: 1px solid color-mix(in srgb, var(--tag-color, var(--color-border)) 40%, transparent);
-  }
-
-  .source-dim-hint {
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    font-style: italic;
-  }
-
-  .muted {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-subtle);
-  }
-  .muted-large {
-    margin: 0;
-    font-size: var(--font-size-md);
-    color: var(--color-fg-subtle);
-    font-style: italic;
-    padding: var(--space-2) 0;
   }
 
   /* ---------- Footer ---------- */
