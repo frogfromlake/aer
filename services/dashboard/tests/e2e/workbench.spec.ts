@@ -269,4 +269,43 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     );
     await expect(strip.getByRole('radiogroup', { name: 'Split direction' })).toBeVisible();
   });
+
+  // PanelHost decomposition net (Phase 141). The two tests above pin the
+  // PanelControls strip; these pin PanelHost's OWN markup — the toolbar header
+  // and the cell-grid fan-out — so a markup/CSS sub-componentisation of
+  // PanelHost (PanelToolbar / PanelScopeChips / PanelCellGrid / PanelCell) stays
+  // behaviour-preserving.
+  test('renders the panel toolbar header + a single merged cell', async ({ page }) => {
+    await page.goto(WORKBENCH_URL);
+
+    const panel = page.locator('article.panel-host');
+    await expect(panel).toBeVisible();
+
+    // Toolbar: presentation eyebrow + bound metric + the scope-edit action.
+    await expect(panel.locator('.panel-eyebrow')).toHaveText('Distribution');
+    await expect(panel.locator('.panel-metric')).toHaveText('sentiment_score_sentiws');
+    await expect(panel.getByRole('button', { name: 'Edit scope' })).toBeVisible();
+
+    // Cell grid: a merged panel resolves to exactly one rendered cell, not split.
+    await expect(panel.locator('.panel-body')).not.toHaveClass(/split/);
+    await expect(panel.locator('.panel-cell')).toHaveCount(1);
+  });
+
+  test('Split fans the cell grid out to one cell per source', async ({ page }) => {
+    await page.goto(WORKBENCH_URL);
+
+    const panel = page.locator('article.panel-host');
+    const strip = page.getByRole('region', { name: 'Panel controls' });
+    const compGroup = strip.getByRole('radiogroup', { name: 'Composition' });
+
+    // Merged → one cell.
+    await expect(panel.locator('.panel-cell')).toHaveCount(1);
+
+    await compGroup.getByRole('radio', { name: 'Split', exact: true }).click();
+
+    // Split → the body takes the split layout and fans out per dossier source
+    // (tagesschau + bundesregierung = 2 cells).
+    await expect(panel.locator('.panel-body.split')).toBeVisible();
+    await expect(panel.locator('.panel-cell')).toHaveCount(2);
+  });
 });
