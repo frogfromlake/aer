@@ -25,12 +25,13 @@ const FILE_LENGTH_MAX = 530;
 // Filename globs are unique across the repo; the route page uses a path glob
 // because `+page.svelte` is not unique and `(app)`/`[id]` are glob-special.
 const FILE_LENGTH_ALLOWLIST = [
-  // PanelControls.svelte + PanelHost.svelte — decomposed in Phase 141 into
-  // per-lever (./levers/*) and per-region (PanelToolbar / PanelScopeChips /
-  // PanelDisclosureNotes / PanelCellGrid / PanelCell) child components (each
-  // <530) behind the Workbench characterization e2e; both parents are now thin
-  // orchestrators under the global cap (no entry needed).
-  ['**/L5EvidenceReader.svelte', 1286], // markup 475 / scoped-CSS 510 dominated; row/strip/segment child split = Tier-2b
+  // PanelControls.svelte + PanelHost.svelte + L5EvidenceReader.svelte —
+  // decomposed in Phase 141 into per-lever (./levers/*) and per-region children
+  // (PanelToolbar / PanelScopeChips / PanelDisclosureNotes / PanelCellGrid /
+  // PanelCell; L5MetaGrid / L5NegativeSpaceSection / L5DiffTab /
+  // L5RevisionHistory + pure logic in l5-evidence-internals.ts, unit-tested)
+  // each <530; all parents are now thin orchestrators under the global cap
+  // (no entry needed).
   ['**/CoOccurrenceNetworkCell.svelte', 1222], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue
   ['**/ScopeEditor.svelte', 997], // scoped-CSS 456 dominated; draft logic in scope-editor-draft.ts; ScopeGroupCard split = Tier-2b
   ['**/AnalysesOverlay.svelte', 974], // async-API orchestration + markup + scoped-CSS; AnalysisRow/ShareDrawer split = Tier-2b
