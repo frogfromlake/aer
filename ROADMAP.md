@@ -4778,18 +4778,22 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 141: File Decomposition — Long-File Refactor [P2] - [ ] TODO
+## Phase 141: File Decomposition — Long-File Refactor [P2] - [ ] IN PROGRESS
 
 *Split the over-long files from Phase 138's census into coherent units along existing architectural seams — Clean Architecture for Go (`cmd`→`config`→`core`→`storage`), extractor/adapter boundaries for the worker, component/store boundaries for the dashboard. Structural only: no behaviour change.*
 
 **Grounding.** Read first: Phase-138 long-file census + split hypotheses, the Clean-Architecture layering (CLAUDE.md), the worker `MetricExtractor`/`SourceAdapter` boundaries, the dashboard component/`$lib` structure, the `panel-mutators` pure/rune split (an existing good decomposition to mirror). Preserve: public APIs, the pure/impure split pattern (`panel-mutators-pure.ts` vs rune-wrapped), import graphs. Verify-first: decompose along an existing seam, never invent a parallel structure beside the established one (brownfield rule).
 
 ### Refactor
-* [ ] **Top long-files split** into cohesive modules following the established seams; behaviour-preserving (tests unchanged green before/after). Prioritise the highest-LOC + highest-churn files first.
-* [ ] **Ratchet.** A file-length lint/CI check at the agreed threshold so regressions fail the build.
+* [x] **Done — split <530, behaviour-preserving:** **Go** 5 files → 15 (golangci clean, Testcontainer green); **Python** `corpus.py`/`audit_source.py`/`web_extract.py` (348 worker + 121 crawler tests green); **Dashboard TS SoTs** `queries.ts` 1239→6, `url-internals` 985→3, `registry` 784→2; **Svelte mediums** DistributionCell/TopicEvolutionCell/AtmosphereSurface (pure logic → `*-internals.ts`, +~30 tests).
+* [x] **Done — Phase-1 LOGIC extraction from the giants** (pure logic → tested companion modules; the components themselves are NOT yet <530): `PanelControls`→`panel-controls-derive.ts` (+21t incl. `reconcilePanelForView`), `PanelHost`→`panel-host-layout.ts` (+21t). Co-occurrence cells share `cooccurrence-network-shared.ts`.
+* [x] **Done — Ratchet** = ESLint **`max-lines`** (530 non-blank LOC) over production TS+Svelte, per-file no-growth caps for residuals in `eslint.config.js` (`FILE_LENGTH_ALLOWLIST`); runs in `make fe-lint` → pre-commit/-push + CI; teeth-tested. (Ruff/golangci have no file-length rule → Go 0 violations + 4 cohesive Python files documented in the register.)
+* [x] **Done — Playwright e2e net** validated (32/32 green) — the safety harness for the markup decomposition below.
+* [ ] **OPEN — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net): `PanelControls` 2002, `PanelHost` 1364, `L5EvidenceReader` 1286, `ScopeEditor` 997, `AnalysesOverlay` 974, `CellConfigPopover` 660, `wp/[id]/+page` 642, `ProbeCard` 568. Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530.
+* [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
 
 ### Validation
-* [ ] Full test suite green before and after each split (no behaviour change); the file-length check is active; the census's targeted files are under threshold or carry a justified exception.
+* [ ] Full test suite green before and after each split; the ESLint `max-lines` ratchet active in fe-lint + CI; every census file either <530 or a justified allowlist entry. **Closes when the 8 open giants above are decomposed to <530** (their caps removed from the allowlist) — leaving only the operator-approved render-glue/data/entrypoint exceptions.
 
 ---
 

@@ -5,6 +5,42 @@ import ts from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import svelteConfig from './svelte.config.js';
 
+// Phase 141 — file-length ratchet via the linter's own `max-lines` rule (the
+// idiomatic home; no custom hook). Threshold = 530 non-blank LOC (500 + a
+// ±20-30 tolerance — operator decision 2026-06-15: never fragment cohesion to
+// force <500). Counts the WHOLE file, so for a .svelte component it is
+// script + markup + scoped CSS. Production TS + Svelte only; tests are out of
+// scope (the long test files are tracked for Phase 142). NEW files over the
+// threshold fail; existing residuals are capped at their current size below so
+// they can never GROW.
+const FILE_LENGTH_MAX = 530;
+
+// Justified residuals (Phase 141). Each file's pure/testable logic has already
+// been extracted to a companion module (+unit tests) or shared, OR the file is
+// irreducible imperative render glue, a data table, or a cohesive entrypoint —
+// the remaining length is markup + scoped CSS + interaction glue a length split
+// would only fragment. `max` = current non-blank LOC (a no-growth cap). Burn
+// down by lowering `max` as Tier-2b markup sub-components are extracted (now
+// safe behind the Playwright e2e net); delete the entry once the file is ≤530.
+// Filename globs are unique across the repo; the route page uses a path glob
+// because `+page.svelte` is not unique and `(app)`/`[id]` are glob-special.
+const FILE_LENGTH_ALLOWLIST = [
+  ['**/PanelControls.svelte', 2002], // logic → panel-controls-derive.ts (+21t); residual = per-lever markup + scoped CSS
+  ['**/PanelHost.svelte', 1364], // logic → panel-host-layout.ts (+21t); residual = query wiring + cell-grid markup + scoped CSS
+  ['**/L5EvidenceReader.svelte', 1286], // markup 475 / scoped-CSS 510 dominated; row/strip/segment child split = Tier-2b
+  ['**/CoOccurrenceNetworkCell.svelte', 1222], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue
+  ['**/ScopeEditor.svelte', 997], // scoped-CSS 456 dominated; draft logic in scope-editor-draft.ts; ScopeGroupCard split = Tier-2b
+  ['**/AnalysesOverlay.svelte', 974], // async-API orchestration + markup + scoped-CSS; AnalysisRow/ShareDrawer split = Tier-2b
+  ['**/packages/engine-3d/src/engine.ts', 937], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable
+  ['**/open-questions.ts', 743], // DATA table (open research-question content), not logic; relocate-to-JSON deferred
+  ['**/CoOccurrenceNetworkAtScale.svelte', 728], // logic in cooccurrence-network-shared.ts (tested); residual = sigma/FA2/WebGL glue
+  ['**/CellConfigPopover.svelte', 660], // per-configurableParams field-renderer markup; field-renderer split = Tier-2b
+  ['**/reflection/wp/*/+page.svelte', 642], // markdown/section rendering markup; section-renderer split = Tier-2b
+  ['**/AtmosphereSurface.svelte', 642], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers
+  ['**/ProbeCard.svelte', 568], // capability-matrix markup; matrix child split = Tier-2b
+  ['**/SideRail.svelte', 533] // markup-dominated; 3 LOC over — within the ±20-30 tolerance band
+];
+
 export default ts.config(
   js.configs.recommended,
   ...ts.configs.recommended,
@@ -66,6 +102,29 @@ export default ts.config(
         svelteConfig
       }
     }
+  },
+  // Phase 141 — file-length ratchet (production TS + Svelte). `skipBlankLines`
+  // makes this count non-blank LOC; comments ARE counted (they carry real
+  // maintenance weight). NEW files over FILE_LENGTH_MAX fail here.
+  {
+    files: ['**/*.ts', '**/*.svelte', '**/*.svelte.ts'],
+    rules: {
+      'max-lines': ['error', { max: FILE_LENGTH_MAX, skipBlankLines: true, skipComments: false }]
+    }
+  },
+  // Per-file caps for the justified residuals (raise the limit to their current
+  // size — a no-growth ceiling). Ordered after the global rule so they win.
+  ...FILE_LENGTH_ALLOWLIST.map(([file, max]) => ({
+    files: [file],
+    rules: {
+      'max-lines': ['error', { max, skipBlankLines: true, skipComments: false }]
+    }
+  })),
+  // Tests are out of the Phase-141 file-length scope (long test files → Phase
+  // 142); the ratchet covers production source only.
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts', 'tests/**'],
+    rules: { 'max-lines': 'off' }
   },
   {
     ignores: [

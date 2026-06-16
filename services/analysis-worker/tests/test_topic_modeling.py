@@ -247,22 +247,37 @@ def test_bertopic_runs_end_to_end_on_minimal_corpus():
     obvious topic clusters and asserts at least 2 topics are discovered
     in the German partition.
     """
-    extractor = TopicModelingExtractor()
+    # Robust-by-construction (Phase 141): the earlier corpus used 15 near-
+    # identical f-string docs per topic, whose embeddings collapse to two tight
+    # points — HDBSCAN's density estimate around them flips with minor UMAP/numba
+    # version variance across machines, occasionally yielding ALL outliers (an
+    # empty result) in CI while passing locally. We give each topic genuine
+    # lexical spread (distinct sentence templates) and a larger count, and run the
+    # extractor with test-scale clustering params (smaller n_neighbors +
+    # min_cluster_size than the production defaults tuned for real corpora) so the
+    # two obvious clusters form deterministically regardless of the platform.
+    political_templates = [
+        "Bundestag debattiert Klimaschutz und Wirtschaftspolitik",
+        "Kanzler verteidigt den Haushaltsentwurf im Parlament",
+        "Opposition kritisiert die Reformpläne der Regierung",
+        "Bundesrat berät über das Gesetz zur Energiewende",
+        "Ministerin verkündet neue Maßnahmen zur Steuerpolitik",
+    ]
+    sports_templates = [
+        "Bundesliga Spieltag endet mit einem späten Siegtreffer",
+        "Trainer lobt die Mannschaft nach dem Auswärtssieg",
+        "Stürmer erzielt einen Hattrick im Pokalfinale",
+        "Verein verpflichtet einen neuen Mittelfeldspieler",
+        "Fans feiern den Aufstieg in die erste Liga",
+    ]
     political = [
-        f"Bundestag debattiert Klimaschutz und Wirtschaftspolitik {i}"
-        for i in range(15)
+        f"{political_templates[i % len(political_templates)]} ({i})" for i in range(20)
     ]
-    sports = [
-        f"Bundesliga Spieltag Fußball Mannschaft Tor {i}"
-        for i in range(15)
+    sports = [f"{sports_templates[i % len(sports_templates)]} ({i})" for i in range(20)]
+    docs = [_doc(f"p{i}", "tagesschau", "de", t) for i, t in enumerate(political)] + [
+        _doc(f"s{i}", "tagesschau", "de", t) for i, t in enumerate(sports)
     ]
-    docs = [
-        _doc(f"p{i}", "tagesschau", "de", t)
-        for i, t in enumerate(political)
-    ] + [
-        _doc(f"s{i}", "tagesschau", "de", t)
-        for i, t in enumerate(sports)
-    ]
+    extractor = TopicModelingExtractor(n_neighbors=5, min_cluster_size=4)
     rows = extractor.extract_topics(docs, WINDOW)
     assert rows, "expected at least one topic assignment"
     non_outlier = {r.topic_id for r in rows if r.topic_id != -1}
