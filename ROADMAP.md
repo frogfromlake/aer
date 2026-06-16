@@ -4789,7 +4789,13 @@ This phase enforces the following — every implementation choice must satisfy t
 * [x] **Done — Phase-1 LOGIC extraction from the giants** (pure logic → tested companion modules; the components themselves are NOT yet <530): `PanelControls`→`panel-controls-derive.ts` (+21t incl. `reconcilePanelForView`), `PanelHost`→`panel-host-layout.ts` (+21t). Co-occurrence cells share `cooccurrence-network-shared.ts`.
 * [x] **Done — Ratchet** = ESLint **`max-lines`** (530 non-blank LOC) over production TS+Svelte, per-file no-growth caps for residuals in `eslint.config.js` (`FILE_LENGTH_ALLOWLIST`); runs in `make fe-lint` → pre-commit/-push + CI; teeth-tested. (Ruff/golangci have no file-length rule → Go 0 violations + 4 cohesive Python files documented in the register.)
 * [x] **Done — Playwright e2e net** validated (32/32 green) — the safety harness for the markup decomposition below.
-* [ ] **OPEN — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net): `PanelControls` 2002, `PanelHost` 1364, `L5EvidenceReader` 1286, `ScopeEditor` 997, `AnalysesOverlay` 974, `CellConfigPopover` 660, `wp/[id]/+page` 642, `ProbeCard` 568. Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530.
+* [~] **IN PROGRESS — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net). Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530.
+  * [x] `PanelControls` 2002→356 (`workbench/levers/*`: 2 shared primitives + 8 per-lever children).
+  * [x] `PanelHost` 1364→312 (5 per-region children: PanelToolbar/PanelScopeChips/PanelDisclosureNotes/PanelCellGrid/PanelCell).
+  * [x] `L5EvidenceReader` 1286→395 (Tier-2b: L5MetaGrid/L5NegativeSpaceSection/L5DiffTab/L5RevisionHistory + tested `l5-evidence-internals.ts` +29t).
+  * [x] `ScopeEditor` 997→457 (ScopeGroupCard/ScopeGroupSources + tested `scope-editor-internals.ts` +20t; behind extended Workbench e2e).
+  * [x] `AnalysesOverlay` 974→489 (AnalysisTable/AnalysisDrawer + tested `analyses-overlay-internals.ts` +19t; behind a new `analyses.spec.ts` e2e).
+  * [ ] `CellConfigPopover` 660, `wp/[id]/+page` 642, `ProbeCard` 568 — remaining.
 * [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
 
 ### Validation

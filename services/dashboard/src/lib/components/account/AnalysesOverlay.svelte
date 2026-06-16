@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable svelte/no-navigation-without-resolve -- loads an internal saved deep link */
   // Saved analyses as a global overlay (Phase 135 / ADR-040). Same model as the
   // Dossier / account overlays: a dimmed scrim over the persistent globe + a
   // solid panel, driven by `?analyses=open`.
@@ -8,16 +7,29 @@
   // round-trips through the URL grammar (`?activePillar=&aleph=/episteme=/…`),
   // so we persist the current relative URL (path + search minus overlay params)
   // and restore it with a plain navigation. No bespoke (de)serialisation.
-  import { goto } from '$app/navigation';
-  import { fly } from 'svelte/transition';
+  //
+  // Phase 141 — this component is now a thin orchestrator: it owns the list +
+  // save `$state` and the API calls, and delegates the two big rendered regions
+  // to children (the sortable list → AnalysisTable, the detail/share/delete pane
+  // → AnalysisDrawer) and the client-side filter/sort/deep-link logic to the
+  // tested `analyses-overlay-internals` module.
   import * as api from '$lib/api/analyses';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import Button from '$lib/components/base/Button.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
-
-  // Params that are never part of a saved Workbench deep-link: the overlay
-  // toggles plus `savedAnalysis` (the "which saved analysis is loaded" marker).
-  const NON_STATE_PARAMS = ['analyses', 'account', 'admin', 'dossier', 'savedAnalysis'];
+  import AnalysisTable from './AnalysisTable.svelte';
+  import AnalysisDrawer from './AnalysisDrawer.svelte';
+  import {
+    filterAnalyses,
+    sortAnalyses,
+    nextSort,
+    stripDeepLink,
+    isSaveableWorkbenchUrl,
+    findEditableLoaded,
+    NON_STATE_PARAMS,
+    type SortKey,
+    type SortDir
+  } from './analyses-overlay-internals';
 
   const url = $derived(urlState());
   const isOpen = $derived(url.analyses === 'open' || url.analyses === 'save');
@@ -35,46 +47,30 @@
   let createdFrom = $state('');
   let createdTo = $state('');
 
-  type SortKey = 'name' | 'ownerEmail' | 'createdAt' | 'updatedAt';
   let sortKey = $state<SortKey>('updatedAt');
-  let sortDir = $state<'asc' | 'desc'>('desc');
+  let sortDir = $state<SortDir>('desc');
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortKey = key;
-      sortDir = key === 'createdAt' || key === 'updatedAt' ? 'desc' : 'asc';
-    }
+    const n = nextSort({ key: sortKey, dir: sortDir }, key);
+    sortKey = n.key;
+    sortDir = n.dir;
   }
-  const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'asc' ? '▲' : '▼') : '');
 
-  const filtered = $derived.by(() => {
-    const q = search.trim().toLowerCase();
-    const from = createdFrom ? new Date(createdFrom).getTime() : null;
-    const to = createdTo ? new Date(createdTo).getTime() + 86_400_000 : null; // inclusive day
-    const rows = items.filter((a) => {
-      if (q && !`${a.name} ${a.description} ${a.ownerEmail}`.toLowerCase().includes(q))
-        return false;
-      if (!showOwned && a.owned) return false;
-      if (!showShared && !a.owned) return false;
-      if (!showEditable && a.permission === 'editable') return false;
-      if (!showReadable && a.permission === 'readable') return false;
-      const t = new Date(a.createdAt).getTime();
-      if (from !== null && t < from) return false;
-      if (to !== null && t >= to) return false;
-      return true;
-    });
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return rows.sort((a, b) => {
-      const x = a[sortKey] ?? '';
-      const y = b[sortKey] ?? '';
-      if (sortKey === 'createdAt' || sortKey === 'updatedAt') {
-        return (new Date(x).getTime() - new Date(y).getTime()) * dir;
-      }
-      return String(x).localeCompare(String(y)) * dir;
-    });
-  });
+  const filtered = $derived(
+    sortAnalyses(
+      filterAnalyses(items, {
+        search,
+        showOwned,
+        showShared,
+        showEditable,
+        showReadable,
+        createdFrom,
+        createdTo
+      }),
+      sortKey,
+      sortDir
+    )
+  );
 
   // --- load list ------------------------------------------------------------
   async function loadList() {
@@ -98,31 +94,19 @@
   let saveDescription = $state('');
   let saveMsg = $state<{ kind: 'error' | 'success'; text: string } | null>(null);
 
-  function currentDeepLink(): string {
-    const u = new URL(window.location.href);
-    for (const k of NON_STATE_PARAMS) u.searchParams.delete(k);
-    return u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : '');
-  }
+  const currentDeepLink = () => stripDeepLink(window.location.href, NON_STATE_PARAMS);
 
-  // "Save current view" only makes sense on a *configured* Workbench. The
-  // Workbench state lives in the URL (`?aleph=/episteme=/rhizome=<base64url>`),
-  // so we require the `/workbench` path with at least one non-empty pillar.
-  // Re-evaluates whenever the URL state changes (opening the overlay toggles it).
+  // "Save current view" only makes sense on a *configured* Workbench. Re-evaluates
+  // whenever the URL state changes (opening the overlay toggles it).
   const canSaveCurrent = $derived.by(() => {
     void url; // track url-state so this re-runs when the overlay opens
     if (typeof window === 'undefined') return false;
-    const u = new URL(window.location.href);
-    if (!u.pathname.startsWith('/workbench')) return false;
-    return ['aleph', 'episteme', 'rhizome'].some((k) => (u.searchParams.get(k) ?? '') !== '');
+    return isSaveableWorkbenchUrl(window.location.href);
   });
 
   // The saved analysis the current view was opened from (set by "Open in
   // Workbench"). If it's still ours-and-editable, "Save" can update it in place.
-  const loadedAnalysis = $derived.by(() => {
-    const id = url.savedAnalysis;
-    if (!id) return null;
-    return items.find((a) => a.id === id && a.permission === 'editable') ?? null;
-  });
+  const loadedAnalysis = $derived(findEditableLoaded(items, url.savedAnalysis));
 
   function beginSave() {
     saveMsg = null;
@@ -177,117 +161,16 @@
     }
   }
 
-  // --- side drawer ----------------------------------------------------------
+  // --- detail drawer (AnalysisDrawer owns its own edit/share/delete state) ---
   let selectedId = $state<string | null>(null);
   const selected = $derived(items.find((a) => a.id === selectedId) ?? null);
-  let editName = $state('');
-  let editDescription = $state('');
-  let editing = $state(false);
-  let drawerBusy = $state(false);
-  let drawerMsg = $state<{ kind: 'error' | 'success'; text: string } | null>(null);
 
-  // shares
-  let shares = $state<api.AnalysisShare[]>([]);
-  let shareEmail = $state('');
-  let shareCanEdit = $state(false);
-  let shareBusy = $state(false);
-  let shareMsg = $state<{ kind: 'error' | 'success'; text: string } | null>(null);
-
-  function openDrawer(a: api.AnalysisListItem) {
-    // Toggle: clicking the already-open row closes the drawer.
-    if (selectedId === a.id) {
-      closeDrawer();
-      return;
-    }
-    selectedId = a.id;
-    editing = false;
-    editName = a.name;
-    editDescription = a.description;
-    drawerMsg = null;
-    shareMsg = null;
-    shares = [];
-    if (a.owned) void loadShares(a.id);
+  // Toggle: clicking the already-open row closes the drawer.
+  function onOpenRow(a: api.AnalysisListItem) {
+    selectedId = selectedId === a.id ? null : a.id;
   }
   function closeDrawer() {
     selectedId = null;
-  }
-
-  async function loadShares(id: string) {
-    const res = await api.listShares(id);
-    if (res.ok) shares = res.data.shares ?? [];
-  }
-
-  async function saveEdit() {
-    if (!selected || drawerBusy || !editName.trim()) return;
-    drawerBusy = true;
-    drawerMsg = null;
-    const res = await api.updateAnalysis(selected.id, {
-      name: editName.trim(),
-      description: editDescription.trim()
-    });
-    drawerBusy = false;
-    if (res.ok) {
-      editing = false;
-      await loadList();
-    } else {
-      drawerMsg = { kind: 'error', text: res.message || 'Could not save changes.' };
-    }
-  }
-
-  async function removeAnalysis() {
-    if (!selected || drawerBusy) return;
-    drawerBusy = true;
-    const res = await api.deleteAnalysis(selected.id);
-    drawerBusy = false;
-    if (res.ok) {
-      closeDrawer();
-      await loadList();
-    } else {
-      drawerMsg = { kind: 'error', text: 'Could not delete.' };
-    }
-  }
-
-  async function addShareSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    if (!selected || !shareEmail.trim() || shareBusy) return;
-    shareBusy = true;
-    shareMsg = null;
-    const res = await api.addShare(selected.id, shareEmail.trim(), shareCanEdit);
-    shareBusy = false;
-    if (res.ok) {
-      shareEmail = '';
-      shareCanEdit = false;
-      await loadShares(selected.id);
-    } else {
-      shareMsg = {
-        kind: 'error',
-        text:
-          res.code === 'grantee_not_found'
-            ? 'No user with that email.'
-            : res.code === 'cannot_share_with_self'
-              ? 'You already own this analysis.'
-              : res.message || 'Could not share.'
-      };
-    }
-  }
-  async function removeShareEntry(granteeId: string) {
-    if (!selected) return;
-    if ((await api.removeShare(selected.id, granteeId)).ok) await loadShares(selected.id);
-  }
-
-  // --- load saved analysis (navigate to its deep link) ----------------------
-  // We tag the destination with `?savedAnalysis=<id>` (stripped from any future
-  // saved deep-link) so a later "Save" can offer to update THIS analysis in
-  // place rather than only ever creating a new one.
-  async function loadAnalysis(id: string) {
-    const res = await api.getAnalysis(id);
-    if (!res.ok) {
-      drawerMsg = { kind: 'error', text: 'Could not open this analysis.' };
-      return;
-    }
-    const state = res.data.state;
-    const target = `${state}${state.includes('?') ? '&' : '?'}savedAnalysis=${encodeURIComponent(id)}`;
-    await goto(target);
   }
 
   function close() {
@@ -299,11 +182,6 @@
       if (selectedId) closeDrawer();
       else close();
     }
-  }
-
-  function fmt(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
   }
 
   // Fetch the list the first time the overlay opens.
@@ -448,201 +326,23 @@
           </fieldset>
         </div>
 
-        <!-- body: table (the drawer is a sibling card, so the table never reflows) -->
+        <!-- body: list (the drawer is a sibling card, so the list never reflows) -->
         <div class="body">
-          <div class="table-wrap">
-            {#if loading}
-              <p class="muted pad">Loading…</p>
-            {:else if loadError}
-              <AuthNotice variant="error">{loadError}</AuthNotice>
-            {:else if filtered.length === 0}
-              <p class="muted pad">
-                {items.length === 0
-                  ? 'No saved analyses yet. Open the Workbench and use “Save current view”.'
-                  : 'No analyses match these filters.'}
-              </p>
-            {:else}
-              <table>
-                <thead>
-                  <tr>
-                    <th
-                      ><button type="button" onclick={() => toggleSort('name')}
-                        >Name {arrow('name')}</button
-                      ></th
-                    >
-                    <th class="hide-sm">Description</th>
-                    <th
-                      ><button type="button" onclick={() => toggleSort('ownerEmail')}
-                        >Owner {arrow('ownerEmail')}</button
-                      ></th
-                    >
-                    <th
-                      ><button type="button" onclick={() => toggleSort('createdAt')}
-                        >Created {arrow('createdAt')}</button
-                      ></th
-                    >
-                    <th
-                      ><button type="button" onclick={() => toggleSort('updatedAt')}
-                        >Updated {arrow('updatedAt')}</button
-                      ></th
-                    >
-                    <th>Access</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each filtered as a (a.id)}
-                    <tr
-                      class:selected={a.id === selectedId}
-                      onclick={() => openDrawer(a)}
-                      aria-label="Open {a.name}"
-                    >
-                      <td class="name">{a.name}</td>
-                      <td class="hide-sm desc">{a.description || '—'}</td>
-                      <td>{a.owned ? 'You' : a.ownerEmail}</td>
-                      <td>{fmt(a.createdAt)}</td>
-                      <td>{fmt(a.updatedAt)}</td>
-                      <td>
-                        <span
-                          class="badge"
-                          class:own={a.owned}
-                          class:edit={a.permission === 'editable'}
-                        >
-                          {a.owned
-                            ? 'Owner'
-                            : a.permission === 'editable'
-                              ? 'Editable'
-                              : 'Read-only'}
-                        </span>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            {/if}
-          </div>
+          <AnalysisTable
+            rows={filtered}
+            {loading}
+            {loadError}
+            totalCount={items.length}
+            {selectedId}
+            {sortKey}
+            {sortDir}
+            onToggleSort={toggleSort}
+            {onOpenRow}
+          />
         </div>
       </section>
 
-      <aside class="drawer drawer-card">
-        {#if selected}
-          <div class="drawer-content" in:fly={{ x: 16, duration: 160 }}>
-            <header class="drawer-head">
-              <h3>{selected.name}</h3>
-              <button type="button" class="close" aria-label="Close details" onclick={closeDrawer}
-                >×</button
-              >
-            </header>
-
-            {#if drawerMsg}<AuthNotice variant={drawerMsg.kind}>{drawerMsg.text}</AuthNotice>{/if}
-
-            <div class="drawer-meta">
-              <span>Owner: {selected.owned ? 'You' : selected.ownerEmail}</span>
-              <span>Created: {fmt(selected.createdAt)}</span>
-              <span>Updated: {fmt(selected.updatedAt)}</span>
-            </div>
-
-            <div class="row-actions">
-              <Button variant="primary" onclick={() => loadAnalysis(selected.id)}
-                >Open in Workbench</Button
-              >
-            </div>
-
-            {#if selected.permission === 'editable'}
-              <section class="drawer-block">
-                <div class="block-head">
-                  <h4>Details</h4>
-                  {#if !editing}
-                    <button type="button" class="link" onclick={() => (editing = true)}>Edit</button
-                    >
-                  {/if}
-                </div>
-                {#if editing}
-                  <input class="field" bind:value={editName} aria-label="Name" />
-                  <textarea
-                    class="field"
-                    rows="2"
-                    bind:value={editDescription}
-                    aria-label="Description"
-                  ></textarea>
-                  <div class="row-actions">
-                    <Button
-                      variant="primary"
-                      loading={drawerBusy}
-                      disabled={!editName.trim()}
-                      onclick={saveEdit}>Save</Button
-                    >
-                    <Button
-                      variant="secondary"
-                      onclick={() => {
-                        editing = false;
-                        editName = selected.name;
-                        editDescription = selected.description;
-                      }}>Cancel</Button
-                    >
-                  </div>
-                {:else}
-                  <p class="muted">{selected.description || 'No description.'}</p>
-                {/if}
-              </section>
-            {/if}
-
-            {#if selected.owned}
-              <section class="drawer-block">
-                <h4>Shared with</h4>
-                {#if shareMsg}<AuthNotice variant={shareMsg.kind}>{shareMsg.text}</AuthNotice>{/if}
-                {#if shares.length === 0}
-                  <p class="muted">Not shared with anyone yet.</p>
-                {:else}
-                  <ul class="share-list">
-                    {#each shares as s (s.granteeId)}
-                      <li>
-                        <span>{s.email} · {s.canEdit ? 'can edit' : 'read-only'}</span>
-                        <button
-                          type="button"
-                          class="link-danger"
-                          onclick={() => removeShareEntry(s.granteeId)}>Remove</button
-                        >
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-                <form class="share-form" onsubmit={addShareSubmit} novalidate>
-                  <input
-                    class="field"
-                    type="email"
-                    placeholder="Share with email…"
-                    bind:value={shareEmail}
-                    aria-label="Recipient email"
-                  />
-                  <label class="inline"
-                    ><input type="checkbox" bind:checked={shareCanEdit} /> Can edit</label
-                  >
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    loading={shareBusy}
-                    disabled={!shareEmail.trim()}>Share</Button
-                  >
-                </form>
-              </section>
-
-              <section class="drawer-block danger">
-                <h4>Delete</h4>
-                <p class="muted">Removes this analysis for you and everyone it’s shared with.</p>
-                <Button variant="secondary" loading={drawerBusy} onclick={removeAnalysis}
-                  >Delete</Button
-                >
-              </section>
-            {/if}
-          </div>
-        {:else}
-          <div class="drawer-empty">
-            <p class="muted">
-              Select an analysis to see its details, share it, or open it in the Workbench.
-            </p>
-          </div>
-        {/if}
-      </aside>
+      <AnalysisDrawer analysis={selected} onClose={closeDrawer} onChanged={loadList} />
     </div>
   </div>
 {/if}
@@ -659,16 +359,11 @@
     place-items: center;
     padding: var(--space-5);
   }
-  /* The main panel + the detail drawer sit side by side in a centred group.
-     The panel has a fixed width so opening the drawer never reflows the table —
-     the drawer is an additional card that simply extends the view. */
   /* The panel + drawer form one fixed-size unit. A FIXED height (not max-height)
      on the group means the panel never grows/shrinks when the drawer opens or
      closes — both children stretch to this same height, so the drawer always
-     matches the panel and the table just scrolls inside. */
-  /* The detail pane is ALWAYS reserved (master-detail), so selecting a row
-     never shifts the panel — it just fills the pane. Fixed group width +
-     height → one stable two-pane unit. */
+     matches the panel and the table just scrolls inside. The detail pane is
+     ALWAYS reserved (master-detail), so selecting a row never shifts the panel. */
   .panel-group {
     display: flex;
     align-items: stretch;
@@ -753,8 +448,7 @@
     box-shadow: 0 0 0 var(--focus-ring-width)
       color-mix(in oklab, var(--color-accent) 40%, transparent);
   }
-  .save-form,
-  .share-form {
+  .save-form {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -789,8 +483,7 @@
     letter-spacing: 0.06em;
     padding: 0 var(--space-1);
   }
-  .filters label,
-  .inline {
+  .filters label {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -812,207 +505,15 @@
     overflow: hidden;
     min-height: 0;
   }
-  .table-wrap {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-  }
-  .pad {
-    padding: var(--space-4);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--font-size-sm);
-  }
-  thead th {
-    position: sticky;
-    top: 0;
-    background: var(--color-bg-elevated);
-    text-align: left;
-    color: var(--color-fg-subtle);
-    font-weight: var(--font-weight-medium);
-    border-bottom: 1px solid var(--color-border);
-    padding: var(--space-2) var(--space-3);
-    white-space: nowrap;
-  }
-  thead th button {
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    padding: 0;
-  }
-  thead th button:hover {
-    color: var(--color-fg);
-  }
-  tbody tr {
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-border);
-  }
-  tbody tr:hover {
-    background: var(--color-surface-hover);
-  }
-  tbody tr.selected {
-    background: var(--color-surface);
-  }
-  td {
-    padding: var(--space-3);
-    color: var(--color-fg);
-    vertical-align: top;
-  }
-  td.name {
-    font-weight: var(--font-weight-medium);
-  }
-  td.desc {
-    color: var(--color-fg-muted);
-    max-width: 18rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .badge {
-    font-size: var(--font-size-xs);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--color-border);
-    color: var(--color-fg-muted);
-    white-space: nowrap;
-  }
-  .badge.edit {
-    color: var(--color-accent);
-    border-color: var(--color-accent-muted);
-  }
-  .badge.own {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-  }
-  /* The drawer is a standalone card beside the panel (not a flex child of the
-     table area), so opening it extends the view without reflowing the list. */
-  .drawer {
-    width: 22rem;
-    flex-shrink: 0;
-    height: 100%;
-    overflow-y: auto;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-    padding: var(--space-6);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-  .drawer-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-  .drawer-empty {
-    margin: auto;
-    text-align: center;
-    max-width: 16rem;
-  }
-  .drawer-empty .muted {
-    line-height: var(--line-height-loose, 1.6);
-  }
-  .drawer-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-  .drawer-head h3 {
-    margin: 0;
-    font-size: var(--font-size-md);
-    color: var(--color-fg);
-  }
-  .drawer-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-  }
-  .drawer-block {
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .block-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .drawer-block h4 {
-    margin: 0;
-    font-size: var(--font-size-base);
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-  }
-  .drawer-block.danger h4 {
-    color: var(--color-status-expired);
-  }
-  textarea.field {
-    resize: vertical;
-    font-family: var(--font-ui);
-  }
   .row-actions {
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
-  }
-  .share-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .share-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-fg);
   }
   .muted {
     color: var(--color-fg-muted);
     font-size: var(--font-size-sm);
     margin: 0;
     line-height: var(--line-height-base);
-  }
-  .link {
-    background: none;
-    border: none;
-    color: var(--color-accent);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-  }
-  .link:hover {
-    text-decoration: underline;
-  }
-  .link-danger {
-    background: none;
-    border: none;
-    color: var(--color-status-expired);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-  }
-  .link-danger:hover {
-    text-decoration: underline;
-  }
-  @media (max-width: 720px) {
-    .hide-sm {
-      display: none;
-    }
-    .drawer {
-      display: none;
-    }
   }
 </style>
