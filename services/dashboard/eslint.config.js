@@ -25,7 +25,9 @@ const FILE_LENGTH_MAX = 530;
 // Filename globs are unique across the repo; the route page uses a path glob
 // because `+page.svelte` is not unique and `(app)`/`[id]` are glob-special.
 const FILE_LENGTH_ALLOWLIST = [
-  ['**/PanelControls.svelte', 2002], // logic → panel-controls-derive.ts (+21t); residual = per-lever markup + scoped CSS
+  // PanelControls.svelte — decomposed in Phase 141 into ./levers/* per-lever
+  // child components (each <530) behind the Workbench characterization e2e; the
+  // parent is now a 356-LOC orchestrator, under the global cap (no entry needed).
   ['**/PanelHost.svelte', 1364], // logic → panel-host-layout.ts (+21t); residual = query wiring + cell-grid markup + scoped CSS
   ['**/L5EvidenceReader.svelte', 1286], // markup 475 / scoped-CSS 510 dominated; row/strip/segment child split = Tier-2b
   ['**/CoOccurrenceNetworkCell.svelte', 1222], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue
