@@ -501,7 +501,12 @@ async def consumer_lag_loop(subscription, stop_event: asyncio.Event, interval_se
             continue
 
 
-async def main(config: WorkerConfig | None = None):
+async def main(config: WorkerConfig | None = None):  # pragma: no cover
+    # Entrypoint orchestration (NATS connect/subscribe + background-loop wiring +
+    # run loop + graceful shutdown). Requires live NATS/ClickHouse/MinIO/Postgres
+    # — integration-test territory, excluded from the unit-coverage floor per
+    # ADR-041's entrypoint convention. The logic it wires (extractors, processor,
+    # corpus sweeps, the helpers above) is unit-tested directly.
     if config is None:
         config = WorkerConfig()
 

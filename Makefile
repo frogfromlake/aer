@@ -502,10 +502,10 @@ test-python:
 # render core are covered behaviourally (Playwright/visual E2E), NOT line-gated.
 # Go thresholds are Step-1 baselines; they ratchet to 80 in Step 5. Python +
 # frontend thresholds live in .coveragerc / pyproject.toml / vitest.config.ts.
-# pkg is at its 80 target floor (Phase-142 Step 2). ingestion/bff are Step-1
-# baselines, ratcheting to 80 in Step 3/5.
+# pkg + ingestion-api are at their 80 target floor (Phase-142 Step 2/3). bff-api
+# is the Step-1 baseline, ratcheting to 80 in Step 3/5.
 COVER_GO_PKG       := 80
-COVER_GO_INGESTION := 60
+COVER_GO_INGESTION := 80
 COVER_GO_BFF       := 49
 
 cover-go:

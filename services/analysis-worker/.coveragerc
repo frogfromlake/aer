@@ -13,7 +13,10 @@ omit =
     */__pycache__/*
 
 [report]
-fail_under = 70
+# Phase-142 Step 3: ratcheted 70→76 to lock the web_extract + corpus-I/O test
+# gains (worker is at ~78%); final bump to 80 lands with the sweep-orchestration
+# / wayback-IO tests.
+fail_under = 76
 show_missing = True
 exclude_also =
     if __name__ == .__main__.:
