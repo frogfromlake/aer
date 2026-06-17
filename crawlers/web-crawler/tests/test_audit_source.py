@@ -13,11 +13,18 @@ discovery channels the publisher exposes. Tests cover:
   * Trafilatura degradation: when trafilatura is not importable, the
     report carries the documented `skipped — trafilatura not installed`
     marker rather than crashing.
+
+Shared HTTP-mock helpers (`fake_resp`, `route_get`, `article_listing_html`)
+live in :mod:`tests._audit_helpers`.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -25,19 +32,63 @@ import audit_source
 import audit_core
 import audit_reaudit
 
+from tests._audit_helpers import article_listing_html, fake_resp, route_get
 
-def _fake_resp(status: int = 200, body: str = "<html><body>x</body></html>",
-               content_type: str = "text/html") -> MagicMock:
-    resp = MagicMock()
-    resp.status_code = status
-    resp.text = body
-    resp.headers = {"Content-Type": content_type}
-    resp.url = "https://example.com/probed"
-    return resp
+
+# ---------------------------------------------------------------------------
+# Local fixtures / helpers shared across this file.
+# ---------------------------------------------------------------------------
+
+# The four-channel diff dict shape used by render/apply tests — every
+# channel present so callers only override the one(s) under test.
+_EMPTY_DIFF: dict[str, list[str]] = {
+    "sitemap_urls": [],
+    "rss_hint_urls": [],
+    "html_sitemap_urls": [],
+    "archive_index_urls": [],
+}
+
+
+def _diff(**channels: list[str]) -> dict[str, list[str]]:
+    """Return a full four-channel diff dict with the given channels set."""
+    return {**_EMPTY_DIFF, **channels}
+
+
+def _write_sources_yaml(tmp_path: Path, body: str) -> Path:
+    """Write a sources.yaml fixture and return its path."""
+    yaml_path = tmp_path / "sources.yaml"
+    yaml_path.write_text(body, encoding="utf-8")
+    return yaml_path
+
+
+def _reaudit_report(**overrides: object) -> dict:
+    """Build a re-audit report dict with the standard empty-channel base.
+
+    Tests override only the field(s) they exercise (typically
+    `trafilatura_sitemaps_found`).
+    """
+    base = {
+        "homepage": "https://x.test",
+        "origin": "https://x.test",
+        "trafilatura_sitemaps_found": [],
+        "trafilatura_feeds_found": [],
+        "rss_path_hits": [],
+        "rss_catalogue_hits": [],
+        "homepage_inline_feeds": [],
+        "html_sitemap_candidates": [],
+        "archive_index_candidates": [],
+    }
+    base.update(overrides)
+    return base
+
+
+# ---------------------------------------------------------------------------
+# _probe_http
+# ---------------------------------------------------------------------------
 
 
 def test_probe_http_returns_status_and_body_size() -> None:
-    http_get = MagicMock(return_value=_fake_resp(status=200, body="<html>" + "x" * 5000))
+    http_get = MagicMock(return_value=fake_resp(status=200, body="<html>" + "x" * 5000))
     result = audit_source._probe_http("https://example.com/sitemap.html", http_get, 5.0)
     assert result["status"] == 200
     assert result["body_size"] > 1024
@@ -45,7 +96,7 @@ def test_probe_http_returns_status_and_body_size() -> None:
 
 
 def test_probe_http_handles_non_200() -> None:
-    http_get = MagicMock(return_value=_fake_resp(status=404, body="not found"))
+    http_get = MagicMock(return_value=fake_resp(status=404, body="not found"))
     result = audit_source._probe_http("https://example.com/missing", http_get, 5.0)
     assert result["status"] == 404
 
@@ -57,6 +108,11 @@ def test_probe_http_handles_network_failure() -> None:
     result = audit_source._probe_http("https://example.com/", boom, 5.0)
     assert result["status"] == 0
     assert "ConnectionError" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# audit_source — candidate detection
+# ---------------------------------------------------------------------------
 
 
 def test_audit_source_invalid_url_raises() -> None:
@@ -79,11 +135,9 @@ def test_audit_source_identifies_html_sitemap_hits() -> None:
         + "<!-- " + "x" * 1500 + " -->"
         + "</body></html>"
     )
-    def fake_get(url, **kwargs):
-        if "infoservices/startseite-sitemap" in url:
-            return _fake_resp(status=200, body=article_listing)
-        # All other paths 404.
-        return _fake_resp(status=404, body="not found")
+    fake_get = route_get(
+        {"infoservices/startseite-sitemap": fake_resp(status=200, body=article_listing)},
+    )
 
     report = audit_source.audit_source(
         "https://www.tagesschau.de",
@@ -111,11 +165,12 @@ def test_audit_source_identifies_archive_index_hits() -> None:
                 f'<a href="https://www.tagesschau.de/news/{date_suffix}-{i}.html">x</a>'
                 for i in range(10)
             )
-            return _fake_resp(
+            return fake_resp(
                 status=200,
                 body=f"<html><body>{articles}<!--{'x'*1500}--></body></html>",
+                url=url,
             )
-        return _fake_resp(status=404, body="")
+        return fake_resp(status=404, body="", url=url)
 
     report = audit_source.audit_source(
         "https://www.tagesschau.de",
@@ -137,10 +192,15 @@ def test_audit_source_trafilatura_skipped_when_unimportable() -> None:
          patch.object(audit_core, "_try_trafilatura_sitemaps", return_value=None):
         report = audit_source.audit_source(
             "https://example.com",
-            http_get=MagicMock(return_value=_fake_resp(status=404)),
+            http_get=MagicMock(return_value=fake_resp(status=404)),
         )
     assert report["trafilatura_feeds_found"] == "skipped — trafilatura not installed"
     assert report["trafilatura_sitemaps_found"] == "skipped — trafilatura not installed"
+
+
+# ---------------------------------------------------------------------------
+# YAML suggestion + CLI surface
+# ---------------------------------------------------------------------------
 
 
 def test_yaml_suggestion_contains_operator_placeholders() -> None:
@@ -191,7 +251,6 @@ def test_cli_json_mode_emits_raw_report(capsys) -> None:
         }
         rc = audit_source.cli(["https://x", "--json"])
     assert rc == 0
-    import json
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["homepage"] == "https://x"
     assert parsed["trafilatura_sitemaps_found"] == ["a", "b"]
@@ -207,6 +266,7 @@ def test_cli_rejects_invalid_url(capsys) -> None:
 # ---------------------------------------------------------------------------
 # Phase 122g re-audit / diff / write-back tests.
 # ---------------------------------------------------------------------------
+
 
 def test_extract_discovered_urls_rolls_up_all_channels() -> None:
     report = {
@@ -237,14 +297,10 @@ def test_extract_discovered_urls_rolls_up_all_channels() -> None:
 
 
 def test_diff_against_configured_reports_only_additions() -> None:
-    discovered = {
-        "sitemap_urls": ["https://x.test/sitemap-a.xml",
-                         "https://x.test/sitemap-b.xml"],
-        "rss_hint_urls": ["https://x.test/feed-1.xml",
-                          "https://x.test/feed-2.xml"],
-        "html_sitemap_urls": [],
-        "archive_index_urls": [],
-    }
+    discovered = _diff(
+        sitemap_urls=["https://x.test/sitemap-a.xml", "https://x.test/sitemap-b.xml"],
+        rss_hint_urls=["https://x.test/feed-1.xml", "https://x.test/feed-2.xml"],
+    )
     configured = {
         "sitemap_urls": ["https://x.test/sitemap-a.xml"],
         "rss_hint_urls": ["https://x.test/feed-1.xml"],
@@ -258,12 +314,7 @@ def test_diff_never_reports_removals() -> None:
     """Operator-configured URLs absent from the audit MUST NOT appear in
     the diff — disappearance is a methodological event, not a routine
     maintenance trigger."""
-    discovered = {
-        "sitemap_urls": [],
-        "rss_hint_urls": [],
-        "html_sitemap_urls": [],
-        "archive_index_urls": [],
-    }
+    discovered = _diff()
     configured = {
         "sitemap_urls": ["https://x.test/retired-sitemap.xml"],
         "rss_hint_urls": ["https://x.test/retired-feed.xml"],
@@ -273,12 +324,10 @@ def test_diff_never_reports_removals() -> None:
 
 
 def test_diff_canonicalises_trailing_slash_and_case() -> None:
-    discovered = {
-        "sitemap_urls": ["https://x.test/sitemap.xml/"],
-        "rss_hint_urls": ["HTTPS://X.TEST/Feed.XML"],
-        "html_sitemap_urls": [],
-        "archive_index_urls": [],
-    }
+    discovered = _diff(
+        sitemap_urls=["https://x.test/sitemap.xml/"],
+        rss_hint_urls=["HTTPS://X.TEST/Feed.XML"],
+    )
     configured = {
         "sitemap_urls": ["https://x.test/sitemap.xml"],
         "rss_hint_urls": ["https://x.test/feed.xml"],
@@ -292,14 +341,11 @@ def test_diff_archive_index_only_when_unconfigured() -> None:
     """If a source already has an `archive_index:` block, the audit
     does NOT propose a replacement — operator intent overrides
     auto-discovery on this one."""
-    discovered = {
-        "sitemap_urls": [], "rss_hint_urls": [], "html_sitemap_urls": [],
-        "archive_index_urls": ["https://x.test/archiv?datum={date}"],
-    }
+    discovered = _diff(archive_index_urls=["https://x.test/archiv?datum={date}"])
     configured_with_archive = {
         "archive_index": {"url_template": "https://x.test/other?date={date}"}
     }
-    configured_without_archive = {}
+    configured_without_archive: dict = {}
     assert audit_source.diff_against_configured(
         discovered, configured_with_archive
     )["archive_index_urls"] == []
@@ -309,8 +355,8 @@ def test_diff_archive_index_only_when_unconfigured() -> None:
 
 
 def test_apply_diff_to_yaml_adds_new_urls_and_preserves_comments(tmp_path) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "# Probe-level header comment.\n"
         "probe:\n"
         "  time_window_days: 7\n"
@@ -322,14 +368,11 @@ def test_apply_diff_to_yaml_adds_new_urls_and_preserves_comments(tmp_path) -> No
         "        - https://x.test/sitemap-a.xml\n"
         "      rss_hint_urls:\n"
         "        - https://x.test/feed-1.xml\n",
-        encoding="utf-8",
     )
-    diff = {
-        "sitemap_urls": ["https://x.test/sitemap-b.xml"],
-        "rss_hint_urls": ["https://x.test/feed-2.xml"],
-        "html_sitemap_urls": [],
-        "archive_index_urls": [],
-    }
+    diff = _diff(
+        sitemap_urls=["https://x.test/sitemap-b.xml"],
+        rss_hint_urls=["https://x.test/feed-2.xml"],
+    )
     added = audit_source.apply_diff_to_yaml(yaml_path, "example", diff)
     assert added == {
         "sitemap_urls": 1,
@@ -355,21 +398,15 @@ def test_apply_diff_to_yaml_adds_new_urls_and_preserves_comments(tmp_path) -> No
 def test_apply_diff_to_yaml_is_idempotent(tmp_path) -> None:
     """Re-applying a diff that's already merged into the YAML is a no-op
     (no duplicate URLs added)."""
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery:\n"
         "      rss_hint_urls:\n"
         "        - https://x.test/feed.xml\n",
-        encoding="utf-8",
     )
-    diff = {
-        "sitemap_urls": [],
-        "rss_hint_urls": ["https://x.test/feed.xml"],
-        "html_sitemap_urls": [],
-        "archive_index_urls": [],
-    }
+    diff = _diff(rss_hint_urls=["https://x.test/feed.xml"])
     added = audit_source.apply_diff_to_yaml(yaml_path, "example", diff)
     assert added["rss_hint_urls"] == 0
     body = yaml_path.read_text(encoding="utf-8")
@@ -381,19 +418,13 @@ def test_apply_diff_to_yaml_html_sitemap_inserts_edit_me_pattern(tmp_path) -> No
     """html_sitemap entries get a placeholder article_url_pattern the
     operator MUST replace — it's intentionally not a valid regex so the
     crawler will refuse to ingest the channel until edited."""
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery: {}\n",
-        encoding="utf-8",
     )
-    diff = {
-        "sitemap_urls": [],
-        "rss_hint_urls": [],
-        "html_sitemap_urls": ["https://x.test/sitemap.html"],
-        "archive_index_urls": [],
-    }
+    diff = _diff(html_sitemap_urls=["https://x.test/sitemap.html"])
     audit_source.apply_diff_to_yaml(yaml_path, "example", diff)
     body = yaml_path.read_text(encoding="utf-8")
     assert "https://x.test/sitemap.html" in body
@@ -401,19 +432,13 @@ def test_apply_diff_to_yaml_html_sitemap_inserts_edit_me_pattern(tmp_path) -> No
 
 
 def test_apply_diff_to_yaml_archive_index_block(tmp_path) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery: {}\n",
-        encoding="utf-8",
     )
-    diff = {
-        "sitemap_urls": [],
-        "rss_hint_urls": [],
-        "html_sitemap_urls": [],
-        "archive_index_urls": ["https://x.test/archiv?datum={date}"],
-    }
+    diff = _diff(archive_index_urls=["https://x.test/archiv?datum={date}"])
     audit_source.apply_diff_to_yaml(yaml_path, "example", diff)
     body = yaml_path.read_text(encoding="utf-8")
     assert "archive_index:" in body
@@ -422,34 +447,32 @@ def test_apply_diff_to_yaml_archive_index_block(tmp_path) -> None:
 
 
 def test_apply_diff_to_yaml_unknown_source_raises(tmp_path) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery: {}\n",
-        encoding="utf-8",
     )
     with pytest.raises(ValueError, match="not found"):
-        audit_source.apply_diff_to_yaml(
-            yaml_path, "does-not-exist",
-            {"sitemap_urls": [], "rss_hint_urls": [],
-             "html_sitemap_urls": [], "archive_index_urls": []},
-        )
+        audit_source.apply_diff_to_yaml(yaml_path, "does-not-exist", _diff())
 
 
-def test_prompt_yes_no_default_no_on_empty_input(monkeypatch) -> None:
-    monkeypatch.setattr("builtins.input", lambda _prompt: "")
-    assert audit_source._prompt_yes_no("?", default_no=True) is False
+# ---------------------------------------------------------------------------
+# _prompt_yes_no — input handling
+# ---------------------------------------------------------------------------
 
 
-def test_prompt_yes_no_accepts_j_for_german_yes(monkeypatch) -> None:
-    monkeypatch.setattr("builtins.input", lambda _prompt: "j")
-    assert audit_source._prompt_yes_no("?", default_no=True) is True
-
-
-def test_prompt_yes_no_accepts_y(monkeypatch) -> None:
-    monkeypatch.setattr("builtins.input", lambda _prompt: "Y")
-    assert audit_source._prompt_yes_no("?", default_no=True) is True
+@pytest.mark.parametrize(
+    ("stdin", "expected"),
+    [
+        pytest.param("", False, id="empty-applies-default-no"),
+        pytest.param("j", True, id="german-yes"),
+        pytest.param("Y", True, id="uppercase-y"),
+    ],
+)
+def test_prompt_yes_no_input_handling(monkeypatch, stdin: str, expected: bool) -> None:
+    monkeypatch.setattr("builtins.input", lambda _prompt: stdin)
+    assert audit_source._prompt_yes_no("?", default_no=True) is expected
 
 
 def test_prompt_yes_no_handles_closed_stdin(monkeypatch) -> None:
@@ -460,27 +483,33 @@ def test_prompt_yes_no_handles_closed_stdin(monkeypatch) -> None:
     assert audit_source._prompt_yes_no("?", default_no=True) is False
 
 
+# ---------------------------------------------------------------------------
+# render_diff
+# ---------------------------------------------------------------------------
+
+
 def test_render_diff_empty_says_no_new_surfaces() -> None:
-    out = audit_source.render_diff(
-        {"sitemap_urls": [], "rss_hint_urls": [],
-         "html_sitemap_urls": [], "archive_index_urls": []},
-        color=False,
-    )
+    out = audit_source.render_diff(_diff(), color=False)
     assert "no new surfaces" in out
 
 
 def test_render_diff_lists_each_channel_addition() -> None:
     out = audit_source.render_diff(
-        {"sitemap_urls": ["https://x.test/a.xml"],
-         "rss_hint_urls": ["https://x.test/b.xml"],
-         "html_sitemap_urls": [],
-         "archive_index_urls": []},
+        _diff(
+            sitemap_urls=["https://x.test/a.xml"],
+            rss_hint_urls=["https://x.test/b.xml"],
+        ),
         color=False,
     )
     assert "sitemap_urls: 1 new" in out
     assert "rss_hint_urls: 1 new" in out
     assert "+ https://x.test/a.xml" in out
     assert "+ https://x.test/b.xml" in out
+
+
+# ---------------------------------------------------------------------------
+# Feed-link extraction + CMS detection
+# ---------------------------------------------------------------------------
 
 
 def test_extract_feed_links_from_catalogue_finds_link_alternate() -> None:
@@ -499,40 +528,37 @@ def test_extract_feed_links_from_catalogue_finds_link_alternate() -> None:
     assert "https://x.test/feeds/breg-de/1151244/feed.xml" in feeds
 
 
-def test_detect_cms_recognises_wordpress() -> None:
-    html = '<meta name="generator" content="WordPress 6.5"/>'
-    assert audit_source._detect_cms(html) == "wordpress"
+@pytest.mark.parametrize(
+    ("generator_meta", "expected"),
+    [
+        pytest.param('<meta name="generator" content="WordPress 6.5"/>', "wordpress",
+                     id="known-cms-wordpress"),
+        pytest.param('<meta name="generator" content="CustomCMS v1.0"/>', "CustomCMS v1.0",
+                     id="unknown-cms-truncated-string"),
+        pytest.param("<html><body>nothing</body></html>", None,
+                     id="no-generator-meta"),
+    ],
+)
+def test_detect_cms(generator_meta: str, expected: str | None) -> None:
+    assert audit_source._detect_cms(generator_meta) == expected
 
 
-def test_detect_cms_unknown_returns_truncated_string() -> None:
-    html = '<meta name="generator" content="CustomCMS v1.0"/>'
-    assert audit_source._detect_cms(html) == "CustomCMS v1.0"
-
-
-def test_detect_cms_no_generator_meta_returns_none() -> None:
-    assert audit_source._detect_cms("<html><body>nothing</body></html>") is None
+# ---------------------------------------------------------------------------
+# _run_reaudit — operator workflow outcomes
+# ---------------------------------------------------------------------------
 
 
 def test_run_reaudit_declined_returns_zero(tmp_path, monkeypatch) -> None:
     """Operator answering 'n' to the y/N prompt is a valid workflow
     outcome, not an error — exit code MUST be 0 so make doesn't fail."""
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery:\n"
         "      sitemap_urls: []\n",
-        encoding="utf-8",
     )
-    fake_report = {
-        "homepage": "https://x.test",
-        "origin": "https://x.test",
-        "trafilatura_sitemaps_found": ["https://x.test/new.xml"],
-        "trafilatura_feeds_found": [],
-        "rss_path_hits": [], "rss_catalogue_hits": [],
-        "homepage_inline_feeds": [],
-        "html_sitemap_candidates": [], "archive_index_candidates": [],
-    }
+    fake_report = _reaudit_report(trafilatura_sitemaps_found=["https://x.test/new.xml"])
     monkeypatch.setattr("builtins.input", lambda _prompt: "n")
     original_body = yaml_path.read_text(encoding="utf-8")
     with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
@@ -550,24 +576,17 @@ def test_run_reaudit_declined_returns_zero(tmp_path, monkeypatch) -> None:
 
 
 def test_run_reaudit_no_changes_returns_zero(tmp_path, capsys) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery:\n"
         "      sitemap_urls:\n"
         "        - https://x.test/sitemap.xml\n",
-        encoding="utf-8",
     )
-    fake_report = {
-        "homepage": "https://x.test",
-        "origin": "https://x.test",
-        "trafilatura_sitemaps_found": ["https://x.test/sitemap.xml"],
-        "trafilatura_feeds_found": [],
-        "rss_path_hits": [], "rss_catalogue_hits": [],
-        "homepage_inline_feeds": [],
-        "html_sitemap_candidates": [], "archive_index_candidates": [],
-    }
+    fake_report = _reaudit_report(
+        trafilatura_sitemaps_found=["https://x.test/sitemap.xml"]
+    )
     with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
             yaml_path=yaml_path,
@@ -582,23 +601,16 @@ def test_run_reaudit_no_changes_returns_zero(tmp_path, capsys) -> None:
 
 
 def test_run_reaudit_dry_run_does_not_write(tmp_path, capsys) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
+    yaml_path = _write_sources_yaml(
+        tmp_path,
         "sources:\n"
         "  - name: example\n"
         "    discovery:\n"
         "      sitemap_urls: []\n",
-        encoding="utf-8",
     )
-    fake_report = {
-        "homepage": "https://x.test",
-        "origin": "https://x.test",
-        "trafilatura_sitemaps_found": ["https://x.test/new-sitemap.xml"],
-        "trafilatura_feeds_found": [],
-        "rss_path_hits": [], "rss_catalogue_hits": [],
-        "homepage_inline_feeds": [],
-        "html_sitemap_candidates": [], "archive_index_candidates": [],
-    }
+    fake_report = _reaudit_report(
+        trafilatura_sitemaps_found=["https://x.test/new-sitemap.xml"]
+    )
     original_body = yaml_path.read_text(encoding="utf-8")
     with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
         rc = audit_source._run_reaudit(
@@ -619,17 +631,36 @@ def test_run_reaudit_dry_run_does_not_write(tmp_path, capsys) -> None:
     assert not yaml_path.with_suffix(yaml_path.suffix + ".bak").exists()
 
 
+def test_run_reaudit_auto_yes_applies_diff(tmp_path) -> None:
+    yaml_path = _write_sources_yaml(
+        tmp_path,
+        "sources:\n"
+        "  - name: example\n"
+        "    discovery:\n"
+        "      sitemap_urls: []\n",
+    )
+    fake_report = _reaudit_report(
+        trafilatura_sitemaps_found=["https://x.test/new-sitemap.xml"]
+    )
+    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
+        rc = audit_source._run_reaudit(
+            yaml_path=yaml_path,
+            source_name="example",
+            homepage="https://x.test",
+            timeout=5.0,
+            verbose=False,
+            auto_yes=True,
+            dry_run=False,
+        )
+    assert rc == 0
+    assert "https://x.test/new-sitemap.xml" in yaml_path.read_text(encoding="utf-8")
+
+
 # ---------------------------------------------------------------------------
 # Hardening tests — sanity checks that prevent false-positive archive_index
 # / html_sitemap candidates (introduced after the live bundesregierung
 # `?datum=` bug, 2026-05-15).
 # ---------------------------------------------------------------------------
-
-def _article_listing_html(article_paths: list[str], host: str = "x.test") -> str:
-    """Build a minimal HTML page with a navigation block + article links."""
-    nav = '<a href="/about">About</a><a href="/contact">Contact</a>'
-    items = "".join(f'<a href="https://www.{host}{p}">item</a>' for p in article_paths)
-    return f"<html><body>{nav}{items}</body></html>"
 
 
 def test_extract_article_url_candidates_filters_assets_and_short_paths() -> None:
@@ -657,16 +688,15 @@ def test_extract_article_url_candidates_filters_assets_and_short_paths() -> None
 
 
 def test_extract_article_url_candidates_excludes_self_url() -> None:
-    html = '<html><body><a href="https://www.x.test/me">self</a><a href="/article/foo-1.html">a</a><a href="/article/bar-2.html">b</a></body></html>'
+    html = (
+        '<html><body><a href="https://www.x.test/me">self</a>'
+        '<a href="/article/foo-1.html">a</a>'
+        '<a href="/article/bar-2.html">b</a></body></html>'
+    )
     urls = audit_source._extract_article_url_candidates(
         html, "https://www.x.test/me", self_url="https://www.x.test/me"
     )
-    assert all("/me" != urlparse_path(u) for u in urls)
-
-
-def urlparse_path(u: str) -> str:
-    from urllib.parse import urlparse
-    return urlparse(u).path
+    assert all("/me" != urlparse(u).path for u in urls)
 
 
 def test_validate_article_listing_page_rejects_thin_pages() -> None:
@@ -684,7 +714,7 @@ def test_validate_article_listing_page_rejects_thin_pages() -> None:
 
 
 def test_validate_article_listing_page_accepts_rich_pages() -> None:
-    html = _article_listing_html([f"/news/article-{i}.html" for i in range(10)])
+    html = article_listing_html([f"/news/article-{i}.html" for i in range(10)])
     result = audit_source._validate_article_listing_page(
         html, "https://www.x.test/sitemap"
     )
@@ -696,18 +726,10 @@ def test_verify_date_walker_rejects_same_content_for_different_dates() -> None:
     """Regression: bundesregierung's ?datum=... endpoint returns the
     SAME generic navigation page regardless of date. The verifier MUST
     reject the candidate as 'not a real date walker'."""
-    static_html = _article_listing_html(
-        [f"/section/page-{i}.html" for i in range(10)]
-    )
-    def fake_get(url, **_kw):
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.text = static_html  # SAME body regardless of date
-        resp.headers = {"Content-Type": "text/html"}
-        resp.url = url
-        return resp
+    static_html = article_listing_html([f"/section/page-{i}.html" for i in range(10)])
+    # SAME body regardless of date.
+    fake_get = route_get({}, default=fake_resp(status=200, body=static_html))
 
-    from datetime import datetime, timezone
     today = datetime(2026, 5, 15, tzinfo=timezone.utc)
     result = audit_source._verify_date_walker(
         "/archiv?datum={date}",
@@ -725,22 +747,14 @@ def test_verify_date_walker_accepts_genuinely_different_content() -> None:
     """A real date walker (like tagesschau's /archiv?datum=) returns
     different article lists for different dates. The verifier MUST
     accept it."""
-    counter = {"hits": 0}
     def fake_get(url, **_kw):
-        counter["hits"] += 1
         date_suffix = url.split("=")[-1]
         # Return a date-specific set of article URLs.
-        html = _article_listing_html(
+        html = article_listing_html(
             [f"/news/{date_suffix}-article-{i}.html" for i in range(10)]
         )
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.text = html
-        resp.headers = {"Content-Type": "text/html"}
-        resp.url = url
-        return resp
+        return fake_resp(status=200, body=html, url=url)
 
-    from datetime import datetime, timezone
     today = datetime(2026, 5, 15, tzinfo=timezone.utc)
     result = audit_source._verify_date_walker(
         "/archiv?datum={date}",
@@ -760,25 +774,16 @@ def test_audit_source_rejects_static_archive_pages(monkeypatch) -> None:
     appear in archive_index_candidates after Phase 122g hardening."""
     static_html = (
         "<html><body>"
-        + "".join(f'<a href="https://www.x.test/nav-{i}">nav</a>'
-                  for i in range(20))
+        + "".join(f'<a href="https://www.x.test/nav-{i}">nav</a>' for i in range(20))
         + "</body></html>"
     )
-
-    def fake_get(url, **_kw):
-        resp = MagicMock()
-        # Homepage: return same HTML so it parses
-        resp.status_code = 200
-        resp.text = static_html
-        resp.headers = {"Content-Type": "text/html"}
-        resp.url = url
-        return resp
+    # Same HTML for every URL (homepage + probes) so it parses but no
+    # archive candidate's body varies by date.
+    fake_get = route_get({}, default=fake_resp(status=200, body=static_html))
 
     # Avoid trafilatura side-effects.
-    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds",
-                        lambda _hp: [])
-    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps",
-                        lambda _hp: [])
+    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds", lambda _hp: [])
+    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps", lambda _hp: [])
 
     report = audit_source.audit_source(
         "https://www.x.test",
@@ -798,8 +803,6 @@ def test_audit_source_accepts_real_date_walker(monkeypatch) -> None:
             # Vary by date — extract anything that follows datum=.
             date_part = url.split("datum=", 1)[1]
             articles = [f"/news/{date_part}-{i}.html" for i in range(10)]
-        elif "html_sitemap" in url:
-            articles = []
         else:
             articles = []
         items = "".join(
@@ -807,17 +810,10 @@ def test_audit_source_accepts_real_date_walker(monkeypatch) -> None:
         )
         # Padding to clear the > 1 KB body-size pre-check.
         body = f"<html><body>{items}<!--{'x' * 1500}--></body></html>"
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.text = body
-        resp.headers = {"Content-Type": "text/html"}
-        resp.url = url
-        return resp
+        return fake_resp(status=200, body=body, url=url)
 
-    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds",
-                        lambda _hp: [])
-    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps",
-                        lambda _hp: [])
+    monkeypatch.setattr(audit_core, "_try_trafilatura_feeds", lambda _hp: [])
+    monkeypatch.setattr(audit_core, "_try_trafilatura_sitemaps", lambda _hp: [])
 
     report = audit_source.audit_source(
         "https://www.x.test",
@@ -828,35 +824,3 @@ def test_audit_source_accepts_real_date_walker(monkeypatch) -> None:
     # At least one archive pattern should pass the date-walker check.
     assert any("datum=" in h["url_template"] for h in accepted), \
         f"expected datum={{date}} pattern in accepted candidates, got: {accepted}"
-
-
-def test_run_reaudit_auto_yes_applies_diff(tmp_path) -> None:
-    yaml_path = tmp_path / "sources.yaml"
-    yaml_path.write_text(
-        "sources:\n"
-        "  - name: example\n"
-        "    discovery:\n"
-        "      sitemap_urls: []\n",
-        encoding="utf-8",
-    )
-    fake_report = {
-        "homepage": "https://x.test",
-        "origin": "https://x.test",
-        "trafilatura_sitemaps_found": ["https://x.test/new-sitemap.xml"],
-        "trafilatura_feeds_found": [],
-        "rss_path_hits": [], "rss_catalogue_hits": [],
-        "homepage_inline_feeds": [],
-        "html_sitemap_candidates": [], "archive_index_candidates": [],
-    }
-    with patch.object(audit_reaudit, "audit_source", return_value=fake_report):
-        rc = audit_source._run_reaudit(
-            yaml_path=yaml_path,
-            source_name="example",
-            homepage="https://x.test",
-            timeout=5.0,
-            verbose=False,
-            auto_yes=True,
-            dry_run=False,
-        )
-    assert rc == 0
-    assert "https://x.test/new-sitemap.xml" in yaml_path.read_text(encoding="utf-8")

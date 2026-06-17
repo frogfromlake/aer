@@ -11,9 +11,9 @@ Covers two load-bearing properties of the temporal-symmetry patch:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 import yaml
@@ -21,14 +21,55 @@ import yaml
 from internal.discovery.sitemap import DiscoveredUrl
 
 
-# --- _load_probe_config ----------------------------------------------------
+# ---------------------------------------------------------------------------
+# Shared fixtures / helpers.
+# ---------------------------------------------------------------------------
+
+_NOW = datetime(2026, 5, 9, tzinfo=timezone.utc)
 
 
 def _write_probe_yaml(tmp_path: Path, payload: dict) -> Path:
+    """Write a probe `sources.yaml` under <tmp>/probe0 and return <tmp>."""
     probe_dir = tmp_path / "probe0"
     probe_dir.mkdir()
     (probe_dir / "sources.yaml").write_text(yaml.safe_dump(payload), encoding="utf-8")
     return tmp_path
+
+
+def _make_url(url: str, lastmod: datetime | None, section: str | None = None) -> DiscoveredUrl:
+    """Build a sitemap-discovered URL entry."""
+    return DiscoveredUrl(url=url, sitemap_lastmod=lastmod, sitemap_section=section)
+
+
+def _patch_discovery(
+    monkeypatch,
+    *,
+    sitemap=None,
+    rss=None,
+    html_sitemap=None,
+    archive_index=None,
+) -> None:
+    """Monkeypatch the four `main.discover_*` channels.
+
+    Each argument is either ``None`` (channel yields nothing) or a list of
+    items the channel should yield (DiscoveredUrl for sitemap; ``(url,
+    pubdate)`` tuples for the others). The ``since``/keyword args every
+    real discover_* accepts are absorbed and ignored.
+    """
+    def _yielder(items):
+        def _discover(*_a, since=None, **_kw):
+            return iter(list(items or []))
+        return _discover
+
+    monkeypatch.setattr("main.discover_sitemap", _yielder(sitemap))
+    monkeypatch.setattr("main.discover_rss", _yielder(rss))
+    monkeypatch.setattr("main.discover_html_sitemap", _yielder(html_sitemap))
+    monkeypatch.setattr("main.discover_archive_index", _yielder(archive_index))
+
+
+# ---------------------------------------------------------------------------
+# _load_probe_config
+# ---------------------------------------------------------------------------
 
 
 def test_load_probe_config_reads_time_window_days(tmp_path: Path) -> None:
@@ -57,31 +98,37 @@ def test_load_probe_config_defaults_to_365_when_absent(tmp_path: Path) -> None:
     assert config["time_window_days"] == DEFAULT_TIME_WINDOW_DAYS == 365
 
 
-def test_load_probe_config_rejects_non_integer(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("payload", "match"),
+    [
+        pytest.param(
+            {
+                "probe": {"time_window_days": "ninety"},
+                "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
+            },
+            "must be an integer",
+            id="non-integer-window",
+        ),
+        pytest.param(
+            {
+                "probe": {"time_window_days": 0},
+                "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
+            },
+            "must be positive",
+            id="zero-or-negative-window",
+        ),
+        pytest.param(
+            {"sources": []},
+            "no sources configured",
+            id="empty-sources",
+        ),
+    ],
+)
+def test_load_probe_config_rejects_invalid(tmp_path: Path, payload: dict, match: str) -> None:
     from main import _load_probe_config
 
-    config_dir = _write_probe_yaml(
-        tmp_path,
-        {
-            "probe": {"time_window_days": "ninety"},
-            "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
-        },
-    )
-    with pytest.raises(ValueError, match="must be an integer"):
-        _load_probe_config("probe0", config_dir)
-
-
-def test_load_probe_config_rejects_zero_or_negative(tmp_path: Path) -> None:
-    from main import _load_probe_config
-
-    config_dir = _write_probe_yaml(
-        tmp_path,
-        {
-            "probe": {"time_window_days": 0},
-            "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
-        },
-    )
-    with pytest.raises(ValueError, match="must be positive"):
+    config_dir = _write_probe_yaml(tmp_path, payload)
+    with pytest.raises(ValueError, match=match):
         _load_probe_config("probe0", config_dir)
 
 
@@ -92,53 +139,22 @@ def test_load_probe_config_rejects_missing_file(tmp_path: Path) -> None:
         _load_probe_config("nonexistent", tmp_path)
 
 
-def test_load_probe_config_rejects_empty_sources(tmp_path: Path) -> None:
-    from main import _load_probe_config
-
-    config_dir = _write_probe_yaml(tmp_path, {"sources": []})
-    with pytest.raises(ValueError, match="no sources configured"):
-        _load_probe_config("probe0", config_dir)
-
-
-# --- _discover_for_source ordering -----------------------------------------
+# ---------------------------------------------------------------------------
+# _discover_for_source ordering
+# ---------------------------------------------------------------------------
 
 
 def test_discover_for_source_sorts_newest_first(monkeypatch) -> None:
     """`sitemap_lastmod desc` ordering. `None` lastmods sink to the end."""
     from main import _discover_for_source
 
-    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
     fake_urls = [
-        DiscoveredUrl(
-            url="https://x/old",
-            sitemap_lastmod=now - timedelta(days=10),
-            sitemap_section=None,
-        ),
-        DiscoveredUrl(
-            url="https://x/new",
-            sitemap_lastmod=now - timedelta(days=1),
-            sitemap_section=None,
-        ),
-        DiscoveredUrl(
-            url="https://x/none",
-            sitemap_lastmod=None,
-            sitemap_section=None,
-        ),
-        DiscoveredUrl(
-            url="https://x/medium",
-            sitemap_lastmod=now - timedelta(days=5),
-            sitemap_section=None,
-        ),
+        _make_url("https://x/old", _NOW - timedelta(days=10)),
+        _make_url("https://x/new", _NOW - timedelta(days=1)),
+        _make_url("https://x/none", None),
+        _make_url("https://x/medium", _NOW - timedelta(days=5)),
     ]
-
-    def fake_sitemap_discover(_urls, since=None, **_kw) -> Iterator[DiscoveredUrl]:
-        yield from fake_urls
-
-    def fake_rss_discover(_url, since=None, **_kw):
-        return iter([])
-
-    monkeypatch.setattr("main.discover_sitemap", fake_sitemap_discover)
-    monkeypatch.setattr("main.discover_rss", fake_rss_discover)
+    _patch_discovery(monkeypatch, sitemap=fake_urls)
 
     source = {"name": "x", "sitemap_urls": ["https://x"]}
     result = _discover_for_source(source, since=None)
@@ -192,22 +208,12 @@ def test_discover_for_source_rss_pubdate_promotes_url_to_head(monkeypatch) -> No
     """
     from main import _discover_for_source
 
-    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
-    sitemap_entry = DiscoveredUrl(
-        url="https://x/sitemap-old",
-        sitemap_lastmod=now - timedelta(days=30),
-        sitemap_section="archive",
+    sitemap_entry = _make_url(
+        "https://x/sitemap-old", _NOW - timedelta(days=30), "archive"
     )
-    rss_recent = ("https://x/rss-fresh", now - timedelta(hours=2))
+    rss_recent = ("https://x/rss-fresh", _NOW - timedelta(hours=2))
     rss_undated = ("https://x/rss-undated", None)
-
-    monkeypatch.setattr(
-        "main.discover_sitemap", lambda urls, since=None, **_kw: iter([sitemap_entry])
-    )
-    monkeypatch.setattr(
-        "main.discover_rss",
-        lambda url, since=None, **_kw: iter([rss_recent, rss_undated]),
-    )
+    _patch_discovery(monkeypatch, sitemap=[sitemap_entry], rss=[rss_recent, rss_undated])
 
     source = {
         "name": "x",
@@ -234,20 +240,13 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     but the sitemap-side winner already carried a canonical lastmod."""
     from main import _discover_for_source
 
-    sitemap_entry = DiscoveredUrl(
-        url="https://x/dup",
-        sitemap_lastmod=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        sitemap_section="news",
+    sitemap_entry = _make_url(
+        "https://x/dup", datetime(2026, 5, 1, tzinfo=timezone.utc), "news"
     )
-
-    monkeypatch.setattr(
-        "main.discover_sitemap", lambda urls, since=None, **_kw: iter([sitemap_entry])
-    )
-    monkeypatch.setattr(
-        "main.discover_rss",
-        lambda url, since=None, **_kw: iter(
-            [("https://x/dup", datetime(2026, 5, 8, tzinfo=timezone.utc))]
-        ),
+    _patch_discovery(
+        monkeypatch,
+        sitemap=[sitemap_entry],
+        rss=[("https://x/dup", datetime(2026, 5, 8, tzinfo=timezone.utc))],
     )
 
     source = {
@@ -262,7 +261,9 @@ def test_discover_for_source_dedup_prefers_sitemap_entry(monkeypatch) -> None:
     assert result[0].sitemap_section == "news"
 
 
-# --- Phase 122g: discovery: block + flat-key aliasing -----------------------
+# ---------------------------------------------------------------------------
+# Phase 122g: discovery: block + flat-key aliasing
+# ---------------------------------------------------------------------------
 
 
 def test_normalise_source_discovery_accepts_new_block() -> None:
@@ -348,16 +349,15 @@ def test_discover_for_source_uses_plural_rss_feeds(monkeypatch) -> None:
     """
     from main import _discover_for_source
 
-    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
     rss_calls: list[str] = []
 
     def fake_rss(url, since=None):
         rss_calls.append(url)
         # Each feed yields a distinct URL so the union is observable.
         if "feed-a" in url:
-            return iter([("https://x/article-from-a", now - timedelta(hours=1))])
+            return iter([("https://x/article-from-a", _NOW - timedelta(hours=1))])
         if "feed-b" in url:
-            return iter([("https://x/article-from-b", now - timedelta(hours=2))])
+            return iter([("https://x/article-from-b", _NOW - timedelta(hours=2))])
         return iter([])
 
     monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
@@ -397,32 +397,15 @@ def test_discover_for_source_unions_all_four_channels(monkeypatch) -> None:
     """
     from main import _discover_for_source
 
-    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
-
-    sitemap_entry = DiscoveredUrl(
-        url="https://x/sitemap-article",
-        sitemap_lastmod=now - timedelta(days=2),
-        sitemap_section="news",
+    sitemap_entry = _make_url(
+        "https://x/sitemap-article", _NOW - timedelta(days=2), "news"
     )
-    monkeypatch.setattr(
-        "main.discover_sitemap",
-        lambda urls, since=None, **_kw: iter([sitemap_entry]),
-    )
-    monkeypatch.setattr(
-        "main.discover_rss",
-        lambda url, since=None, **_kw: iter(
-            [("https://x/rss-article", now - timedelta(hours=3))]
-        ),
-    )
-    monkeypatch.setattr(
-        "main.discover_html_sitemap",
-        lambda cfg, since=None, **_kw: iter([("https://x/html-sitemap-article", None)]),
-    )
-    monkeypatch.setattr(
-        "main.discover_archive_index",
-        lambda cfg, since=None, **_kw: iter(
-            [("https://x/archive-article", now - timedelta(days=5))]
-        ),
+    _patch_discovery(
+        monkeypatch,
+        sitemap=[sitemap_entry],
+        rss=[("https://x/rss-article", _NOW - timedelta(hours=3))],
+        html_sitemap=[("https://x/html-sitemap-article", None)],
+        archive_index=[("https://x/archive-article", _NOW - timedelta(days=5))],
     )
 
     source = {
@@ -465,26 +448,13 @@ def test_discover_for_source_html_sitemap_loses_collision_to_sitemap(monkeypatch
     coverage regression if the channel-order changes."""
     from main import _discover_for_source
 
-    sitemap_entry = DiscoveredUrl(
-        url="https://x/article-100.html",
-        sitemap_lastmod=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        sitemap_section="news",
+    sitemap_entry = _make_url(
+        "https://x/article-100.html", datetime(2026, 5, 1, tzinfo=timezone.utc), "news"
     )
-    monkeypatch.setattr(
-        "main.discover_sitemap",
-        lambda urls, since=None, **_kw: iter([sitemap_entry]),
-    )
-    monkeypatch.setattr(
-        "main.discover_rss",
-        lambda url, since=None, **_kw: iter([]),
-    )
-    monkeypatch.setattr(
-        "main.discover_html_sitemap",
-        lambda cfg, since=None, **_kw: iter([("https://x/article-100.html", None)]),
-    )
-    monkeypatch.setattr(
-        "main.discover_archive_index",
-        lambda cfg, since=None, **_kw: iter([]),
+    _patch_discovery(
+        monkeypatch,
+        sitemap=[sitemap_entry],
+        html_sitemap=[("https://x/article-100.html", None)],
     )
 
     source = {
@@ -513,12 +483,11 @@ def test_discover_for_source_aliases_legacy_rss_hint_url(monkeypatch) -> None:
     """
     from main import _discover_for_source
 
-    now = datetime(2026, 5, 9, tzinfo=timezone.utc)
     rss_calls: list[str] = []
 
     def fake_rss(url, since=None):
         rss_calls.append(url)
-        return iter([("https://x/article", now - timedelta(hours=1))])
+        return iter([("https://x/article", _NOW - timedelta(hours=1))])
 
     monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
     monkeypatch.setattr("main.discover_rss", fake_rss)
@@ -534,7 +503,9 @@ def test_discover_for_source_aliases_legacy_rss_hint_url(monkeypatch) -> None:
     assert [e.url for e in result] == ["https://x/article"]
 
 
-# --- Phase 122e A1: regression test for ReactorNotRestartable ---------------
+# ---------------------------------------------------------------------------
+# Phase 122e A1: regression test for ReactorNotRestartable
+# ---------------------------------------------------------------------------
 
 
 def test_cli_calls_start_exactly_once_for_multi_source(monkeypatch, tmp_path) -> None:
@@ -586,10 +557,9 @@ def test_cli_calls_start_exactly_once_for_multi_source(monkeypatch, tmp_path) ->
         "main.discover_sitemap",
         lambda urls, since=None, **_kw: iter(
             [
-                DiscoveredUrl(
-                    url=f"https://{urls[0].split('/')[2]}/article-1",
-                    sitemap_lastmod=datetime(2026, 5, 1, tzinfo=timezone.utc),
-                    sitemap_section=None,
+                _make_url(
+                    f"https://{urls[0].split('/')[2]}/article-1",
+                    datetime(2026, 5, 1, tzinfo=timezone.utc),
                 )
             ]
         ),
