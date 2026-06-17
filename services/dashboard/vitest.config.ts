@@ -16,9 +16,26 @@ export default defineConfig({
       enabled: true,
       provider: 'v8',
       include: ['src/lib/**/*.ts', 'src/routes/**/*.ts'],
-      exclude: ['**/*.svelte', '**/*.d.ts', 'src/lib/api/types.ts', '**/*.{test,spec}.ts'],
+      exclude: [
+        '**/*.svelte',
+        // Svelte-5 rune state (`*.svelte.ts`) is the reactive layer, not pure
+        // logic — it cannot run under node-env Vitest (same reason as `.svelte`)
+        // and is covered by E2E (ADR-041).
+        '**/*.svelte.ts',
+        // Browser-only bootstrap: the frontend OpenTelemetry wiring is lazy-
+        // loaded post-paint and needs a browser + the OTel web SDK — E2E/manual
+        // territory, like the engine-3d WebGL core (ADR-041).
+        'src/lib/observability/otel.ts',
+        '**/*.d.ts',
+        'src/lib/api/types.ts',
+        '**/*.{test,spec}.ts'
+      ],
       reporter: ['text-summary'],
-      thresholds: { lines: 58, statements: 58, functions: 50, branches: 55 }
+      // Phase-142 Step 3: ratcheted up from the Step-1 baseline to lock the API-
+      // query + auth/analyses + cell-export test gains. Final climb to the
+      // ADR-041 80%-line floor lands with the pillar.ts pure-logic extraction
+      // (rune-coupled today) + branch coverage.
+      thresholds: { lines: 75, statements: 72, functions: 72, branches: 65 }
     }
   }
 });
