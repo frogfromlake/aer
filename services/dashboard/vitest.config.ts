@@ -26,16 +26,28 @@ export default defineConfig({
         // loaded post-paint and needs a browser + the OTel web SDK — E2E/manual
         // territory, like the engine-3d WebGL core (ADR-041).
         'src/lib/observability/otel.ts',
+        // Imports `$lib/state/url.svelte` (the Svelte-5 rune state layer), so it
+        // cannot load under node-env Vitest — same rationale as `**/*.svelte.ts`.
+        // Its pure logic is extracted to `panel-mutators-pure.ts` (floored here).
+        'src/lib/workbench/panel-mutators.ts',
+        // Depends on the browser-only WebAuthentication API
+        // (`navigator.credentials`); no node equivalent — E2E/manual territory,
+        // same rationale as the otel.ts browser bootstrap (ADR-041).
+        'src/lib/api/webauthn-browser.ts',
+        // Rune-coupled shell: after the pure logic moved to `pillar-internals.ts`
+        // (floored + tested here) only `pickPillar`/`activePillarDefinition`
+        // remain, and they read/write the `$lib/state/url.svelte` rune store —
+        // unloadable under node-env Vitest. Same rationale as panel-mutators.ts.
+        'src/lib/pillar.ts',
         '**/*.d.ts',
         'src/lib/api/types.ts',
         '**/*.{test,spec}.ts'
       ],
       reporter: ['text-summary'],
-      // Phase-142 Step 3: ratcheted up from the Step-1 baseline to lock the API-
-      // query + auth/analyses + cell-export test gains. Final climb to the
-      // ADR-041 80%-line floor lands with the pillar.ts pure-logic extraction
-      // (rune-coupled today) + branch coverage.
-      thresholds: { lines: 75, statements: 72, functions: 72, branches: 65 }
+      // Phase-142 COMPLETE: at the ADR-041 80% floor on all four metrics
+      // (measured stmts 89.8 / branch 83.7 / funcs 95.5 / lines 92.3 after the
+      // pillar-internals extraction + cooccurrence-network-shared + branch tests).
+      thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 }
     }
   }
 });

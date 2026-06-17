@@ -1,15 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fmtValue,
   fmtTimestamp,
   clampReadoutPosition,
+  markIndexFromEvent,
   HIDDEN_READOUT
 } from '../../src/lib/presentations/cell-readout';
 
 // `markIndexFromEvent` is DOM-bound (closest / ownerSVGElement /
-// querySelectorAll); the unit environment is `node` with no DOM lib, so it is
-// covered by the in-browser verify pass rather than here.
+// querySelectorAll); the node env has no DOM lib, so the test below stubs the
+// minimal `Element`/`SVGElement` surface it touches (the in-browser verify pass
+// covers the real Observable-Plot wiring end-to-end).
 
 // Phase 132 — exact-value hover readout (pure pieces).
 
@@ -84,5 +86,74 @@ describe('HIDDEN_READOUT', () => {
     expect(HIDDEN_READOUT.visible).toBe(false);
     expect(HIDDEN_READOUT.rows).toEqual([]);
     expect(Object.isFrozen(HIDDEN_READOUT)).toBe(true);
+  });
+});
+
+describe('markIndexFromEvent', () => {
+  // Minimal Element/SVGElement stand-ins covering the surface the resolver
+  // touches: `instanceof Element`, `.closest()`, `.ownerSVGElement`,
+  // `.querySelectorAll()`.
+  class StubElement {
+    closestResult: StubElement | null = null;
+    ownerSVGElement: StubSvg | null = null;
+    closest() {
+      return this.closestResult;
+    }
+  }
+  class StubSvg extends StubElement {
+    marks: StubElement[] = [];
+    querySelectorAll() {
+      return this.marks;
+    }
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubDom() {
+    vi.stubGlobal('Element', StubElement);
+    vi.stubGlobal('SVGElement', StubElement);
+  }
+
+  it('returns null for a null target (no DOM element)', () => {
+    stubDom();
+    expect(markIndexFromEvent(null, 'rect')).toBeNull();
+  });
+
+  it('returns null when the target is not inside a matching mark', () => {
+    stubDom();
+    const el = new StubElement(); // closest() → null
+    expect(markIndexFromEvent(el as unknown as EventTarget, 'rect')).toBeNull();
+  });
+
+  it('returns null when the mark has no owner SVG', () => {
+    stubDom();
+    const mark = new StubElement();
+    const el = new StubElement();
+    el.closestResult = mark; // closest finds a mark, but ownerSVGElement is null
+    expect(markIndexFromEvent(el as unknown as EventTarget, 'rect')).toBeNull();
+  });
+
+  it('returns the DOM-order index of the hovered mark', () => {
+    stubDom();
+    const svg = new StubSvg();
+    const m0 = new StubElement();
+    const m1 = new StubElement();
+    const m2 = new StubElement();
+    svg.marks = [m0, m1, m2];
+    m1.ownerSVGElement = svg;
+    const el = new StubElement();
+    el.closestResult = m1;
+    expect(markIndexFromEvent(el as unknown as EventTarget, 'rect')).toBe(1);
+  });
+
+  it('returns null when the resolved mark is not in the query set', () => {
+    stubDom();
+    const svg = new StubSvg();
+    svg.marks = [new StubElement()];
+    const orphan = new StubElement();
+    orphan.ownerSVGElement = svg; // svg exists, but orphan ∉ svg.marks → indexOf -1
+    const el = new StubElement();
+    el.closestResult = orphan;
+    expect(markIndexFromEvent(el as unknown as EventTarget, 'rect')).toBeNull();
   });
 });

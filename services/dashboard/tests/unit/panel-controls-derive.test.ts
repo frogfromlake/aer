@@ -8,12 +8,16 @@ import {
   offerableMetadataFields,
   buildMetadataFields,
   firstMetadataField,
+  buildMetricList,
+  firstMetricSupporting,
+  resetMetricForScope,
   buildScalarMetricOptions,
   computeTopNMax,
   reconcilePanelForView,
   type ScopeGate
 } from '../../src/lib/workbench/panel-controls-derive';
-import type { Panel, Presentation } from '../../src/lib/state/url-internals';
+import { CROSS_PROBE_DEFAULT_METRIC, DEFAULT_METRIC_NAME } from '../../src/lib/presentations';
+import type { Panel, Presentation, ScopeGroup } from '../../src/lib/state/url-internals';
 import type { PresentationDefinition } from '../../src/lib/presentations';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -209,6 +213,152 @@ describe('computeTopNMax', () => {
   });
 });
 
+describe('buildMetricList', () => {
+  const openGate: ScopeGate = {
+    scopeAvailableSet: null,
+    partialMetricSet: new Set(),
+    showWithheld: false
+  };
+
+  it('prepends the canonical default and filters through metric→presentation + scope gate', () => {
+    const out = buildMetricList({
+      view: 'distribution',
+      availableMetricNames: ['word_count', 'publication_hour'],
+      gate: openGate,
+      activeMetric: ''
+    });
+    // distribution supports scalars + publication_hour; default leads.
+    expect(out[0]).toBe(DEFAULT_METRIC_NAME);
+    expect(out).toContain('word_count');
+    expect(out).toContain('publication_hour');
+  });
+
+  it('drops a metric the active presentation cannot render', () => {
+    const out = buildMetricList({
+      view: 'time_series',
+      availableMetricNames: ['publication_hour'], // distribution-only
+      gate: openGate,
+      activeMetric: ''
+    });
+    expect(out).not.toContain('publication_hour');
+  });
+
+  it('respects the scope gate (intersection only)', () => {
+    const out = buildMetricList({
+      view: 'distribution',
+      availableMetricNames: ['word_count', 'entity_count'],
+      gate: {
+        scopeAvailableSet: new Set(['word_count']),
+        partialMetricSet: new Set(),
+        showWithheld: false
+      },
+      activeMetric: ''
+    });
+    expect(out).toContain('word_count');
+    expect(out).not.toContain('entity_count');
+    // The default is gated out too (not in the intersection).
+    expect(out).not.toContain(DEFAULT_METRIC_NAME);
+  });
+
+  it('always surfaces a supported active metric even when the gate would drop it', () => {
+    const out = buildMetricList({
+      view: 'distribution',
+      availableMetricNames: ['word_count'],
+      gate: {
+        scopeAvailableSet: new Set(['word_count']),
+        partialMetricSet: new Set(),
+        showWithheld: false
+      },
+      activeMetric: 'entity_count' // gated out, but active → surfaced
+    });
+    expect(out).toContain('entity_count');
+  });
+
+  it('does NOT surface an active metric the presentation cannot render', () => {
+    const out = buildMetricList({
+      view: 'time_series',
+      availableMetricNames: [],
+      gate: openGate,
+      activeMetric: 'publication_hour' // distribution-only → not surfaced for time_series
+    });
+    expect(out).not.toContain('publication_hour');
+  });
+});
+
+describe('firstMetricSupporting', () => {
+  it('prefers the canonical default when it renders the view', () => {
+    expect(firstMetricSupporting('distribution', ['word_count'])).toBe(DEFAULT_METRIC_NAME);
+  });
+
+  it('falls back to the first available metric the view supports', () => {
+    // cooccurrence_network: the default (a scalar) does not support it, so it
+    // scans the available list for entity_cooccurrence.
+    expect(
+      firstMetricSupporting('cooccurrence_network', ['word_count', 'entity_cooccurrence'])
+    ).toBe('entity_cooccurrence');
+  });
+
+  it('falls back to the default when nothing in the list supports the view', () => {
+    expect(firstMetricSupporting('cooccurrence_network', ['word_count'])).toBe(DEFAULT_METRIC_NAME);
+  });
+});
+
+describe('resetMetricForScope', () => {
+  const scopes: ScopeGroup[] = [{ probeIds: ['probe-0'], sourceIds: ['tagesschau'] }];
+
+  it('returns the scope canonical default when it is scope-valid for the view', () => {
+    expect(
+      resetMetricForScope({
+        view: 'distribution',
+        scopeAvailableSet: new Set([CROSS_PROBE_DEFAULT_METRIC]),
+        scopes,
+        availableMetricNames: []
+      })
+    ).toBe(CROSS_PROBE_DEFAULT_METRIC);
+  });
+
+  it('falls back to the cross-probe backbone, then to an available sentiment metric', () => {
+    // canonical (CROSS_PROBE_DEFAULT) is gated out; an available sentiment_score* wins.
+    const out = resetMetricForScope({
+      view: 'distribution',
+      scopeAvailableSet: new Set(['sentiment_score_germansentiment']),
+      scopes,
+      availableMetricNames: ['sentiment_score_germansentiment', 'word_count']
+    });
+    expect(out).toBe('sentiment_score_germansentiment');
+  });
+
+  it('falls back to any available metric when no sentiment metric is offerable', () => {
+    const out = resetMetricForScope({
+      view: 'distribution',
+      scopeAvailableSet: new Set(['word_count']),
+      scopes,
+      availableMetricNames: ['word_count']
+    });
+    expect(out).toBe('word_count');
+  });
+
+  it('returns the canonical as the last-resort when nothing is offerable', () => {
+    const out = resetMetricForScope({
+      view: 'distribution',
+      scopeAvailableSet: new Set(['nope']),
+      scopes,
+      availableMetricNames: []
+    });
+    expect(out).toBe(CROSS_PROBE_DEFAULT_METRIC);
+  });
+
+  it('treats a null scope-available set as "everything offerable"', () => {
+    const out = resetMetricForScope({
+      view: 'distribution',
+      scopeAvailableSet: null,
+      scopes,
+      availableMetricNames: []
+    });
+    expect(out).toBe(CROSS_PROBE_DEFAULT_METRIC); // canonical passes the null-set ok()
+  });
+});
+
 describe('reconcilePanelForView', () => {
   // Minimal panel + presentation-definition stubs so the seeding/reconcile logic
   // is exercised deterministically (no registry dependency: every stub sets
@@ -303,5 +453,56 @@ describe('reconcilePanelForView', () => {
       ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })])
     );
     expect(next.metric).toBe('author'); // firstMetadataField(['section','author']) sorted
+  });
+
+  it('seeds the cross-tab numeric metric (channels.x), preferring sentiment', () => {
+    const next = reconcilePanelForView(
+      panel(),
+      'cross_tab' as Presentation,
+      ctx([pres({ id: 'cross_tab', configurableParams: ['crossMetric'] })])
+    );
+    expect(next.channels?.x).toBe('sentiment_score_bert_multilingual');
+  });
+
+  it('seeds the lead-lag x/y to two distinct metrics', () => {
+    const next = reconcilePanelForView(
+      panel(),
+      'metric_lead_lag' as Presentation,
+      ctx([pres({ id: 'metric_lead_lag', configurableParams: ['leadLagAxes'] })])
+    );
+    expect(next.channels?.x).toBeDefined();
+    expect(next.channels?.y).toBeDefined();
+    expect(next.channels?.x).not.toBe(next.channels?.y);
+  });
+
+  it('reconciles metric → field when switching from a metric view into a field view', () => {
+    // prevUsesMetadataField false → switching into a field view seeds the first field.
+    const next = reconcilePanelForView(
+      panel({ metric: 'word_count' }),
+      'categorical_distribution' as Presentation,
+      ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })], {
+        prevUsesMetadataField: false
+      })
+    );
+    expect(next.metric).toBe('author');
+  });
+
+  it('reconciles field → metric: a metric view re-seeds when coming from a field view', () => {
+    const next = reconcilePanelForView(
+      panel({ metric: 'section' }), // a field name, not a metric
+      'distribution' as Presentation,
+      ctx([pres({ id: 'distribution', usesMetric: true })], { prevUsesMetadataField: true })
+    );
+    // firstMetricSupporting('distribution', ...) → canonical default.
+    expect(next.metric).toBe('sentiment_score_sentiws');
+  });
+
+  it('keeps a still-valid metric when staying within metric views', () => {
+    const next = reconcilePanelForView(
+      panel({ metric: 'word_count' }),
+      'distribution' as Presentation,
+      ctx([pres({ id: 'distribution', usesMetric: true })], { prevUsesMetadataField: false })
+    );
+    expect(next.metric).toBe('word_count'); // word_count supports distribution → kept
   });
 });

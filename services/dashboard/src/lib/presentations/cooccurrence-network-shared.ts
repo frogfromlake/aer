@@ -135,7 +135,10 @@ export function sourceColor(presence: string[], sourceColorMap: Record<string, s
   return SHARED_COLOR;
 }
 
-function rampBlueAmber(t: number): string {
+// Exported so the node-fill ramp can be pinned in unit tests (the blue→amber
+// endpoints and direction are a behavioural contract, not an implementation
+// detail the test should be blind to).
+export function rampBlueAmber(t: number): string {
   const c = METRIC_LO.map((l, i) => Math.round(l + ((METRIC_HI[i] ?? l) - l) * t));
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
