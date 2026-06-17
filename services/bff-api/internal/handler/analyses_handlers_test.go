@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,16 @@ type mockAnalyses struct {
 	items     map[string]*storage.Analysis // id -> analysis
 	ownerOf   map[string]string            // id -> owner userID
 	createErr error
+	// Optional overrides for the error/permission branches; nil/zero keeps the
+	// default ownerOf/items-driven behaviour the existing tests rely on.
+	listVisibleErr error
+	getErr         error
+	updateResult   *bool
+	updateErr      error
+	isOwnerErr     error
+	listSharesErr  error
+	removeShareErr error
+	removeShareNo  bool // when true, RemoveShare reports "no such grant"
 }
 
 func newMockAnalyses() *mockAnalyses {
@@ -25,9 +36,15 @@ func newMockAnalyses() *mockAnalyses {
 }
 
 func (m *mockAnalyses) ListVisible(_ context.Context, _ string) ([]storage.AnalysisListItem, error) {
+	if m.listVisibleErr != nil {
+		return nil, m.listVisibleErr
+	}
 	return []storage.AnalysisListItem{{ID: "a1", Name: "x", OwnerEmail: "o@x.y", Permission: "editable", Owned: true}}, nil
 }
 func (m *mockAnalyses) Get(_ context.Context, id, userID string) (*storage.Analysis, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
 	a, ok := m.items[id]
 	if !ok || m.ownerOf[id] != userID {
 		return nil, nil
@@ -41,15 +58,27 @@ func (m *mockAnalyses) Create(_ context.Context, ownerID, name, description, sta
 	return storage.AnalysisListItem{ID: "new", Name: name, Description: description, OwnerEmail: "o@x.y", Permission: "editable", Owned: true}, nil
 }
 func (m *mockAnalyses) Update(_ context.Context, _, _, _, _, _ string) (bool, error) {
+	if m.updateErr != nil {
+		return false, m.updateErr
+	}
+	if m.updateResult != nil {
+		return *m.updateResult, nil
+	}
 	return true, nil
 }
 func (m *mockAnalyses) Delete(_ context.Context, id, userID string) (bool, error) {
 	return m.ownerOf[id] == userID, nil
 }
 func (m *mockAnalyses) IsOwner(_ context.Context, id, userID string) (bool, error) {
+	if m.isOwnerErr != nil {
+		return false, m.isOwnerErr
+	}
 	return m.ownerOf[id] == userID, nil
 }
 func (m *mockAnalyses) ListShares(_ context.Context, _ string) ([]storage.ShareItem, error) {
+	if m.listSharesErr != nil {
+		return nil, m.listSharesErr
+	}
 	return []storage.ShareItem{{GranteeID: "g1", Email: "g@x.y", CanEdit: true}}, nil
 }
 func (m *mockAnalyses) AddShare(_ context.Context, _, _, email string, canEdit bool) (storage.ShareItem, error) {
@@ -61,7 +90,12 @@ func (m *mockAnalyses) AddShare(_ context.Context, _, _, email string, canEdit b
 	}
 	return storage.ShareItem{GranteeID: "g1", Email: email, CanEdit: canEdit}, nil
 }
-func (m *mockAnalyses) RemoveShare(_ context.Context, _, _ string) (bool, error) { return true, nil }
+func (m *mockAnalyses) RemoveShare(_ context.Context, _, _ string) (bool, error) {
+	if m.removeShareErr != nil {
+		return false, m.removeShareErr
+	}
+	return !m.removeShareNo, nil
+}
 
 func analysesServer(m *mockAnalyses) *Server {
 	return &Server{analysesBackend: m}
@@ -162,5 +196,215 @@ func TestAnalysesShareErrors(t *testing.T) {
 	_ = r3.VisitPostAnalysisShareResponse(rec)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("non-owner share: expected 403, got %d", rec.Code)
+	}
+}
+
+func seededAnalysis(m *mockAnalyses, id, owner string) {
+	m.items[id] = &storage.Analysis{
+		ID: id, Name: "My", Description: "d", State: "?activePillar=aleph",
+		OwnerEmail: "o@x.y", Permission: "editable", Owned: true,
+	}
+	m.ownerOf[id] = owner
+}
+
+func TestGetAnalysis_FoundReturnsFullState(t *testing.T) {
+	m := newMockAnalyses()
+	seededAnalysis(m, "a1", "u1")
+	s := analysesServer(m)
+
+	resp, err := s.GetAnalysis(withUser("u1"), GetAnalysisRequestObject{ID: "a1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetAnalysis200JSONResponse)
+	if !ok {
+		t.Fatalf("response = %T, want 200", resp)
+	}
+	if got.ID != "a1" || got.State != "?activePillar=aleph" {
+		t.Errorf("got %+v, want full state for a1", got)
+	}
+}
+
+func TestGetAnalysis_Unauthenticated_401(t *testing.T) {
+	s := analysesServer(newMockAnalyses())
+	resp, _ := s.GetAnalysis(context.Background(), GetAnalysisRequestObject{ID: "a1"})
+	if _, ok := resp.(GetAnalysis401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401", resp)
+	}
+}
+
+func TestGetAnalysis_NotFound_404(t *testing.T) {
+	s := analysesServer(newMockAnalyses())
+	resp, _ := s.GetAnalysis(withUser("u1"), GetAnalysisRequestObject{ID: "missing"})
+	if _, ok := resp.(GetAnalysis404JSONResponse); !ok {
+		t.Fatalf("response = %T, want 404", resp)
+	}
+}
+
+func TestGetAnalysis_StoreError_500(t *testing.T) {
+	m := newMockAnalyses()
+	m.getErr = errors.New("pg down")
+	s := analysesServer(m)
+	resp, _ := s.GetAnalysis(withUser("u1"), GetAnalysisRequestObject{ID: "a1"})
+	if _, ok := resp.(GetAnalysis500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500", resp)
+	}
+}
+
+func TestPatchAnalysis_UpdatesAndReloads(t *testing.T) {
+	m := newMockAnalyses()
+	seededAnalysis(m, "a1", "u1")
+	s := analysesServer(m)
+	newName := "Renamed"
+	resp, err := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{
+		ID: "a1", Body: &PatchAnalysisJSONRequestBody{Name: &newName},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(PatchAnalysis200JSONResponse); !ok {
+		t.Fatalf("response = %T, want 200", resp)
+	}
+}
+
+func TestPatchAnalysis_NilBody_403(t *testing.T) {
+	s := analysesServer(newMockAnalyses())
+	resp, _ := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{ID: "a1", Body: nil})
+	if _, ok := resp.(PatchAnalysis403JSONResponse); !ok {
+		t.Fatalf("response = %T, want 403", resp)
+	}
+}
+
+func TestPatchAnalysis_NotShared_403(t *testing.T) {
+	s := analysesServer(newMockAnalyses()) // nothing seeded → Get returns nil
+	name := "x"
+	resp, _ := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{ID: "a1", Body: &PatchAnalysisJSONRequestBody{Name: &name}})
+	if _, ok := resp.(PatchAnalysis403JSONResponse); !ok {
+		t.Fatalf("response = %T, want 403", resp)
+	}
+}
+
+func TestPatchAnalysis_UpdateDenied_403(t *testing.T) {
+	m := newMockAnalyses()
+	seededAnalysis(m, "a1", "u1")
+	denied := false
+	m.updateResult = &denied // Get sees the row, but Update reports not-allowed
+	s := analysesServer(m)
+	name := "x"
+	resp, _ := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{ID: "a1", Body: &PatchAnalysisJSONRequestBody{Name: &name}})
+	if _, ok := resp.(PatchAnalysis403JSONResponse); !ok {
+		t.Fatalf("response = %T, want 403", resp)
+	}
+}
+
+func TestPatchAnalysis_UpdateError_500(t *testing.T) {
+	m := newMockAnalyses()
+	seededAnalysis(m, "a1", "u1")
+	m.updateErr = errors.New("pg down")
+	s := analysesServer(m)
+	name := "x"
+	resp, _ := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{ID: "a1", Body: &PatchAnalysisJSONRequestBody{Name: &name}})
+	if _, ok := resp.(PatchAnalysis500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500", resp)
+	}
+}
+
+func TestGetAnalysisShares_OwnerListsGrantees(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	s := analysesServer(m)
+	resp, err := s.GetAnalysisShares(withUser("owner"), GetAnalysisSharesRequestObject{ID: "a1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetAnalysisShares200JSONResponse)
+	if !ok {
+		t.Fatalf("response = %T, want 200", resp)
+	}
+	if len(got.Shares) != 1 || got.Shares[0].GranteeID != "g1" {
+		t.Errorf("shares = %+v, want one g1 grant", got.Shares)
+	}
+}
+
+func TestGetAnalysisShares_NonOwner_403(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	s := analysesServer(m)
+	resp, _ := s.GetAnalysisShares(withUser("stranger"), GetAnalysisSharesRequestObject{ID: "a1"})
+	if _, ok := resp.(GetAnalysisShares403JSONResponse); !ok {
+		t.Fatalf("response = %T, want 403", resp)
+	}
+}
+
+func TestGetAnalysisShares_OwnerCheckError_500(t *testing.T) {
+	m := newMockAnalyses()
+	m.isOwnerErr = errors.New("pg down")
+	s := analysesServer(m)
+	resp, _ := s.GetAnalysisShares(withUser("owner"), GetAnalysisSharesRequestObject{ID: "a1"})
+	if _, ok := resp.(GetAnalysisShares500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500", resp)
+	}
+}
+
+func TestGetAnalysisShares_ListError_500(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	m.listSharesErr = errors.New("pg down")
+	s := analysesServer(m)
+	resp, _ := s.GetAnalysisShares(withUser("owner"), GetAnalysisSharesRequestObject{ID: "a1"})
+	if _, ok := resp.(GetAnalysisShares500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500", resp)
+	}
+}
+
+func TestDeleteAnalysisShare_OwnerRevokes_204(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	s := analysesServer(m)
+	resp, err := s.DeleteAnalysisShare(withUser("owner"), DeleteAnalysisShareRequestObject{ID: "a1", GranteeID: "g1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(DeleteAnalysisShare204Response); !ok {
+		t.Fatalf("response = %T, want 204", resp)
+	}
+}
+
+func TestDeleteAnalysisShare_NonOwner_403(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	s := analysesServer(m)
+	resp, _ := s.DeleteAnalysisShare(withUser("stranger"), DeleteAnalysisShareRequestObject{ID: "a1", GranteeID: "g1"})
+	if _, ok := resp.(DeleteAnalysisShare403JSONResponse); !ok {
+		t.Fatalf("response = %T, want 403", resp)
+	}
+}
+
+func TestDeleteAnalysisShare_NoSuchGrant_404(t *testing.T) {
+	m := newMockAnalyses()
+	m.ownerOf["a1"] = "owner"
+	m.removeShareNo = true
+	s := analysesServer(m)
+	resp, _ := s.DeleteAnalysisShare(withUser("owner"), DeleteAnalysisShareRequestObject{ID: "a1", GranteeID: "ghost"})
+	if _, ok := resp.(DeleteAnalysisShare404JSONResponse); !ok {
+		t.Fatalf("response = %T, want 404", resp)
+	}
+}
+
+func TestDeleteAnalysisShare_Unauthenticated_401(t *testing.T) {
+	s := analysesServer(newMockAnalyses())
+	resp, _ := s.DeleteAnalysisShare(context.Background(), DeleteAnalysisShareRequestObject{ID: "a1", GranteeID: "g1"})
+	if _, ok := resp.(DeleteAnalysisShare401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401", resp)
+	}
+}
+
+func TestListVisible_StoreError_500(t *testing.T) {
+	m := newMockAnalyses()
+	m.listVisibleErr = errors.New("pg down")
+	s := analysesServer(m)
+	resp, _ := s.GetAnalyses(withUser("u1"), GetAnalysesRequestObject{})
+	if _, ok := resp.(GetAnalyses500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500", resp)
 	}
 }

@@ -1,0 +1,401 @@
+package storage
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+var (
+	eqStart = time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	eqEnd   = time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
+	eqTS    = time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+)
+
+// seedLangDetection inserts one rank-1 language detection.
+func seedLangDetection(t *testing.T, ctx hasContext, s *ClickHouseStorage, source, articleID, lang string) {
+	t.Helper()
+	if err := bulkInsert(ctx.Ctx(), s, "aer_gold.language_detections",
+		[]string{"timestamp", "source", "article_id", "detected_language", "confidence", "rank"},
+		[][]any{{eqTS, source, articleID, lang, 0.99, uint8(1)}}); err != nil {
+		t.Fatalf("seed language detection: %v", err)
+	}
+}
+
+// seedEquivalenceGrant inserts one metric_equivalence row.
+func seedEquivalenceGrant(t *testing.T, ctx context.Context, s *ClickHouseStorage, metric, lang, level string) {
+	t.Helper()
+	err := s.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
+		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence, notes)
+		VALUES ('evaluative_polarity', ?, ?, 'web', ?, 'researcher_x', now(), 0.9, 'grant note')`,
+		metric, lang, level)
+	if err != nil {
+		t.Fatalf("seed equivalence grant: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CountLanguagesForSources / LanguagesForScope
+// ---------------------------------------------------------------------------
+
+func TestCountAndListLanguagesForScope(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	seedLangDetection(t, contextWrap{ctx}, s, "tagesschau", "a1", "de")
+	seedLangDetection(t, contextWrap{ctx}, s, "tagesschau", "a2", "de")
+	seedLangDetection(t, contextWrap{ctx}, s, "franceinfo", "f1", "fr")
+	// Off-source row.
+	seedLangDetection(t, contextWrap{ctx}, s, "wikipedia", "w1", "en")
+
+	n, err := s.CountLanguagesForSources(ctx, eqStart, eqEnd, []string{"tagesschau", "franceinfo"})
+	if err != nil {
+		t.Fatalf("CountLanguagesForSources: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("distinct languages: want 2 (de, fr), got %d", n)
+	}
+
+	langs, err := s.LanguagesForScope(ctx, eqStart, eqEnd, []string{"tagesschau", "franceinfo"})
+	if err != nil {
+		t.Fatalf("LanguagesForScope: %v", err)
+	}
+	if len(langs) != 2 || langs[0] != "de" || langs[1] != "fr" {
+		t.Errorf("languages (ordered): want [de fr], got %v", langs)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetScopeAvailableMetrics — intersection vs partial.
+// ---------------------------------------------------------------------------
+
+func TestGetScopeAvailableMetrics_IntersectionVsPartial(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		[][]any{
+			// word_count present for both → Available.
+			{eqTS, 100.0, "tagesschau", "word_count", "a1"},
+			{eqTS, 120.0, "franceinfo", "word_count", "f1"},
+			// sentiment_score only tagesschau → Partial.
+			{eqTS, 0.4, "tagesschau", "sentiment_score", "a1"},
+		}); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	res, err := s.GetScopeAvailableMetrics(ctx, eqStart, eqEnd, []string{"tagesschau", "franceinfo"})
+	if err != nil {
+		t.Fatalf("GetScopeAvailableMetrics: %v", err)
+	}
+	if len(res.Available) != 1 || res.Available[0] != "word_count" {
+		t.Errorf("Available: want [word_count], got %v", res.Available)
+	}
+	if len(res.Partial) != 1 || res.Partial[0].MetricName != "sentiment_score" {
+		t.Fatalf("Partial: want [sentiment_score], got %v", res.Partial)
+	}
+	if len(res.Partial[0].Sources) != 1 || res.Partial[0].Sources[0] != "tagesschau" {
+		t.Errorf("partial sources: want [tagesschau], got %v", res.Partial[0].Sources)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetPercentileNormalizedMetrics
+// ---------------------------------------------------------------------------
+
+func TestGetPercentileNormalizedMetrics_RanksWithinGroup(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// Five articles in one hourly bucket with ascending values; percentile of
+	// the group ranges 0..1 and averages to 0.5.
+	base := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	for i, v := range []float64{1, 2, 3, 4, 5} {
+		aid := "a" + itoa(i)
+		if err := bulkInsert(ctx, s, "aer_gold.metrics",
+			[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+			[][]any{{base.Add(time.Duration(i) * time.Minute), v, "tagesschau", "word_count", aid}}); err != nil {
+			t.Fatalf("seed metric: %v", err)
+		}
+		seedLangDetection(t, contextWrap{ctx}, s, "tagesschau", aid, "de")
+	}
+	// One row with NO language detection → excluded count = 1.
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		[][]any{{base, 9.0, "tagesschau", "word_count", "no-lang"}}); err != nil {
+		t.Fatalf("seed no-lang metric: %v", err)
+	}
+
+	metric := "word_count"
+	rows, excluded, err := s.GetPercentileNormalizedMetrics(ctx, eqStart, eqEnd, []string{"tagesschau"}, &metric, ResolutionHourly)
+	if err != nil {
+		t.Fatalf("GetPercentileNormalizedMetrics: %v", err)
+	}
+	if excluded != 1 {
+		t.Errorf("excluded: want 1 (no-lang row), got %d", excluded)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 hourly bucket, got %d", len(rows))
+	}
+	// Mean percentile of a uniformly ranked group is 0.5.
+	if rows[0].Value < 0.49 || rows[0].Value > 0.51 {
+		t.Errorf("mean percentile: want ~0.5, got %v", rows[0].Value)
+	}
+	if rows[0].Count != 5 {
+		t.Errorf("count: want 5 (lang-bearing rows), got %d", rows[0].Count)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetProbeEquivalence + checkAbsoluteEquivalenceForLanguages
+// ---------------------------------------------------------------------------
+
+func TestGetProbeEquivalence_LevelLadder(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// One metric with data + a de+fr language scope.
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		[][]any{
+			{eqTS, 0.4, "tagesschau", "sentiment_score", "a1"},
+			{eqTS, 0.5, "franceinfo", "sentiment_score", "f1"},
+		}); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+	seedLangDetection(t, contextWrap{ctx}, s, "tagesschau", "a1", "de")
+	seedLangDetection(t, contextWrap{ctx}, s, "franceinfo", "f1", "fr")
+	// Deviation grant for both languages → Level2 true, Level3 false.
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "de", "deviation")
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "fr", "deviation")
+
+	rows, err := s.GetProbeEquivalence(ctx, eqStart, eqEnd, []string{"tagesschau", "franceinfo"})
+	if err != nil {
+		t.Fatalf("GetProbeEquivalence: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 metric row, got %d", len(rows))
+	}
+	r := rows[0]
+	if r.MetricName != "sentiment_score" {
+		t.Errorf("metric: want sentiment_score, got %q", r.MetricName)
+	}
+	if !r.Level1Available {
+		t.Error("Level1 (temporal) should always be available with data")
+	}
+	if !r.Level2Available {
+		t.Error("Level2 (deviation) should be available with de+fr deviation grants")
+	}
+	if r.Level3Available {
+		t.Error("Level3 (absolute) should be false with only deviation grants")
+	}
+	if r.EquivalenceStatus == nil || r.EquivalenceStatus.Level == nil || *r.EquivalenceStatus.Level != "deviation" {
+		t.Errorf("equivalence status level: want deviation, got %+v", r.EquivalenceStatus)
+	}
+}
+
+func TestGetProbeEquivalence_EmptyScope(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	rows, err := s.GetProbeEquivalence(ctx, eqStart, eqEnd, nil)
+	if err != nil {
+		t.Fatalf("GetProbeEquivalence: %v", err)
+	}
+	if rows != nil {
+		t.Errorf("empty scope must return nil, got %v", rows)
+	}
+}
+
+func TestCheckAbsoluteEquivalenceForLanguages(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	seedEquivalenceGrant(t, ctx, s, "publication_hour", "de", "absolute")
+	seedEquivalenceGrant(t, ctx, s, "publication_hour", "fr", "deviation")
+
+	// de has absolute but fr only deviation → not covered for both.
+	ok, err := s.checkAbsoluteEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"})
+	if err != nil {
+		t.Fatalf("checkAbsolute: %v", err)
+	}
+	if ok {
+		t.Error("want false: fr has no absolute grant")
+	}
+
+	// de alone is covered.
+	ok, err = s.checkAbsoluteEquivalenceForLanguages(ctx, "publication_hour", []string{"de"})
+	if err != nil {
+		t.Fatalf("checkAbsolute: %v", err)
+	}
+	if !ok {
+		t.Error("want true: de has an absolute grant")
+	}
+
+	// Empty language set is vacuously true.
+	ok, err = s.checkAbsoluteEquivalenceForLanguages(ctx, "publication_hour", nil)
+	if err != nil {
+		t.Fatalf("checkAbsolute: %v", err)
+	}
+	if !ok {
+		t.Error("empty language set should be vacuously true")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetEquivalenceStatus
+// ---------------------------------------------------------------------------
+
+func TestGetEquivalenceStatus_StrongestGrant(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// Two grants for one metric — temporal + deviation; strongest is deviation.
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "de", "temporal")
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "fr", "deviation")
+
+	status, err := s.GetEquivalenceStatus(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("GetEquivalenceStatus: %v", err)
+	}
+	if status == nil || status.Level == nil {
+		t.Fatal("expected a status with a level")
+	}
+	if *status.Level != "deviation" {
+		t.Errorf("level: want deviation (strongest), got %q", *status.Level)
+	}
+	if status.ValidatedBy == nil || *status.ValidatedBy != "researcher_x" {
+		t.Errorf("validatedBy not populated: %+v", status.ValidatedBy)
+	}
+
+	// Unknown metric → nil status, no error.
+	missing, err := s.GetEquivalenceStatus(ctx, "no_such_metric")
+	if err != nil {
+		t.Fatalf("GetEquivalenceStatus(missing): %v", err)
+	}
+	if missing != nil {
+		t.Errorf("unknown metric must yield nil status, got %+v", missing)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetMetricValidationStatus / GetMetricCulturalContextNotes
+// ---------------------------------------------------------------------------
+
+func TestGetMetricValidationStatus(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// Unvalidated: no row at all.
+	st, err := s.GetMetricValidationStatus(ctx, "word_count")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st != "unvalidated" {
+		t.Errorf("no row: want unvalidated, got %q", st)
+	}
+
+	// Validated: an entry with valid_until in the future.
+	if err := s.conn.Exec(ctx, `INSERT INTO aer_gold.metric_validity
+		(metric_name, context_key, validation_date, alpha_score, correlation, n_annotated, error_taxonomy, valid_until)
+		VALUES ('sentiment_score', 'de', now(), 0.8, 0.7, 100, '', now() + INTERVAL 365 DAY)`); err != nil {
+		t.Fatalf("insert valid: %v", err)
+	}
+	st, err = s.GetMetricValidationStatus(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st != "validated" {
+		t.Errorf("future valid_until: want validated, got %q", st)
+	}
+
+	// Expired: an entry already past its valid_until.
+	if err := s.conn.Exec(ctx, `INSERT INTO aer_gold.metric_validity
+		(metric_name, context_key, validation_date, alpha_score, correlation, n_annotated, error_taxonomy, valid_until)
+		VALUES ('entity_count', 'de', now() - INTERVAL 700 DAY, 0.8, 0.7, 100, '', now() - INTERVAL 1 DAY)`); err != nil {
+		t.Fatalf("insert expired: %v", err)
+	}
+	st, err = s.GetMetricValidationStatus(ctx, "entity_count")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st != "expired" {
+		t.Errorf("past valid_until: want expired, got %q", st)
+	}
+}
+
+func TestGetMetricCulturalContextNotes(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// No equivalence → empty notes.
+	notes, err := s.GetMetricCulturalContextNotes(ctx, "word_count")
+	if err != nil {
+		t.Fatalf("notes: %v", err)
+	}
+	if notes != "" {
+		t.Errorf("no equivalence: want empty, got %q", notes)
+	}
+
+	// Two grants — temporal + absolute; the summary picks the strongest level.
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "de", "temporal")
+	seedEquivalenceGrant(t, ctx, s, "sentiment_score", "fr", "absolute")
+
+	notes, err = s.GetMetricCulturalContextNotes(ctx, "sentiment_score")
+	if err != nil {
+		t.Fatalf("notes: %v", err)
+	}
+	if notes == "" {
+		t.Fatal("expected a non-empty cultural-context summary")
+	}
+	if !contains(notes, "absolute") || !contains(notes, "evaluative_polarity") {
+		t.Errorf("summary should name strongest level + construct, got %q", notes)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// queryNodeMetric (cooccurrence_subqueries.go)
+// ---------------------------------------------------------------------------
+
+func TestQueryNodeMetric_MeanOverArticlesWhereEntityAppears(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// Two entities: Berlin appears in a1 + a2, Merkel only in a1.
+	if err := bulkInsert(ctx, s, "aer_gold.entities",
+		[]string{"timestamp", "source", "article_id", "entity_text", "entity_label", "start_char", "end_char"},
+		[][]any{
+			{eqTS, "tagesschau", "a1", "Berlin", "LOC", uint32(0), uint32(6)},
+			{eqTS, "tagesschau", "a2", "Berlin", "LOC", uint32(0), uint32(6)},
+			{eqTS, "tagesschau", "a1", "Merkel", "PER", uint32(10), uint32(16)},
+		}); err != nil {
+		t.Fatalf("seed entities: %v", err)
+	}
+	// sentiment: a1 = 0.2, a2 = 0.8.
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		[][]any{
+			{eqTS, 0.2, "tagesschau", "sentiment_score", "a1"},
+			{eqTS, 0.8, "tagesschau", "sentiment_score", "a2"},
+		}); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	acc := map[string]*nodeAccumulator{
+		"Berlin": {label: "LOC"},
+		"Merkel": {label: "PER"},
+	}
+	got, err := s.queryNodeMetric(ctx, acc, "sentiment_score", []string{"tagesschau"}, eqStart, eqEnd)
+	if err != nil {
+		t.Fatalf("queryNodeMetric: %v", err)
+	}
+	// Berlin mean over a1, a2 = 0.5; Merkel over a1 = 0.2.
+	if got["Berlin"] < 0.49 || got["Berlin"] > 0.51 {
+		t.Errorf("Berlin mean: want ~0.5, got %v", got["Berlin"])
+	}
+	if got["Merkel"] < 0.19 || got["Merkel"] > 0.21 {
+		t.Errorf("Merkel mean: want ~0.2, got %v", got["Merkel"])
+	}
+}
+
+func TestQueryNodeMetric_EmptyInputs(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	got, err := s.queryNodeMetric(ctx, map[string]*nodeAccumulator{}, "sentiment_score", []string{"tagesschau"}, eqStart, eqEnd)
+	if err != nil || got != nil {
+		t.Errorf("empty accumulator: want (nil, nil), got (%v, %v)", got, err)
+	}
+	got, err = s.queryNodeMetric(ctx, map[string]*nodeAccumulator{"X": {}}, "", []string{"tagesschau"}, eqStart, eqEnd)
+	if err != nil || got != nil {
+		t.Errorf("empty metric: want (nil, nil), got (%v, %v)", got, err)
+	}
+}

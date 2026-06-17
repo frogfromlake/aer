@@ -414,3 +414,194 @@ func TestResetPasswordBadTokenIs400(t *testing.T) {
 		t.Fatalf("expected 400 for invalid token, got %d", rec.Code)
 	}
 }
+
+// --- PostAuthChangePassword --------------------------------------------------
+
+func changePwCtx(userID string) context.Context {
+	return auth.WithIdentity(context.Background(), &auth.Identity{UserID: userID, SessionIDHash: "sess-hash"})
+}
+
+func TestChangePassword_Success204(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "currentpass12"))
+	s := authTestServer(m)
+
+	resp, err := s.PostAuthChangePassword(changePwCtx("u1"), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "currentpass12", NewPassword: "brandnewpass34"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(PostAuthChangePassword204Response); !ok {
+		t.Fatalf("response = %T, want 204", resp)
+	}
+	// The new password must now verify against the stored hash.
+	ok, _ := auth.VerifyPassword("brandnewpass34", m.byID["u1"].PasswordHash.String)
+	if !ok {
+		t.Error("stored hash does not verify against the new password")
+	}
+}
+
+func TestChangePassword_NoSession401(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	resp, _ := s.PostAuthChangePassword(context.Background(), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "x", NewPassword: "brandnewpass34"},
+	})
+	if _, ok := resp.(PostAuthChangePassword401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401", resp)
+	}
+}
+
+func TestChangePassword_MachineIdentity401(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "u1", Machine: true})
+	resp, _ := s.PostAuthChangePassword(ctx, PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "currentpass12", NewPassword: "brandnewpass34"},
+	})
+	if _, ok := resp.(PostAuthChangePassword401JSONResponse); !ok {
+		t.Fatalf("machine credential must not change a password; response = %T, want 401", resp)
+	}
+}
+
+func TestChangePassword_NilBody400(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	resp, _ := s.PostAuthChangePassword(changePwCtx("u1"), PostAuthChangePasswordRequestObject{Body: nil})
+	if _, ok := resp.(PostAuthChangePassword400JSONResponse); !ok {
+		t.Fatalf("response = %T, want 400", resp)
+	}
+}
+
+func TestChangePassword_WeakNewPassword400(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "currentpass12"))
+	s := authTestServer(m)
+	resp, _ := s.PostAuthChangePassword(changePwCtx("u1"), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "currentpass12", NewPassword: "short"},
+	})
+	if _, ok := resp.(PostAuthChangePassword400JSONResponse); !ok {
+		t.Fatalf("response = %T, want 400 for a sub-minimum password", resp)
+	}
+}
+
+func TestChangePassword_WrongCurrent401(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "currentpass12"))
+	s := authTestServer(m)
+	resp, _ := s.PostAuthChangePassword(changePwCtx("u1"), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "wrongcurrent9", NewPassword: "brandnewpass34"},
+	})
+	if _, ok := resp.(PostAuthChangePassword401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401 for a wrong current password", resp)
+	}
+}
+
+func TestChangePassword_NoPasswordHash401(t *testing.T) {
+	m := newMockAuth()
+	// An invited (not-yet-activated) user has no password hash.
+	m.addUser(&storage.AuthUser{ID: "u1", Email: "invited@example.org", Role: "researcher", Status: "invited"})
+	s := authTestServer(m)
+	resp, _ := s.PostAuthChangePassword(changePwCtx("u1"), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "anything12345", NewPassword: "brandnewpass34"},
+	})
+	if _, ok := resp.(PostAuthChangePassword401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401 when no password hash is set", resp)
+	}
+}
+
+func TestChangePassword_UnknownUser500(t *testing.T) {
+	s := authTestServer(newMockAuth()) // no users → GetUserByID returns nil
+	resp, _ := s.PostAuthChangePassword(changePwCtx("ghost"), PostAuthChangePasswordRequestObject{
+		Body: &PostAuthChangePasswordJSONRequestBody{CurrentPassword: "anything12345", NewPassword: "brandnewpass34"},
+	})
+	if _, ok := resp.(PostAuthChangePassword500JSONResponse); !ok {
+		t.Fatalf("response = %T, want 500 when the user vanished", resp)
+	}
+}
+
+func TestResetPassword_Success204(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "oldpassword12"))
+	rawTok, hashTok, _ := auth.GenerateOpaqueToken()
+	m.tokens[hashTok] = &mockToken{userID: "u1", purpose: "password_reset"}
+	s := authTestServer(m)
+
+	resp, err := s.PostAuthResetPassword(context.Background(), PostAuthResetPasswordRequestObject{
+		Body: &PostAuthResetPasswordJSONRequestBody{Token: rawTok, Password: "brandnewpass34"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(PostAuthResetPassword204Response); !ok {
+		t.Fatalf("response = %T, want 204", resp)
+	}
+	// Reset must revoke every session (the link could be in the wrong hands).
+	if len(m.revokedAll) != 1 || m.revokedAll[0] != "u1" {
+		t.Errorf("revokedAll = %v, want [u1]", m.revokedAll)
+	}
+}
+
+func TestResetPassword_WeakPassword400(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	resp, _ := s.PostAuthResetPassword(context.Background(), PostAuthResetPasswordRequestObject{
+		Body: &PostAuthResetPasswordJSONRequestBody{Token: "anything", Password: "short"},
+	})
+	if _, ok := resp.(PostAuthResetPassword400JSONResponse); !ok {
+		t.Fatalf("response = %T, want 400", resp)
+	}
+}
+
+func TestGetAuthMeExport_Success(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "currentpass12"))
+	s := authTestServer(m)
+	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "u1", Email: "alice@example.org", Role: auth.RoleResearcher})
+
+	resp, err := s.GetAuthMeExport(ctx, GetAuthMeExportRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetAuthMeExport200JSONResponse)
+	if !ok {
+		t.Fatalf("response = %T, want 200", resp)
+	}
+	if got.ID != "u1" || string(got.Email) != "alice@example.org" {
+		t.Errorf("export = %+v, want u1/alice", got)
+	}
+}
+
+func TestGetAuthMeExport_NoSession401(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	resp, _ := s.GetAuthMeExport(context.Background(), GetAuthMeExportRequestObject{})
+	if _, ok := resp.(GetAuthMeExport401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401", resp)
+	}
+}
+
+func TestDeleteAuthMe_Success204(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "currentpass12"))
+	s := authTestServer(m)
+	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "u1", SessionIDHash: "sess"})
+
+	resp, err := s.DeleteAuthMe(ctx, DeleteAuthMeRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	_ = resp.VisitDeleteAuthMeResponse(rec)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	// The session cookie must be cleared on account deletion.
+	if c := setCookie(rec); c == nil || c.MaxAge >= 0 {
+		t.Errorf("expected a cleared session cookie, got %+v", c)
+	}
+}
+
+func TestDeleteAuthMe_NoSession401(t *testing.T) {
+	s := authTestServer(newMockAuth())
+	resp, _ := s.DeleteAuthMe(context.Background(), DeleteAuthMeRequestObject{})
+	if _, ok := resp.(DeleteAuthMe401JSONResponse); !ok {
+		t.Fatalf("response = %T, want 401", resp)
+	}
+}

@@ -47,14 +47,18 @@ func setupTestStore(t *testing.T) (*ClickHouseStorage, context.Context) {
 
 	store := newSharedCHStore(t, ctx, 60*time.Second)
 
-	// Create test tables with Memory engine for fast ephemeral testing
+	// Create test tables with Memory engine for fast ephemeral testing.
+	// `timestamp_source` mirrors the production aer_gold.metrics schema
+	// (Phase 122d.2) — GetSourceArticles projects it for the
+	// Temporal-Provenance-Absence Negative-Space class.
 	err := store.conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
 			timestamp DateTime,
 			value Float64,
 			source String DEFAULT '',
 			metric_name String DEFAULT '',
-			article_id Nullable(String)
+			article_id Nullable(String),
+			timestamp_source String DEFAULT ''
 		) ENGINE = Memory
 	`)
 	if err != nil {

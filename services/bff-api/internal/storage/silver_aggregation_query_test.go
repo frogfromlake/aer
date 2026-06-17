@@ -111,3 +111,105 @@ func TestGetSilverCorrelation_PairwiseLengthVsWordCount(t *testing.T) {
 		t.Fatalf("expected ~1.0 correlation on perfectly linear fixture, got: %+v", res.Matrix[0][1])
 	}
 }
+
+// TestGetSilverHeatmap_WordCountBySource exercises the second heatmap kind
+// (source × dayOfWeek) and the unsupported-kind error branch.
+func TestGetSilverHeatmap_WordCountBySource(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	seedSilverFixture(t, s, contextWrap{ctx})
+
+	cells, xDim, yDim, err := s.GetSilverHeatmap(
+		ctx, SilverAggWordCountBySource, "tagesschau",
+		mustParse(t, "2026-04-19T00:00:00Z"), mustParse(t, "2026-04-22T00:00:00Z"))
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if xDim != "source" || yDim != "dayOfWeek" {
+		t.Fatalf("unexpected dims: %s, %s", xDim, yDim)
+	}
+	var total int64
+	for _, c := range cells {
+		if c.X != "tagesschau" {
+			t.Errorf("x dim should be the scoped source, got %q", c.X)
+		}
+		total += c.Count
+	}
+	if total != 4 {
+		t.Errorf("cell counts must sum to scoped row count, got %d", total)
+	}
+
+	// Unsupported kind → error.
+	if _, _, _, err := s.GetSilverHeatmap(ctx, SilverAggWordCount, "tagesschau",
+		mustParse(t, "2026-04-19T00:00:00Z"), mustParse(t, "2026-04-22T00:00:00Z")); err == nil {
+		t.Error("a non-heatmap kind must return an error")
+	}
+}
+
+// TestGetSilverDistribution_EmptyAndDegenerate covers the empty-scope path and
+// the zero-span single-bin path (every row carries the same value).
+func TestGetSilverDistribution_EmptyAndDegenerate(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	// No rows → empty result (count 0), no bins.
+	empty, err := s.GetSilverDistribution(ctx, "word_count", "tagesschau",
+		mustParse(t, "2026-04-20T00:00:00Z"), mustParse(t, "2026-04-22T00:00:00Z"), 4)
+	if err != nil {
+		t.Fatalf("empty query: %v", err)
+	}
+	if empty.Summary.Count != 0 || len(empty.Bins) != 0 {
+		t.Errorf("empty scope must yield zero count and no bins, got %+v", empty.Summary)
+	}
+
+	// Three rows with an identical value → zero span → a single collapsed bin.
+	base := mustParse(t, "2026-04-20T10:00:00Z")
+	if err := bulkInsert(ctx, s, "aer_silver.documents",
+		[]string{"timestamp", "source", "article_id", "language", "cleaned_text_length", "word_count", "raw_entity_count", "ingestion_version"},
+		[][]any{
+			{base, "tagesschau", "a1", "de", uint32(100), uint32(50), uint32(5), uint64(1)},
+			{base, "tagesschau", "a2", "de", uint32(100), uint32(50), uint32(5), uint64(1)},
+			{base, "tagesschau", "a3", "de", uint32(100), uint32(50), uint32(5), uint64(1)},
+		}); err != nil {
+		t.Fatalf("seed degenerate: %v", err)
+	}
+	res, err := s.GetSilverDistribution(ctx, "word_count", "tagesschau",
+		mustParse(t, "2026-04-20T00:00:00Z"), mustParse(t, "2026-04-21T00:00:00Z"), 4)
+	if err != nil {
+		t.Fatalf("degenerate query: %v", err)
+	}
+	if res.Summary.Count != 3 {
+		t.Fatalf("expected count 3, got %d", res.Summary.Count)
+	}
+	if len(res.Bins) != 1 || res.Bins[0].Count != 3 {
+		t.Fatalf("zero-span distribution must collapse to one bin of 3, got %+v", res.Bins)
+	}
+	if res.Bins[0].Lower != res.Bins[0].Upper {
+		t.Errorf("collapsed bin should have equal bounds, got %+v", res.Bins[0])
+	}
+}
+
+// TestGetSilverCorrelation_InsufficientSamples covers the n<2 path: the
+// off-diagonal stays nil (n/a) while diagonals remain 1.0.
+func TestGetSilverCorrelation_InsufficientSamples(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	base := mustParse(t, "2026-04-20T10:00:00Z")
+	if err := bulkInsert(ctx, s, "aer_silver.documents",
+		[]string{"timestamp", "source", "article_id", "language", "cleaned_text_length", "word_count", "raw_entity_count", "ingestion_version"},
+		[][]any{{base, "tagesschau", "a1", "de", uint32(120), uint32(20), uint32(5), uint64(1)}}); err != nil {
+		t.Fatalf("seed single row: %v", err)
+	}
+	res, err := s.GetSilverCorrelation(ctx, "tagesschau",
+		mustParse(t, "2026-04-20T00:00:00Z"), mustParse(t, "2026-04-21T00:00:00Z"))
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if res.SampleCount != 0 {
+		t.Errorf("single-sample correlation must report SampleCount=0, got %d", res.SampleCount)
+	}
+	if res.Matrix[0][1] != nil || res.Matrix[1][0] != nil {
+		t.Errorf("off-diagonal must stay nil for n<2, got %+v", res.Matrix)
+	}
+	if res.Matrix[0][0] == nil || *res.Matrix[0][0] != 1.0 {
+		t.Errorf("diagonal must remain 1.0, got %+v", res.Matrix[0][0])
+	}
+}

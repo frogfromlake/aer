@@ -22,6 +22,9 @@ type fakeDossier struct {
 	articleErr     error
 	eligibility    *storage.SourceEligibilityRow
 	eligibilityErr error
+	// Phase 122g discovery-coverage; nil → empty summary (the legacy default).
+	discovery    *storage.DiscoveryCoverageSummary
+	discoveryErr error
 }
 
 func (f *fakeDossier) FetchSources(_ context.Context, _ []string, _, _ *time.Time) ([]storage.DossierSourceRow, error) {
@@ -45,6 +48,12 @@ func (f *fakeDossier) ResolveSourceWithEligibility(_ context.Context, _ string) 
 // dedicated field if/when handler tests for the discovery-coverage
 // endpoint land.
 func (f *fakeDossier) GetDiscoveryCoverage(_ context.Context, _ int64, _ int) (*storage.DiscoveryCoverageSummary, error) {
+	if f.discoveryErr != nil {
+		return nil, f.discoveryErr
+	}
+	if f.discovery != nil {
+		return f.discovery, nil
+	}
 	return &storage.DiscoveryCoverageSummary{}, nil
 }
 

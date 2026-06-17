@@ -2,253 +2,183 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 )
 
+// ---------------------------------------------------------------------------
+// Shared metric-test helpers.
+// ---------------------------------------------------------------------------
+
+// seedMetric inserts one aer_gold.metrics row.
+func seedMetric(t *testing.T, ctx context.Context, s *ClickHouseStorage, ts time.Time, value float64, source, metric, articleID string) {
+	t.Helper()
+	if err := s.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
+		ts, value, source, metric, articleID); err != nil {
+		t.Fatalf("seed metric (%s/%s): %v", source, metric, err)
+	}
+}
+
+// seedBaseline inserts one metric_baselines row.
+func seedBaseline(t *testing.T, ctx context.Context, s *ClickHouseStorage, metric, source, lang string, mean, std float64) {
+	t.Helper()
+	if err := s.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
+		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
+		VALUES (?, ?, ?, ?, ?, now() - INTERVAL 30 DAY, now(), 100, now())`,
+		metric, source, lang, mean, std); err != nil {
+		t.Fatalf("seed baseline: %v", err)
+	}
+}
+
+// seedLangForArticle inserts a rank-1 language detection for an article.
+func seedLangForArticle(t *testing.T, ctx context.Context, s *ClickHouseStorage, ts time.Time, source, articleID, lang string) {
+	t.Helper()
+	if err := s.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
+		ts, source, articleID, lang, 0.99, 1); err != nil {
+		t.Fatalf("seed language detection: %v", err)
+	}
+}
+
+// newCacheStore wires a fresh store with the given metrics-cache TTL plus the
+// minimal tables GetAvailableMetrics reads (metrics, metric_validity,
+// metric_equivalence). Used by the cache-behaviour tests.
+func newCacheStore(t *testing.T, ctx context.Context, ttl time.Duration) *ClickHouseStorage {
+	t.Helper()
+	store := newSharedCHStore(t, ctx, ttl)
+	ddls := []string{
+		`CREATE TABLE IF NOT EXISTS aer_gold.metrics (
+			timestamp DateTime, value Float64,
+			source String DEFAULT '', metric_name String DEFAULT '',
+			article_id Nullable(String)) ENGINE = Memory`,
+		`CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
+			metric_name String, context_key String,
+			validation_date DateTime, alpha_score Float32,
+			correlation Float32, n_annotated UInt32,
+			error_taxonomy String, valid_until DateTime) ENGINE = Memory`,
+		`CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
+			etic_construct String, metric_name String, language String,
+			source_type String, equivalence_level String, validated_by String,
+			validation_date DateTime, confidence Float32, notes String DEFAULT '')
+			ENGINE = ReplacingMergeTree(validation_date)
+			ORDER BY (etic_construct, metric_name, language)`,
+	}
+	for _, ddl := range ddls {
+		if err := store.conn.Exec(ctx, ddl); err != nil {
+			t.Fatalf("create cache-store table: %v", err)
+		}
+	}
+	return store
+}
+
+// ---------------------------------------------------------------------------
+// GetMetrics
+// ---------------------------------------------------------------------------
+
 func TestGetMetrics(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
 	now := time.Now().UTC().Truncate(time.Second)
 
-	// Insert one point outside of our test range (2 hours ago)
-	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-2*time.Hour), 10.5, "wikipedia", "word_count", "outside-article")
+	seedMetric(t, ctx, store, now.Add(-2*time.Hour), 10.5, "wikipedia", "word_count", "outside")      // out of range
+	seedMetric(t, ctx, store, now.Add(-1*time.Hour), 42.0, "wikipedia", "word_count", "test-article") // in range
+	seedMetric(t, ctx, store, now.Add(-30*time.Minute), 99.0, "newsapi", "word_count", "news-article")
+	seedMetric(t, ctx, store, now.Add(-1*time.Hour), 0.75, "wikipedia", "sentiment_score", "test-article")
+
+	start, end := now.Add(-90*time.Minute), now
+
+	all, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
 	if err != nil {
-		t.Fatalf("failed to insert data: %v", err)
+		t.Fatalf("GetMetrics: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 results inside time range, got %d", len(all))
 	}
 
-	// Insert one point INSIDE our test range (1 hour ago) — wikipedia source
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 42.0, "wikipedia", "word_count", "test-article")
-	if err != nil {
-		t.Fatalf("failed to insert data: %v", err)
+	bySource, err := store.GetMetrics(ctx, start, end, []string{"wikipedia"}, nil, ResolutionFiveMinute)
+	if err != nil || len(bySource) != 2 {
+		t.Fatalf("expected 2 wikipedia results, got %d (err %v)", len(bySource), err)
 	}
 
-	// Insert another point INSIDE our test range — different source
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-30*time.Minute), 99.0, "newsapi", "word_count", "news-article")
-	if err != nil {
-		t.Fatalf("failed to insert data: %v", err)
-	}
-
-	// Insert a different metric type inside range
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 0.75, "wikipedia", "sentiment_score", "test-article")
-	if err != nil {
-		t.Fatalf("failed to insert data: %v", err)
-	}
-
-	start := now.Add(-90 * time.Minute)
-	end := now
-
-	// TEST: GetMetrics without dimension filters (returns all in-range rows, grouped by source+metric)
-	results, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("expected no error from GetMetrics, got: %v", err)
-	}
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results inside time range (no filters), got %d", len(results))
-	}
-
-	// TEST: GetMetrics filtered by source
-	results, err = store.GetMetrics(ctx, start, end, []string{"wikipedia"}, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("expected no error from GetMetrics with source filter, got: %v", err)
-	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results for source=wikipedia, got %d", len(results))
-	}
-
-	// TEST: GetMetrics filtered by metricName
 	metricName := "word_count"
-	results, err = store.GetMetrics(ctx, start, end, nil, &metricName, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("expected no error from GetMetrics with metricName filter, got: %v", err)
-	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results for metric_name=word_count, got %d", len(results))
+	byMetric, err := store.GetMetrics(ctx, start, end, nil, &metricName, ResolutionFiveMinute)
+	if err != nil || len(byMetric) != 2 {
+		t.Fatalf("expected 2 word_count results, got %d (err %v)", len(byMetric), err)
 	}
 
-	// TEST: GetMetrics filtered by both source and metricName
-	results, err = store.GetMetrics(ctx, start, end, []string{"wikipedia"}, &metricName, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("expected no error from GetMetrics with both filters, got: %v", err)
+	both, err := store.GetMetrics(ctx, start, end, []string{"wikipedia"}, &metricName, ResolutionFiveMinute)
+	if err != nil || len(both) != 1 {
+		t.Fatalf("expected 1 wikipedia/word_count result, got %d (err %v)", len(both), err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result for source=wikipedia AND metric_name=word_count, got %d", len(results))
-	}
-
-	// TEST: Verify source and metricName are returned
-	if results[0].Source != "wikipedia" {
-		t.Errorf("expected source=wikipedia, got %q", results[0].Source)
-	}
-	if results[0].MetricName != "word_count" {
-		t.Errorf("expected metricName=word_count, got %q", results[0].MetricName)
+	if both[0].Source != "wikipedia" || both[0].MetricName != "word_count" {
+		t.Errorf("projection mismatch: %+v", both[0])
 	}
 }
 
 func TestGetAvailableMetrics(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
 	now := time.Now().UTC().Truncate(time.Second)
-
-	// Insert metrics with different names
 	for _, name := range []string{"word_count", "sentiment_score", "word_count", "entity_count"} {
-		err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, ?, ?, ?)",
-			now, 1.0, "test", name)
-		if err != nil {
-			t.Fatalf("failed to insert metric: %v", err)
-		}
+		seedMetric(t, ctx, store, now, 1.0, "test", name, "")
 	}
 
-	start := now.Add(-time.Hour)
-	end := now.Add(time.Hour)
-	results, err := store.GetAvailableMetrics(ctx, start, end)
+	results, err := store.GetAvailableMetrics(ctx, now.Add(-time.Hour), now.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 3 {
 		t.Fatalf("expected 3 distinct metric names, got %d: %v", len(results), results)
 	}
-	// Ordered alphabetically, all unvalidated (empty metric_validity table)
-	expected := []string{"entity_count", "sentiment_score", "word_count"}
-	for i, name := range expected {
+	for i, name := range []string{"entity_count", "sentiment_score", "word_count"} { // alphabetical
 		if results[i].MetricName != name {
-			t.Errorf("expected results[%d].MetricName=%q, got %q", i, name, results[i].MetricName)
+			t.Errorf("results[%d].MetricName = %q, want %q", i, results[i].MetricName, name)
 		}
 		if results[i].ValidationStatus != "unvalidated" {
-			t.Errorf("expected results[%d].ValidationStatus=unvalidated, got %q", i, results[i].ValidationStatus)
+			t.Errorf("results[%d].ValidationStatus = %q, want unvalidated", i, results[i].ValidationStatus)
 		}
 	}
 }
 
-// TestGetAvailableMetrics_CacheHitSkipsQuery verifies that two consecutive calls
-// within the TTL window result in only one ClickHouse query.
+// TestGetAvailableMetrics_CacheHitSkipsQuery verifies the second call within the
+// TTL is served from cache (dropping the table mid-test would break a real query).
 func TestGetAvailableMetrics_CacheHitSkipsQuery(t *testing.T) {
-	// Use a dedicated store with a long TTL so the cache never expires mid-test.
 	ctx := context.Background()
-	store := newSharedCHStore(t, ctx, 5*time.Minute)
-	err := store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
-			timestamp DateTime, value Float64,
-			source String DEFAULT '', metric_name String DEFAULT '',
-			article_id Nullable(String)
-		) ENGINE = Memory`)
-	if err != nil {
-		t.Fatalf("failed to create table: %v", err)
+	store := newCacheStore(t, ctx, 5*time.Minute)
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')"); err != nil {
+		t.Fatalf("insert: %v", err)
 	}
-	err = store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
-			metric_name String, context_key String,
-			validation_date DateTime, alpha_score Float32,
-			correlation Float32, n_annotated UInt32,
-			error_taxonomy String, valid_until DateTime
-		) ENGINE = Memory`)
-	if err != nil {
-		t.Fatalf("failed to create metric_validity table: %v", err)
-	}
-	err = store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
-			etic_construct String, metric_name String, language String,
-			source_type String, equivalence_level String, validated_by String,
-			validation_date DateTime, confidence Float32, notes String DEFAULT ''
-		) ENGINE = ReplacingMergeTree(validation_date)
-		ORDER BY (etic_construct, metric_name, language)`)
-	if err != nil {
-		t.Fatalf("failed to create metric_equivalence table: %v", err)
-	}
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
-	if err != nil {
-		t.Fatalf("failed to insert: %v", err)
-	}
-
 	now := time.Now().UTC()
 	start, end := now.Add(-time.Hour), now.Add(time.Hour)
 
-	// First call — cache miss, hits ClickHouse.
 	r1, err := store.GetAvailableMetrics(ctx, start, end)
-	if err != nil {
-		t.Fatalf("first call: %v", err)
+	if err != nil || len(r1) != 1 || r1[0].MetricName != "word_count" {
+		t.Fatalf("first call: %v / %v", r1, err)
 	}
-	if len(r1) != 1 || r1[0].MetricName != "word_count" {
-		t.Fatalf("unexpected first result: %v", r1)
-	}
-
-	// Drop the underlying tables so any second ClickHouse query would fail.
+	// Drop the table — any second ClickHouse query would now fail.
 	if err := store.conn.Exec(ctx, "DROP TABLE aer_gold.metrics"); err != nil {
-		t.Fatalf("failed to drop table: %v", err)
+		t.Fatalf("drop: %v", err)
 	}
-
-	// Second call — must be served from cache without hitting ClickHouse.
 	r2, err := store.GetAvailableMetrics(ctx, start, end)
-	if err != nil {
-		t.Fatalf("second call (expected cache hit): %v", err)
-	}
-	if len(r2) != 1 || r2[0].MetricName != "word_count" {
-		t.Fatalf("unexpected second result: %v", r2)
+	if err != nil || len(r2) != 1 || r2[0].MetricName != "word_count" {
+		t.Fatalf("second call (expected cache hit): %v / %v", r2, err)
 	}
 }
 
-// TestGetAvailableMetrics_CacheExpiry verifies that a call after TTL expiry
-// triggers a fresh ClickHouse query.
+// TestGetAvailableMetrics_CacheExpiry verifies a post-TTL call re-queries.
 func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 	ctx := context.Background()
-	// Use a very short TTL so we can expire it without sleeping long.
-	store := newSharedCHStore(t, ctx, 50*time.Millisecond)
-	err := store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metrics (
-			timestamp DateTime, value Float64,
-			source String DEFAULT '', metric_name String DEFAULT '',
-			article_id Nullable(String)
-		) ENGINE = Memory`)
-	if err != nil {
-		t.Fatalf("failed to create table: %v", err)
+	store := newCacheStore(t, ctx, 50*time.Millisecond)
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')"); err != nil {
+		t.Fatalf("insert: %v", err)
 	}
-	err = store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metric_validity (
-			metric_name String, context_key String,
-			validation_date DateTime, alpha_score Float32,
-			correlation Float32, n_annotated UInt32,
-			error_taxonomy String, valid_until DateTime
-		) ENGINE = Memory`)
-	if err != nil {
-		t.Fatalf("failed to create metric_validity table: %v", err)
-	}
-	err = store.conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS aer_gold.metric_equivalence (
-			etic_construct String, metric_name String, language String,
-			source_type String, equivalence_level String, validated_by String,
-			validation_date DateTime, confidence Float32, notes String DEFAULT ''
-		) ENGINE = ReplacingMergeTree(validation_date)
-		ORDER BY (etic_construct, metric_name, language)`)
-	if err != nil {
-		t.Fatalf("failed to create metric_equivalence table: %v", err)
-	}
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 1.0, 'test', 'word_count')")
-	if err != nil {
-		t.Fatalf("failed to insert: %v", err)
-	}
-
 	now := time.Now().UTC()
 	start, end := now.Add(-time.Hour), now.Add(time.Hour)
-
-	// Prime the cache.
 	if _, err := store.GetAvailableMetrics(ctx, start, end); err != nil {
-		t.Fatalf("prime call: %v", err)
+		t.Fatalf("prime: %v", err)
 	}
-
-	// Insert a new metric name while the cache is still warm.
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 2.0, 'test', 'sentiment_score')")
-	if err != nil {
-		t.Fatalf("failed to insert second metric: %v", err)
+	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (now(), 2.0, 'test', 'sentiment_score')"); err != nil {
+		t.Fatalf("second insert: %v", err)
 	}
+	time.Sleep(100 * time.Millisecond) // let TTL expire
 
-	// Wait for TTL to expire.
-	time.Sleep(100 * time.Millisecond)
-
-	// After expiry, should query ClickHouse again and pick up the new metric.
 	r2, err := store.GetAvailableMetrics(ctx, start, end)
 	if err != nil {
 		t.Fatalf("post-expiry call: %v", err)
@@ -258,189 +188,89 @@ func TestGetAvailableMetrics_CacheExpiry(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Baseline / equivalence existence gates.
+// ---------------------------------------------------------------------------
+
 func TestCheckBaselineExists(t *testing.T) {
 	store, ctx := setupTestStore(t)
 
-	// No baselines — should return false.
 	exists, err := store.CheckBaselineExists(ctx, "word_count", nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if exists {
-		t.Error("expected false when no baselines exist")
+	if err != nil || exists {
+		t.Fatalf("no baselines: want (false, nil), got (%v, %v)", exists, err)
 	}
 
-	// Insert a baseline.
-	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
-		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
-		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, now() - INTERVAL 30 DAY, now(), 100, now())`)
-	if err != nil {
-		t.Fatalf("failed to insert baseline: %v", err)
-	}
+	seedBaseline(t, ctx, store, "word_count", "tagesschau", "de", 150.0, 30.0)
 
-	// Now should return true.
-	exists, err = store.CheckBaselineExists(ctx, "word_count", nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if exists, err = store.CheckBaselineExists(ctx, "word_count", nil); err != nil || !exists {
+		t.Errorf("after insert: want true, got %v (err %v)", exists, err)
 	}
-	if !exists {
-		t.Error("expected true after inserting baseline")
-	}
-
-	// Filter by source — matching source.
 	src := "tagesschau"
-	exists, err = store.CheckBaselineExists(ctx, "word_count", &src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if exists, err = store.CheckBaselineExists(ctx, "word_count", &src); err != nil || !exists {
+		t.Errorf("matching source: want true, got %v (err %v)", exists, err)
 	}
-	if !exists {
-		t.Error("expected true for matching source")
-	}
-
-	// Filter by source — non-matching source.
 	other := "nonexistent"
-	exists, err = store.CheckBaselineExists(ctx, "word_count", &other)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if exists {
-		t.Error("expected false for non-matching source")
+	if exists, err = store.CheckBaselineExists(ctx, "word_count", &other); err != nil || exists {
+		t.Errorf("non-matching source: want false, got %v (err %v)", exists, err)
 	}
 }
 
 func TestCheckEquivalenceExists(t *testing.T) {
 	store, ctx := setupTestStore(t)
 
-	// No equivalence — should return false.
 	exists, err := store.CheckEquivalenceExists(ctx, "sentiment_score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if exists {
-		t.Error("expected false when no equivalence entries exist")
+	if err != nil || exists {
+		t.Fatalf("no equivalence: want false, got %v (err %v)", exists, err)
 	}
 
-	// Insert a temporal-level equivalence (below the threshold).
-	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
-		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
-		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'temporal', 'researcher_a', now(), 0.8)`)
-	if err != nil {
-		t.Fatalf("failed to insert equivalence: %v", err)
+	// temporal is below deviation — still false for an intensive metric.
+	seedEquivalenceGrant(t, ctx, store, "sentiment_score", "de", "temporal")
+	if exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score"); err != nil || exists {
+		t.Errorf("temporal-only on intensive metric: want false, got %v (err %v)", exists, err)
 	}
 
-	// temporal is below deviation — should still return false.
-	exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if exists {
-		t.Error("expected false for temporal-only equivalence")
-	}
-
-	// Insert a deviation-level equivalence.
-	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
-		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
-		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'deviation', 'researcher_b', now(), 0.9)`)
-	if err != nil {
-		t.Fatalf("failed to insert equivalence: %v", err)
-	}
-
-	// Now should return true.
-	exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !exists {
-		t.Error("expected true after inserting deviation-level equivalence")
+	seedEquivalenceGrant(t, ctx, store, "sentiment_score", "de", "deviation")
+	if exists, err = store.CheckEquivalenceExists(ctx, "sentiment_score"); err != nil || !exists {
+		t.Errorf("after deviation grant: want true, got %v (err %v)", exists, err)
 	}
 }
 
 // Phase 124: the normalization gate is metric-class-aware. A temporal-axis
-// metric (publication_hour) is satisfied by a temporal Level-1 grant, whereas
-// an intensive metric still needs deviation-or-absolute. The strict reporting
-// check (CheckEquivalenceForLanguages) must NOT be relaxed by the same grant.
+// metric is satisfied by a temporal grant; an intensive metric still needs
+// deviation/absolute. The strict reporting check stays strict.
 func TestNormalizationGate_TemporalMetricAcceptsTemporalGrant(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
-	// A temporal-only grant for publication_hour across de + fr.
 	for _, lang := range []string{"de", "fr"} {
-		if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
-			(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
-			VALUES ('temporal_rhythm', 'publication_hour', ?, 'web', 'temporal', '1', now(), 1.0)`, lang); err != nil {
-			t.Fatalf("failed to insert temporal grant: %v", err)
-		}
+		seedEquivalenceGrant(t, ctx, store, "publication_hour", lang, "temporal")
 	}
 
-	// Single-frame gate: temporal grant is admissible for a temporal metric.
-	ok, err := store.CheckEquivalenceExists(ctx, "publication_hour")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !ok {
+	if ok, err := store.CheckEquivalenceExists(ctx, "publication_hour"); err != nil || !ok {
 		t.Error("temporal metric should accept a temporal grant in the single-frame gate")
 	}
-
-	// Cross-frame normalization gate: temporal grant covers both de + fr.
-	ok, err = store.CheckNormalizationEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !ok {
+	if ok, err := store.CheckNormalizationEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"}); err != nil || !ok {
 		t.Error("temporal grant should satisfy the cross-frame normalization gate for de+fr")
 	}
-
-	// The strict reporting check must stay strict: a temporal-only grant is
-	// NOT deviation-comparable, so the Dossier Level-2 path reports false.
-	ok, err = store.CheckEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok {
+	if ok, err := store.CheckEquivalenceForLanguages(ctx, "publication_hour", []string{"de", "fr"}); err != nil || ok {
 		t.Error("strict deviation/absolute reporting check must not be satisfied by a temporal grant")
 	}
-
-	// An intensive metric with no grant is refused by the normalization gate.
-	ok, err = store.CheckNormalizationEquivalenceForLanguages(ctx, "sentiment_score_sentiws", []string{"de", "fr"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok {
+	if ok, err := store.CheckNormalizationEquivalenceForLanguages(ctx, "sentiment_score_sentiws", []string{"de", "fr"}); err != nil || ok {
 		t.Error("intensive metric without a grant must be refused by the normalization gate")
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Normalized metrics (z-score) + excluded-count semantics.
+// ---------------------------------------------------------------------------
+
 func TestGetNormalizedMetrics(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
 	now := time.Now().UTC().Truncate(time.Second)
 
-	// Insert a metric row.
-	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1")
-	if err != nil {
-		t.Fatalf("failed to insert metric: %v", err)
-	}
+	seedMetric(t, ctx, store, now.Add(-time.Hour), 180.0, "tagesschau", "word_count", "art-1")
+	seedLangForArticle(t, ctx, store, now.Add(-time.Hour), "tagesschau", "art-1", "de")
+	seedBaseline(t, ctx, store, "word_count", "tagesschau", "de", 150.0, 30.0)
 
-	// Insert a language detection for the article.
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1)
-	if err != nil {
-		t.Fatalf("failed to insert language detection: %v", err)
-	}
-
-	// Insert a baseline: mean=150, std=30.
-	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
-		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
-		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
-		now.Add(-30*24*time.Hour), now, now)
-	if err != nil {
-		t.Fatalf("failed to insert baseline: %v", err)
-	}
-
-	start := now.Add(-2 * time.Hour)
-	end := now
-
-	results, excluded, err := store.GetNormalizedMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
+	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -448,10 +278,9 @@ func TestGetNormalizedMetrics(t *testing.T) {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
 	if excluded != 0 {
-		t.Errorf("expected excluded=0 (every metric has a language detection), got %d", excluded)
+		t.Errorf("expected excluded=0, got %d", excluded)
 	}
-	// z-score = (180 - 150) / 30 = 1.0
-	if results[0].Value < 0.99 || results[0].Value > 1.01 {
+	if results[0].Value < 0.99 || results[0].Value > 1.01 { // (180-150)/30 = 1.0
 		t.Errorf("expected zscore ~1.0, got %v", results[0].Value)
 	}
 	if results[0].Source != "tagesschau" {
@@ -459,40 +288,86 @@ func TestGetNormalizedMetrics(t *testing.T) {
 	}
 }
 
-func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
+// Inner join drops metrics whose (source, language) pair has no baseline.
+func TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
 	now := time.Now().UTC().Truncate(time.Second)
 
-	// Insert metrics.
-	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, 1.0, 'test', 'sentiment_score')", now)
-	if err != nil {
-		t.Fatalf("failed to insert metric: %v", err)
-	}
-	err = store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, 1.0, 'test', 'word_count')", now)
-	if err != nil {
-		t.Fatalf("failed to insert metric: %v", err)
-	}
+	seedMetric(t, ctx, store, now.Add(-time.Hour), 180.0, "tagesschau", "word_count", "art-1")
+	seedLangForArticle(t, ctx, store, now.Add(-time.Hour), "tagesschau", "art-1", "de")
+	seedBaseline(t, ctx, store, "word_count", "other_source", "de", 150.0, 30.0) // wrong source
 
-	// Insert equivalence for sentiment_score only.
-	err = store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_equivalence
-		(etic_construct, metric_name, language, source_type, equivalence_level, validated_by, validation_date, confidence)
-		VALUES ('evaluative_polarity', 'sentiment_score', 'de', 'rss', 'deviation', 'researcher_a', now(), 0.9)`)
+	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
 	if err != nil {
-		t.Fatalf("failed to insert equivalence: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
+	if len(results) != 0 {
+		t.Fatalf("expected empty result, got %d rows", len(results))
+	}
+	if excluded != 0 {
+		t.Errorf("expected excluded=0 (only baseline missing), got %d", excluded)
+	}
+}
 
-	start := now.Add(-time.Hour)
-	end := now.Add(time.Hour)
-	results, err := store.GetAvailableMetrics(ctx, start, end)
+// The baseline_std>0 predicate excludes degenerate baselines (no divide-by-zero).
+func TestGetNormalizedMetrics_ZeroStdBaselineFiltered(t *testing.T) {
+	store, ctx := setupTestStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	seedMetric(t, ctx, store, now.Add(-time.Hour), 180.0, "tagesschau", "word_count", "art-1")
+	seedLangForArticle(t, ctx, store, now.Add(-time.Hour), "tagesschau", "art-1", "de")
+	seedBaseline(t, ctx, store, "word_count", "tagesschau", "de", 150.0, 0.0) // zero std
+
+	results, _, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected zero-std baselines filtered, got %d rows", len(results))
+	}
+}
+
+// Phase 78: metric rows whose article has no language detection are counted as
+// excluded, not silently dropped.
+func TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted(t *testing.T) {
+	store, ctx := setupTestStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	seedMetric(t, ctx, store, now.Add(-time.Hour), 180.0, "tagesschau", "word_count", "art-with-lang")
+	seedLangForArticle(t, ctx, store, now.Add(-time.Hour), "tagesschau", "art-with-lang", "de")
+	seedMetric(t, ctx, store, now.Add(-45*time.Minute), 210.0, "tagesschau", "word_count", "art-no-lang") // no detection
+	seedBaseline(t, ctx, store, "word_count", "tagesschau", "de", 150.0, 30.0)
+
+	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 aggregated bucket, got %d", len(results))
+	}
+	if results[0].Value < 0.99 || results[0].Value > 1.01 {
+		t.Errorf("expected zscore ~1.0, got %v", results[0].Value)
+	}
+	if excluded != 1 {
+		t.Errorf("expected excluded=1, got %d", excluded)
+	}
+}
+
+func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
+	store, ctx := setupTestStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	seedMetric(t, ctx, store, now, 1.0, "test", "sentiment_score", "")
+	seedMetric(t, ctx, store, now, 1.0, "test", "word_count", "")
+	seedEquivalenceGrant(t, ctx, store, "sentiment_score", "de", "deviation")
+
+	results, err := store.GetAvailableMetrics(ctx, now.Add(-time.Hour), now.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 2 {
 		t.Fatalf("expected 2 metrics, got %d", len(results))
 	}
-
-	// sentiment_score should have equivalence metadata.
 	var sentiment, wordCount *AvailableMetricRow
 	for i := range results {
 		switch results[i].MetricName {
@@ -503,7 +378,7 @@ func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
 		}
 	}
 	if sentiment == nil || wordCount == nil {
-		t.Fatalf("expected both sentiment_score and word_count in results")
+		t.Fatalf("expected both metrics in results")
 	}
 	if sentiment.EticConstruct == nil || *sentiment.EticConstruct != "evaluative_polarity" {
 		t.Errorf("expected eticConstruct=evaluative_polarity for sentiment_score")
@@ -511,535 +386,30 @@ func TestGetAvailableMetrics_IncludesEquivalenceMetadata(t *testing.T) {
 	if sentiment.EquivalenceLevel == nil || *sentiment.EquivalenceLevel != "deviation" {
 		t.Errorf("expected equivalenceLevel=deviation for sentiment_score")
 	}
-	if wordCount.EticConstruct != nil {
-		t.Errorf("expected nil eticConstruct for word_count")
-	}
-	if wordCount.EquivalenceLevel != nil {
-		t.Errorf("expected nil equivalenceLevel for word_count")
+	if wordCount.EticConstruct != nil || wordCount.EquivalenceLevel != nil {
+		t.Errorf("expected nil equivalence metadata for word_count")
 	}
 }
 
-// TestGetMetrics_ResolutionBucketing verifies that wider resolutions collapse
-// data points into fewer buckets and that the default behavior is unchanged.
-func TestGetMetrics_ResolutionBucketing(t *testing.T) {
-	store, ctx := setupTestStore(t)
+// ---------------------------------------------------------------------------
+// Resolution routing + bucketing.
+// ---------------------------------------------------------------------------
 
-	now := time.Now().UTC().Truncate(time.Hour)
-
-	// Insert four points spanning ~3 hours, each in its own 5-minute bucket
-	// but all within the same hour-aligned day so daily/monthly collapse them.
-	points := []time.Time{
-		now.Add(-3 * time.Hour),
-		now.Add(-2*time.Hour - 30*time.Minute),
-		now.Add(-1*time.Hour - 15*time.Minute),
-		now.Add(-15 * time.Minute),
-	}
-	for i, p := range points {
-		err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-			p, float64(10*(i+1)), "test", "word_count", "art-"+time.Duration(i).String())
-		if err != nil {
-			t.Fatalf("failed to insert: %v", err)
-		}
-	}
-
-	// Phase 122c MV-shape: in production, AggregatingMergeTree MVs
-	// (`metrics_hourly` / `metrics_daily` / `metrics_monthly`) are populated
-	// by triggers on every INSERT into `aer_gold.metrics`. The test setup
-	// (clickhouse_test.go:75) deliberately uses plain AggregatingMergeTree
-	// TABLES rather than MVs to keep tests fast and isolated from
-	// MV-trigger edge cases — see the comment there. The price is that
-	// tests reading non-5min resolutions must mirror the trigger's
-	// INSERT-INTO-SELECT explicitly, exactly as migration 019 declares.
-	for table, bucketExpr := range map[string]string{
-		"aer_gold.metrics_hourly":  "toStartOfHour(timestamp)",
-		"aer_gold.metrics_daily":   "toStartOfDay(timestamp)",
-		"aer_gold.metrics_monthly": "toStartOfMonth(timestamp)",
-	} {
-		ddl := fmt.Sprintf(`
-			INSERT INTO %s
-			SELECT
-				%s AS bucket,
-				source,
-				metric_name,
-				avgState(value),
-				countState()
-			FROM aer_gold.metrics
-			GROUP BY bucket, source, metric_name
-		`, table, bucketExpr)
-		if err := store.conn.Exec(ctx, ddl); err != nil {
-			t.Fatalf("seed %s: %v", table, err)
-		}
-	}
-
-	// Window must encompass every resolution's bucket. Phase 122c routes
-	// non-5-min queries to the AggregatingMergeTree MVs whose WHERE
-	// filter is on `bucket` (the start-of-period), not on the underlying
-	// row's `timestamp`. A monthly bucket equals the first of the month;
-	// a 4-hour window around `now` would silently exclude it. Stretch
-	// the window back to the start of the prior month and forward 1 h
-	// past `now` so every bucket — 5-min, hourly, daily, weekly, monthly —
-	// lies inside [start, end] regardless of which day in the month the
-	// test runs on.
-	start := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.UTC)
-	end := now.Add(time.Hour)
-
-	fiveMin, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("5min: %v", err)
-	}
-	if len(fiveMin) != 4 {
-		t.Errorf("5min expected 4 buckets, got %d", len(fiveMin))
-	}
-
-	hourly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionHourly)
-	if err != nil {
-		t.Fatalf("hourly: %v", err)
-	}
-	// Hourly must collapse 5-minute buckets but cannot have more rows than the 5-minute query.
-	if len(hourly) >= len(fiveMin) {
-		t.Errorf("hourly should produce ≤ 5-minute bucket count; hourly=%d fiveMin=%d", len(hourly), len(fiveMin))
-	}
-	if len(hourly) == 0 {
-		t.Errorf("hourly expected at least one bucket, got 0")
-	}
-
-	daily, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionDaily)
-	if err != nil {
-		t.Fatalf("daily: %v", err)
-	}
-	if len(daily) > 2 {
-		t.Errorf("daily expected ≤2 buckets, got %d", len(daily))
-	}
-
-	monthly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionMonthly)
-	if err != nil {
-		t.Fatalf("monthly: %v", err)
-	}
-	// Four points within ~3 hours collapse to at most 2 month-buckets
-	// (even if the window straddles a month boundary).
-	if len(monthly) < 1 || len(monthly) > 2 {
-		t.Errorf("monthly expected 1–2 buckets, got %d", len(monthly))
-	}
-	// Monthly buckets must align to the first of their month.
-	for _, b := range monthly {
-		if !b.TS.Equal(time.Date(b.TS.Year(), b.TS.Month(), 1, 0, 0, 0, 0, time.UTC)) {
-			t.Errorf("monthly bucket not month-aligned: %v", b.TS)
-		}
-	}
-}
-
-// TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty verifies that the
-// inner join drops metrics whose (source, language) pair has no baseline row.
-// Phase 65 test coverage.
-func TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty(t *testing.T) {
-	store, ctx := setupTestStore(t)
-
-	now := time.Now().UTC().Truncate(time.Second)
-
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1"); err != nil {
-		t.Fatalf("failed to insert metric: %v", err)
-	}
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1); err != nil {
-		t.Fatalf("failed to insert language detection: %v", err)
-	}
-	// Baseline exists but for a different source — join produces no rows.
-	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
-		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
-		VALUES ('word_count', 'other_source', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
-		now.Add(-30*24*time.Hour), now, now); err != nil {
-		t.Fatalf("failed to insert baseline: %v", err)
-	}
-
-	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 0 {
-		t.Fatalf("expected empty result when no baseline matches, got %d rows", len(results))
-	}
-	if excluded != 0 {
-		t.Errorf("expected excluded=0 (language detection present, only baseline missing), got %d", excluded)
-	}
-}
-
-// TestGetNormalizedMetrics_ZeroStdBaselineFiltered verifies that the
-// "b.baseline_std > 0" predicate excludes degenerate baselines to
-// prevent division by zero. Phase 65 test coverage.
-func TestGetNormalizedMetrics_ZeroStdBaselineFiltered(t *testing.T) {
-	store, ctx := setupTestStore(t)
-
-	now := time.Now().UTC().Truncate(time.Second)
-
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-1"); err != nil {
-		t.Fatalf("insert metric: %v", err)
-	}
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), "tagesschau", "art-1", "de", 0.99, 1); err != nil {
-		t.Fatalf("insert language detection: %v", err)
-	}
-	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
-		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
-		VALUES ('word_count', 'tagesschau', 'de', 150.0, 0.0, ?, ?, 1, ?)`,
-		now.Add(-30*24*time.Hour), now, now); err != nil {
-		t.Fatalf("insert baseline: %v", err)
-	}
-
-	results, _, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 0 {
-		t.Fatalf("expected zero-std baselines to be filtered, got %d rows", len(results))
-	}
-}
-
-// TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted verifies the
-// Phase 78 contract: metric rows whose article has no matching language
-// detection must not silently disappear. The aggregated result must remain
-// stable for rows that do have detections, and the excluded count must
-// reflect the number of source rows that were dropped by the LEFT JOIN.
-func TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted(t *testing.T) {
-	store, ctx := setupTestStore(t)
-
-	now := time.Now().UTC().Truncate(time.Second)
-
-	// Row A: has language detection + matching baseline — should be aggregated.
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), 180.0, "tagesschau", "word_count", "art-with-lang"); err != nil {
-		t.Fatalf("insert metric A: %v", err)
-	}
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.language_detections (timestamp, source, article_id, detected_language, confidence, rank) VALUES (?, ?, ?, ?, ?, ?)",
-		now.Add(-1*time.Hour), "tagesschau", "art-with-lang", "de", 0.99, 1); err != nil {
-		t.Fatalf("insert language detection: %v", err)
-	}
-
-	// Row B: metric row but NO language detection for this article — must be counted as excluded.
-	if err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name, article_id) VALUES (?, ?, ?, ?, ?)",
-		now.Add(-45*time.Minute), 210.0, "tagesschau", "word_count", "art-no-lang"); err != nil {
-		t.Fatalf("insert metric B: %v", err)
-	}
-
-	// Baseline for (word_count, tagesschau, de).
-	if err := store.conn.Exec(ctx, `INSERT INTO aer_gold.metric_baselines
-		(metric_name, source, language, baseline_value, baseline_std, window_start, window_end, n_documents, compute_date)
-		VALUES ('word_count', 'tagesschau', 'de', 150.0, 30.0, ?, ?, 100, ?)`,
-		now.Add(-30*24*time.Hour), now, now); err != nil {
-		t.Fatalf("insert baseline: %v", err)
-	}
-
-	results, excluded, err := store.GetNormalizedMetrics(ctx, now.Add(-2*time.Hour), now, nil, nil, ResolutionFiveMinute)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Row A survives the join (one bucket, z-score = (180 - 150)/30 = 1.0).
-	if len(results) != 1 {
-		t.Fatalf("expected 1 aggregated bucket from the row with a language detection, got %d", len(results))
-	}
-	if results[0].Value < 0.99 || results[0].Value > 1.01 {
-		t.Errorf("expected zscore ~1.0 for surviving row, got %v", results[0].Value)
-	}
-
-	// Row B is excluded and surfaced through excluded count.
-	if excluded != 1 {
-		t.Errorf("expected excluded=1 for the row without a language detection, got %d", excluded)
-	}
-}
-
-// TestResolutionRowLimitMultiplier verifies that coarser resolutions raise
-// the effective row cap proportionally so wider time ranges remain queryable.
-// Phase 66 test coverage.
-func TestResolutionRowLimitMultiplier(t *testing.T) {
-	cases := []struct {
-		name     string
-		res      Resolution
-		expected int
-	}{
-		{"5min", ResolutionFiveMinute, 1},
-		{"hourly", ResolutionHourly, 12},
-		{"daily", ResolutionDaily, 288},
-		{"weekly", ResolutionWeekly, 2016},
-		{"monthly", ResolutionMonthly, 8640},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.res.rowLimitMultiplier(); got != tc.expected {
-				t.Errorf("expected multiplier %d for %s, got %d", tc.expected, tc.name, got)
-			}
-		})
-	}
-}
-
-// TestResolutionBucketExpr verifies that each resolution maps to the
-// expected ClickHouse bucketing function.
-func TestResolutionBucketExpr(t *testing.T) {
-	cases := []struct {
-		res      Resolution
-		expected string
-	}{
-		{ResolutionFiveMinute, "toStartOfFiveMinute(timestamp)"},
-		{ResolutionHourly, "toStartOfHour(timestamp)"},
-		{ResolutionDaily, "toStartOfDay(timestamp)"},
-		{ResolutionWeekly, "toStartOfWeek(timestamp)"},
-		{ResolutionMonthly, "toStartOfMonth(timestamp)"},
-	}
-	for _, tc := range cases {
-		if got := tc.res.bucketExpr("timestamp"); got != tc.expected {
-			t.Errorf("expected bucketExpr %q, got %q", tc.expected, got)
-		}
-	}
-}
-
-// TestResolutionQueryShape pins the Phase 122c routing matrix: each
-// resolution maps to the right physical table + aggregate-merge
-// expressions. This is the unit-level guard against routing regressions.
-func TestResolutionQueryShape(t *testing.T) {
-	cases := []struct {
-		name string
-		res  Resolution
-		want metricsQueryShape
-	}{
-		{
-			name: "5min — raw aer_gold.metrics, full precision",
-			res:  ResolutionFiveMinute,
-			want: metricsQueryShape{
-				Table:           "aer_gold.metrics",
-				TimestampColumn: "timestamp",
-				BucketExpr:      "toStartOfFiveMinute(timestamp)",
-				ValueExpr:       "avg(value)",
-				CountExpr:       "count()",
-			},
-		},
-		{
-			name: "hourly — metrics_hourly MV, avgMerge/countMerge",
-			res:  ResolutionHourly,
-			want: metricsQueryShape{
-				Table:           "aer_gold.metrics_hourly",
-				TimestampColumn: "bucket",
-				BucketExpr:      "bucket",
-				ValueExpr:       "avgMerge(value_avg_state)",
-				CountExpr:       "countMerge(sample_count_state)",
-			},
-		},
-		{
-			name: "daily — metrics_daily MV, passthrough bucket",
-			res:  ResolutionDaily,
-			want: metricsQueryShape{
-				Table:           "aer_gold.metrics_daily",
-				TimestampColumn: "bucket",
-				BucketExpr:      "bucket",
-				ValueExpr:       "avgMerge(value_avg_state)",
-				CountExpr:       "countMerge(sample_count_state)",
-			},
-		},
-		{
-			name: "weekly — metrics_daily MV with toStartOfWeek rebucket",
-			res:  ResolutionWeekly,
-			want: metricsQueryShape{
-				Table:           "aer_gold.metrics_daily",
-				TimestampColumn: "bucket",
-				BucketExpr:      "toStartOfWeek(bucket)",
-				ValueExpr:       "avgMerge(value_avg_state)",
-				CountExpr:       "countMerge(sample_count_state)",
-			},
-		},
-		{
-			name: "monthly — metrics_monthly MV, no TTL upstream",
-			res:  ResolutionMonthly,
-			want: metricsQueryShape{
-				Table:           "aer_gold.metrics_monthly",
-				TimestampColumn: "bucket",
-				BucketExpr:      "bucket",
-				ValueExpr:       "avgMerge(value_avg_state)",
-				CountExpr:       "countMerge(sample_count_state)",
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := tc.res.queryShape()
-			if got != tc.want {
-				t.Errorf("queryShape mismatch:\n  want: %+v\n  got:  %+v", tc.want, got)
-			}
-		})
-	}
-}
-
-// TestGetMetrics_ResolutionRouting verifies that GetMetrics actually
-// reads from the right physical table per resolution and combines the
-// AggregatingMergeTree state columns correctly. The fixture inserts a
-// known set of pre-aggregated rows directly into each MV-backing table
-// (state-column form via -State combinators), then queries through
-// GetMetrics and asserts the values round-trip via avgMerge / countMerge.
-//
-// 5-minute resolution is verified separately via TestGetMetrics
-// (existing): it reads raw aer_gold.metrics and is unchanged by the
-// resolution materialized views.
-func TestGetMetrics_ResolutionRouting(t *testing.T) {
-	store, ctx := setupTestStore(t)
-
-	// One bucket per MV table. Use distinct (source, metric) tuples so
-	// the test can assert which physical table fielded each query.
-	now := time.Now().UTC().Truncate(time.Hour)
-	hourlyBucket := now.Truncate(time.Hour)
-	dailyBucket := now.Truncate(24 * time.Hour)
-	monthlyBucket := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
-	// Populate metrics_hourly with avgState(10.0), countState() over a
-	// single underlying row. avgState/countState are exposed via the
-	// `-State` combinator suffix on the ClickHouse aggregate function.
-	if err := store.conn.Exec(ctx, `
-		INSERT INTO aer_gold.metrics_hourly
-		SELECT
-			? AS bucket,
-			'src_hourly' AS source,
-			'metric_h' AS metric_name,
-			avgState(value) AS value_avg_state,
-			countState() AS sample_count_state
-		FROM (SELECT 10.0 AS value UNION ALL SELECT 20.0 AS value)
-	`, hourlyBucket); err != nil {
-		t.Fatalf("seed metrics_hourly: %v", err)
-	}
-
-	if err := store.conn.Exec(ctx, `
-		INSERT INTO aer_gold.metrics_daily
-		SELECT
-			? AS bucket,
-			'src_daily' AS source,
-			'metric_d' AS metric_name,
-			avgState(value) AS value_avg_state,
-			countState() AS sample_count_state
-		FROM (SELECT 5.0 AS value UNION ALL SELECT 7.0 AS value UNION ALL SELECT 9.0 AS value)
-	`, dailyBucket); err != nil {
-		t.Fatalf("seed metrics_daily: %v", err)
-	}
-
-	if err := store.conn.Exec(ctx, `
-		INSERT INTO aer_gold.metrics_monthly
-		SELECT
-			? AS bucket,
-			'src_monthly' AS source,
-			'metric_m' AS metric_name,
-			avgState(value) AS value_avg_state,
-			countState() AS sample_count_state
-		FROM (SELECT 100.0 AS value UNION ALL SELECT 200.0 AS value)
-	`, monthlyBucket); err != nil {
-		t.Fatalf("seed metrics_monthly: %v", err)
-	}
-
-	cases := []struct {
-		name       string
-		resolution Resolution
-		bucket     time.Time
-		source     string
-		metric     string
-		wantValue  float64
-		wantCount  uint64
-	}{
-		{"hourly routes to metrics_hourly", ResolutionHourly, hourlyBucket, "src_hourly", "metric_h", 15.0, 2},
-		{"daily routes to metrics_daily", ResolutionDaily, dailyBucket, "src_daily", "metric_d", 7.0, 3},
-		{"monthly routes to metrics_monthly", ResolutionMonthly, monthlyBucket, "src_monthly", "metric_m", 150.0, 2},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			start := tc.bucket.Add(-time.Hour)
-			end := tc.bucket.Add(31 * 24 * time.Hour) // wide enough to cover monthly bucket
-			metricName := tc.metric
-			rows, err := store.GetMetrics(ctx, start, end, []string{tc.source}, &metricName, tc.resolution)
-			if err != nil {
-				t.Fatalf("GetMetrics(%s): %v", tc.name, err)
-			}
-			if len(rows) != 1 {
-				t.Fatalf("expected exactly 1 row from %s, got %d: %+v", tc.name, len(rows), rows)
-			}
-			got := rows[0]
-			if got.Source != tc.source {
-				t.Errorf("source mismatch: want %q, got %q", tc.source, got.Source)
-			}
-			if got.MetricName != tc.metric {
-				t.Errorf("metric mismatch: want %q, got %q", tc.metric, got.MetricName)
-			}
-			if got.Value != tc.wantValue {
-				t.Errorf("value mismatch: want %v, got %v", tc.wantValue, got.Value)
-			}
-			if got.Count != tc.wantCount {
-				t.Errorf("count mismatch: want %d, got %d", tc.wantCount, got.Count)
-			}
-		})
-	}
-}
-
-// TestGetMetrics_WeeklyRebucket verifies that weekly resolution
-// reads from metrics_daily and rebuckets via toStartOfWeek at query time.
-// The fixture inserts two daily buckets in the same week; the weekly
-// query should fold them into a single week bucket whose value is the
-// average of the daily averages and whose count is the sum.
-func TestGetMetrics_WeeklyRebucket(t *testing.T) {
-	store, ctx := setupTestStore(t)
-
-	// Two adjacent days in the same ISO week.
-	day1 := time.Date(2026, 5, 4, 0, 0, 0, 0, time.UTC) // Monday
-	day2 := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC) // Tuesday
-
-	for _, day := range []time.Time{day1, day2} {
-		if err := store.conn.Exec(ctx, `
-			INSERT INTO aer_gold.metrics_daily
-			SELECT
-				? AS bucket,
-				'src_w' AS source,
-				'metric_w' AS metric_name,
-				avgState(value) AS value_avg_state,
-				countState() AS sample_count_state
-			FROM (SELECT 4.0 AS value UNION ALL SELECT 6.0 AS value)
-		`, day); err != nil {
-			t.Fatalf("seed metrics_daily for %v: %v", day, err)
-		}
-	}
-
-	metric := "metric_w"
-	start := day1.Add(-24 * time.Hour)
-	end := day2.Add(48 * time.Hour)
-	rows, err := store.GetMetrics(ctx, start, end, []string{"src_w"}, &metric, ResolutionWeekly)
-	if err != nil {
-		t.Fatalf("GetMetrics(weekly): %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("expected 1 weekly bucket, got %d: %+v", len(rows), rows)
-	}
-	if rows[0].Value != 5.0 {
-		t.Errorf("weekly avg: want 5.0 (avg of {4,6,4,6}), got %v", rows[0].Value)
-	}
-	if rows[0].Count != 4 {
-		t.Errorf("weekly count: want 4 (2 rows × 2 days), got %d", rows[0].Count)
-	}
-}
-
-// TestGetAvailableMetrics_ConcurrentAccess verifies thread safety under concurrent reads.
+// TestGetAvailableMetrics_ConcurrentAccess verifies thread safety under reads.
 func TestGetAvailableMetrics_ConcurrentAccess(t *testing.T) {
 	store, ctx := setupTestStore(t)
-
 	now := time.Now().UTC()
-	err := store.conn.Exec(ctx, "INSERT INTO aer_gold.metrics (timestamp, value, source, metric_name) VALUES (?, 1.0, 'test', 'word_count')", now)
-	if err != nil {
-		t.Fatalf("failed to insert: %v", err)
-	}
+	seedMetric(t, ctx, store, now, 1.0, "test", "word_count", "")
 
 	start, end := now.Add(-time.Hour), now.Add(time.Hour)
 	const goroutines = 50
 	errs := make(chan error, goroutines)
-
 	for range goroutines {
 		go func() {
 			_, err := store.GetAvailableMetrics(ctx, start, end)
 			errs <- err
 		}()
 	}
-
 	for range goroutines {
 		if err := <-errs; err != nil {
 			t.Errorf("concurrent call error: %v", err)
