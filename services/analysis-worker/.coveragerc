@@ -13,10 +13,10 @@ omit =
     */__pycache__/*
 
 [report]
-# Phase-142 Step 3: ratcheted 70→76 to lock the web_extract + corpus-I/O test
-# gains (worker is at ~78%); final bump to 80 lands with the sweep-orchestration
-# / wayback-IO tests.
-fail_under = 76
+# Phase-142: ratcheted to the ADR-041 80% floor. The final climb from 76 came
+# from the revision-diff sweep orchestration (run_revision_diff_sweep) plus the
+# metadata-coverage / probe-scope / logging / reattempt small units.
+fail_under = 80
 show_missing = True
 exclude_also =
     if __name__ == .__main__.:

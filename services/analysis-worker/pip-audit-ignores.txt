@@ -38,3 +38,17 @@ CVE-2026-1839
 # checkpoints, so the vulnerable path is unreachable. No upstream fix exists.
 # Tracker: https://osv.dev/vulnerability/PYSEC-2025-217
 PYSEC-2025-217
+
+# -- CVE-2025-3000 — torch 2.11.0 (torch.jit.script memory corruption) ---------
+# Memory corruption from manipulating `torch.jit.script` (NVD: AV:L/PR:L,
+# CVSS 4.8 MEDIUM — LOCAL attack vector, requires a local authenticated actor).
+# Unreachable in AĒR: the worker never JIT-scripts untrusted input — torch is
+# used solely as the inference backend for pinned, trusted BERT / BERTopic /
+# sentence-transformers revisions loaded offline (`TRANSFORMERS_OFFLINE=1`,
+# baked into the image); `torch.jit.script` is not on any code path that sees
+# user/network input, and the worker runs non-root on the network-isolated
+# `aer-backend` (no untrusted local user). NVD lists no fixed version; pip-audit
+# reports no Fix Versions. Revisit on `make deps-refresh` — bump + delete when a
+# patched torch ships.
+# Tracker: https://nvd.nist.gov/vuln/detail/CVE-2025-3000
+CVE-2025-3000
