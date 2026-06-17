@@ -62,6 +62,14 @@ services/dashboard/build/
 services/dashboard/playwright-report/
 services/dashboard/test-results/
 services/dashboard/coverage/
+services/dashboard/packages/engine-3d/coverage/
+
+# Coverage data/artefacts (Phase 142). coverage.py writes a binary .coverage
+# SQLite DB at the cwd it runs in; never commit it. HTML/XML reports likewise.
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 
 # Wikidata index build-context staging (Phase 118b)
 # Populated by scripts/build_wikidata_index.py output before docker build;

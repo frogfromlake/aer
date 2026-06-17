@@ -60,9 +60,11 @@ jobs:
         working-directory: ./services/analysis-worker
         run: python -m ruff check .
 
-      - name: Run Unit Tests (analysis-worker)
+      # Coverage gate (Phase 142 / ADR-041): --cov reads .coveragerc; the
+      # fail_under floor there fails the job below the threshold.
+      - name: Run Unit Tests + Coverage Gate (analysis-worker)
         working-directory: ./services/analysis-worker
-        run: python -m pytest tests/ -v
+        run: python -m pytest tests/ --cov --cov-report=term-missing -v
 
       - name: Install Web-Crawler Dependencies (Phase 122)
         working-directory: ./crawlers/web-crawler
@@ -72,11 +74,13 @@ jobs:
         working-directory: ./crawlers/web-crawler
         run: python -m ruff check .
 
-      - name: Run Unit Tests (web-crawler)
+      # Coverage gate (Phase 142 / ADR-041): --cov reads [tool.coverage] in
+      # pyproject.toml; the fail_under floor there fails the job below threshold.
+      - name: Run Unit Tests + Coverage Gate (web-crawler)
         working-directory: ./crawlers/web-crawler
         env:
           PYTHONPATH: .
-        run: python -m pytest tests/ -v
+        run: python -m pytest tests/ --cov --cov-report=term-missing -v
 
   # The Go pipeline is split into three independent jobs that run in
   # parallel: linting (4 modules), the OpenAPI contract-sync check, and
@@ -233,11 +237,12 @@ jobs:
           docker save ${{ steps.tc-images.outputs.postgres }} -o /tmp/docker-images/postgres.tar
           docker save ${{ steps.tc-images.outputs.clickhouse }} -o /tmp/docker-images/clickhouse.tar
 
-      - name: Run Go Integration Tests (Testcontainers)
-        run: |
-          cd services/ingestion-api && go test -v ./...
-          cd ../bff-api && go test -v ./...
-          cd ../../pkg && go test -v ./...
+      # Runs every module's suite (Testcontainers included) under a merged
+      # coverage profile and enforces the per-module floor (Phase 142 / ADR-041):
+      # internal/ denominator, cmd/ mains + generated.go excluded. Replaces the
+      # bare `go test -v` run so the Testcontainer suites execute exactly once.
+      - name: Run Go Integration Tests + Coverage Gate (Testcontainers)
+        run: make cover-go
 
   frontend-pipeline:
     name: Frontend Lint, Test & Bundle-Size Gate

@@ -4731,6 +4731,31 @@ This phase enforces the following — every implementation choice must satisfy t
 ### Validation
 * [x] Convention doc exists; CI enforces the mechanical subset (3 ratchets active + proven); naming worklist checked off or deferred-with-reason; no contract broken — **OpenAPI sync verified** (codegen deterministic, json tags unchanged), `make lint` green (Go ×3, Python ×2, fe), svelte-check 0 errors, **Go tests green incl. Testcontainers**, fe-test 294/294.
 
+## Phase 141: File Decomposition — Long-File Refactor [P2] - [x] DONE
+
+*Split the over-long files from Phase 138's census into coherent units along existing architectural seams — Clean Architecture for Go (`cmd`→`config`→`core`→`storage`), extractor/adapter boundaries for the worker, component/store boundaries for the dashboard. Structural only: no behaviour change.*
+
+**Grounding.** Read first: Phase-138 long-file census + split hypotheses, the Clean-Architecture layering (CLAUDE.md), the worker `MetricExtractor`/`SourceAdapter` boundaries, the dashboard component/`$lib` structure, the `panel-mutators` pure/rune split (an existing good decomposition to mirror). Preserve: public APIs, the pure/impure split pattern (`panel-mutators-pure.ts` vs rune-wrapped), import graphs. Verify-first: decompose along an existing seam, never invent a parallel structure beside the established one (brownfield rule).
+
+### Refactor
+* [x] **Done — split <530, behaviour-preserving:** **Go** 5 files → 15 (golangci clean, Testcontainer green); **Python** `corpus.py`/`audit_source.py`/`web_extract.py` (348 worker + 121 crawler tests green); **Dashboard TS SoTs** `queries.ts` 1239→6, `url-internals` 985→3, `registry` 784→2; **Svelte mediums** DistributionCell/TopicEvolutionCell/AtmosphereSurface (pure logic → `*-internals.ts`, +~30 tests).
+* [x] **Done — Phase-1 LOGIC extraction from the giants** (pure logic → tested companion modules; the components themselves are NOT yet <530): `PanelControls`→`panel-controls-derive.ts` (+21t incl. `reconcilePanelForView`), `PanelHost`→`panel-host-layout.ts` (+21t). Co-occurrence cells share `cooccurrence-network-shared.ts`.
+* [x] **Done — Ratchet** = ESLint **`max-lines`** (530 non-blank LOC) over production TS+Svelte, per-file no-growth caps for residuals in `eslint.config.js` (`FILE_LENGTH_ALLOWLIST`); runs in `make fe-lint` → pre-commit/-push + CI; teeth-tested. (Ruff/golangci have no file-length rule → Go 0 violations + 4 cohesive Python files documented in the register.)
+* [x] **Done — Playwright e2e net** validated (32/32 green) — the safety harness for the markup decomposition below.
+* [x] **DONE — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net). Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530. All 8 giants done.
+  * [x] `PanelControls` 2002→356 (`workbench/levers/*`: 2 shared primitives + 8 per-lever children).
+  * [x] `PanelHost` 1364→312 (5 per-region children: PanelToolbar/PanelScopeChips/PanelDisclosureNotes/PanelCellGrid/PanelCell).
+  * [x] `L5EvidenceReader` 1286→395 (Tier-2b: L5MetaGrid/L5NegativeSpaceSection/L5DiffTab/L5RevisionHistory + tested `l5-evidence-internals.ts` +29t).
+  * [x] `ScopeEditor` 997→457 (ScopeGroupCard/ScopeGroupSources + tested `scope-editor-internals.ts` +20t; behind extended Workbench e2e).
+  * [x] `AnalysesOverlay` 974→489 (AnalysisTable/AnalysisDrawer + tested `analyses-overlay-internals.ts` +19t; behind a new `analyses.spec.ts` e2e).
+  * [x] `CellConfigPopover` 660→223 (order-preserving 2-child split CellConfigValueLevers/CellConfigChannelLevers + tested `cell-config-popover-internals.ts` +15t; behind an extended Workbench e2e). Did **not** reuse the `levers/*` strip primitives — the compact `.ccp-*` popover styling (Phase-126 overflow fixes + per-row override dots) differs from the roomier `.ctrl-*` strip, so reuse would have been a visual regression (technique #7).
+  * [x] `wp/[id]/+page` 642→91 (per-region WpBreadcrumb/WpTableOfContents/WpPaperBody + tested `wp-page-internals.ts` +7t; behind a new `reflection-wp.spec.ts` e2e). CSS-dominated; folded the always-on `.neg-space .toc` accent into base.
+  * [x] `ProbeCard` 568→381 (ProbeDfCards child + tested `probe-card-internals.ts` +8t; behind a new `dossier.spec.ts` e2e). The DF-region split is the cohesive cut (the census's capability-matrix-only idea was too small).
+* [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
+
+### Validation
+* [x] **CLOSED (2026-06-16).** Full test suite green before and after each split; the ESLint `max-lines` ratchet active in fe-lint + CI; every census file is either <530 or a justified allowlist entry. All 8 open giants decomposed to <530 (their caps removed from the allowlist), leaving only the operator-approved render-glue/data/within-tolerance exceptions (`CoOccurrenceNetworkCell` 1222, `engine.ts` 937, `open-questions.ts` 743, `CoOccurrenceNetworkAtScale` 728, `AtmosphereSurface` 642, `SideRail` 533, + 4 Python residuals). Final sweep: fe-lint(+knip) green · fe-test 464 · full e2e 48 passed/3 skipped. **The 7 long TEST files are tracked separately in Phase 142.**
+
 ---
 
 # Open Phases
@@ -4778,48 +4803,28 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 141: File Decomposition — Long-File Refactor [P2] - [x] DONE
-
-*Split the over-long files from Phase 138's census into coherent units along existing architectural seams — Clean Architecture for Go (`cmd`→`config`→`core`→`storage`), extractor/adapter boundaries for the worker, component/store boundaries for the dashboard. Structural only: no behaviour change.*
-
-**Grounding.** Read first: Phase-138 long-file census + split hypotheses, the Clean-Architecture layering (CLAUDE.md), the worker `MetricExtractor`/`SourceAdapter` boundaries, the dashboard component/`$lib` structure, the `panel-mutators` pure/rune split (an existing good decomposition to mirror). Preserve: public APIs, the pure/impure split pattern (`panel-mutators-pure.ts` vs rune-wrapped), import graphs. Verify-first: decompose along an existing seam, never invent a parallel structure beside the established one (brownfield rule).
-
-### Refactor
-* [x] **Done — split <530, behaviour-preserving:** **Go** 5 files → 15 (golangci clean, Testcontainer green); **Python** `corpus.py`/`audit_source.py`/`web_extract.py` (348 worker + 121 crawler tests green); **Dashboard TS SoTs** `queries.ts` 1239→6, `url-internals` 985→3, `registry` 784→2; **Svelte mediums** DistributionCell/TopicEvolutionCell/AtmosphereSurface (pure logic → `*-internals.ts`, +~30 tests).
-* [x] **Done — Phase-1 LOGIC extraction from the giants** (pure logic → tested companion modules; the components themselves are NOT yet <530): `PanelControls`→`panel-controls-derive.ts` (+21t incl. `reconcilePanelForView`), `PanelHost`→`panel-host-layout.ts` (+21t). Co-occurrence cells share `cooccurrence-network-shared.ts`.
-* [x] **Done — Ratchet** = ESLint **`max-lines`** (530 non-blank LOC) over production TS+Svelte, per-file no-growth caps for residuals in `eslint.config.js` (`FILE_LENGTH_ALLOWLIST`); runs in `make fe-lint` → pre-commit/-push + CI; teeth-tested. (Ruff/golangci have no file-length rule → Go 0 violations + 4 cohesive Python files documented in the register.)
-* [x] **Done — Playwright e2e net** validated (32/32 green) — the safety harness for the markup decomposition below.
-* [x] **DONE — actually decompose the markup/scoped-CSS-dominated giants to <530** (Tier-2b sub-componentisation, behaviour-preserving, behind the e2e net). Each: characterization e2e of its surface → extract child components (markup + their scoped CSS) → e2e green → lower its `max-lines` cap → repeat to <530. All 8 giants done.
-  * [x] `PanelControls` 2002→356 (`workbench/levers/*`: 2 shared primitives + 8 per-lever children).
-  * [x] `PanelHost` 1364→312 (5 per-region children: PanelToolbar/PanelScopeChips/PanelDisclosureNotes/PanelCellGrid/PanelCell).
-  * [x] `L5EvidenceReader` 1286→395 (Tier-2b: L5MetaGrid/L5NegativeSpaceSection/L5DiffTab/L5RevisionHistory + tested `l5-evidence-internals.ts` +29t).
-  * [x] `ScopeEditor` 997→457 (ScopeGroupCard/ScopeGroupSources + tested `scope-editor-internals.ts` +20t; behind extended Workbench e2e).
-  * [x] `AnalysesOverlay` 974→489 (AnalysisTable/AnalysisDrawer + tested `analyses-overlay-internals.ts` +19t; behind a new `analyses.spec.ts` e2e).
-  * [x] `CellConfigPopover` 660→223 (order-preserving 2-child split CellConfigValueLevers/CellConfigChannelLevers + tested `cell-config-popover-internals.ts` +15t; behind an extended Workbench e2e). Did **not** reuse the `levers/*` strip primitives — the compact `.ccp-*` popover styling (Phase-126 overflow fixes + per-row override dots) differs from the roomier `.ctrl-*` strip, so reuse would have been a visual regression (technique #7).
-  * [x] `wp/[id]/+page` 642→91 (per-region WpBreadcrumb/WpTableOfContents/WpPaperBody + tested `wp-page-internals.ts` +7t; behind a new `reflection-wp.spec.ts` e2e). CSS-dominated; folded the always-on `.neg-space .toc` accent into base.
-  * [x] `ProbeCard` 568→381 (ProbeDfCards child + tested `probe-card-internals.ts` +8t; behind a new `dossier.spec.ts` e2e). The DF-region split is the cohesive cut (the census's capability-matrix-only idea was too small).
-* [~] **Justified allowlist (operator-approved, stay as-is):** the render-glue co-occurrence cells (`CoOccurrenceNetworkAtScale` 728, `CoOccurrenceNetworkCell` 1222 — visual logic already in `cooccurrence-network-shared.ts`), `engine.ts` 937 (imperative Three.js/WebGL), `open-questions.ts` 743 (data table), `AtmosphereSurface` 642 / `SideRail` 533 (scoped-CSS/markup, within tolerance), and the 4 Python residuals.
-
-### Validation
-* [x] **CLOSED (2026-06-16).** Full test suite green before and after each split; the ESLint `max-lines` ratchet active in fe-lint + CI; every census file is either <530 or a justified allowlist entry. All 8 open giants decomposed to <530 (their caps removed from the allowlist), leaving only the operator-approved render-glue/data/within-tolerance exceptions (`CoOccurrenceNetworkCell` 1222, `engine.ts` 937, `open-questions.ts` 743, `CoOccurrenceNetworkAtScale` 728, `AtmosphereSurface` 642, `SideRail` 533, + 4 Python residuals). Final sweep: fe-lint(+knip) green · fe-test 464 · full e2e 48 passed/3 skipped. **The 7 long TEST files are tracked separately in Phase 142.**
-
----
-
 ## Phase 142: Test Suite Health & 80% Coverage Floor [P1] - [ ] TODO
 
 *Raise and lock a coverage floor, and bring the test code itself to the same quality bar as production code. Operator requirement (2026-06-14): **≥80% coverage for every service** — Go services, the Svelte/dashboard app, and the 3D engine module explicitly named, with Python services held to the same bar. Placed after the structural refactors (139–141) so new tests target the final structure, not code about to move.*
 
-**Grounding.** Read first: current coverage per service (`go test -cover`, Vitest coverage, pytest-cov), the long-test-file entries from Phase 138, the Testcontainer + Playwright setup, the `engine-3d` test surface. Preserve: the test-as-contract value (no assertion-free coverage padding), the Testcontainer image-tag SSoT. Verify-first: measure the real per-service baseline before setting the ratchet threshold.
+***Floor model decided 2026-06-17 → recorded in ADR-041 (Coverage Floor Model & Test-Strategy Ratchet).*** The naive "80% line coverage everywhere" collides with two structural realities, so the metric is adapted (never the rigour): **Svelte components have no Vitest line-coverage path** (node-env Vitest never renders `.svelte`; Svelte-5 runes are unsupported under jsdom — 131 files / ~31k LOC = ~77% of hand-written dashboard code), and the **engine-3d WebGL render core is not unit-testable** without a GL context. See ADR-041 for the full rationale; the model below is its binding summary.
 
-### Coverage to floor
-* [ ] **≥80% per scope** — Go (`ingestion-api`, `bff-api`, `pkg`), Python (`analysis-worker`, `web-crawler`), dashboard (Svelte components + `$lib`), and the **3D engine** module. Meaningful tests on real behaviour and edge cases, not coverage-padding.
-* [ ] **Coverage ratchet in CI.** Per-scope minimum enforced; CI fails below floor. (Initial gate at the measured baseline where already >80%, never below 80% where required.)
+**Measured baseline (2026-06-17, real — `go test -cover` / `pytest-cov` / `@vitest/coverage-v8`):** Go `pkg` **78.3%** (logger/telemetry 0%) · `bff-api` **39.6%** (handler 37 / storage 49 / config 35 / notify 0 / cmd 0–5) · `ingestion-api` **40.0%** (handler 36 / config 0 / storage 70 / core 78 / cmd 0) · Py `analysis-worker` **71%** · `web-crawler` **73%** · dashboard `$lib` `.ts` **~60%** · engine-3d math layer mostly covered (GL core `engine.ts`/`GlobeControls.ts` 0%). Every required scope is currently <80% → climb all, then gate at 80.
+
+**Grounding.** Read first: ADR-041, current coverage per service (commands above), the long-test-file entries from Phase 138 (§1, listed below), the Testcontainer + Playwright setup, the `engine-3d` test surface. Preserve: the test-as-contract value (no assertion-free coverage padding), the Testcontainer image-tag SSoT. Verify-first: the baseline above was measured before setting any threshold.
+
+### Coverage to floor (per ADR-041)
+* [ ] **Hard 80% line-coverage ratchet** — Go `internal/…` of (`ingestion-api`, `bff-api`) + the `pkg` packages, Python (`analysis-worker`, `web-crawler`), and dashboard **`$lib` `.ts`** (`src/lib/**/*.ts` + route `.ts`). Meaningful tests on real behaviour and edge cases, not coverage-padding.
+* [ ] **Denominator convention** — exclude from the floor: thin `cmd/` mains (Go) + `main.py` entrypoints (Python, `# pragma: no cover`) + generated code (`generated.go`, `api/types.ts`).
+* [ ] **Svelte components — no Vitest %-gate.** Lift pure logic into companion `.ts` (counts under the `$lib` floor) + cover behaviour via Playwright E2E; svelte-check guards types/templates. The E2E suite is the `.svelte` behavioural contract.
+* [ ] **engine-3d — math layer floored at 80%; GL render core exempt.** `engine.ts` + `GlobeControls.ts` excluded from the denominator with an in-config justification, covered by visual-regression E2E (`tests/e2e/visual.spec.ts`).
+* [ ] **Coverage ratchet in CI.** Per-scope minimum enforced (Go `go tool cover`, Python `--cov-fail-under`, Vitest `coverage.thresholds`); CI fails below floor.
 
 ### Test-code health
-* [ ] **Long / unwieldy test files refactored** (Phase-138 list) — table-driven where it fits, shared fixtures/helpers extracted, duplicated setup removed. Test code held to the production conventions (Phase 140).
+* [ ] **Long / unwieldy test files refactored** (Phase-138 register §1) — table-driven where it fits, shared fixtures/helpers extracted, duplicated setup removed; held to production conventions (Phase 140). Refactor each in the same pass as raising that scope's coverage (touch the file once). The 7 files: Go `bff-api/internal/handler/metrics_handler_test.go` 988 · `…/storage/metrics_query_test.go` 944 · `…/handler/view_mode_handlers_test.go` 671 · `…/storage/view_mode_queries_test.go` 637; Python `crawlers/web-crawler/tests/test_audit_source.py` 749 · `…/tests/test_main.py` 547; TS `dashboard/tests/unit/url-panels.test.ts` 504.
 
 ### Validation
-* [ ] Every named scope reports ≥80%; the CI coverage gate is active and fails a planted regression; refactored test files are green and the suite runtime stays within the Phase-137 budget.
+* [ ] Every floored scope reports ≥80%; the CI coverage gate is active and fails a planted regression (per scope); the Svelte/engine-3d exemptions carry in-config justifications and the visual-regression E2E is green; refactored test files are green and the suite runtime stays within the Phase-137 budget.
 
 ---
 

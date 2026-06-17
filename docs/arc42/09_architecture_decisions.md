@@ -2930,3 +2930,37 @@ The contemporary security consensus for browser-based apps (IETF `draft-ietf-oau
 
 * **Positive:** The browser holds no secret of any kind — the maximal form of "nothing in the client", and strictly stronger than the canonical BFF pattern because AĒR self-issues opaque sessions and has no OAuth tokens to hide. Revocation is immediate (LICENSE §3.3); the whole app is gated (LICENSE §4c) while CI/Testcontainers keep working through the demoted machine key. The auth method is upgradeable (passkeys today, SSO later) without touching the uniform session layer. Least-privilege and Hard Rule 5 are preserved (second scoped role, migrations still ingestion-api-run). Privacy is architectural, not policy: no analytical-activity tracking, DSGVO export/delete built in.
 * **Negative:** The BFF gains write paths for the first time, widening its responsibility beyond a read-only analytical gateway — a deliberate, ADR-sanctioned shift. Traefik must be reconfigured to stop injecting the public API key in lockstep with the middleware change, or the gate is a no-op; this coupling is called out in the Operations Playbook. WebAuthn adds registration/recovery surface from day one. The public/internal docs split adds a second MkDocs build to maintain.
+
+## ADR-041: Coverage Floor Model & Test-Strategy Ratchet (Phase 142)
+
+**Date:** 2026-06-17
+**Status:** Accepted
+
+### Context
+
+The operator set a binding quality bar for the Iteration-11 consolidation pass: **≥80% test coverage for every service**, locked by a CI ratchet so it cannot regress (the iteration's "every cleanup is a ratchet" discipline). The naive reading — "measure line coverage everywhere, fail CI below 80%" — collides with two structural realities measured at the Phase-142 baseline (2026-06-17): Go `pkg` 78.3%, `bff-api` 39.6%, `ingestion-api` 40.0%, `analysis-worker` 71%, `web-crawler` 73%, dashboard `$lib` `.ts` ~60%.
+
+**First reality — Svelte components have no unit-coverage path.** The dashboard's Vitest setup is `environment: node` and includes only `tests/unit/**`; it never renders `.svelte` files (Svelte 5 runes/effects are not supported under jsdom, which is why the project deliberately verifies components via svelte-check + Playwright E2E — see the Phase-141 register). **131 `.svelte` files / ~31k LOC are ~77% of the hand-written dashboard code and are structurally invisible to a Vitest line-coverage number.** Forcing an 80% line-coverage gate on them would either require standing up a Svelte-5 component-test harness (vitest-browser-svelte) the project chose not to adopt, or — far worse — invite render-and-assert-nothing tests, the exact "coverage padding" the phase forbids. The frontend ecosystem tests components *behaviourally* (Testing Library / Playwright), not by line percentage.
+
+**Second reality — WebGL render code is not unit-testable.** The `@aer/engine-3d` module's render core (`engine.ts` ~937 LOC + `GlobeControls.ts`) issues three.js/WebGL calls that need a real GL context; nobody line-covers a three.js render loop. The standard practice — already followed in this module — is to extract pure math/state (`capability`/`glow`/`spiderfy`/`sun`, all unit-tested) and verify the render core via visual-regression E2E (`tests/e2e/visual.spec.ts`).
+
+### Decision
+
+**Apply an 80% line-coverage ratchet where it is genuine best practice; adapt the metric — never the rigour — where the ecosystem does not test by line coverage.**
+
+**1. Hard 80% ratchet (line/statement coverage), enforced per-scope in CI:** Go `internal/…` of `bff-api`, `ingestion-api`, and the `pkg` packages; Python `analysis-worker` and `web-crawler`; dashboard **`$lib` `.ts`** (`src/lib/**/*.ts` plus route `.ts`). Tooling: Go `go tool cover`, Python `pytest-cov` (`--cov-fail-under`), dashboard `@vitest/coverage-v8` thresholds.
+
+**2. Denominator convention.** The floor measures code where tests are meaningfully informative. Excluded from the denominator: thin `cmd/` mains (Go) and `main.py` service entrypoints (Python, via `# pragma: no cover`), and all generated code (`generated.go`, `src/lib/api/types.ts`). Testing `func main()`/entrypoint wiring has low value and would force low-signal tests.
+
+**3. Svelte components — no Vitest line-coverage gate.** Component quality is held by the project's proven pattern: lift pure logic into a companion `.ts` (which *is* under the `$lib` 80% ratchet) and cover component *behaviour* with Playwright E2E. The E2E suite is the behavioural contract for `.svelte`; svelte-check guards types/templates. This is a deliberate, documented exemption, not an oversight.
+
+**4. engine-3d — floor the math layer, exempt the GL core.** The extractable math/state files are under the 80% ratchet. `engine.ts` and `GlobeControls.ts` (the WebGL render core) are **excluded from the coverage denominator with an in-config comment**, and are covered by visual-regression E2E instead.
+
+**5. No coverage-padding (test-as-contract).** Coverage is raised by meaningful tests on real behaviour and edge cases. A scope reaching 80% via assertion-free tests does not satisfy this ADR.
+
+**6. The ratchet is proven, not asserted.** Each gate is validated by a planted regression (remove a test / a covered branch → CI must fail), and the added tests must keep the suite within the Phase-137 runtime budget.
+
+### Consequences
+
+* **Positive:** The operator's "≥80% everywhere it means something" intent is honoured with a metric each ecosystem actually uses — Go/Python/`$lib`-TS get a hard, regression-proven floor; Svelte and WebGL keep the behavioural nets (E2E, visual-regression, svelte-check) that are their real best practice. The exemptions are recorded here, so a later contributor cannot mistake the deliberate `.svelte`/`engine.ts` absence for a defect to "fix" by padding. The denominator convention keeps the number honest (no dilution by untestable wiring).
+* **Negative:** The dashboard floor governs only the `.ts` logic layer; component-behaviour confidence rests on the E2E suite, whose breadth must be maintained alongside the coverage gate (component logic should be pushed into `$lib` `.ts` to stay measurable). The exemptions are auditable surface — each must carry its in-config justification, and the visual-regression net for engine-3d must stay green for the GL-core exemption to remain defensible. The per-scope gates add CI config and a small wall-clock cost (coverage instrumentation).

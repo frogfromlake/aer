@@ -30,6 +30,8 @@ const serialUploads = 1
 type stubDB struct {
 	createJobErr   error
 	logDocumentErr error
+	pingErr        error
+	getSourceErr   error
 }
 
 func (s *stubDB) CreateIngestionJob(_ context.Context, _ int) (int, error) {
@@ -44,16 +46,23 @@ func (s *stubDB) LogDocument(_ context.Context, _ int, _ string, _ string) error
 }
 func (s *stubDB) UpdateDocumentStatus(_ context.Context, _, _ string) error { return nil }
 func (s *stubDB) GetSourceByName(_ context.Context, _ string) (int, string, error) {
+	if s.getSourceErr != nil {
+		return 0, "", s.getSourceErr
+	}
 	return 1, "test", nil
 }
-func (s *stubDB) Ping(_ context.Context) error { return nil }
+func (s *stubDB) Ping(_ context.Context) error { return s.pingErr }
 
 type stubMinio struct {
-	uploadErr error
+	uploadErr       error
+	bucketExistsErr error
 }
 
 func (s *stubMinio) UploadJSON(_ context.Context, _, _, _ string) error { return s.uploadErr }
 func (s *stubMinio) BucketExists(_ context.Context, _ string) (bool, error) {
+	if s.bucketExistsErr != nil {
+		return false, s.bucketExistsErr
+	}
 	return true, nil
 }
 

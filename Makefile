@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -492,6 +492,51 @@ test-python:
 			PYTHONPATH=. python -m pytest tests/ -v; \
 		fi
 
+# ------------------------------------------
+# Coverage gates (Phase 142 / ADR-041)
+# ------------------------------------------
+# Per-scope line-coverage floor, enforced in CI. The floor governs only the
+# layers where line coverage is a faithful signal: Go internal/ (cmd/ mains +
+# generated.go excluded), Python logic (entrypoints pragma-excluded), dashboard
+# $lib TS, and the engine-3d math layer. Svelte components + the engine-3d WebGL
+# render core are covered behaviourally (Playwright/visual E2E), NOT line-gated.
+# Go thresholds are Step-1 baselines; they ratchet to 80 in Step 5. Python +
+# frontend thresholds live in .coveragerc / pyproject.toml / vitest.config.ts.
+# pkg is at its 80 target floor (Phase-142 Step 2). ingestion/bff are Step-1
+# baselines, ratcheting to 80 in Step 3/5.
+COVER_GO_PKG       := 80
+COVER_GO_INGESTION := 60
+COVER_GO_BFF       := 49
+
+cover-go:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Go coverage gate (internal/ floored; cmd/ + generated.go excluded)...$(RESET)"
+	@./scripts/build/go_coverage.sh pkg $(COVER_GO_PKG)
+	@./scripts/build/go_coverage.sh services/ingestion-api $(COVER_GO_INGESTION)
+	@./scripts/build/go_coverage.sh services/bff-api $(COVER_GO_BFF)
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go coverage floors met.$(RESET)"
+
+cover-python:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Python coverage gate (analysis-worker)...$(RESET)"
+	@cd services/analysis-worker && \
+		if [ -f ./.venv/bin/python ]; then \
+			./.venv/bin/python -m pytest tests/ --cov --cov-report=term-missing:skip-covered -q; \
+		else \
+			python -m pytest tests/ --cov --cov-report=term-missing:skip-covered -q; \
+		fi
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Python coverage gate (web-crawler)...$(RESET)"
+	@cd crawlers/web-crawler && \
+		if [ -f ../../services/analysis-worker/.venv/bin/python ]; then \
+			PYTHONPATH=. ../../services/analysis-worker/.venv/bin/python -m pytest tests/ --cov --cov-report=term-missing:skip-covered -q; \
+		else \
+			PYTHONPATH=. python -m pytest tests/ --cov --cov-report=term-missing:skip-covered -q; \
+		fi
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python coverage floors met.$(RESET)"
+
+# Full coverage gate. fe-test carries the dashboard $lib + engine-3d gates
+# (vitest.config.ts coverage thresholds), so it is the frontend half here.
+cover: cover-go cover-python fe-test
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All coverage floors met.$(RESET)"
+
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
 	@cd services/analysis-worker && \
@@ -629,8 +674,10 @@ fe-typecheck:
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend typecheck passed!$(RESET)"
 
 fe-test:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend unit tests (Vitest)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running frontend unit tests + $$lib coverage gate (Vitest)...$(RESET)"
 	@cd $(FE_DIR) && pnpm run test:unit
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running engine-3d unit tests + math-layer coverage gate (Vitest)...$(RESET)"
+	@cd $(FE_DIR) && pnpm --filter @aer/engine-3d run test:unit
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Frontend unit tests passed!$(RESET)"
 
 # Playwright (visual + a11y) runs inside the pinned image from compose.yaml

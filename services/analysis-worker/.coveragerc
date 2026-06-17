@@ -1,0 +1,20 @@
+# Coverage config — analysis-worker (Phase 142 / ADR-041).
+# Floors the worker's business logic (internal/ + extractors + main.py logic).
+# Entrypoint glue is excluded via `# pragma: no cover` at the call site and the
+# `if __name__` clause below — testing NATS/lifecycle wiring carries low signal
+# (ADR-041 denominator convention). Threshold ratchets to 80 in Phase-142 Step 5.
+[run]
+source = .
+omit =
+    tests/*
+    scripts/*
+    data/*
+    .venv/*
+    */__pycache__/*
+
+[report]
+fail_under = 70
+show_missing = True
+exclude_also =
+    if __name__ == .__main__.:
+    raise NotImplementedError
