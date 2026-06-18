@@ -1,3 +1,6 @@
+// Package config loads and validates the BFF API's environment-driven
+// configuration via viper. Required secrets are validated at startup so the
+// internet-facing service refuses to boot with an empty credential.
 package config
 
 import (

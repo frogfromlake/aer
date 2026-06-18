@@ -1,3 +1,9 @@
+// Package storage is the BFF's data-access layer: read-only ClickHouse queries
+// against aer_gold.* (the bulk — roughly one file per query family) plus the
+// PostgreSQL-backed auth/analyses/webauthn stores that run under the bff_auth
+// write role. ClickHouseStorage carries the hot-path caches and is the single
+// ClickHouse entry point; the *Store types wrap *sql.DB. No business logic
+// lives here — handlers compose these queries.
 package storage
 
 import (
@@ -19,6 +25,10 @@ type metricsCache struct {
 	cachedEnd   time.Time
 }
 
+// ClickHouseStorage is the read-only query client against aer_gold.*, with
+// short-TTL hot-path caches that absorb dashboard refresh bursts on identical
+// parameters. It is the BFF's single ClickHouse entry point; every query family
+// hangs off it.
 type ClickHouseStorage struct {
 	conn            clickhouse.Conn
 	rowLimit        int
@@ -33,6 +43,10 @@ type ClickHouseStorage struct {
 	languagesCache         singleSlot[[]LanguageDetectionRow]
 }
 
+// NewClickHouseStorage opens the ClickHouse connection with bounded retry so a
+// cold database doesn't fail BFF startup. rowLimit caps result-set size;
+// metricsCacheTTL is the single operator knob (BFF_METRICS_CACHE_TTL_SECONDS)
+// shared by every hot-path cache.
 func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, rowLimit int, metricsCacheTTL time.Duration) (*ClickHouseStorage, error) {
 	operation := func() (clickhouse.Conn, error) {
 		conn, err := clickhouse.Open(&clickhouse.Options{

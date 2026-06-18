@@ -15,6 +15,7 @@ type AnalysesStore struct {
 	db *sql.DB
 }
 
+// NewAnalysesStore wraps the bff_auth-scoped *sql.DB handle.
 func NewAnalysesStore(db *sql.DB) *AnalysesStore {
 	return &AnalysesStore{db: db}
 }

@@ -17,6 +17,7 @@ type WebAuthnStore struct {
 	db *sql.DB
 }
 
+// NewWebAuthnStore wraps the bff_auth-scoped *sql.DB handle.
 func NewWebAuthnStore(db *sql.DB) *WebAuthnStore {
 	return &WebAuthnStore{db: db}
 }

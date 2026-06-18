@@ -1,3 +1,8 @@
+// Command server is the bff-api service — AĒR's only internet-facing backend.
+// It serves the contract-first REST API (generated from openapi.yaml) behind
+// session-or-API-key auth, reading ClickHouse Gold (read-only) and PostgreSQL
+// (auth/analyses under the bff_auth role), with the standard HTTP timeout and
+// graceful-shutdown guards.
 package main
 
 import (
