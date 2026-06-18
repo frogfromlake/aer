@@ -7,7 +7,10 @@
   import { m } from '$lib/paraglide/messages.js';
   import { paperShortTitle } from '$lib/components/reflection/paper-display';
 
-  const grouped = questionsByWp();
+  // `questionsByWp()` reads the locale rune (it overlays the German prose when
+  // the UI locale is `de`), so it must resolve reactively — a `$derived` re-runs
+  // the grouping on a language switch and the catalog re-renders with no reload.
+  const grouped = $derived(questionsByWp());
   const papers = getAllPapers();
   const total = OPEN_QUESTIONS.length;
 </script>

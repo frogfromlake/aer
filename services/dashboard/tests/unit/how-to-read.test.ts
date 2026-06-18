@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { composeHowToRead } from '../../src/lib/presentations/how-to-read';
+import { overwriteGetLocale } from '../../src/lib/paraglide/runtime';
 
 // Phase 131 — the "how to read" note is composed from a per-presentation
 // template plus config-derived building blocks.
@@ -188,5 +189,34 @@ describe('composeHowToRead', () => {
   it('blank catalog template falls through to the built-in fallback', () => {
     const lines = composeHowToRead('distribution', {}, '   ');
     expect(lines[0]).toContain('full distribution');
+  });
+});
+
+// Phase 144c — the note is composed from Paraglide messages, so it follows the
+// UI locale. Under `de` the building blocks (and the built-in fallback template,
+// used when the catalog has no entry) render in German.
+describe('composeHowToRead — German locale', () => {
+  afterAll(() => overwriteGetLocale(() => 'en'));
+
+  it('renders the fallback template + building blocks in German', () => {
+    overwriteGetLocale(() => 'de');
+    const lines = composeHowToRead('distribution', { bins: 30 });
+    expect(lines[0]).toContain('vollständige Verteilung'); // fallback template
+    expect(lines.some((l) => l.includes('30 Balken'))).toBe(true); // parameterized block
+    expect(lines.some((l) => l.includes('Median'))).toBe(true);
+    expect(lines.every((l) => l.length > 0)).toBe(true);
+  });
+
+  it('localizes the scatter regression strength/direction words', () => {
+    overwriteGetLocale(() => 'de');
+    const lines = composeHowToRead('metric_scatter', { x: 'a', y: 'b', r: 0.85 });
+    expect(lines.some((l) => l.includes('starke positive Korrelation'))).toBe(true);
+  });
+
+  it('localizes the cross_probe_lead_lag note (catalog has no howto entry)', () => {
+    overwriteGetLocale(() => 'de');
+    const lines = composeHowToRead('cross_probe_lead_lag', { renderedCount: 1 });
+    expect(lines.some((l) => l.includes('Stufe 1'))).toBe(true);
+    expect(lines.some((l) => l.includes('1 überlappende Stunde'))).toBe(true);
   });
 });

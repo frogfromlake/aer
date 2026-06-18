@@ -5,6 +5,9 @@
 // The /reflection/open-questions hub renders these as a structured index
 // grouped by source paper and discipline.
 
+import { getLocale } from '../paraglide/runtime.js';
+import { OPEN_QUESTIONS_DE_PROSE } from './open-questions.de';
+
 export interface OpenQuestion {
   id: string; // 'wp-001-q1'
   sourceWp: string; // 'wp-001'
@@ -15,6 +18,23 @@ export interface OpenQuestion {
   question: string; // full question text
   deliverable?: string; // "Deliverable: …" from the WP
   pipelineHook?: string; // where external collaboration can contribute in AĒR
+}
+
+// The user-visible prose fields — the localizable subset of OpenQuestion. The
+// German renderings live in `open-questions.de.ts` keyed by `id` (Phase 144c).
+export type QuestionProse = Pick<
+  OpenQuestion,
+  'disciplinaryScope' | 'shortLabel' | 'question' | 'deliverable' | 'pipelineHook'
+>;
+
+// Overlay the active-UI-locale prose onto a question's English structure. Reads
+// the locale rune (through paraglide's `getLocale()`), so callers that resolve
+// inside a reactive scope ($derived / template) re-render on a language switch;
+// node-env tests (no `overwriteGetLocale`) fall back to the base locale 'en'.
+function localize(q: OpenQuestion): OpenQuestion {
+  if (getLocale() !== 'de') return q;
+  const de = OPEN_QUESTIONS_DE_PROSE[q.id];
+  return de ? { ...q, ...de } : q;
 }
 
 export const OPEN_QUESTIONS: OpenQuestion[] = [
@@ -734,12 +754,19 @@ export const OPEN_QUESTIONS: OpenQuestion[] = [
 
 const BY_ID = new Map(OPEN_QUESTIONS.map((q) => [q.id, q]));
 
+// The accessors below return locale-resolved questions: in `de` the prose
+// fields are swapped for their German renderings (Phase 144c), otherwise the
+// English entry is returned unchanged. Because `localize` reads the locale
+// rune, a consumer that calls these inside a reactive scope re-renders on a
+// language switch with no reload.
+
 export function getOpenQuestion(id: string): OpenQuestion | null {
-  return BY_ID.get(id) ?? null;
+  const q = BY_ID.get(id);
+  return q ? localize(q) : null;
 }
 
 export function getQuestionsByWp(wpId: string): OpenQuestion[] {
-  return OPEN_QUESTIONS.filter((q) => q.sourceWp === wpId);
+  return OPEN_QUESTIONS.filter((q) => q.sourceWp === wpId).map(localize);
 }
 
 /** All questions grouped by source WP. */
@@ -747,7 +774,7 @@ export function questionsByWp(): Map<string, OpenQuestion[]> {
   const map = new Map<string, OpenQuestion[]>();
   for (const q of OPEN_QUESTIONS) {
     const group = map.get(q.sourceWp) ?? [];
-    group.push(q);
+    group.push(localize(q));
     map.set(q.sourceWp, group);
   }
   return map;

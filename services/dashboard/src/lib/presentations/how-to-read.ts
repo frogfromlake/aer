@@ -1,16 +1,20 @@
-// "How to read this" composer — Phase 131.
+// "How to read this" composer — Phase 131 (localized Phase 144c).
 //
 // Every configurable cell renders a short "how to read" note. The note is
 // COMPOSED, not hardcoded: a per-presentation template line (sourced from the
-// content-catalog Dual-Register `view_mode/howto_<presentation>` entry when
-// available, else a built-in fallback) followed by config-derived building
-// blocks that reflect the cell's *live* configuration (bin count, top-N,
-// bound visual channels, band visibility).
+// content-catalog Dual-Register `view_modes/howto_<presentation>` entry when
+// available, else the localized built-in fallback below) followed by
+// config-derived building blocks that reflect the cell's *live* configuration
+// (bin count, top-N, bound visual channels, band visibility).
 //
-// This module is pure so vitest can pin the composition without a Svelte
-// render or a network round-trip; the cell component fetches the catalog
-// template and passes it (plus the live facts) in.
+// All user-visible strings are Paraglide messages (`cells_howto_*`), so the
+// note follows the UI locale; `m.*()` reads the locale rune per call, making it
+// reactive to a language switch. The module stays pure (vitest pins the
+// composition without a Svelte render) by importing `m` from the RELATIVE
+// paraglide path — node-env vitest does not resolve `$lib` and falls back to the
+// base locale 'en', so the English assertions hold unchanged.
 
+import { m } from '../paraglide/messages.js';
 import type { Presentation } from '$lib/state/url-internals';
 
 /** The live configuration facts a cell knows about itself, used to compose
@@ -49,44 +53,27 @@ export interface HowToReadFacts {
   configOverridden?: boolean | undefined;
 }
 
-/** Built-in per-presentation template lines — the fallback when the content
- *  catalog has no `howto_<presentation>` entry yet. Kept terse; the catalog
- *  entry, when present, supersedes these. */
-const FALLBACK_TEMPLATES: Record<Presentation, string> = {
-  distribution:
-    'This is the full distribution of the metric across the scope — the shape (not just the average) of how values spread.',
-  time_series:
-    'This traces the metric over time. Each point is a bucket mean; read the slope, not single points.',
-  cooccurrence_network:
-    'Nodes are entities; an edge means two entities were named in the same article. Read clusters as recurring framings.',
-  topic_distribution:
-    'Each ridge is a topic; its area is how much of the corpus discusses it right now (a synchronic snapshot).',
-  topic_evolution:
-    'Each stream is a topic; its width over time shows how its share of the discourse rises and falls.',
-  metric_scatter:
-    'Each point is one article, positioned by two metrics — read the cloud for correlation, clusters, and outliers.',
-  revision_activity:
-    'One bar per source — how many silent edits we observed in the active window. Wayback CDX captures third-party-witnessed edits; sitemap-lastmod jumps capture publisher-side re-listings (republication trigger).',
-  revision_timeline:
-    'Edit activity over time. Each point is a per-source bucket count: rising = the source is editing more often; falling = it has settled.',
-  revision_discourse_shift:
-    "Each point is one source's mean sentiment change for that bucket (later minus earlier), re-extracted from each snapshot version. Above zero = edits read more positively; hover for the semantic shift and entity churn. Provisional measures.",
-  cross_probe_lead_lag:
-    'Each point is one time-shift (lag) between the two probes; the height is how strongly their hourly publication rhythms line up at that shift. The tallest point is the lead-lag: a shift to the right means the compared probe follows the reference.',
-  revision_edit_clusters:
-    'Each row is an entity that two or more sources silently edited in the same time bucket — a cross-source coincidence on the same name. A disclosed coincidence, not a causal claim; widen the bucket or raise the source threshold to tighten it.',
-  categorical_distribution:
-    'Each bar is one category value of the chosen metadata field; its height is how many articles in the scope carry that value. Read the shape, not single bars — which categories dominate the corpus.',
-  correlation_matrix:
-    'Each cell is the Pearson correlation of two metrics over the scope; warm = they rise together, cool = one falls as the other rises, pale = unrelated. The diagonal is always 1.',
-  cross_tab:
-    'Each bar is one category of the metadata field; its length/colour is the mean of the chosen metric among the articles in that category. Read which categories run high or low on the metric.',
-  metric_lead_lag:
-    'Each point is one time-shift (lag) between two metrics; the height is how strongly they line up at that shift. The tallest point is the lead-lag: a shift right means the second metric follows the first.',
-  parallel_coordinates:
-    'Each line is one article threaded across several metric axes (each axis scaled to its own min–max). Lines that move together cluster; lines that cross show trade-offs between metrics.',
-  sankey:
-    'Each column is a metadata field; each band is a flow of articles from one category to the next. Thicker bands carry more articles — read where the corpus concentrates and splits.'
+/** Localized built-in template lines — the fallback when the content catalog
+ *  has no `howto_<presentation>` entry (e.g. `cross_probe_lead_lag`). The
+ *  catalog entry, when present, supersedes these via `templateBase`. */
+const FALLBACK_TEMPLATES: Record<Presentation, () => string> = {
+  distribution: () => m.cells_howto_tmpl_distribution(),
+  time_series: () => m.cells_howto_tmpl_time_series(),
+  cooccurrence_network: () => m.cells_howto_tmpl_cooccurrence_network(),
+  topic_distribution: () => m.cells_howto_tmpl_topic_distribution(),
+  topic_evolution: () => m.cells_howto_tmpl_topic_evolution(),
+  metric_scatter: () => m.cells_howto_tmpl_metric_scatter(),
+  revision_activity: () => m.cells_howto_tmpl_revision_activity(),
+  revision_timeline: () => m.cells_howto_tmpl_revision_timeline(),
+  revision_discourse_shift: () => m.cells_howto_tmpl_revision_discourse_shift(),
+  cross_probe_lead_lag: () => m.cells_howto_tmpl_cross_probe_lead_lag(),
+  revision_edit_clusters: () => m.cells_howto_tmpl_revision_edit_clusters(),
+  categorical_distribution: () => m.cells_howto_tmpl_categorical_distribution(),
+  correlation_matrix: () => m.cells_howto_tmpl_correlation_matrix(),
+  cross_tab: () => m.cells_howto_tmpl_cross_tab(),
+  metric_lead_lag: () => m.cells_howto_tmpl_metric_lead_lag(),
+  parallel_coordinates: () => m.cells_howto_tmpl_parallel_coordinates(),
+  sankey: () => m.cells_howto_tmpl_sankey()
 };
 
 /** Compose the "how to read" note as an ordered list of sentences: the
@@ -101,153 +88,154 @@ export function composeHowToRead(
   const base =
     templateBase && templateBase.trim().length > 0
       ? templateBase.trim()
-      : FALLBACK_TEMPLATES[presentation];
+      : FALLBACK_TEMPLATES[presentation]();
   if (base) out.push(base);
 
   switch (presentation) {
     case 'distribution':
-      out.push(
-        'Taller bars = more articles fall at that value. The hump is the typical article; long tails are the unusual ones.'
-      );
-      if (facts.bins !== undefined) {
-        out.push(`Split into ${facts.bins} bars (the Bins slider) — more bars show finer detail.`);
-      }
-      out.push(
-        'The solid line is the middle (median); the dashed lines mark the typical range (25th–75th percentile).'
-      );
+      out.push(m.cells_howto_bl_dist_bars());
+      if (facts.bins !== undefined) out.push(m.cells_howto_bl_dist_bins({ bins: facts.bins }));
+      out.push(m.cells_howto_bl_dist_median());
       break;
     case 'time_series':
-      if (facts.showBand === false) {
-        out.push('Read the slope, not single dots: rising = the metric is trending up over time.');
-        out.push(
-          'The uncertainty band is hidden — turn it on under Band to see how noisy each point is.'
-        );
-      } else {
-        out.push('Read the slope, not single dots: rising = the metric is trending up over time.');
-        out.push(
-          'The shaded band is the spread within each time-bucket (±1 standard deviation): a wide band means that point hides a lot of variation, so trust it less.'
-        );
-      }
+      out.push(m.cells_howto_bl_ts_slope());
+      out.push(
+        facts.showBand === false
+          ? m.cells_howto_bl_ts_band_hidden()
+          : m.cells_howto_bl_ts_band_shown()
+      );
       break;
     case 'cooccurrence_network':
-      out.push(
-        'Each dot is an entity (a person, place, or organisation); a line means the two were named in the same article. Tight clumps are recurring storylines.'
-      );
-      if (facts.topN !== undefined) {
-        out.push(`Showing the ${facts.topN} most-frequent pairs (the Top N slider).`);
-      }
-      out.push(channelLine('Dot size', facts.netSize, networkSizeLabel));
-      out.push(channelLine('Dot colour', facts.netColor, networkColorLabel));
-      out.push('Crowded into one blob? Raise the Spread slider to push the dots apart.');
+      out.push(m.cells_howto_bl_net_dots());
+      if (facts.topN !== undefined) out.push(m.cells_howto_bl_net_topn({ topN: facts.topN }));
+      if (facts.netSize)
+        out.push(m.cells_howto_bl_net_size({ label: networkSizeLabel(facts.netSize) }));
+      if (facts.netColor)
+        out.push(m.cells_howto_bl_net_color({ label: networkColorLabel(facts.netColor) }));
+      out.push(m.cells_howto_bl_net_spread());
       // Phase 123b — cross-lingual relabel state.
       if (facts.displayLanguage === 'viewer' && facts.viewerLanguage) {
         const labeled = facts.labeledNodeCount ?? 0;
         out.push(
-          `Labels: ${labeled} Wikidata-linked ${labeled === 1 ? 'dot is' : 'dots are'} shown in the app language (${facts.viewerLanguage}); ↺ marks those whose label differs from the source form. The rest keep their source-language form. Unlinked entities are never translated.`
+          labeled === 1
+            ? m.cells_howto_bl_net_relabel_one({ labeled, viewerLanguage: facts.viewerLanguage })
+            : m.cells_howto_bl_net_relabel_other({ labeled, viewerLanguage: facts.viewerLanguage })
         );
       } else if ((facts.linkedNodeCount ?? 0) > 0) {
+        const linked = facts.linkedNodeCount ?? 0;
         out.push(
-          `Labels are in each entity's source language. ${facts.linkedNodeCount} ${facts.linkedNodeCount === 1 ? 'dot is' : 'dots are'} Wikidata-linked — switch Labels to the app language to relabel that subset.`
+          linked === 1
+            ? m.cells_howto_bl_net_srclang_one({ linked })
+            : m.cells_howto_bl_net_srclang_other({ linked })
         );
       }
       break;
     case 'metric_scatter':
-      out.push(
-        'Each dot is one article. If the cloud tilts up-right, the two metrics rise together; a shapeless cloud means they are unrelated.'
-      );
-      if (facts.x && facts.y) {
-        out.push(`Left–right = ${facts.x}; up–down = ${facts.y}.`);
-      }
-      if (facts.size) out.push(`Bigger dots = higher ${facts.size}.`);
-      if (facts.color) out.push(`Dot colour = ${facts.color} (brighter = higher).`);
+      out.push(m.cells_howto_bl_scatter_cloud());
+      if (facts.x && facts.y) out.push(m.cells_howto_bl_scatter_xy({ x: facts.x, y: facts.y }));
+      if (facts.size) out.push(m.cells_howto_bl_scatter_size({ size: facts.size }));
+      if (facts.color) out.push(m.cells_howto_bl_scatter_color({ color: facts.color }));
       if (facts.r !== undefined) {
         const mag = Math.abs(facts.r);
         const strength =
-          mag >= 0.7 ? 'strong' : mag >= 0.4 ? 'moderate' : mag >= 0.2 ? 'weak' : 'negligible';
-        const dir = facts.r > 0 ? 'positive' : facts.r < 0 ? 'negative' : 'flat';
-        out.push(
-          `The amber line is the linear fit; r = ${facts.r.toFixed(2)} (${strength} ${dir} correlation). Correlation is not causation, and r only captures a straight-line relationship.`
-        );
+          mag >= 0.7
+            ? m.cells_howto_scatter_strength_strong()
+            : mag >= 0.4
+              ? m.cells_howto_scatter_strength_moderate()
+              : mag >= 0.2
+                ? m.cells_howto_scatter_strength_weak()
+                : m.cells_howto_scatter_strength_negligible();
+        const dir =
+          facts.r > 0
+            ? m.cells_howto_scatter_dir_positive()
+            : facts.r < 0
+              ? m.cells_howto_scatter_dir_negative()
+              : m.cells_howto_scatter_dir_flat();
+        out.push(m.cells_howto_bl_scatter_r({ r: facts.r.toFixed(2), strength, dir }));
       }
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
         out.push(
-          `${facts.renderedCount} article${facts.renderedCount === 1 ? '' : 's'} had both metrics and could be plotted.`
+          count === 1
+            ? m.cells_howto_bl_scatter_plotted_one({ count })
+            : m.cells_howto_bl_scatter_plotted_other({ count })
         );
       }
       break;
     case 'correlation_matrix':
-      out.push(
-        'Read off-diagonal cells: a strong warm/cool cell flags two metrics worth inspecting as a scatter (switch this panel to the Scatter view and pick that pair). Correlation is not causation, and it only captures straight-line relationships.'
-      );
+      out.push(m.cells_howto_bl_corr_offdiag());
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
         out.push(
-          `${facts.renderedCount} metric${facts.renderedCount === 1 ? '' : 's'} in the matrix (the Metric set lever). Cells with too few overlapping articles are drawn dashed (honest empty), never as a zero.`
+          count === 1
+            ? m.cells_howto_bl_corr_count_one({ count })
+            : m.cells_howto_bl_corr_count_other({ count })
         );
       }
       break;
     case 'cross_tab':
-      out.push(
-        'Bars are ranked by article count; the colour encodes the mean metric value (so a short bar with few articles is a thin sample — read it with care). The count and spread (±σ) are in the hover.'
-      );
+      out.push(m.cells_howto_bl_ct_bars());
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
+        const of =
+          facts.distinctValues !== undefined && facts.distinctValues > count
+            ? m.cells_howto_bl_ct_of({ total: facts.distinctValues })
+            : '';
         out.push(
-          `${facts.renderedCount} categor${facts.renderedCount === 1 ? 'y' : 'ies'} shown${facts.distinctValues !== undefined && facts.distinctValues > facts.renderedCount ? ` of ${facts.distinctValues}` : ''} (the Top N lever). Categories where no article carries the metric are absent, never zero.`
+          count === 1
+            ? m.cells_howto_bl_ct_count_one({ count, of })
+            : m.cells_howto_bl_ct_count_other({ count, of })
         );
       }
       break;
     case 'metric_lead_lag':
-      if (facts.x && facts.y) {
-        out.push(
-          `A peak at lag 0 means ${facts.x} and ${facts.y} move in step; a peak to the right means ${facts.y} follows ${facts.x}, to the left means it leads. Correlation is not causation.`
-        );
-      }
+      if (facts.x && facts.y) out.push(m.cells_howto_bl_mll_peak({ x: facts.x, y: facts.y }));
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
         out.push(
-          `${facts.renderedCount} overlapping hourly bucket${facts.renderedCount === 1 ? '' : 's'} at lag 0 (a sample-size proxy — a thin overlap is a noisy curve).`
+          count === 1
+            ? m.cells_howto_bl_mll_count_one({ count })
+            : m.cells_howto_bl_mll_count_other({ count })
         );
       }
       break;
     case 'parallel_coordinates':
-      out.push(
-        'Each axis is independently scaled to its own range, so a line high on one axis and low on the next is an article that scores high on the first metric and low on the second. Only articles carrying every metric are drawn.'
-      );
+      out.push(m.cells_howto_bl_pc_axes());
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
         out.push(
-          `${facts.renderedCount} article${facts.renderedCount === 1 ? '' : 's'} drawn (those with all chosen metrics).`
+          count === 1
+            ? m.cells_howto_bl_pc_count_one({ count })
+            : m.cells_howto_bl_pc_count_other({ count })
         );
       }
       break;
     case 'sankey':
-      out.push(
-        'Bands are the top flows between each pair of fields (a long tail is dropped, not summed into a misleading band). A list-valued field can place one article in several bands, so band widths are article-flow weights, not a strict partition.'
-      );
+      out.push(m.cells_howto_bl_sankey_bands());
       break;
     case 'cross_probe_lead_lag':
-      out.push(
-        'A peak at lag 0 means the two cultures publish in step; a peak left or right means one consistently runs ahead. This is a Level-1 (temporal) comparison only — it reads when discourse happens, never how much or how positive.'
-      );
+      out.push(m.cells_howto_bl_cpll_peak());
       if (facts.renderedCount !== undefined) {
+        const count = facts.renderedCount;
         out.push(
-          `${facts.renderedCount} overlapping hour${facts.renderedCount === 1 ? '' : 's'} fed the correlation at lag 0 — a small overlap makes the peak noisy, so read it cautiously.`
+          count === 1
+            ? m.cells_howto_bl_cpll_count_one({ count })
+            : m.cells_howto_bl_cpll_count_other({ count })
         );
       }
       break;
     case 'categorical_distribution':
-      out.push(
-        'Taller bars = more articles carry that category value. Bars are ranked by article count; the Top N slider sets how many you see and the total distinct-value count is always disclosed, so any long tail is stated in words rather than folded into a misleading bar.'
-      );
+      out.push(m.cells_howto_bl_cat_bars());
       if (
         facts.renderedCount !== undefined &&
         facts.distinctValues !== undefined &&
         facts.distinctValues > facts.renderedCount
       ) {
         out.push(
-          `Showing the top ${facts.renderedCount} of ${facts.distinctValues} distinct values (the Top N slider).`
+          m.cells_howto_bl_cat_topn({ count: facts.renderedCount, total: facts.distinctValues })
         );
       }
-      out.push(
-        'An empty chart has two possible causes — the field is structurally absent (Negative Space, a publisher choice) or no captured article in the window carries it; the per-source metadata coverage panel distinguishes them. Either way it is never coerced to a zero bar.'
-      );
+      out.push(m.cells_howto_bl_cat_empty());
       break;
     case 'topic_distribution':
     case 'topic_evolution':
@@ -268,56 +256,42 @@ export function composeHowToRead(
       presentation === 'metric_scatter')
   ) {
     out.push(
-      facts.scales === 'shared'
-        ? 'Scale: shared across this panel’s cells — identical values sit at identical positions, so you can compare cells directly.'
-        : 'Scale: independent (free) — each cell is scaled to its own data, so read shapes within a cell, not positions across cells.'
+      facts.scales === 'shared' ? m.cells_howto_bl_scale_shared() : m.cells_howto_bl_scale_free()
     );
   }
 
   // Phase 126 — per-cell override disclosure. When this cell's configuration
   // differs from the panel default it is not directly comparable to its
   // siblings; say so explicitly (comparison-as-default, Brief §1.3).
-  if (facts.configOverridden) {
-    out.push(
-      'This cell is on a custom configuration that differs from the panel default — read it on its own terms, not directly against its sibling cells.'
-    );
-  }
-  return out.filter((s) => s.length > 0);
-}
+  if (facts.configOverridden) out.push(m.cells_howto_bl_override());
 
-function channelLine(
-  prefix: string,
-  value: string | undefined,
-  label: (v: string) => string
-): string {
-  if (!value) return '';
-  return `${prefix} encodes ${label(value)}.`;
+  return out.filter((s) => s.length > 0);
 }
 
 function networkSizeLabel(v: string): string {
   switch (v) {
     case 'degree':
-      return 'how many different entities it connects to (more links = bigger)';
+      return m.cells_howto_net_size_degree();
     case 'metric':
-      return 'the mean of the chosen metric over the articles mentioning it (higher = bigger; grey = no such article)';
+      return m.cells_howto_net_size_metric();
     case 'total_count':
     default:
-      return 'how often it is mentioned alongside others (more = bigger)';
+      return m.cells_howto_net_size_total();
   }
 }
 
 function networkColorLabel(v: string): string {
   switch (v) {
     case 'presence':
-      return 'how many sources mention it (one colour per count)';
+      return m.cells_howto_net_color_presence();
     case 'source_overlay':
-      return 'which source it came from — one colour per source, grey when shared (Phase 131a)';
+      return m.cells_howto_net_color_overlay();
     case 'uniform':
-      return 'nothing — all dots share one colour';
+      return m.cells_howto_net_color_uniform();
     case 'metric':
-      return 'the mean of the chosen metric over its articles (blue→amber low→high; grey = no such article)';
+      return m.cells_howto_net_color_metric();
     case 'label':
     default:
-      return 'what kind of thing it is — person, place, or organisation';
+      return m.cells_howto_net_color_label();
   }
 }
