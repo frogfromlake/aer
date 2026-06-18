@@ -1,3 +1,10 @@
+"""Corpus-level revision-diff sweep (Phase 122d.3 / ADR-032): compares
+consecutive Wayback captures of the same article — and each chain head against
+the current Silver body — to mark which re-archivals are genuine editorial edits
+vs. byte-identical re-fetches, writing the editorial-revision counts (and, when
+enabled, the discourse deltas) to Gold. Runs as a background tick alongside the
+other corpus sweeps (see main.py)."""
+
 from __future__ import annotations
 
 import asyncio

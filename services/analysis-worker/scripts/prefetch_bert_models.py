@@ -84,6 +84,8 @@ def _download_with_retry(repo_id: str, revision: str, cache_dir: Path) -> None:
 
 
 def main(manifest_path: str, hf_home: str) -> int:
+    """Download every Tier-2 model declared in the manifest into the HF cache.
+    Returns a process exit code (0 = success or nothing to prefetch)."""
     manifest = yaml.safe_load(Path(manifest_path).read_text(encoding="utf-8"))
     targets = _collect_targets(manifest)
     if not targets:

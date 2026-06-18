@@ -30,6 +30,8 @@ _CAPITALIZED_TOKEN = re.compile(r"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+\b")
 
 
 def raw_entity_count(cleaned_text: str) -> int:
+    """Count capitalized-token runs — the cheap deterministic pre-NER
+    candidate-entity heuristic (Phase 103b), not the spaCy NER count."""
     if not cleaned_text:
         return 0
     return len(_CAPITALIZED_TOKEN.findall(cleaned_text))
