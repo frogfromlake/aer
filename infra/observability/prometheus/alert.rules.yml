@@ -1,3 +1,5 @@
+# Prometheus alert rules for the AĒR pipeline. Loaded by prometheus.yml via
+# rule_files.
 groups:
   - name: aer_pipeline
     rules:

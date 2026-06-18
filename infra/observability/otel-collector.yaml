@@ -1,3 +1,7 @@
+# OpenTelemetry Collector — the single span/metric ingress for the AĒR stack.
+# Receives OTLP from the Go services + worker, then fans out: traces → Tempo,
+# metrics → Prometheus (scraped at :8889). memory_limiter is first in every
+# pipeline (shed load at the receiver under OOM pressure); batch is last.
 receivers:
   otlp:
     protocols:

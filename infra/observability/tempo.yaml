@@ -1,3 +1,7 @@
+# Grafana Tempo — trace storage backend for the AĒR observability stack.
+# Receives OTLP spans from the OTel Collector and serves them to Grafana (the
+# Tempo datasource). Local filesystem backend; durable across restarts via the
+# named `tempo_data` volume.
 server:
   http_listen_port: 3200
 

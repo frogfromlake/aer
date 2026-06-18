@@ -1,3 +1,5 @@
+# Grafana datasource provisioning — wires the two AĒR observability backends
+# (Tempo for traces, Prometheus for metrics) so dashboards resolve them by uid.
 apiVersion: 1
 
 datasources:

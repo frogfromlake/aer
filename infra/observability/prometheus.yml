@@ -1,3 +1,6 @@
+# Prometheus — metrics scraping + alerting for the AĒR stack. Scrapes the OTel
+# Collector's Prometheus exporter and each service's /metrics endpoint, and
+# loads the alert rules referenced under rule_files.
 global:
   scrape_interval: 5s
 
