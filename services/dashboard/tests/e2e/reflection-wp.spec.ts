@@ -8,9 +8,10 @@ import { expect, test, type Route, type Page } from './_fixtures';
 // the paper title + section headings, and the "Back to Workbench" referrer link.
 //
 // The page is a client-side load (ssr=false, served via the SPA fallback) that
-// fetches the paper markdown from /content/papers/{id}.md and renders it;
-// getPaperMeta() is a local table (wp-001 exists), so mocking the markdown fetch
-// + auth is enough to render the whole page against `pnpm preview` (no backend).
+// fetches the paper markdown from /content/papers/{locale}/{id}.md (Phase 144 —
+// the path is locale-aware per ADR-042) and renders it; getPaperMeta() is a local
+// table (wp-001 exists), so mocking the markdown fetch + auth is enough to render
+// the whole page against `pnpm preview` (no backend).
 
 const PAPER_MD = `# WP-001 — Test Paper Title
 
@@ -43,8 +44,10 @@ async function mockBff(page: Page) {
   await page.route('**/api/v1/probes', (route: Route) => route.fulfill(json([])));
   await page.route(/\/api\/v1\/metrics\?/, (route: Route) => route.fulfill(json({ data: [] })));
   // The paper markdown (static path, NOT under /api/v1) — the page's client load
-  // fetches this and renders it into sections.
-  await page.route('**/content/papers/*.md', (route: Route) =>
+  // fetches this and renders it into sections. Match any locale segment
+  // (/content/papers/{locale}/{id}.md, Phase 144) — a single-segment `*` glob
+  // would miss the locale dir and leave the body unrendered.
+  await page.route('**/content/papers/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'text/markdown', body: PAPER_MD })
   );
 }
