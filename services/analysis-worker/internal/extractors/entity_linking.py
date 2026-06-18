@@ -45,6 +45,9 @@ CONFIDENCE_THRESHOLD = 0.7  # Below this, no row is written.
 
 @dataclass(frozen=True, slots=True)
 class LinkCandidate:
+    """A resolved Wikidata link for an entity mention: QID, match confidence,
+    and the method that produced it (exact / alias / accent-fold)."""
+
     wikidata_qid: str
     confidence: float
     method: str  # exact_match | alias_lookup | accent_fold

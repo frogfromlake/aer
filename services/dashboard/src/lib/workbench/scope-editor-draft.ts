@@ -2,12 +2,11 @@
 //
 // The draft is alive ONLY for the immediate back-nav from a populated
 // Workbench following an Apply. Any other navigation invalidates it
-// instantly. The rule, stated as the user did:
+// instantly. The rule:
 //
-//   "Wenn ich vom ScopeEditor in die Workbench/Panel gehe (über welchen
-//    Weg auch immer) und dann mit browser return 1x zurück, dann sollte
-//    der state gespeichert werden. Bei ALLEN anderen routings geht er
-//    sofort verloren."
+//   "Going from the ScopeEditor into the Workbench/Panel (by whatever path)
+//    and then pressing the browser Back button exactly once should restore
+//    the saved state. Under ALL other routings it is lost immediately."
 //
 // Implementation:
 //   * The Workbench-page auto-open ScopeEditor is the ONLY mount path

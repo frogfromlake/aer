@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Button — the app's button primitive (primary/secondary/ghost × sm/md) with a
+  // loading state; forwards native button attributes.
   import type { HTMLButtonAttributes } from 'svelte/elements';
   import type { Snippet } from 'svelte';
 

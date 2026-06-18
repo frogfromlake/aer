@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Badge — generic provenance/status pill (validation tier, expired, refused).
+  // The tonal primitive the metric-provenance badges build on.
   import type { Snippet } from 'svelte';
 
   type Tier =

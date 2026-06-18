@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Dialog — accessible modal primitive: focus-trap, Esc-to-close, ARIA-labelled,
+  // with default/wide width presets.
   import { onMount, type Snippet } from 'svelte';
 
   interface Props {

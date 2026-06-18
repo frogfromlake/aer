@@ -1,3 +1,5 @@
+// Barrel for $lib/presentations — the presentation registry (Pillar↔presentation
+// placement, metric→presentation support) exposed as one import surface.
 export {
   cellContentId,
   CROSS_PROBE_DEFAULT_METRIC,

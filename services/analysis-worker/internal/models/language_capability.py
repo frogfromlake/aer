@@ -124,6 +124,9 @@ class SentimentTier2RefinementCapability(BaseModel):
 
 
 class CulturalCalendarRef(BaseModel):
+    """Pointer to a language's cultural-calendar YAML: the file plus the region
+    applied when an article carries no finer locus."""
+
     model_config = ConfigDict(extra="forbid")
 
     region_default: str

@@ -1,4 +1,5 @@
 <script lang="ts">
+  // Tooltip — hover/focus text-bubble primitive with a placement (top/bottom/left/right).
   import type { Snippet } from 'svelte';
 
   type Placement = 'top' | 'bottom' | 'left' | 'right';

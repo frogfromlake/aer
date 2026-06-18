@@ -138,6 +138,9 @@ def compute_baseline_rows(
 
 @dataclass(frozen=True, slots=True)
 class BaselineSweepResult:
+    """Outcome of one metric-baseline sweep: rows written and the number of
+    (metric, source, language) groups touched."""
+
     rows_written: int
     n_groups: int
 

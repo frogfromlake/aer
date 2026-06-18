@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// PostgresDB wraps the *sql.DB handle for the ingestion-api's metadata store.
 type PostgresDB struct {
 	DB *sql.DB
 }
@@ -25,6 +26,8 @@ type PoolConfig struct {
 	ConnMaxLifetime time.Duration
 }
 
+// NewPostgresDB opens the pgx-backed pool, applies the PoolConfig bounds, and
+// pings with bounded retry so a cold PostgreSQL doesn't fail service startup.
 func NewPostgresDB(ctx context.Context, connStr string, pool PoolConfig) (*PostgresDB, error) {
 	// 1. Define an operation returning the connection directly (thanks to v5 generics!)
 	operation := func() (*sql.DB, error) {
