@@ -1,3 +1,5 @@
+// Article, distribution & available-metric/metadata query factories (Phase 141
+// split from queries.ts). See ./shared for the QueryOutcome contract.
 import type {
   ArticleDetailDto,
   ArticlesPageDto,

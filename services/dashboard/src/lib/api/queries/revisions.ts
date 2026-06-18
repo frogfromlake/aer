@@ -1,3 +1,5 @@
+// Revision-history & editorial-diff query factories (Phase 141 split from
+// queries.ts). See ./shared for the QueryOutcome contract.
 import type { PresentationScope } from './shared';
 import type {
   ArticleRevisionDiffDto,

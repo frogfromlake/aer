@@ -1,3 +1,6 @@
+// Multivariate & relational analytics query factories — scatter, correlation,
+// cross-tab, lead-lag, parallel-coords, sankey, co-occurrence, topics & silver
+// aggregations (Phase 141 split from queries.ts). See ./shared for QueryOutcome.
 import type { PresentationQueryParams, PresentationScope } from './shared';
 import { appendMetadataFilter } from './shared';
 import type {

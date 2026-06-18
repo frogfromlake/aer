@@ -1,3 +1,6 @@
+// Probe-level query factories — probes, per-probe metrics/provenance/content,
+// equivalence, lead-lag, dossier & coverage (Phase 141 split from queries.ts).
+// See ./shared for the QueryOutcome contract.
 import type { paths } from '../types';
 import type {
   ContentResponseDto,
