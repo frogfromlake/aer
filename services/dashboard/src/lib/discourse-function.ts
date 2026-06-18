@@ -12,6 +12,13 @@
 // `FUNCTION_DEFINITIONS` directly for display — the Badge owns the visual
 // grammar (Brief §5.7 Progressive Semantics, ADR-033 §4).
 
+// Relative import (NOT `$lib/...`): this SoT is imported by node-env Vitest,
+// which does not resolve the `$lib` alias for runtime imports (Phase 144 /
+// ADR-042). `m.*()` reads the UI-locale rune per call, so the accessors below
+// resolve label/description reactively; in node tests (no overwriteGetLocale)
+// they fall back to the base locale 'en', keeping the English-pinning tests green.
+import { m } from './paraglide/messages.js';
+
 export const DISCOURSE_FUNCTIONS = [
   'epistemic_authority',
   'power_legitimation',
@@ -65,10 +72,40 @@ export const FUNCTION_DEFINITIONS: Record<DiscourseFunction, FunctionDef> = {
   }
 };
 
-/** Type-safe lookup with the unknown-key escape valve callers occasionally need. */
+// Locale-resolved label/description per function (Phase 144b / ADR-042). The
+// English literals in FUNCTION_DEFINITIONS above are the structural fallback;
+// every display accessor returns these localized values. Reactive: m.*() reads
+// the UI-locale rune, so a FunctionBadge re-renders on a language switch with no
+// consumer change. The WP-001 §3 anchor stays inside both locales' descriptions.
+const FUNCTION_LABELS: Record<DiscourseFunction, () => string> = {
+  epistemic_authority: () => m.domain_function_epistemic_authority_label(),
+  power_legitimation: () => m.domain_function_power_legitimation_label(),
+  cohesion_identity: () => m.domain_function_cohesion_identity_label(),
+  subversion_friction: () => m.domain_function_subversion_friction_label()
+};
+const FUNCTION_DESCRIPTIONS: Record<DiscourseFunction, () => string> = {
+  epistemic_authority: () => m.domain_function_epistemic_authority_desc(),
+  power_legitimation: () => m.domain_function_power_legitimation_desc(),
+  cohesion_identity: () => m.domain_function_cohesion_identity_desc(),
+  subversion_friction: () => m.domain_function_subversion_friction_desc()
+};
+
+/** A copy of `def` with `label`/`description` resolved for the active UI locale
+ *  (key/abbr/color are locale-independent). */
+function localizeFunction(def: FunctionDef): FunctionDef {
+  return {
+    ...def,
+    label: FUNCTION_LABELS[def.key](),
+    description: FUNCTION_DESCRIPTIONS[def.key]()
+  };
+}
+
+/** Type-safe, locale-resolved lookup with the unknown-key escape valve callers
+ *  occasionally need. */
 export function getFunctionDef(key: string | null | undefined): FunctionDef | null {
   if (!key) return null;
-  return FUNCTION_DEFINITIONS[key as DiscourseFunction] ?? null;
+  const def = FUNCTION_DEFINITIONS[key as DiscourseFunction];
+  return def ? localizeFunction(def) : null;
 }
 
 /** Ordered list for chip rows, switchers, coverage strips. */

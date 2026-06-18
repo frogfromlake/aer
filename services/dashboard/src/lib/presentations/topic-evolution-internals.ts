@@ -4,10 +4,24 @@
 // only its reactive shell + the Observable-Plot DOM effect.
 
 import type { TopicDistributionResponseDto } from '$lib/api/queries';
+// Relative import (NOT `$lib/...`): node-env Vitest does not resolve `$lib` for
+// runtime imports (Phase 144 / ADR-042). `m.*()` reads the UI-locale rune per
+// call; node tests fall back to the base locale 'en'.
+import { m } from '../paraglide/messages.js';
 
 export const OUTLIER_TOPIC_ID = -1;
-export const UNCATEGORISED_LABEL = 'uncategorised';
 export const OUTLIER_COLOUR = '#888888';
+
+// Outlier + "other" stream labels — localized per call (Phase 144b / ADR-042)
+// so the legend/series labels follow the active UI locale. Resolved inside the
+// pure transforms below, which run in the cell's `$derived`, so a language
+// switch recomputes the labels with no consumer change.
+function uncategorisedLabel(): string {
+  return m.domain_topic_uncategorised();
+}
+function otherTopicsLabel(): string {
+  return m.domain_topic_other();
+}
 export const OTHER_COLOUR = '#5b6677';
 // Top-K topics surfaced as named series; everything else folds into an "other"
 // stream so the stack does not explode visually.
@@ -99,7 +113,7 @@ export function buildSeriesMeta(
       const key: SeriesKey = {
         topicId: t.topicId,
         language: t.language || 'und',
-        label: isOutlier ? UNCATEGORISED_LABEL : t.label,
+        label: isOutlier ? uncategorisedLabel() : t.label,
         isOutlier
       };
       const id = seriesId(key);
@@ -170,7 +184,7 @@ export function buildPlotRows(
       const key: SeriesKey = {
         topicId: t.topicId,
         language: lang,
-        label: isOutlier ? UNCATEGORISED_LABEL : t.label,
+        label: isOutlier ? uncategorisedLabel() : t.label,
         isOutlier
       };
       const id = seriesId(key);
@@ -211,7 +225,7 @@ export function buildPlotRows(
       rows.push({
         bucket: new Date(b.midpoint),
         series: `${lang}::other`,
-        label: 'other topics',
+        label: otherTopicsLabel(),
         language: lang,
         topicId: -2,
         isOutlier: false,
@@ -260,7 +274,7 @@ export function buildLegendEntries(
   for (const lang of languages) {
     out.push({
       id: `${lang}::other`,
-      label: 'other topics',
+      label: otherTopicsLabel(),
       language: lang,
       isOutlier: false,
       isOther: true,
@@ -270,7 +284,7 @@ export function buildLegendEntries(
   for (const e of orderEntries.filter((x) => x.isOutlier)) {
     out.push({
       id: seriesId(e),
-      label: UNCATEGORISED_LABEL,
+      label: uncategorisedLabel(),
       language: e.language,
       isOutlier: true,
       isOther: false,

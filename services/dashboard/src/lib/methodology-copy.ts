@@ -14,14 +14,20 @@
 // the static portion stays auditable and the dynamic portion stays at
 // render time (Svelte 5 reactivity).
 //
+// Phase 144b / ADR-042 — the headline + body strings are localized via Paraglide
+// (`messages/{en,de}/domain.json`, `domain_methnote_*`); the dynamic counts ride
+// in as message parameters. `m.*()` reads the UI-locale rune per call, so the
+// banner re-renders on a language switch with no call-site change. The relative
+// import keeps the module node-safe (Vitest does not resolve `$lib` at runtime).
+// The WP anchors stay code-side here (locale-independent).
+//
 // The full methodological reasoning is anchored in the working papers:
 //   WP-004 §3.4   — cross-frame comparability (Aleph)
 //   WP-005 §6.2   — joint-corpus + small-corpus (Episteme)
 // The catalog entries under `services/bff-api/configs/content/{en,de}/`
 // carry the dual-register methodological+semantic copy for the
 // underlying view-modes; the banners here are the user-facing surface.
-// English-only per CLAUDE.md "All code, comments, documentation, API
-// contracts, and commit messages: English only".
+import { m } from './paraglide/messages.js';
 
 export interface MethodologyNote {
   headline: string;
@@ -49,45 +55,51 @@ const WP_004_APPB: Pick<MethodologyNote, 'anchorHref' | 'anchorLabel'> = {
 export const methodologyNotes = {
   // Aleph — merged time-series over multiple sources.
   alephMergedTimeSeries: (sourceCount: number): MethodologyNote => ({
-    headline: `Merged across ${sourceCount} sources`,
-    body: 'the time series reflects the joint corpus, not per-source framings. Interpret cross-source comparability cautiously, especially when sources span multiple cultural-linguistic frames.',
+    headline: m.domain_methnote_aleph_merged_ts_headline({ count: sourceCount }),
+    body: m.domain_methnote_aleph_merged_ts_body(),
     ...WP_004_34
   }),
 
   // Aleph — merged distribution over multiple sources.
   alephMergedDistribution: (sourceCount: number): MethodologyNote => ({
-    headline: `Distribution across ${sourceCount} merged sources`,
-    body: 'the histogram aggregates the joint corpus, not per-source distributions. Per-source comparability may be affected by source heterogeneity, especially across cultural-linguistic frames.',
+    headline: m.domain_methnote_aleph_merged_dist_headline({ count: sourceCount }),
+    body: m.domain_methnote_aleph_merged_dist_body(),
     ...WP_004_34
   }),
 
   // Episteme — BERTopic joint-corpus over multiple sources (distribution).
   epistemeJointCorpusDistribution: (sourceCount: number): MethodologyNote => ({
-    headline: `BERTopic across ${sourceCount} sources`,
-    body: 'topics reflect the joint corpus, not per-source framings. Source-specific framings may be aggregated away.',
+    headline: m.domain_methnote_episteme_jc_dist_headline({ count: sourceCount }),
+    body: m.domain_methnote_episteme_jc_dist_body(),
     ...WP_005_62
   }),
 
   // Episteme — BERTopic joint-corpus over multiple sources (evolution stream).
   epistemeJointCorpusEvolution: (sourceCount: number): MethodologyNote => ({
-    headline: `BERTopic stream across ${sourceCount} sources`,
-    body: 'streams aggregate the joint corpus, not per-source framings. Source-specific framings may be aggregated away.',
+    headline: m.domain_methnote_episteme_jc_evo_headline({ count: sourceCount }),
+    body: m.domain_methnote_episteme_jc_evo_body(),
     ...WP_005_62
   }),
 
   // Episteme — small-corpus warning (article count below stability threshold).
   epistemeSmallCorpus: (articleCount: number, threshold: number): MethodologyNote => ({
-    headline: `Small corpus (${articleCount} articles, < ${threshold})`,
-    body: 'BERTopic rarely converges on a coherent topic set below this threshold. Interpret topics cautiously.',
+    headline: m.domain_methnote_episteme_small_corpus_headline({
+      count: articleCount,
+      threshold
+    }),
+    body: m.domain_methnote_episteme_small_corpus_body(),
     ...WP_005_62
   }),
 
   // Rhizome — cross-probe temporal lead-lag (Phase 124). The grant level
   // comes from the BFF response; the note states why this comparison is
-  // admissible and where its boundary lies.
+  // admissible and where its boundary lies. The displayed level is computed
+  // here (temporal → "Level-1") and injected as a message parameter.
   rhizomeLeadLagGrant: (level: string): MethodologyNote => ({
-    headline: `Temporal ${level === 'temporal' ? 'Level-1' : level} grant`,
-    body: 'publication timing is measured on clock/calendar time — a culture-independent axis — so comparing the two probes’ rhythm is valid given verified DE/FR calendar parity. This is a when-comparison only; it asserts nothing about how much or how positive.',
+    headline: m.domain_methnote_rhizome_leadlag_headline({
+      level: level === 'temporal' ? 'Level-1' : level
+    }),
+    body: m.domain_methnote_rhizome_leadlag_body(),
     ...WP_004_APPB
   })
 } as const;

@@ -3,6 +3,10 @@
 // compiler pass; the cell components consume them directly.
 
 import type { TopicDistributionEntryDto } from '$lib/api/queries';
+// Relative import (NOT `$lib/...`): node-env Vitest does not resolve `$lib` for
+// runtime imports (Phase 144 / ADR-042). `m.*()` reads the UI-locale rune per
+// call; node tests fall back to the base locale 'en'.
+import { m } from '../paraglide/messages.js';
 
 /** Outlier topic id from BERTopic (the "no coherent cluster" class). */
 export const OUTLIER_TOPIC_ID = -1;
@@ -10,12 +14,15 @@ export const OUTLIER_TOPIC_ID = -1;
 /** Label that replaces the BFF outlier representation in the dashboard.
  *  Per Phase 121 the outlier is rendered as a greyed "uncategorised"
  *  ridge rather than hidden — an outlier is an observation, not an
- *  error (Brief §7.7 / absence-as-data). */
-export const UNCATEGORISED_LABEL = 'uncategorised';
+ *  error (Brief §7.7 / absence-as-data). Localized per Phase 144b / ADR-042:
+ *  resolved per call so the legend/ridge label follows the active UI locale. */
+export function uncategorisedLabel(): string {
+  return m.domain_topic_uncategorised();
+}
 
 export interface NormalisedTopic {
   topicId: number;
-  /** Display label — outlier ids are relabelled to UNCATEGORISED_LABEL. */
+  /** Display label — outlier ids are relabelled to `uncategorisedLabel()`. */
   label: string;
   /** Falls back to `'und'` when the BFF reports an empty language code. */
   language: string;
@@ -38,7 +45,7 @@ export function normaliseTopics(entries: readonly TopicDistributionEntryDto[]): 
     const language = t.language || 'und';
     const norm: NormalisedTopic = {
       topicId: t.topicId,
-      label: isOutlier ? UNCATEGORISED_LABEL : t.label,
+      label: isOutlier ? uncategorisedLabel() : t.label,
       language,
       articleCount: t.articleCount,
       avgConfidence: t.avgConfidence,

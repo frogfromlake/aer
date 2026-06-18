@@ -9,7 +9,7 @@
   // (`probe-card-internals.ts`).
   import {
     DISCOURSE_FUNCTIONS,
-    FUNCTION_DEFINITIONS,
+    getFunctionDef,
     type DiscourseFunction
   } from '$lib/discourse-function';
   import type { FetchContext, ProbeDossierSourceDto } from '$lib/api/queries';
@@ -55,7 +55,7 @@
   <h3 id="df-heading" class="section-title">{m.dossier_df_title()}</h3>
   <ul class="df-list" role="list">
     {#each DISCOURSE_FUNCTIONS as fn (fn)}
-      {@const meta = FUNCTION_DEFINITIONS[fn]}
+      {@const meta = getFunctionDef(fn)!}
       {@const covered = coveredSet.has(fn)}
       {@const fnSources = sourcesByFunction[fn] ?? []}
       {@const isOpen = dfExpanded[fn]}

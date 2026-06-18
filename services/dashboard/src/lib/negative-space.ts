@@ -14,6 +14,13 @@
 //   • METHODOLOGICAL REGISTER, NOT WARNING — colours are perceptually neutral
 //     dim, never red/error (WP-006 §6.2).
 
+// Relative import (NOT `$lib/...`): this SoT is imported by node-env Vitest,
+// which does not resolve the `$lib` alias for runtime imports (Phase 144 /
+// ADR-042). `m.*()` reads the UI-locale rune per call, so `getNSClassDef` /
+// `nsPolicyNote` resolve label/description/note reactively; in node tests
+// (no overwriteGetLocale) they fall back to the base locale 'en'.
+import { m } from './paraglide/messages.js';
+
 export const NS_CLASSES = [
   'structural_metadata_absence',
   'temporal_provenance_absence',
@@ -117,26 +124,55 @@ export const NS_CLASS_DEFINITIONS: Record<NSClass, NSClassDef> = {
 
 export type NSPolicy = 'overlay' | 'badge' | 'gap' | 'refuse' | 'no-op';
 
-export const NS_POLICY_NOTES: Record<NSPolicy, string> = {
-  overlay:
-    'Negative Space: when the toggle is on, the artefacts excluded as methodologically meaningless are ghost-rendered here (dim) — shown for disclosure, not re-admitted to the counts (WP-005 §3.1).',
-  gap: 'Negative Space: intervals dominated by unobserved articles break the line rather than read as zero — an observation gap is not a discourse gap (WP-005 §3.1).',
-  badge:
-    'Negative Space: per-article markers (∅) appear in the article list and the source dossier; this aggregate view never coerces an absent value to zero (WP-003 §3.2).',
-  refuse:
-    'Negative Space: an aggregate over a structurally-absent field is refused here rather than coerced to a zero (WP-003 §3.2).',
-  'no-op':
-    'Negative Space has no per-article rendering for this view — the NS-classes do not change its structure. See the article list (∅) and the source dossier (WP-006 §4.2).'
+// Locale-resolved policy-note + class label/description (Phase 144b / ADR-042).
+// The canonical English prose lives in `messages/{en,de}/domain.json`; these
+// maps wire each policy/class to its message function. The English literals in
+// NS_CLASS_DEFINITIONS above remain the structural fallback for the class
+// label/description. Reactive — m.*() reads the UI-locale rune per call, so a
+// NegativeSpaceBadge / policy note re-renders on a language switch with no
+// consumer change. The WP anchors stay in both locales' prose. In node tests
+// (no overwriteGetLocale) m.*() resolves to the base locale 'en'.
+const NS_POLICY_NOTE_FNS: Record<NSPolicy, () => string> = {
+  overlay: () => m.domain_ns_policy_overlay(),
+  gap: () => m.domain_ns_policy_gap(),
+  badge: () => m.domain_ns_policy_badge(),
+  refuse: () => m.domain_ns_policy_refuse(),
+  'no-op': () => m.domain_ns_policy_noop()
+};
+
+const NS_CLASS_LABELS: Record<NSClass, () => string> = {
+  structural_metadata_absence: () => m.domain_ns_structural_metadata_absence_label(),
+  temporal_provenance_absence: () => m.domain_ns_temporal_provenance_absence_label(),
+  silent_edit: () => m.domain_ns_silent_edit_label(),
+  analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_label(),
+  k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_label(),
+  equivalence_refusal: () => m.domain_ns_equivalence_refusal_label()
+};
+
+const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
+  structural_metadata_absence: () => m.domain_ns_structural_metadata_absence_desc(),
+  temporal_provenance_absence: () => m.domain_ns_temporal_provenance_absence_desc(),
+  silent_edit: () => m.domain_ns_silent_edit_desc(),
+  analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_desc(),
+  k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_desc(),
+  equivalence_refusal: () => m.domain_ns_equivalence_refusal_desc()
 };
 
 export function nsPolicyNote(policy: string | null | undefined): string {
-  return NS_POLICY_NOTES[(policy as NSPolicy) ?? 'no-op'] ?? NS_POLICY_NOTES['no-op'];
+  return (NS_POLICY_NOTE_FNS[(policy as NSPolicy) ?? 'no-op'] ?? NS_POLICY_NOTE_FNS['no-op'])();
 }
 
-/** Type-safe lookup with an unknown-key escape valve (mirrors getFunctionDef). */
+/** Type-safe, locale-resolved lookup with an unknown-key escape valve (mirrors
+ *  getFunctionDef). */
 export function getNSClassDef(key: string | null | undefined): NSClassDef | null {
   if (!key) return null;
-  return NS_CLASS_DEFINITIONS[key as NSClass] ?? null;
+  const def = NS_CLASS_DEFINITIONS[key as NSClass];
+  if (!def) return null;
+  return {
+    ...def,
+    label: NS_CLASS_LABELS[def.key](),
+    description: NS_CLASS_DESCRIPTIONS[def.key]()
+  };
 }
 
 /** Ordered list for legends / breakdown rows. */

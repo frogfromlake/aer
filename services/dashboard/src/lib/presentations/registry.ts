@@ -285,8 +285,13 @@ export interface PresentationCellProps {
 }
 
 import { PRESENTATIONS } from './registry-data';
+// Locale-resolution helpers (Phase 144b / ADR-042) — swap the English fallback
+// label/description/blurb in the static tables for the active-UI-locale strings.
+// Extracted to registry-i18n.ts to keep this file under the length cap.
+import { localizePresentation, localizePillar } from './registry-i18n';
+
 export function listPresentations(): readonly PresentationDefinition[] {
-  return PRESENTATIONS;
+  return PRESENTATIONS.map(localizePresentation);
 }
 
 // Phase 130 — the registry-wide default is `distribution` (the default
@@ -301,7 +306,7 @@ const DEFAULT_PRESENTATION: PresentationDefinition =
  *  caller passed `null` (e.g. URL state was empty). */
 export function getPresentation(id: Presentation | null): PresentationDefinition {
   const found = PRESENTATIONS.find((p) => p.id === id);
-  return found ?? DEFAULT_PRESENTATION;
+  return localizePresentation(found ?? DEFAULT_PRESENTATION);
 }
 
 /** Compose the cell id used by the content catalog (see
@@ -431,9 +436,17 @@ export const PILLAR_DEFINITIONS: readonly PillarDefinition[] = [
 
 const DEFAULT_PILLAR: PillarDefinition = PILLAR_DEFINITIONS[0]!;
 
-/** Lookup pillar definition by id; null/unknown returns the Aleph default. */
+/** Lookup pillar definition by id; null/unknown returns the Aleph default.
+ *  Blurb + description are resolved for the active UI locale. */
 export function getPillar(id: PillarId | null): PillarDefinition {
-  return PILLAR_DEFINITIONS.find((p) => p.id === id) ?? DEFAULT_PILLAR;
+  return localizePillar(PILLAR_DEFINITIONS.find((p) => p.id === id) ?? DEFAULT_PILLAR);
+}
+
+/** All pillar definitions in display order, blurb + description localized for
+ *  the active UI locale. The PillarSwitch iterates this rather than the raw
+ *  `PILLAR_DEFINITIONS` so its tooltips localize without a consumer change. */
+export function listPillars(): readonly PillarDefinition[] {
+  return PILLAR_DEFINITIONS.map(localizePillar);
 }
 
 /** Presentations available for the active pillar, in display order. */
@@ -442,7 +455,7 @@ export function presentationsForPillar(id: PillarId | null): PresentationDefinit
   const out: PresentationDefinition[] = [];
   for (const presId of pillar.presentations) {
     const p = PRESENTATIONS.find((x) => x.id === presId);
-    if (p) out.push(p);
+    if (p) out.push(localizePresentation(p));
   }
   return out;
 }
@@ -478,8 +491,10 @@ export function resolvePresentation(
   const pillarDef = getPillar(pillar);
   if (viewMode !== null && pillarDef.presentations.includes(viewMode)) {
     const found = PRESENTATIONS.find((p) => p.id === viewMode);
-    if (found) return found;
+    if (found) return localizePresentation(found);
   }
   const defaultId = pillarDef.presentations[0] ?? DEFAULT_PRESENTATION.id;
-  return PRESENTATIONS.find((p) => p.id === defaultId) ?? DEFAULT_PRESENTATION;
+  return localizePresentation(
+    PRESENTATIONS.find((p) => p.id === defaultId) ?? DEFAULT_PRESENTATION
+  );
 }

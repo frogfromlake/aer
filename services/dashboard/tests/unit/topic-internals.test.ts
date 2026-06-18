@@ -4,7 +4,7 @@ import {
   normaliseTopics,
   languagesOf,
   OUTLIER_TOPIC_ID,
-  UNCATEGORISED_LABEL
+  uncategorisedLabel
 } from '../../src/lib/presentations/topic-internals';
 import type { TopicDistributionEntryDto } from '../../src/lib/api/queries';
 
@@ -30,7 +30,7 @@ describe('topic normalisation (Phase 121)', () => {
     ]);
     // Outlier survives normalisation — visibility is the renderer's job.
     expect(out.find((r) => r.isOutlier)).toBeDefined();
-    expect(out.find((r) => r.isOutlier)?.label).toBe(UNCATEGORISED_LABEL);
+    expect(out.find((r) => r.isOutlier)?.label).toBe(uncategorisedLabel());
     // No row was dropped.
     expect(out.length).toBe(2);
   });

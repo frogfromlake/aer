@@ -7,6 +7,7 @@ export {
   defaultPresentationForPillar,
   getPillar,
   getPresentation,
+  listPillars,
   listPresentations,
   pillarForPresentation,
   PILLAR_DEFINITIONS,

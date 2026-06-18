@@ -17,7 +17,7 @@
   // URL viewMode so deep-linked Cell-views recover correctly.
   import { onMount } from 'svelte';
   import { urlState } from '$lib/state/url.svelte';
-  import { PILLAR_DEFINITIONS, getPillar } from '$lib/presentations';
+  import { getPillar, listPillars } from '$lib/presentations';
   import { pickPillar } from '$lib/pillar';
   import { m } from '$lib/paraglide/messages.js';
   import type { PillarId } from '$lib/state/url-internals';
@@ -45,6 +45,9 @@
   // pillar-state URLs.
   const activeId = $derived<PillarId>(url.activePillar ?? 'aleph');
   const activeDef = $derived(getPillar(activeId));
+  // Locale-resolved pillar list (blurb localized) — iterated by the tiles below
+  // so their tooltips switch language with the UI locale (Phase 144b).
+  const pillars = $derived(listPillars());
 
   // Keyboard shortcuts. Only active when no input/textarea has focus —
   // otherwise typing "1" in a form field would jump pillars.
@@ -65,7 +68,7 @@
 
 <section class="pillar-switch" aria-label={m.chrome_pillar_switch_aria()}>
   <div class="tiles" role="radiogroup" aria-label={m.chrome_pillar_radiogroup_aria()}>
-    {#each PILLAR_DEFINITIONS as p (p.id)}
+    {#each pillars as p (p.id)}
       {@const isActive = p.id === activeId}
       <button
         type="button"

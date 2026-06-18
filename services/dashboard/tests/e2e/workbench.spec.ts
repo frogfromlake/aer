@@ -242,6 +242,22 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     await expect(strip.getByRole('group', { name: 'Histogram bins' })).toBeVisible();
   });
 
+  // Phase 144b — the View lever + panel eyebrow are driven by the conceptual-
+  // vocabulary SoT (`presentations/registry.ts`), localized in this phase. With
+  // `?lang=de` the registry accessors resolve German with no consumer change:
+  // the View radiogroup aria-label ("Darstellung"), the active presentation
+  // radio and the panel eyebrow all read "Verteilung".
+  test('?lang=de localizes the registry-driven View lever + panel eyebrow', async ({ page }) => {
+    await page.goto(`${WORKBENCH_URL}&lang=de`);
+
+    const viewGroup = page.getByRole('radiogroup', { name: 'Darstellung' });
+    await expect(viewGroup.getByRole('radio', { name: 'Verteilung', exact: true })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    await expect(page.locator('article.panel-host .panel-eyebrow')).toHaveText('Verteilung');
+  });
+
   test('clicking Split re-encodes the ?aleph= pillar state and reveals Direction', async ({
     page
   }) => {
