@@ -18,8 +18,24 @@
   import { onMount } from 'svelte';
   import { urlState } from '$lib/state/url.svelte';
   import { PILLAR_DEFINITIONS, getPillar } from '$lib/presentations';
-  import { pickPillar, PILLAR_QUESTIONS, PILLAR_PLAIN_LANGUAGE } from '$lib/pillar';
+  import { pickPillar } from '$lib/pillar';
+  import { m } from '$lib/paraglide/messages.js';
   import type { PillarId } from '$lib/state/url-internals';
+
+  // Phase 144 — the plain-language pillar question + stance copy moved to
+  // Paraglide chrome messages (was PILLAR_QUESTIONS / PILLAR_PLAIN_LANGUAGE in
+  // pillar-internals.ts). Per-id message-function maps keep the template's
+  // dynamic `p.id` lookup while staying reactive to the locale switch.
+  const PILLAR_QUESTION: Record<PillarId, () => string> = {
+    aleph: m.chrome_pillar_question_aleph,
+    episteme: m.chrome_pillar_question_episteme,
+    rhizome: m.chrome_pillar_question_rhizome
+  };
+  const PILLAR_PLAIN: Record<PillarId, () => string> = {
+    aleph: m.chrome_pillar_plain_aleph,
+    episteme: m.chrome_pillar_plain_episteme,
+    rhizome: m.chrome_pillar_plain_rhizome
+  };
 
   const url = $derived(urlState());
   // Phase 122i revision (A5): match the Workbench-page priority order —
@@ -47,8 +63,8 @@
   });
 </script>
 
-<section class="pillar-switch" aria-label="Pillar — analytical stance">
-  <div class="tiles" role="radiogroup" aria-label="Select pillar">
+<section class="pillar-switch" aria-label={m.chrome_pillar_switch_aria()}>
+  <div class="tiles" role="radiogroup" aria-label={m.chrome_pillar_radiogroup_aria()}>
     {#each PILLAR_DEFINITIONS as p (p.id)}
       {@const isActive = p.id === activeId}
       <button
@@ -68,14 +84,14 @@
             >{p.id === 'aleph' ? '1' : p.id === 'episteme' ? '2' : '3'}</span
           >
         </span>
-        <span class="tile-question">{PILLAR_QUESTIONS[p.id]}</span>
+        <span class="tile-question">{PILLAR_QUESTION[p.id]()}</span>
       </button>
     {/each}
   </div>
 
   <p class="active-description">
     <span class="active-eyebrow">{activeDef.label}</span>
-    {PILLAR_PLAIN_LANGUAGE[activeId]}
+    {PILLAR_PLAIN[activeId]()}
     <span class="active-meta" title={activeDef.description}>ⓘ</span>
   </p>
 </section>

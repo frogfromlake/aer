@@ -9,6 +9,7 @@
   // popover's lever ORDER for every presentation. Each lever writes to
   // `Panel.cellOverrides[cellKey]` via `setCellOverride`, clearing the override
   // when the chosen binding equals the panel default.
+  import { m } from '$lib/paraglide/messages.js';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import { setCellOverride } from '$lib/workbench/panel-mutators';
   import { resolveCellConfig } from '$lib/workbench/panel-queries';
@@ -59,29 +60,32 @@
 </script>
 
 {#if configParams.includes('networkChannels')}
-  <div class="ccp-row" role="group" aria-label="Network visual channels">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_network_channels_group()}>
     <span class="ccp-rk"
-      >Size {#if ovChannel('netSize')}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_size_label()}
+      {#if ovChannel('netSize')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
+        >{/if}</span
     >
     <select
       class="ccp-select"
       value={effChannels.netSize ?? 'total_count'}
       onchange={(e) => setChannel('netSize', (e.currentTarget as HTMLSelectElement).value)}
-      aria-label="Cell node size channel"
+      aria-label={m.workbench_ccp_node_size_select_label()}
     >
       {#each NET_SIZE_CHANNELS as c (c.id)}
         <option value={c.id}>{c.label}</option>
       {/each}
     </select>
     <span class="ccp-rk"
-      >Colour {#if ovChannel('netColor')}<span class="ccp-dot" title="Overridden">●</span
+      >{m.workbench_ccp_colour_label()}
+      {#if ovChannel('netColor')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
         >{/if}</span
     >
     <select
       class="ccp-select"
       value={effChannels.netColor ?? 'label'}
       onchange={(e) => setChannel('netColor', (e.currentTarget as HTMLSelectElement).value)}
-      aria-label="Cell node colour channel"
+      aria-label={m.workbench_ccp_node_colour_select_label()}
     >
       {#each NET_COLOR_CHANNELS as c (c.id)}
         <option value={c.id}>{c.label}</option>
@@ -91,9 +95,10 @@
 {/if}
 
 {#if configParams.includes('displayLanguage')}
-  <div class="ccp-row" role="group" aria-label="Display language">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_display_language_group()}>
     <span class="ccp-rk"
-      >Labels {#if ovLabels}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_labels_label()}
+      {#if ovLabels}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <button
       type="button"
@@ -103,70 +108,78 @@
       class:active={effLabels === 'viewer'}
       onclick={() => setLabels(effLabels === 'viewer' ? 'source' : 'viewer')}
     >
-      {effLabels === 'viewer' ? 'App language' : 'Source form'}
+      {effLabels === 'viewer' ? m.workbench_ccp_labels_app() : m.workbench_ccp_labels_source()}
     </button>
   </div>
 {/if}
 
 {#if configParams.includes('scatterAxes')}
-  <div class="ccp-row ccp-row-grid" role="group" aria-label="Scatter axes">
+  <div class="ccp-row ccp-row-grid" role="group" aria-label={m.workbench_ccp_scatter_axes_group()}>
     <label class="ccp-field">
       <span class="ccp-rk"
-        >X {#if ovChannel('x')}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+        >{m.workbench_ccp_axis_x()}
+        {#if ovChannel('x')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
+          >{/if}</span
       >
       <select
         class="ccp-select"
         value={effChannels.x ?? ''}
         onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
       >
-        <option value="">— inherit —</option>
-        {#each axisMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="">{m.workbench_ccp_axis_inherit()}</option>
+        {#each axisMetricOptions as opt (opt)}
+          <option value={opt}>{opt}</option>
         {/each}
       </select>
     </label>
     <label class="ccp-field">
       <span class="ccp-rk"
-        >Y {#if ovChannel('y')}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+        >{m.workbench_ccp_axis_y()}
+        {#if ovChannel('y')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
+          >{/if}</span
       >
       <select
         class="ccp-select"
         value={effChannels.y ?? ''}
         onchange={(e) => setChannel('y', (e.currentTarget as HTMLSelectElement).value)}
       >
-        <option value="">— inherit —</option>
-        {#each axisMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="">{m.workbench_ccp_axis_inherit()}</option>
+        {#each axisMetricOptions as opt (opt)}
+          <option value={opt}>{opt}</option>
         {/each}
       </select>
     </label>
     <label class="ccp-field">
       <span class="ccp-rk"
-        >Size {#if ovChannel('size')}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+        >{m.workbench_ccp_size_label()}
+        {#if ovChannel('size')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
+          >{/if}</span
       >
       <select
         class="ccp-select"
         value={effChannels.size ?? ''}
         onchange={(e) => setChannel('size', (e.currentTarget as HTMLSelectElement).value)}
       >
-        <option value="">— inherit —</option>
-        {#each axisMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="">{m.workbench_ccp_axis_inherit()}</option>
+        {#each axisMetricOptions as opt (opt)}
+          <option value={opt}>{opt}</option>
         {/each}
       </select>
     </label>
     <label class="ccp-field">
       <span class="ccp-rk"
-        >Colour {#if ovChannel('color')}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+        >{m.workbench_ccp_colour_label()}
+        {#if ovChannel('color')}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span
+          >{/if}</span
       >
       <select
         class="ccp-select"
         value={effChannels.color ?? ''}
         onchange={(e) => setChannel('color', (e.currentTarget as HTMLSelectElement).value)}
       >
-        <option value="">— inherit —</option>
-        {#each axisMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="">{m.workbench_ccp_axis_inherit()}</option>
+        {#each axisMetricOptions as opt (opt)}
+          <option value={opt}>{opt}</option>
         {/each}
       </select>
     </label>

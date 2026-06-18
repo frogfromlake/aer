@@ -32,6 +32,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
 
@@ -127,7 +128,7 @@
         x: { label: null, type: 'time', grid: false },
         // Sentiment delta is signed and centred on zero — a flat line at 0
         // means edits did not move sentiment. The zero rule is the baseline.
-        y: { label: 'Δ sentiment ↑', grid: true, nice: true },
+        y: { label: m.cells_revds_axis_sentiment(), grid: true, nice: true },
         color: { legend: true },
         marks: [
           Plot.line(rows, {
@@ -183,14 +184,17 @@
       y: ev.clientY,
       title: pt.source,
       rows: [
-        { label: 'bucket', value: fmtTimestamp(pt.bucket.getTime() / 1000) },
-        { label: 'Δ sentiment (mean)', value: fmtValue(pt.avgSentimentDelta) },
-        { label: 'net drift (sum)', value: fmtValue(pt.netSentimentDrift) },
-        { label: 'topic shift (mean)', value: fmtValue(pt.avgTopicShift) },
-        { label: 'entities +/−', value: `${pt.entitiesAddedTotal} / ${pt.entitiesRemovedTotal}` },
-        { label: 'edits', value: fmtValue(pt.editsWithDeltas) }
+        { label: m.cells_revds_readout_bucket(), value: fmtTimestamp(pt.bucket.getTime() / 1000) },
+        { label: m.cells_revds_readout_sentiment_mean(), value: fmtValue(pt.avgSentimentDelta) },
+        { label: m.cells_revds_readout_net_drift(), value: fmtValue(pt.netSentimentDrift) },
+        { label: m.cells_revds_readout_topic_shift(), value: fmtValue(pt.avgTopicShift) },
+        {
+          label: m.cells_revds_readout_entities(),
+          value: `${pt.entitiesAddedTotal} / ${pt.entitiesRemovedTotal}`
+        },
+        { label: m.cells_revds_readout_edits(), value: fmtValue(pt.editsWithDeltas) }
       ],
-      hint: 'Click to see the articles edited in this bucket'
+      hint: m.cells_revds_readout_hint()
     };
   }
 
@@ -247,7 +251,7 @@
 <section class="rev-cell" aria-labelledby="rev-ds-title-{scopeId}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="rev-ds-title-{scopeId}" class="cell-title">
-      <span>Discourse shift</span>
+      <span>{m.cells_revds_title()}</span>
       <span class="muted">
         — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code>
       </span>
@@ -258,17 +262,17 @@
   </header>
 
   {#if shiftQ.isPending}
-    <p class="muted" aria-busy="true">Loading discourse shift…</p>
+    <p class="muted" aria-busy="true">{m.cells_revds_loading()}</p>
   {:else if shiftQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={shiftQ.data} {ctx} />
   {:else if shiftQ.isError || shiftQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load discourse shift.</p>
+    <p class="muted">{m.cells_revds_error()}</p>
   {:else if points.length === 0}
-    <p class="muted">No silent edits with computed deltas in this window.</p>
+    <p class="muted">{m.cells_revds_empty()}</p>
   {:else}
     <p class="click-hint" aria-hidden="true">
-      <span class="click-hint-icon">↻</span> Each point is one source's mean sentiment change for that
-      bucket. Click to see the edited articles.
+      <span class="click-hint-icon">↻</span>
+      {m.cells_revds_click_hint()}
     </p>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -276,7 +280,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Mean sentiment delta over time per source. Click a point to view the edited articles."
+      aria-label={m.cells_revds_plot_aria()}
       onclick={onHostClick}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
@@ -289,7 +293,7 @@
 {#if drilldown}
   <ArticleListModal
     open={drilldown !== null}
-    title={`Articles edited — ${drilldown.source}`}
+    title={m.cells_revds_drilldown_title({ source: drilldown.source })}
     {ctx}
     windowStart={drilldown.bucketStart}
     windowEnd={drilldown.bucketEnd}

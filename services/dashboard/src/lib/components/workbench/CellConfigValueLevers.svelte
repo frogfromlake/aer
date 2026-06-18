@@ -10,6 +10,7 @@
   // `Panel.cellOverrides[cellKey]` via `setCellOverride`, clearing the override
   // when the chosen value equals the panel default (so a cell that matches its
   // siblings is never falsely flagged "custom").
+  import { m } from '$lib/paraglide/messages.js';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import { setCellOverride } from '$lib/workbench/panel-mutators';
   import { resolveCellConfig } from '$lib/workbench/panel-queries';
@@ -121,19 +122,19 @@
   <!-- ADR-038 — per-cell dimension peek. Choosing a dimension other than the
        panel's puts THIS cell off-comparison (a loud banner shows on the cell).
        Options are limited to dimensions this cell's own source emits. -->
-  <div class="ccp-row" role="group" aria-label="Cell dimension">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_cell_dimension_group()}>
     <span class="ccp-rk"
       >{dimensionNoun}
-      {#if ovMetric}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      {#if ovMetric}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <select
       class="ccp-select"
       value={dimensionSelectValue}
       onchange={(e) => setDimension((e.currentTarget as HTMLSelectElement).value)}
-      aria-label="Cell dimension (peek)"
-      title="Peek at a different dimension for this cell only — off-comparison, valid for this cell's source."
+      aria-label={m.workbench_ccp_cell_dimension_select_label()}
+      title={m.workbench_ccp_cell_dimension_select_title()}
     >
-      <option value="">— inherit ({panel.metric}) —</option>
+      <option value="">{m.workbench_ccp_dimension_inherit({ metric: panel.metric })}</option>
       {#each dimensionOptions as d (d)}
         <option value={d}>{d}</option>
       {/each}
@@ -142,9 +143,10 @@
 {/if}
 
 {#if configParams.includes('bins')}
-  <div class="ccp-row" role="group" aria-label="Histogram bins">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_bins_group()}>
     <span class="ccp-rk"
-      >Bins {#if ovBins}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_bins_label()}
+      {#if ovBins}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <div class="ccp-inline">
       <input
@@ -158,7 +160,7 @@
           setBins(Number((e.currentTarget as HTMLInputElement).value));
           liveBins = null;
         }}
-        aria-label="Cell histogram bin count"
+        aria-label={m.workbench_ccp_bins_input_label()}
       />
       <output class="ccp-val">{displayBins}</output>
     </div>
@@ -166,9 +168,10 @@
 {/if}
 
 {#if configParams.includes('topN')}
-  <div class="ccp-row" role="group" aria-label="Top edges">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_topn_group()}>
     <span class="ccp-rk"
-      >Top N {#if ovTopN}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_topn_label()}
+      {#if ovTopN}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <div class="ccp-inline">
       <input
@@ -182,7 +185,7 @@
           setTopN(Number((e.currentTarget as HTMLInputElement).value));
           liveTopN = null;
         }}
-        aria-label="Cell top co-occurrence edge count"
+        aria-label={m.workbench_ccp_topn_input_label()}
       />
       <output class="ccp-val">{displayTopN}</output>
     </div>
@@ -190,9 +193,10 @@
 {/if}
 
 {#if configParams.includes('forceStrength')}
-  <div class="ccp-row" role="group" aria-label="Graph spread">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_spread_group()}>
     <span class="ccp-rk"
-      >Spread {#if ovForce}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_spread_label()}
+      {#if ovForce}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <div class="ccp-inline">
       <input
@@ -206,7 +210,7 @@
           setForce(Number((e.currentTarget as HTMLInputElement).value));
           liveForce = null;
         }}
-        aria-label="Cell graph spread"
+        aria-label={m.workbench_ccp_spread_input_label()}
       />
       <output class="ccp-val">{displayForce}</output>
     </div>
@@ -214,9 +218,10 @@
 {/if}
 
 {#if configParams.includes('band')}
-  <div class="ccp-row" role="group" aria-label="Uncertainty band">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_band_group()}>
     <span class="ccp-rk"
-      >Band {#if ovBand}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_band_label()}
+      {#if ovBand}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <button
       type="button"
@@ -226,15 +231,16 @@
       class:active={effShowBand}
       onclick={() => setBand(!effShowBand)}
     >
-      {effShowBand ? '±1σ shown' : '±1σ hidden'}
+      {effShowBand ? m.workbench_ccp_band_shown() : m.workbench_ccp_band_hidden()}
     </button>
   </div>
 {/if}
 
 {#if configParams.includes('scales')}
-  <div class="ccp-row" role="group" aria-label="Axis scale">
+  <div class="ccp-row" role="group" aria-label={m.workbench_ccp_scale_group()}>
     <span class="ccp-rk"
-      >Scale {#if ovScales}<span class="ccp-dot" title="Overridden">●</span>{/if}</span
+      >{m.workbench_ccp_scale_label()}
+      {#if ovScales}<span class="ccp-dot" title={m.workbench_ccp_overridden()}>●</span>{/if}</span
     >
     <button
       type="button"
@@ -244,11 +250,9 @@
       class:active={effScaleDisplay === 'shared'}
       disabled={forcesFree}
       onclick={() => setScale(effScaleDisplay === 'shared' ? 'free' : 'shared')}
-      title={forcesFree
-        ? "This cell's X/Y axis is custom, so it measures different metrics than its siblings and can't share their scale — it always reads on its own."
-        : "Shared: this cell sits on the panel's union axis (comparable). Free: this cell scales to its own data."}
+      title={forcesFree ? m.workbench_ccp_scale_title_forced_free() : m.workbench_ccp_scale_title()}
     >
-      {effScaleDisplay === 'shared' ? 'Shared axis' : 'Free axis'}
+      {effScaleDisplay === 'shared' ? m.workbench_ccp_scale_shared() : m.workbench_ccp_scale_free()}
     </button>
   </div>
 {/if}

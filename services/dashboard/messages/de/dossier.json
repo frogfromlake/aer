@@ -1,0 +1,61 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+
+  "dossier_overlay_aria_label": "Sondenkatalog",
+  "dossier_overlay_eyebrow": "Dossier",
+  "dossier_overlay_title": "Atmosphärisches Verzeichnis der Sonden von AĒR",
+  "dossier_overlay_close": "Dossier schließen",
+
+  "dossier_window_label": "Zeitfenster",
+
+  "dossier_search_placeholder": "Sonde, Quelle, Sprache, Land suchen…",
+  "dossier_search_aria_label": "Sondenkatalog durchsuchen",
+  "dossier_facet_language_aria_label": "Nach Sprache filtern",
+  "dossier_facet_language_all": "Alle Sprachen",
+  "dossier_facet_country_aria_label": "Nach Land filtern",
+  "dossier_facet_country_all": "Alle Länder",
+
+  "dossier_selection_count": "{count} ausgewählt",
+  "dossier_selection_clear": "Leeren",
+  "dossier_selection_add": "{name} zur Auswahl hinzufügen",
+  "dossier_selection_selected": "Ausgewählt",
+  "dossier_selection_select": "Auswählen",
+
+  "dossier_list_loading": "Sondenkatalog wird geladen…",
+  "dossier_list_error": "Der Sondenkatalog konnte nicht geladen werden. Bitte prüfen Sie die Netzwerkverbindung.",
+  "dossier_list_empty": "Keine Sonden entsprechen dem aktuellen Filter.",
+
+  "dossier_coverage_modal_title": "Metadaten-Abdeckung · {probeId}",
+  "dossier_coverage_modal_hint": "Abdeckungsmatrix pro Quelle × pro Feld. Die Zellen unterscheiden die Entscheidung des Herausgebers (\"strukturell abwesend\") von fehlenden Beobachtungen; das Negative-Space-Overlay legt das methodische Register bei abwesenden Feldern offen. WP-003 §3.2.",
+  "dossier_coverage_modal_close": "Metadaten-Dialog schließen",
+
+  "dossier_probe_machine_id_aria_label": "Maschinenkennung",
+  "dossier_probe_language_aria_label": "Primärsprache: {language}",
+  "dossier_probe_summary_one": "{sources} Quelle · {covered}/{total} Funktionen",
+  "dossier_probe_summary_other": "{sources} Quellen · {covered}/{total} Funktionen",
+  "dossier_probe_methodology_link": "Methodik ↗",
+  "dossier_probe_metadata_button": "Metadaten-Abdeckung",
+  "dossier_probe_load_failed": "{probeId} konnte nicht geladen werden.",
+
+  "dossier_probe_meta_language": "Sprache",
+  "dossier_probe_meta_sources": "Quellen",
+  "dossier_probe_meta_publication_rate": "Publikationsrate",
+  "dossier_probe_meta_publication_rate_value": "{rate} Dok./Tag",
+  "dossier_probe_meta_function_coverage": "Funktionsabdeckung",
+  "dossier_probe_meta_function_coverage_value": "{covered}/{total} ({percent} %)",
+
+  "dossier_probe_capabilities_title": "Fähigkeiten",
+  "dossier_probe_cap_sentiment_backbone": "Sentiment-Backbone",
+  "dossier_probe_cap_sentiment_enrichments": "Sentiment-Anreicherungen",
+  "dossier_probe_cap_silent_edit": "Beobachtbarkeit stiller Änderungen",
+  "dossier_probe_cap_silent_edit_active": "Aktiv",
+  "dossier_probe_cap_silent_edit_inactive": "Nicht aktiv",
+  "dossier_probe_cap_discourse_function": "Diskursfunktion pro Artikel",
+
+  "dossier_df_title": "Diskursfunktionen",
+  "dossier_df_state_uncovered": "nicht abgedeckt",
+  "dossier_df_state_sources_one": "{count} Quelle",
+  "dossier_df_state_sources_other": "{count} Quellen",
+  "dossier_df_empty": "Keine Quelle dieser Sonde trägt diese Funktion.",
+  "dossier_df_unclassified_label": "Nicht klassifizierte Quellen"
+}

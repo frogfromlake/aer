@@ -1,0 +1,61 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+
+  "dossier_overlay_aria_label": "Probe catalogue",
+  "dossier_overlay_eyebrow": "Dossier",
+  "dossier_overlay_title": "Atmospheric record of AĒR’s probes",
+  "dossier_overlay_close": "Close dossier",
+
+  "dossier_window_label": "Window",
+
+  "dossier_search_placeholder": "Search probe, source, language, country…",
+  "dossier_search_aria_label": "Search the probe catalogue",
+  "dossier_facet_language_aria_label": "Filter by language",
+  "dossier_facet_language_all": "All languages",
+  "dossier_facet_country_aria_label": "Filter by country",
+  "dossier_facet_country_all": "All countries",
+
+  "dossier_selection_count": "{count} selected",
+  "dossier_selection_clear": "Clear",
+  "dossier_selection_add": "Add {name} to selection",
+  "dossier_selection_selected": "Selected",
+  "dossier_selection_select": "Select",
+
+  "dossier_list_loading": "Loading probe catalogue…",
+  "dossier_list_error": "Could not load the probe catalogue. Check network connectivity.",
+  "dossier_list_empty": "No probes match the current filter.",
+
+  "dossier_coverage_modal_title": "Metadata coverage · {probeId}",
+  "dossier_coverage_modal_hint": "Per-source × per-field coverage matrix. Cells distinguish publisher choice (\"structurally absent\") from missing observations; the Negative-Space overlay surfaces the methodological register on absent fields. WP-003 §3.2.",
+  "dossier_coverage_modal_close": "Close metadata modal",
+
+  "dossier_probe_machine_id_aria_label": "Machine identifier",
+  "dossier_probe_language_aria_label": "Primary language: {language}",
+  "dossier_probe_summary_one": "{sources} source · {covered}/{total} functions",
+  "dossier_probe_summary_other": "{sources} sources · {covered}/{total} functions",
+  "dossier_probe_methodology_link": "Methodology ↗",
+  "dossier_probe_metadata_button": "Metadata coverage",
+  "dossier_probe_load_failed": "Failed to load {probeId}.",
+
+  "dossier_probe_meta_language": "Language",
+  "dossier_probe_meta_sources": "Sources",
+  "dossier_probe_meta_publication_rate": "Publication rate",
+  "dossier_probe_meta_publication_rate_value": "{rate} docs/day",
+  "dossier_probe_meta_function_coverage": "Function coverage",
+  "dossier_probe_meta_function_coverage_value": "{covered}/{total} ({percent}%)",
+
+  "dossier_probe_capabilities_title": "Capabilities",
+  "dossier_probe_cap_sentiment_backbone": "Sentiment backbone",
+  "dossier_probe_cap_sentiment_enrichments": "Sentiment enrichments",
+  "dossier_probe_cap_silent_edit": "Silent-edit observability",
+  "dossier_probe_cap_silent_edit_active": "Active",
+  "dossier_probe_cap_silent_edit_inactive": "Not active",
+  "dossier_probe_cap_discourse_function": "Per-article discourse function",
+
+  "dossier_df_title": "Discourse Functions",
+  "dossier_df_state_uncovered": "uncovered",
+  "dossier_df_state_sources_one": "{count} source",
+  "dossier_df_state_sources_other": "{count} sources",
+  "dossier_df_empty": "No sources in this probe carry this function.",
+  "dossier_df_unclassified_label": "Unclassified sources"
+}

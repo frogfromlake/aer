@@ -30,6 +30,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
   import { createQuery } from '@tanstack/svelte-query';
   import { hasWebGL2 } from '@aer/engine-3d/capability';
   import type {
@@ -267,14 +269,14 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — Atmosphere</title>
+  <title>{m.atmosphere_doc_title()}</title>
 </svelte:head>
 
 {#if onAtmosphere}
   <!-- Top scope bar: primer link only. -->
-  <ScopeBar label="Atmosphere surface controls">
+  <ScopeBar label={m.atmosphere_scopebar_label()}>
     <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
-    <a class="primer-link" href="/reflection/primer/globe">How to read the globe →</a>
+    <a class="primer-link" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
   </ScopeBar>
 {/if}
 
@@ -293,14 +295,13 @@
            reaches (reach is unmeasurable), so it deliberately makes NO
            geographic blind-spot claim here. Per-source Negative Space (date
            provenance, silent edits) lives in the Dossier where it is measurable. -->
-      <aside class="absence-banner" aria-label="Coverage disclosure">
+      <aside class="absence-banner" aria-label={m.atmosphere_absence_label()}>
         <span class="absence-glyph" aria-hidden="true">∅</span>
-        <span class="absence-text"
-          >AĒR cannot measure which regions a source's discourse reaches — so it makes no geographic
-          coverage claim here. Per-source Negative Space is in the Dossier.</span
-        >
+        <span class="absence-text">{m.atmosphere_absence_text()}</span>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal WP link -->
-        <a class="absence-link" href="/reflection/wp/wp-006?section=4.2">WP-006 §4.2</a>
+        <a class="absence-link" href="/reflection/wp/wp-006?section=4.2"
+          >{m.atmosphere_absence_link()}</a
+        >
       </aside>
     {/if}
     <AtmosphereCanvas
@@ -329,12 +330,12 @@
         <span class="tooltip-headline">{hoveredProbeDto?.displayName ?? hoveredProbe.probeId}</span>
         <span class="tooltip-meta">{(hoveredProbeDto?.language ?? '').toUpperCase()}</span>
         {#if inCompose}
-          <span class="tooltip-compose-badge">✓ in selection</span>
-          <span class="tooltip-affordance">Shift+click to remove · click to focus</span>
+          <span class="tooltip-compose-badge">{m.atmosphere_tooltip_in_selection()}</span>
+          <span class="tooltip-affordance">{m.atmosphere_tooltip_affordance_in_selection()}</span>
         {:else if url.selectedProbes.length > 0}
-          <span class="tooltip-affordance">Click to select · Shift+click to add</span>
+          <span class="tooltip-affordance">{m.atmosphere_tooltip_affordance_add()}</span>
         {:else}
-          <span class="tooltip-affordance">Click to select · Shift+click to multi-select</span>
+          <span class="tooltip-affordance">{m.atmosphere_tooltip_affordance_multi()}</span>
         {/if}
       </div>
     {:else if hoveredSatellite}
@@ -345,19 +346,24 @@
         style:top="{pointerY + 14}px"
       >
         <span class="tooltip-headline">{hoveredSatellite.label}</span>
-        <span class="tooltip-meta">source · {hoveredSatellite.sourceName}</span>
-        <span class="tooltip-affordance">Click to open the Dossier for its probe</span>
+        <span class="tooltip-meta"
+          >{m.atmosphere_tooltip_satellite_meta({ sourceName: hoveredSatellite.sourceName })}</span
+        >
+        <span class="tooltip-affordance">{m.atmosphere_tooltip_satellite_affordance()}</span>
       </div>
     {/if}
 
     {#if onAtmosphere}
-      <ul class="sr-probe-nav" aria-label="Probes on the globe">
+      <ul class="sr-probe-nav" aria-label={m.atmosphere_probe_nav_label()}>
         {#each flatProbes as p (p.probeId)}
           <li>
             <button
               type="button"
               class="sr-only"
-              aria-label="Probe {p.displayName}, {p.language}"
+              aria-label={m.atmosphere_probe_nav_item_label({
+                displayName: p.displayName,
+                language: p.language
+              })}
               onfocus={() => onProbeHovered({ probeId: p.probeId })}
               onblur={() => onProbeHovered(null)}
               onclick={() => onProbeSelected({ probeId: p.probeId })}
@@ -375,12 +381,21 @@
            only the strip itself is interactive. It NEVER auto-opens the
            large overlay — "Open Dossier" is an explicit CTA (tier 3). -->
       <div class="banner-zone">
-        <div class="compose-cta" role="status" aria-live="polite" aria-label="Probe selection">
-          <span class="compose-count"
-            >⊗ {url.selectedProbes.length} probe{url.selectedProbes.length === 1 ? '' : 's'} selected</span
-          >
+        <div
+          class="compose-cta"
+          role="status"
+          aria-live="polite"
+          aria-label={m.atmosphere_banner_label()}
+        >
+          <span class="compose-count">
+            {#if url.selectedProbes.length === 1}
+              {m.atmosphere_banner_count_one({ count: formatNumber(url.selectedProbes.length) })}
+            {:else}
+              {m.atmosphere_banner_count_other({ count: formatNumber(url.selectedProbes.length) })}
+            {/if}
+          </span>
           <button type="button" class="compose-btn" onclick={() => toggleOverlay('dossier')}>
-            Open Dossier
+            {m.atmosphere_banner_open_dossier()}
           </button>
           <button
             type="button"
@@ -398,7 +413,7 @@
               });
             }}
           >
-            Open Workbench →
+            {m.atmosphere_banner_open_workbench()}
           </button>
           <button
             type="button"
@@ -408,7 +423,7 @@
               setUrl({ selectedProbes: [] });
             }}
           >
-            Clear
+            {m.atmosphere_banner_clear()}
           </button>
         </div>
       </div>

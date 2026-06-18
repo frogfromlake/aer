@@ -3,6 +3,7 @@
   // a Panel's ScopeGroups (probes · sources) when it carries more than one, with
   // a per-group remove affordance. Panel-bound: it owns its remove handler via
   // the resolved PanelPath. Renders nothing for a single-group panel.
+  import { m } from '$lib/paraglide/messages.js';
   import type { Panel } from '$lib/state/url-internals';
   import { removeScopeGroup, type PanelPath } from '$lib/workbench/panel-mutators';
 
@@ -19,10 +20,10 @@
 </script>
 
 {#if panel.scopes.length > 1}
-  <ul class="scope-groups" role="list" aria-label="Scope groups in this panel">
+  <ul class="scope-groups" role="list" aria-label={m.workbench_scope_chips_aria_label()}>
     {#each panel.scopes as group, i (i)}
       <li class="scope-group-chip">
-        <span class="scope-group-eyebrow">Group {i + 1}</span>
+        <span class="scope-group-eyebrow">{m.workbench_scope_chip_group({ index: i + 1 })}</span>
         <span class="scope-group-detail">
           {group.probeIds.join(', ') || '—'}
           {#if group.sourceIds.length > 0}
@@ -37,8 +38,8 @@
               e.stopPropagation();
               onRemoveGroup(i);
             }}
-            title="Remove this ScopeGroup"
-            aria-label="Remove ScopeGroup {i + 1}"
+            title={m.workbench_scope_chip_remove_title()}
+            aria-label={m.workbench_scope_chip_remove_label({ index: i + 1 })}
           >
             ×
           </button>

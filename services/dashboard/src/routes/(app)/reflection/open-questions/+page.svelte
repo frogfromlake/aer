@@ -4,6 +4,8 @@
   import { ScopeBar } from '$lib/components/chrome';
   import { questionsByWp, OPEN_QUESTIONS } from '$lib/reflection/open-questions';
   import { getAllPapers } from '$lib/reflection/papers';
+  import { m } from '$lib/paraglide/messages.js';
+  import { paperShortTitle } from '$lib/components/reflection/paper-display';
 
   const grouped = questionsByWp();
   const papers = getAllPapers();
@@ -11,23 +13,24 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — Open Research Questions</title>
+  <title>{m.reflection_open_questions_head_title()}</title>
 </svelte:head>
 
-<ScopeBar label="Reflection — Open Research Questions navigation">
+<ScopeBar label={m.reflection_open_questions_scopebar_label()}>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/reflection" class="breadcrumb-root">Reflection</a>
+  <a href="/reflection" class="breadcrumb-root">{m.reflection_open_questions_breadcrumb_root()}</a>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="breadcrumb-current" aria-current="page">Open Research Questions</span>
+  <span class="breadcrumb-current" aria-current="page"
+    >{m.reflection_open_questions_breadcrumb_current()}</span
+  >
 </ScopeBar>
 
 <main class="oq-main" id="main-open-questions">
   <div class="oq-inner">
     <header class="oq-header">
-      <h1 class="oq-title">Open Research Questions</h1>
+      <h1 class="oq-title">{m.reflection_open_questions_title()}</h1>
       <p class="oq-abstract">
-        {total} questions gathered from the six AĒR Working Papers (§7 and §8 sections of each), each
-        identifying a gap that requires expertise beyond software engineering. Grouped by paper and discipline.
+        {m.reflection_open_questions_abstract({ count: total })}
       </p>
     </header>
 
@@ -40,8 +43,10 @@
             <a href="/reflection/wp/{paper.id}" class="wp-group-id">
               {paper.id.toUpperCase()}
             </a>
-            <h2 id="group-{paper.id}" class="wp-group-title">{paper.shortTitle}</h2>
-            <span class="wp-group-count">{questions.length} questions</span>
+            <h2 id="group-{paper.id}" class="wp-group-title">{paperShortTitle(paper.id)}</h2>
+            <span class="wp-group-count"
+              >{m.reflection_open_questions_group_count({ count: questions.length })}</span
+            >
           </div>
 
           <ul class="oq-list" role="list">
@@ -55,13 +60,15 @@
                 <p class="oq-question">{q.question}</p>
                 {#if q.deliverable}
                   <p class="oq-deliverable">
-                    <span class="deliverable-label">Deliverable:</span>
+                    <span class="deliverable-label"
+                      >{m.reflection_open_questions_deliverable_label()}</span
+                    >
                     {q.deliverable}
                   </p>
                 {/if}
                 {#if q.pipelineHook}
                   <p class="oq-hook">
-                    <span class="hook-label">AĒR pipeline hook:</span>
+                    <span class="hook-label">{m.reflection_open_questions_hook_label()}</span>
                     {q.pipelineHook}
                   </p>
                 {/if}
@@ -74,7 +81,7 @@
 
     <footer class="oq-footer">
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href="/reflection" class="back-link">← Back to Reflection</a>
+      <a href="/reflection" class="back-link">{m.reflection_open_questions_back()}</a>
     </footer>
   </div>
 </main>

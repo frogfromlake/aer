@@ -14,6 +14,7 @@
   import WpTableOfContents from '$lib/components/reflection/WpTableOfContents.svelte';
   import WpPaperBody from '$lib/components/reflection/WpPaperBody.svelte';
   import { splitSections, scrollTargetIds } from '$lib/reflection/wp-page-internals';
+  import { m } from '$lib/paraglide/messages.js';
   import type { PageData } from './$types';
 
   interface Props {
@@ -25,7 +26,7 @@
   const meta = $derived(paper?.meta ?? null);
   const rendered = $derived(paper?.rendered ?? null);
   const sections = $derived(rendered?.sections ?? []);
-  const title = $derived(rendered?.title ?? meta?.shortTitle ?? 'Working Paper');
+  const title = $derived(rendered?.title ?? meta?.shortTitle ?? m.reflection_wp_default_title());
 
   // Active section from URL ?section= param
   const sectionParam = $derived(page.url.searchParams.get('section') ?? null);
@@ -51,10 +52,10 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — {title}</title>
+  <title>{m.reflection_wp_head_title({ title })}</title>
 </svelte:head>
 
-<ScopeBar label="Reflection — Working Paper navigation">
+<ScopeBar label={m.reflection_wp_scopebar_label()}>
   <WpBreadcrumb paperId={meta?.id ?? null} {sectionParam} />
 </ScopeBar>
 

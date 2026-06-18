@@ -8,6 +8,7 @@
   // (ADR-016 / Phase 115), with a "?" explainer instead of a silent refusal.
   import type { Normalization, Panel } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverButton from './LeverButton.svelte';
 
   interface Props {
@@ -42,70 +43,70 @@
 
 <!-- Layer + Compare on one row — both low-frequency; grouped to save space. -->
 <div class="ctrl-row ctrl-row-split">
-  <div class="ctrl-group" role="radiogroup" aria-label="Data layer">
-    <span class="ctrl-eyebrow">Layer</span>
+  <div class="ctrl-group" role="radiogroup" aria-label={m.levers_layer_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_layer_eyebrow()}</span>
     <div class="ctrl-options">
       <LeverButton
         role="radio"
         active={activeLayer === 'gold'}
         variant="layer-btn"
-        title="Au Gold — aggregated metrics"
+        title={m.levers_layer_gold_title()}
         onclick={() => pickLayer('gold')}
       >
-        Au Gold
+        {m.levers_layer_gold()}
       </LeverButton>
       <LeverButton
         role="radio"
         active={activeLayer === 'silver'}
         variant="layer-btn silver"
-        title="Ag Silver — document-level data (WP-006 §5.2)"
+        title={m.levers_layer_silver_title()}
         onclick={() => pickLayer('silver')}
       >
-        Ag Silver
+        {m.levers_layer_silver()}
       </LeverButton>
     </div>
   </div>
 
   {#if viewUsesNormalization}
-    <div class="ctrl-group" role="radiogroup" aria-label="Normalization">
-      <span class="ctrl-eyebrow">Compare</span>
+    <div class="ctrl-group" role="radiogroup" aria-label={m.levers_compare_aria()}>
+      <span class="ctrl-eyebrow">{m.levers_compare_eyebrow()}</span>
       <div class="ctrl-options">
         <LeverButton
           role="radio"
           active={activeNormalization === 'raw'}
-          title="Raw values"
+          title={m.levers_compare_raw_title()}
           onclick={() => pickNorm('raw')}
         >
-          raw
+          {m.levers_compare_raw()}
         </LeverButton>
         <LeverButton
           role="radio"
           active={activeNormalization === 'zscore'}
           disabled={!canNormalize}
           title={canNormalize
-            ? 'Z-score deviation from the baseline'
-            : 'Needs a validated baseline + cross-context equivalence (Phase 115) — not available for this metric yet. Click ? to learn why.'}
+            ? m.levers_compare_deviation_title()
+            : m.levers_compare_disabled_title()}
           onclick={() => pickNorm('zscore')}
         >
-          deviation
+          {m.levers_compare_deviation()}
         </LeverButton>
         <LeverButton
           role="radio"
           active={activeNormalization === 'percentile'}
           disabled={!canNormalize}
           title={canNormalize
-            ? 'Percentile rank within scope'
-            : 'Needs a validated baseline + cross-context equivalence (Phase 115) — not available for this metric yet. Click ? to learn why.'}
+            ? m.levers_compare_percentile_title()
+            : m.levers_compare_disabled_title()}
           onclick={() => pickNorm('percentile')}
         >
-          percentile
+          {m.levers_compare_percentile()}
         </LeverButton>
         {#if !canNormalize}
           <button
             type="button"
             class="ctrl-help"
             aria-expanded={showCompareHelp}
-            title="Why are deviation / percentile disabled?"
+            title={m.levers_compare_help_aria()}
             onclick={(e) => {
               e.stopPropagation();
               showCompareHelp = !showCompareHelp;
@@ -120,11 +121,16 @@
 </div>
 {#if viewUsesNormalization && !canNormalize && showCompareHelp}
   <p class="compare-help" role="note">
-    <strong>deviation</strong> (z-score) and <strong>percentile</strong> compare values
-    <em>across contexts</em> — which asserts the metric measures the same thing in each. AĒR only
-    allows that once a baseline + a cross-context equivalence study exist for the metric (ADR-016 /
-    WP-004); <code>{activeMetric}</code> has none yet, so these stay disabled rather than show an
-    unproven comparison. <strong>raw</strong> always works.
+    <strong>{m.levers_compare_help_deviation()}</strong>
+    {m.levers_compare_help_pre()}
+    <strong>{m.levers_compare_help_percentile()}</strong>
+    {m.levers_compare_help_mid()}
+    <em>{m.levers_compare_help_across_contexts()}</em>
+    {m.levers_compare_help_body()}
+    <code>{activeMetric}</code>
+    {m.levers_compare_help_post()}
+    <strong>{m.levers_compare_help_raw()}</strong>
+    {m.levers_compare_help_raw_always()}
   </p>
 {/if}
 

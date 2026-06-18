@@ -9,6 +9,8 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatDate } from '$lib/localization/format';
 
   const MIN_LEN = 12;
   const url = $derived(urlState());
@@ -38,15 +40,15 @@
     const res = await authApi.changePassword(currentPw, newPw);
     pwBusy = false;
     if (res.ok) {
-      pwMsg = { kind: 'success', text: 'Password changed. Other sessions were signed out.' };
+      pwMsg = { kind: 'success', text: m.account_password_changed() };
       currentPw = newPw = confirmPw = '';
     } else {
       pwMsg = {
         kind: 'error',
         text:
           res.code === 'invalid_credentials'
-            ? 'Current password is incorrect.'
-            : 'Could not change the password.'
+            ? m.account_password_incorrect()
+            : m.account_password_change_failed()
       };
     }
   }
@@ -68,7 +70,7 @@
     const res = await registerPasskey();
     pkBusy = false;
     if (res.ok) {
-      pkMsg = { kind: 'success', text: 'Passkey added.' };
+      pkMsg = { kind: 'success', text: m.account_passkeys_added_notice() };
       await loadPasskeys();
     } else {
       pkMsg = { kind: 'error', text: res.message };
@@ -133,39 +135,39 @@
       class="overlay-panel"
       role="dialog"
       aria-modal="true"
-      aria-label="Your account"
+      aria-label={m.account_title()}
       tabindex="-1"
     >
       <header class="head">
-        <h2>Your account</h2>
-        <button type="button" class="close" aria-label="Close" onclick={close}>×</button>
+        <h2>{m.account_title()}</h2>
+        <button type="button" class="close" aria-label={m.common_close()} onclick={close}>×</button>
       </header>
 
       <section class="block">
-        <h3>Identity</h3>
+        <h3>{m.account_identity_heading()}</h3>
         <dl class="identity">
           <div>
-            <dt>Email</dt>
+            <dt>{m.account_identity_email()}</dt>
             <dd>{me?.email ?? '—'}</dd>
           </div>
           <div>
-            <dt>Role</dt>
+            <dt>{m.account_identity_role()}</dt>
             <dd class="cap">{me?.role ?? '—'}</dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>{m.account_identity_status()}</dt>
             <dd class="cap">{me?.status ?? '—'}</dd>
           </div>
         </dl>
       </section>
 
       <section class="block">
-        <h3>Change password</h3>
+        <h3>{m.account_password_heading()}</h3>
         <form onsubmit={changePassword} novalidate>
           {#if pwMsg}<AuthNotice variant={pwMsg.kind}>{pwMsg.text}</AuthNotice>{/if}
           <AuthField
             id="cur"
-            label="Current password"
+            label={m.account_password_current_label()}
             type="password"
             bind:value={currentPw}
             autocomplete="current-password"
@@ -173,16 +175,16 @@
           />
           <AuthField
             id="new"
-            label="New password"
+            label={m.account_password_new_label()}
             type="password"
             bind:value={newPw}
             autocomplete="new-password"
             disabled={pwBusy}
-            hint={`At least ${MIN_LEN} characters.`}
+            hint={m.account_password_min_hint({ min: MIN_LEN })}
           />
           <AuthField
             id="conf"
-            label="Confirm new password"
+            label={m.account_password_confirm_label()}
             type="password"
             bind:value={confirmPw}
             autocomplete="new-password"
@@ -190,64 +192,69 @@
           />
           <div class="actions">
             <Button type="submit" variant="primary" loading={pwBusy} disabled={!pwValid}
-              >Update password</Button
+              >{m.account_password_submit()}</Button
             >
           </div>
         </form>
       </section>
 
       <section class="block">
-        <h3>Passkeys</h3>
-        <p class="muted">Phishing-resistant sign-in with your device or a security key.</p>
+        <h3>{m.account_passkeys_heading()}</h3>
+        <p class="muted">{m.account_passkeys_intro()}</p>
         {#if pkMsg}<AuthNotice variant={pkMsg.kind}>{pkMsg.text}</AuthNotice>{/if}
         {#if passkeys.length === 0}
-          <p class="muted">No passkeys registered yet.</p>
+          <p class="muted">{m.account_passkeys_empty()}</p>
         {:else}
           <ul class="list">
             {#each passkeys as pk (pk.id)}
               <li>
                 <span
-                  >{pk.name || 'Passkey'} · added {new Date(
-                    pk.createdAt
-                  ).toLocaleDateString()}</span
+                  >{m.account_passkeys_added_meta({
+                    name: pk.name || m.account_passkeys_default_name(),
+                    date: formatDate(pk.createdAt)
+                  })}</span
                 >
                 <button type="button" class="link-danger" onclick={() => removePasskey(pk.id)}
-                  >Remove</button
+                  >{m.common_remove()}</button
                 >
               </li>
             {/each}
           </ul>
         {/if}
         <div class="actions">
-          <Button variant="secondary" loading={pkBusy} onclick={addPasskey}>Add a passkey</Button>
+          <Button variant="secondary" loading={pkBusy} onclick={addPasskey}
+            >{m.account_passkeys_add()}</Button
+          >
         </div>
       </section>
 
       <section class="block">
-        <h3>Data &amp; privacy</h3>
+        <h3>{m.account_privacy_heading()}</h3>
         <p class="muted">
-          AĒR stores only your identity and consent — never a record of what you analyse.
+          {m.account_privacy_intro()}
         </p>
         <div class="actions">
           <Button variant="secondary" loading={exportBusy} onclick={exportData}
-            >Export my data</Button
+            >{m.account_privacy_export()}</Button
           >
         </div>
         <div class="danger">
-          <h4>Delete account</h4>
-          <p class="muted">Permanent and irreversible. Type <code>DELETE</code> to confirm.</p>
+          <h4>{m.account_privacy_delete_heading()}</h4>
+          <p class="muted">
+            {m.account_privacy_delete_intro({ token: 'DELETE' })}
+          </p>
           <div class="delete-row">
             <input
               class="confirm-input"
-              placeholder="DELETE"
+              placeholder={m.account_privacy_delete_placeholder()}
               bind:value={deleteConfirm}
-              aria-label="Type DELETE to confirm"
+              aria-label={m.account_privacy_delete_confirm_label()}
             />
             <Button
               variant="secondary"
               loading={deleteBusy}
               disabled={deleteConfirm !== 'DELETE'}
-              onclick={deleteAccount}>Delete my account</Button
+              onclick={deleteAccount}>{m.account_privacy_delete_submit()}</Button
             >
           </div>
         </div>
@@ -420,9 +427,5 @@
     border-color: var(--color-accent);
     box-shadow: 0 0 0 var(--focus-ring-width)
       color-mix(in oklab, var(--color-accent) 40%, transparent);
-  }
-  code {
-    font-family: var(--font-mono);
-    color: var(--color-fg);
   }
 </style>

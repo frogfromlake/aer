@@ -9,6 +9,7 @@
   // bubbling so the article-focus handler doesn't close the native picker.
   import type { DateWindow } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -55,7 +56,7 @@
   }
 </script>
 
-<LeverRow eyebrow="Window" role="group" ariaLabel="Time window">
+<LeverRow eyebrow={m.levers_window_eyebrow()} role="group" ariaLabel={m.levers_window_aria()}>
   <div class="window-inputs" onclick={(e) => e.stopPropagation()} role="presentation">
     <input
       type="date"
@@ -63,7 +64,7 @@
       max={dateWindow.endDate ?? todayStr}
       onchange={(e) => pickWindowStart((e.currentTarget as HTMLInputElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Window start"
+      aria-label={m.levers_window_start_aria()}
     />
     <span class="window-sep" aria-hidden="true">→</span>
     <input
@@ -73,14 +74,11 @@
       max={todayStr}
       onchange={(e) => pickWindowEnd((e.currentTarget as HTMLInputElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Window end"
+      aria-label={m.levers_window_end_aria()}
     />
     {#if dateWindow.isPanelOverride}
-      <LeverButton
-        onclick={resetWindowToGlobal}
-        title="Drop this panel's window override and inherit the global default"
-      >
-        Reset
+      <LeverButton onclick={resetWindowToGlobal} title={m.levers_window_reset_title()}>
+        {m.levers_window_reset()}
       </LeverButton>
     {/if}
   </div>

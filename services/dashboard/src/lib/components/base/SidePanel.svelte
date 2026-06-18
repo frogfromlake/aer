@@ -10,6 +10,7 @@
   // live). Structure is deliberately separate — a panel is not a modal
   // and should not inherit the centered-overlay visual.
   import { onMount, type Snippet } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     open: boolean;
@@ -37,7 +38,7 @@
     onClose,
     children,
     footer,
-    closeLabel = 'Close panel',
+    closeLabel,
     size = 'default'
   }: Props = $props();
 
@@ -107,7 +108,12 @@
   >
     <header>
       <h2 id={titleId}>{title}</h2>
-      <button type="button" class="close" aria-label={closeLabel} onclick={close}>×</button>
+      <button
+        type="button"
+        class="close"
+        aria-label={closeLabel ?? m.base_sidepanel_close()}
+        onclick={close}>×</button
+      >
     </header>
     <div class="body">
       {#if children}{@render children()}{/if}

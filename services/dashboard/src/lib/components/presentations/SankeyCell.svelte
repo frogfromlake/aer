@@ -13,6 +13,7 @@
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -108,7 +109,11 @@
         const title = document.createElementNS(NS, 'title');
         const sv = (link.source as { label: string }).label;
         const tv = (link.target as { label: string }).label;
-        title.textContent = `${sv} → ${tv}: ${link.value} articles`;
+        title.textContent = m.cells_sankey_link_tooltip({
+          source: sv,
+          target: tv,
+          count: link.value
+        });
         p.appendChild(title);
         linkG.appendChild(p);
       }
@@ -128,7 +133,7 @@
         rect.setAttribute('height', String(Math.max(1, y1 - y0)));
         rect.setAttribute('fill', LAYER_COLORS[(node.layer ?? 0) % LAYER_COLORS.length]!);
         const title = document.createElementNS(NS, 'title');
-        title.textContent = `${node.field} = ${node.label}`;
+        title.textContent = m.cells_sankey_node_tooltip({ field: node.field, value: node.label });
         rect.appendChild(title);
         nodeG.appendChild(rect);
 
@@ -186,7 +191,7 @@
 <section class="sankey-cell" aria-labelledby="sankey-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="sankey-title" class="cell-title">
-      Sankey
+      {m.cells_sankey_title()}
       <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
     </h3>
     {#if data && data.links.length > 0}
@@ -195,15 +200,15 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Sankey operates on Gold-layer categorical metadata.</p>
+    <p class="muted">{m.cells_sankey_silver()}</p>
   {:else if !enoughFields}
-    <p class="muted">Pick at least two categorical fields in the <strong>Fields</strong> lever.</p>
+    <p class="muted">{m.cells_sankey_need_fields()}</p>
   {:else if skQ.isPending}
-    <p class="muted" aria-busy="true">Loading Sankey…</p>
+    <p class="muted" aria-busy="true">{m.cells_sankey_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load the Sankey.</p>
+    <p class="muted">{m.cells_sankey_error()}</p>
   {:else if isEmpty}
     <CellEmptyState />
   {:else if data}
@@ -211,7 +216,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Sankey flow across {fields.join(', ')}"
+      aria-label={m.cells_sankey_plot_aria({ fields: fields.join(', ') })}
     ></div>
     <HowToRead presentation="sankey" facts={howToReadFacts} />
   {/if}

@@ -15,6 +15,7 @@
   // cell-templates, not a navigation layer.)
   import { createQuery } from '@tanstack/svelte-query';
   import type { Component } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import {
     probeDossierQuery,
     type FetchContext,
@@ -115,14 +116,14 @@
       .catch((err: unknown) => {
         if (t !== loadToken) return;
         CellComponent = null;
-        loadError = err instanceof Error ? err.message : 'Cell failed to load';
+        loadError = err instanceof Error ? err.message : m.errors_generic();
       });
   });
 </script>
 
-<section class="rhizome-shell" aria-label="Rhizome — relational currents in the discourse">
+<section class="rhizome-shell" aria-label={m.workbench_rhizome_aria_label()}>
   {#if dossierQ.isPending}
-    <p class="muted" aria-busy="true">Loading dataset…</p>
+    <p class="muted" aria-busy="true">{m.workbench_rhizome_loading_dataset()}</p>
   {:else if pillarState && dossier}
     <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
     <WindowHost
@@ -138,16 +139,18 @@
     <PanelControls pillar="rhizome" />
     <div class="cell-frame">
       <header class="cell-header">
-        <span class="cell-eyebrow">Cell</span>
+        <span class="cell-eyebrow">{m.workbench_rhizome_cell_eyebrow()}</span>
         <span class="cell-presentation">{presentation.label}</span>
       </header>
       <div class="cell-body">
         {#if loadError}
-          <p class="muted">Cell failed to load: {loadError}</p>
+          <p class="muted">{m.workbench_rhizome_cell_failed({ error: loadError })}</p>
         {:else if !CellComponent}
-          <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+          <p class="muted" aria-busy="true">
+            {m.workbench_rhizome_loading_presentation({ presentation: presentation.label })}
+          </p>
         {:else if cellSources.length === 0}
-          <p class="muted">No sources in the active scope.</p>
+          <p class="muted">{m.workbench_rhizome_no_sources()}</p>
         {:else}
           {@const Cell = CellComponent}
           <Cell
@@ -168,7 +171,7 @@
 
     <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
   {:else if dossierQ.isError}
-    <p class="muted">Dossier failed to load.</p>
+    <p class="muted">{m.workbench_rhizome_dossier_failed()}</p>
   {/if}
 </section>
 

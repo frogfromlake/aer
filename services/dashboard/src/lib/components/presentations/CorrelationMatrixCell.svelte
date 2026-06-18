@@ -18,6 +18,7 @@
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -112,7 +113,7 @@
           scheme: 'rdbu',
           domain: [-1, 1],
           legend: true,
-          label: 'Pearson r'
+          label: m.cells_corr_legend_label()
         },
         marks: [
           Plot.cell(blanks, {
@@ -123,7 +124,7 @@
             strokeOpacity: 0.3,
             strokeDasharray: '2,2',
             inset: 0.5,
-            title: (d: CorrCell) => `${d.row} × ${d.col}: too few overlapping buckets`
+            title: (d: CorrCell) => m.cells_corr_tooltip_blank({ rowName: d.row, colName: d.col })
           }),
           Plot.cell(drawable, {
             x: 'col',
@@ -131,7 +132,12 @@
             fill: 'r',
             inset: 0.5,
             // Phase 125 (ISSUE 4) — hover tooltip naming the metric pair + r.
-            title: (d: CorrCell) => `${d.row} × ${d.col}: r = ${(d.r ?? 0).toFixed(2)}`
+            title: (d: CorrCell) =>
+              m.cells_corr_tooltip_value({
+                rowName: d.row,
+                colName: d.col,
+                r: (d.r ?? 0).toFixed(2)
+              })
           }),
           Plot.text(drawable, {
             x: 'col',
@@ -193,7 +199,7 @@
 <section class="corr-cell" aria-labelledby="corr-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="corr-title" class="cell-title">
-      Correlation matrix
+      {m.cells_corr_title()}
       <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
     </h3>
     {#if data && hasAnyValue}
@@ -202,15 +208,15 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Correlation operates on Gold-layer per-article metrics.</p>
+    <p class="muted">{m.cells_corr_silver()}</p>
   {:else if !enoughMetrics}
-    <p class="muted">Pick at least two metrics in the <strong>Metric set</strong> lever.</p>
+    <p class="muted">{m.cells_corr_need_metrics()}</p>
   {:else if corrQ.isPending}
-    <p class="muted" aria-busy="true">Loading correlation matrix…</p>
+    <p class="muted" aria-busy="true">{m.cells_corr_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load the correlation matrix.</p>
+    <p class="muted">{m.cells_corr_error()}</p>
   {:else if data && !hasAnyValue}
     <CellEmptyState />
   {:else if data}
@@ -218,7 +224,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Correlation matrix heatmap over {metrics.length} metrics"
+      aria-label={m.cells_corr_plot_aria({ count: metrics.length })}
     ></div>
     <HowToRead presentation="correlation_matrix" facts={howToReadFacts} />
   {/if}

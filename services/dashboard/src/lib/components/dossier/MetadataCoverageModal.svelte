@@ -13,6 +13,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { FetchContext } from '$lib/api/queries';
   import MetadataCoveragePanel from '$lib/components/source/MetadataCoveragePanel.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     probeId: string;
@@ -48,14 +49,17 @@
   >
     <header class="modal-header">
       <div class="header-titles">
-        <h2 id="mdc-modal-heading">Metadata coverage · {probeId}</h2>
+        <h2 id="mdc-modal-heading">{m.dossier_coverage_modal_title({ probeId })}</h2>
         <p class="header-hint">
-          Per-source × per-field coverage matrix. Cells distinguish publisher choice ("structurally
-          absent") from missing observations; the Negative-Space overlay surfaces the methodological
-          register on absent fields. WP-003 §3.2.
+          {m.dossier_coverage_modal_hint()}
         </p>
       </div>
-      <button type="button" class="close-btn" onclick={onClose} aria-label="Close metadata modal">
+      <button
+        type="button"
+        class="close-btn"
+        onclick={onClose}
+        aria-label={m.dossier_coverage_modal_close()}
+      >
         ×
       </button>
     </header>

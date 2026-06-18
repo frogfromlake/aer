@@ -9,6 +9,7 @@
   // (read-only — clicking routes to the Probe Dossier with the source
   // pre-filtered). Probe and satellite events are surfaced separately.
   import { onDestroy, onMount } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import type {
     AtmosphereEngine,
     EngineConfig,
@@ -144,7 +145,7 @@
   });
 </script>
 
-<figure aria-label="AĒR atmosphere: 3D rotating Earth with live day/night terminator">
+<figure aria-label={m.atmosphere_canvas_label()}>
   <canvas bind:this={canvas}></canvas>
 </figure>
 

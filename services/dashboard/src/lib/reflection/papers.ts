@@ -1,10 +1,12 @@
 // Paper catalog — metadata index for WP-001 through WP-006.
 //
-// The raw markdown content lives in /content/papers/wp-NNN.md (served as
-// static assets by the SvelteKit static adapter). The load function in the
-// WP route fetches the file at navigation time and parses it with the
-// md.ts renderer. Only metadata that is needed for the index/landing page
-// lives here — no content is duplicated.
+// The raw markdown content lives in /content/papers/{locale}/wp-NNN.md (served
+// as static assets by the SvelteKit static adapter; synced per-locale from
+// docs/methodology/{en,de}/ by scripts/sync-papers.mjs — Phase 144). The load
+// function in the WP route fetches the file for the active locale at navigation
+// time and parses it with the md.ts renderer. Only metadata needed for the
+// index/landing page lives here — no content is duplicated.
+import type { Locale } from '$lib/state/url-internals';
 
 export interface PaperMeta {
   id: string; // 'wp-001'
@@ -98,7 +100,7 @@ export function getAllPapers(): PaperMeta[] {
   return PAPERS;
 }
 
-/** URL of the raw markdown content file for a given paper ID. */
-export function paperContentUrl(id: string): string {
-  return `/content/papers/${id.toLowerCase()}.md`;
+/** URL of the raw markdown content file for a given paper ID in a locale. */
+export function paperContentUrl(id: string, locale: Locale): string {
+  return `/content/papers/${locale}/${id.toLowerCase()}.md`;
 }

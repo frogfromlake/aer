@@ -11,6 +11,7 @@
   import { DEFAULT_BINS, DEFAULT_FORCE_STRENGTH, DEFAULT_TOPN } from '$lib/workbench/cell-levers';
   import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -105,7 +106,12 @@
 </script>
 
 {#if configParams.includes('bins')}
-  <LeverRow eyebrow="Bins" role="group" ariaLabel="Histogram bins" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_bins_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_bins_aria()}
+    rowClass="config-row"
+  >
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
@@ -118,7 +124,7 @@
           setBins(Number((e.currentTarget as HTMLInputElement).value));
           liveBins = null;
         }}
-        aria-label="Histogram bin count slider"
+        aria-label={m.levers_bins_slider_aria()}
       />
       <output class="config-value">{displayBins}</output>
     </div>
@@ -126,7 +132,12 @@
 {/if}
 
 {#if configParams.includes('topN')}
-  <LeverRow eyebrow="Top N" role="group" ariaLabel="Top edges" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_topn_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_topn_aria()}
+    rowClass="config-row"
+  >
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
@@ -139,7 +150,7 @@
           setTopN(Number((e.currentTarget as HTMLInputElement).value));
           liveTopN = null;
         }}
-        aria-label="Top N slider"
+        aria-label={m.levers_topn_slider_aria()}
       />
       <output class="config-value">{displayTopN}</output>
     </div>
@@ -147,7 +158,12 @@
 {/if}
 
 {#if configParams.includes('forceStrength')}
-  <LeverRow eyebrow="Spread" role="group" ariaLabel="Graph spread" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_spread_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_spread_aria()}
+    rowClass="config-row"
+  >
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
@@ -160,8 +176,8 @@
           setForceStrength(Number((e.currentTarget as HTMLInputElement).value));
           liveForce = null;
         }}
-        title="How strongly nodes repel each other — higher spreads a crowded graph apart"
-        aria-label="Graph spread (node repulsion) slider"
+        title={m.levers_spread_title()}
+        aria-label={m.levers_spread_slider_aria()}
       />
       <output class="config-value">{displayForce}</output>
     </div>
@@ -169,7 +185,12 @@
 {/if}
 
 {#if configParams.includes('settleTime')}
-  <LeverRow eyebrow="Settle" role="group" ariaLabel="Layout settle time" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_settle_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_settle_aria()}
+    rowClass="config-row"
+  >
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
@@ -182,53 +203,68 @@
           setSettle(Number((e.currentTarget as HTMLInputElement).value));
           liveSettle = null;
         }}
-        title="Seconds the large-scale layout runs before it freezes. Raise it to give a big map more time to relax into clusters."
-        aria-label="Layout settle time in seconds"
+        title={m.levers_settle_title()}
+        aria-label={m.levers_settle_slider_aria()}
       />
-      <output class="config-value">{displaySettle}s</output>
+      <output class="config-value">{m.levers_settle_value({ seconds: displaySettle })}</output>
     </div>
   </LeverRow>
 {/if}
 
 {#if configParams.includes('showEdges')}
-  <LeverRow eyebrow="Connections" role="group" ariaLabel="Connection lines" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_connections_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_connections_aria()}
+    rowClass="config-row"
+  >
     <LeverButton
       role="switch"
       active={activeShowEdges}
       onclick={() => setShowEdges(!activeShowEdges)}
-      title="Show or hide the edge lines between nodes. A nodes-only view is clearer for a dense map; clustering still shows the relationships."
+      title={m.levers_connections_title()}
     >
-      {activeShowEdges ? 'lines shown' : 'lines hidden'}
+      {activeShowEdges ? m.levers_connections_shown() : m.levers_connections_hidden()}
     </LeverButton>
   </LeverRow>
 {/if}
 
 {#if configParams.includes('band')}
-  <LeverRow eyebrow="Band" role="group" ariaLabel="Uncertainty band" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_band_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_band_aria()}
+    rowClass="config-row"
+  >
     <LeverButton
       role="switch"
       active={activeShowBand}
       onclick={() => setShowBand(!activeShowBand)}
-      title="Toggle the ±1σ uncertainty band around each series"
+      title={m.levers_band_title()}
     >
-      {activeShowBand ? '±1σ shown' : '±1σ hidden'}
+      {activeShowBand ? m.levers_band_shown() : m.levers_band_hidden()}
     </LeverButton>
   </LeverRow>
 {/if}
 
 {#if configParams.includes('scales')}
-  <LeverRow eyebrow="Scale" role="group" ariaLabel="Axis scale" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_scale_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_scale_aria()}
+    rowClass="config-row"
+  >
     <LeverButton
       role="switch"
       active={activeScaleMode === 'shared'}
       onclick={() => setScaleMode(activeScaleMode === 'shared' ? 'free' : 'shared')}
-      title="Shared: every cell in this panel uses one axis domain, so identical values plot at identical positions (directly comparable). Free: each cell scales to its own data."
+      title={m.levers_scale_title()}
     >
-      {activeScaleMode === 'shared' ? 'Shared axis' : 'Free axis'}
+      {activeScaleMode === 'shared' ? m.levers_scale_shared() : m.levers_scale_free()}
     </LeverButton>
   </LeverRow>
   {#if hasAxisOverride}
-    <p class="scale-note">ⓘ Cells with a custom X/Y axis always read free — independent of this.</p>
+    <p class="scale-note">{m.levers_scale_note()}</p>
   {/if}
 {/if}
 

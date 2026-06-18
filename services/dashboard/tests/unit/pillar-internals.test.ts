@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  PILLAR_PLAIN_LANGUAGE,
-  PILLAR_QUESTIONS,
   seedPillarFromCurrent,
   type DefaultPresentationResolver
 } from '../../src/lib/pillar-internals';
@@ -100,17 +98,5 @@ describe('seedPillarFromCurrent', () => {
     } as PillarState;
     const seeded = seedPillarFromCurrent(pillars(source), 'aleph', 'episteme', resolve)!;
     expect(seeded.windows[0]!.panels[0]!.metric).toBe('entity_count');
-  });
-});
-
-describe('pillar copy maps', () => {
-  it('PILLAR_QUESTIONS covers all three pillars', () => {
-    expect(Object.keys(PILLAR_QUESTIONS).sort()).toEqual(['aleph', 'episteme', 'rhizome']);
-    expect(PILLAR_QUESTIONS.episteme).toContain('over time');
-  });
-
-  it('PILLAR_PLAIN_LANGUAGE covers all three pillars', () => {
-    expect(Object.keys(PILLAR_PLAIN_LANGUAGE).sort()).toEqual(['aleph', 'episteme', 'rhizome']);
-    expect(PILLAR_PLAIN_LANGUAGE.aleph).toContain('synchronic');
   });
 });

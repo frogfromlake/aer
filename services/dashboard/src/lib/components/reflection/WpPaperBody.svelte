@@ -7,6 +7,9 @@
   import InlineChart from '$lib/components/reflection/InlineChart.svelte';
   import type { PaperMeta } from '$lib/reflection/papers';
   import type { ParsedPaper } from '$lib/reflection/md';
+  import { m } from '$lib/paraglide/messages.js';
+  import { paperStatus } from '$lib/components/reflection/paper-display';
+  import { formatDate } from '$lib/localization/format';
 
   interface Props {
     paper: { meta: PaperMeta; rendered: ParsedPaper | null } | null;
@@ -22,25 +25,25 @@
 <article class="paper" aria-labelledby="paper-title">
   {#if !paper}
     <div class="error-state">
-      <h1 id="paper-title">Working Paper not found</h1>
+      <h1 id="paper-title">{m.reflection_wp_body_notfound_title()}</h1>
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href="/reflection">← Back to Reflection</a>
+      <a href="/reflection">{m.reflection_wp_body_notfound_back()}</a>
     </div>
   {:else}
     <!-- Paper header -->
     <header class="paper-header">
-      <p class="paper-series">AĒR Scientific Methodology Working Papers</p>
+      <p class="paper-series">{m.reflection_wp_body_series()}</p>
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       <h1 id="paper-title" class="paper-title">{@html title}</h1>
 
       {#if meta}
         <dl class="paper-meta">
-          <dt>Status</dt>
-          <dd>{meta.status}</dd>
-          <dt>Date</dt>
-          <dd>{meta.date}</dd>
+          <dt>{m.reflection_wp_body_meta_status()}</dt>
+          <dd>{paperStatus(meta.id)}</dd>
+          <dt>{m.reflection_wp_body_meta_date()}</dt>
+          <dd>{formatDate(meta.date)}</dd>
           {#if meta.depends.length > 0}
-            <dt>Depends on</dt>
+            <dt>{m.reflection_wp_body_meta_depends_on()}</dt>
             <dd>
               {#each meta.depends as dep, i (dep)}
                 <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
@@ -56,7 +59,7 @@
 
       {#if !rendered}
         <div class="load-error" role="alert">
-          <p>Could not load paper content. Connect to the AĒR backend or check your network.</p>
+          <p>{m.reflection_wp_body_load_error()}</p>
         </div>
       {/if}
     </header>
@@ -75,7 +78,9 @@
               {#if section.number && !section.isAppendix}
                 <span class="section-num">{section.number}.</span>
               {:else if section.isAppendix}
-                <span class="section-num">Appendix {section.number}</span>
+                <span class="section-num"
+                  >{m.reflection_wp_body_appendix_prefix({ number: section.number })}</span
+                >
               {/if}
               {section.title}
             </h2>
@@ -100,10 +105,12 @@
     <!-- Open questions link -->
     <footer class="paper-footer">
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href="/reflection/open-questions" class="footer-link"> ← All open research questions </a>
+      <a href="/reflection/open-questions" class="footer-link">
+        {m.reflection_wp_body_footer_all_questions()}
+      </a>
       {#if meta?.downstream && meta.downstream.length > 0}
         <span class="footer-downstream">
-          Downstream:
+          {m.reflection_wp_body_footer_downstream()}
           {#each meta.downstream as dep, i (dep)}
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/{dep}" class="footer-link">{dep.toUpperCase()}</a>{i <

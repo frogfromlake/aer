@@ -5,6 +5,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let email = $state('');
   let submitting = $state(false);
@@ -21,34 +22,29 @@
   }
 </script>
 
-<svelte:head><title>Reset password · AĒR</title></svelte:head>
+<svelte:head><title>{m.auth_forgot_doc_title()}</title></svelte:head>
 
-<AuthCard
-  title="Reset your password"
-  subtitle="Enter your email and we'll send a reset link if an account exists."
->
+<AuthCard title={m.auth_forgot_title()} subtitle={m.auth_forgot_subtitle()}>
   {#if sent}
-    <AuthNotice variant="success">
-      If an account exists for that address, a password-reset link has been sent.
-    </AuthNotice>
+    <AuthNotice variant="success">{m.auth_forgot_sent()}</AuthNotice>
   {:else}
     <form onsubmit={submit} novalidate>
       <AuthField
         id="email"
-        label="Email"
+        label={m.auth_field_email_label()}
         type="email"
         bind:value={email}
         autocomplete="username"
-        placeholder="you@institution.org"
+        placeholder={m.auth_field_email_placeholder()}
         required
         disabled={submitting}
       />
-      <Button type="submit" variant="primary" loading={submitting}>Send reset link</Button>
+      <Button type="submit" variant="primary" loading={submitting}>{m.auth_forgot_submit()}</Button>
     </form>
   {/if}
 
   {#snippet footer()}
-    <a class="link" href="/login">Back to sign in</a>
+    <a class="link" href="/login">{m.auth_back_to_signin()}</a>
   {/snippet}
 </AuthCard>
 

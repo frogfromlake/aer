@@ -3,6 +3,11 @@
   // reset). Centres a single card on the dark atmospheric AĒR backdrop, with
   // the wordmark, a title, and slots for the form and a footer.
   import type { Snippet } from 'svelte';
+  // Phase 144 — the pre-auth pages render OUTSIDE the (app) shell, so they have
+  // no SideRail. The card carries its own UI-language selector so a visitor can
+  // switch before signing in (the choice persists into the app via localStorage
+  // + ?lang=).
+  import LocaleSwitch from '$lib/components/chrome/LocaleSwitch.svelte';
 
   interface Props {
     title: string;
@@ -37,6 +42,10 @@
         {@render footer()}
       </footer>
     {/if}
+
+    <div class="locale-row">
+      <LocaleSwitch />
+    </div>
   </section>
 </main>
 
@@ -141,6 +150,14 @@
     align-items: center;
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
+  }
+
+  /* Compact, unobtrusive language toggle centred under the card content. */
+  .locale-row {
+    display: flex;
+    justify-content: center;
+    width: 8rem;
+    margin: 0 auto;
   }
 
   @media (prefers-reduced-motion: reduce) {

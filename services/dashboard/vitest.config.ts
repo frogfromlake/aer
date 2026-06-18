@@ -34,6 +34,10 @@ export default defineConfig({
         // (`navigator.credentials`); no node equivalent — E2E/manual territory,
         // same rationale as the otel.ts browser bootstrap (ADR-041).
         'src/lib/api/webauthn-browser.ts',
+        // Phase 144 — rune-aware formatting shell: defaults `loc` to the
+        // `$lib/state/locale.svelte` rune, so it cannot load under node-env
+        // Vitest. Its pure logic is in `format-core.ts` (floored + tested here).
+        'src/lib/localization/format.ts',
         // Rune-coupled shell: after the pure logic moved to `pillar-internals.ts`
         // (floored + tested here) only `pickPillar`/`activePillarDefinition`
         // remain, and they read/write the `$lib/state/url.svelte` rune store —

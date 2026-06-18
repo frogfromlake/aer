@@ -4,6 +4,7 @@
   // Brief §5.4) + the numbered/appendix section links. Pure presentation; the
   // parent gates rendering on `mainSections.length > 0`.
   import type { PaperSection } from '$lib/reflection/md';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     mainSections: PaperSection[];
@@ -12,24 +13,23 @@
   let { mainSections, appendixSections }: Props = $props();
 </script>
 
-<nav class="toc" aria-label="Table of contents">
+<nav class="toc" aria-label={m.reflection_wp_toc_aria_label()}>
   <!-- Surface III — scope boundary annotation (Phase 112), shown by default now
        that the Negative-Space toggle is retired. Absence-prose scrolls alongside
        the paper body per Design Brief §5.4. -->
-  <aside class="absence-margin" aria-label="Scope boundary notes">
+  <aside class="absence-margin" aria-label={m.reflection_wp_toc_scope_boundary_notes_aria()}>
     <p class="absence-margin-heading">
-      <span aria-hidden="true">∅</span> Scope boundary
+      <span aria-hidden="true">∅</span>
+      {m.reflection_wp_toc_scope_boundary_heading()}
     </p>
     <p class="absence-margin-text">
-      This Working Paper documents the methodological boundaries of what AĒR observes. The system
-      does not capture demographic variation, informal discourse, or sources outside active probes.
-      Absence is data.
+      {m.reflection_wp_toc_scope_boundary_text()}
     </p>
     <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
     <a class="absence-margin-ref" href="/reflection/wp/wp-001?section=5.3">WP-001 §5.3</a>
   </aside>
   <hr class="absence-divider" aria-hidden="true" />
-  <p class="toc-heading">Contents</p>
+  <p class="toc-heading">{m.reflection_wp_toc_heading()}</p>
   <ol class="toc-list">
     {#each mainSections as s (s.id)}
       <li>
@@ -43,7 +43,7 @@
       {#each appendixSections as s (s.id)}
         <li>
           <a href="#{s.id}" class="toc-link">
-            <span class="toc-num">App. {s.number}</span>
+            <span class="toc-num">{m.reflection_wp_toc_appendix_prefix()} {s.number}</span>
             {s.title}
           </a>
         </li>

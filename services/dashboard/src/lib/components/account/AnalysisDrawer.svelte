@@ -11,6 +11,8 @@
   import * as api from '$lib/api/analyses';
   import Button from '$lib/components/base/Button.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { locale } from '$lib/state/locale.svelte';
   import { fmtDate } from './analyses-overlay-internals';
 
   interface Props {
@@ -66,7 +68,7 @@
       editing = false;
       await onChanged();
     } else {
-      drawerMsg = { kind: 'error', text: res.message || 'Could not save changes.' };
+      drawerMsg = { kind: 'error', text: res.message || m.account_analyses_drawer_save_failed() };
     }
   }
 
@@ -79,7 +81,7 @@
       onClose();
       await onChanged();
     } else {
-      drawerMsg = { kind: 'error', text: 'Could not delete.' };
+      drawerMsg = { kind: 'error', text: m.account_analyses_drawer_delete_failed() };
     }
   }
 
@@ -99,10 +101,10 @@
         kind: 'error',
         text:
           res.code === 'grantee_not_found'
-            ? 'No user with that email.'
+            ? m.account_analyses_drawer_share_grantee_not_found()
             : res.code === 'cannot_share_with_self'
-              ? 'You already own this analysis.'
-              : res.message || 'Could not share.'
+              ? m.account_analyses_drawer_share_self()
+              : res.message || m.account_analyses_drawer_share_failed()
       };
     }
   }
@@ -117,7 +119,7 @@
   async function loadAnalysis(id: string) {
     const res = await api.getAnalysis(id);
     if (!res.ok) {
-      drawerMsg = { kind: 'error', text: 'Could not open this analysis.' };
+      drawerMsg = { kind: 'error', text: m.account_analyses_drawer_open_failed() };
       return;
     }
     const state = res.data.state;
@@ -132,39 +134,60 @@
     <div class="drawer-content" in:fly={{ x: 16, duration: 160 }}>
       <header class="drawer-head">
         <h3>{a.name}</h3>
-        <button type="button" class="close" aria-label="Close details" onclick={onClose}>×</button>
+        <button
+          type="button"
+          class="close"
+          aria-label={m.account_analyses_drawer_close()}
+          onclick={onClose}>×</button
+        >
       </header>
 
       {#if drawerMsg}<AuthNotice variant={drawerMsg.kind}>{drawerMsg.text}</AuthNotice>{/if}
 
       <div class="drawer-meta">
-        <span>Owner: {a.owned ? 'You' : a.ownerEmail}</span>
-        <span>Created: {fmtDate(a.createdAt)}</span>
-        <span>Updated: {fmtDate(a.updatedAt)}</span>
+        <span
+          >{m.account_analyses_drawer_owner({
+            owner: a.owned ? m.account_analyses_owner_you() : a.ownerEmail
+          })}</span
+        >
+        <span>{m.account_analyses_drawer_created({ date: fmtDate(a.createdAt, locale()) })}</span>
+        <span>{m.account_analyses_drawer_updated({ date: fmtDate(a.updatedAt, locale()) })}</span>
       </div>
 
       <div class="row-actions">
-        <Button variant="primary" onclick={() => loadAnalysis(a.id)}>Open in Workbench</Button>
+        <Button variant="primary" onclick={() => loadAnalysis(a.id)}
+          >{m.account_analyses_drawer_open_workbench()}</Button
+        >
       </div>
 
       {#if a.permission === 'editable'}
         <section class="drawer-block">
           <div class="block-head">
-            <h4>Details</h4>
+            <h4>{m.account_analyses_drawer_details_heading()}</h4>
             {#if !editing}
-              <button type="button" class="link" onclick={() => (editing = true)}>Edit</button>
+              <button type="button" class="link" onclick={() => (editing = true)}
+                >{m.common_edit()}</button
+              >
             {/if}
           </div>
           {#if editing}
-            <input class="field" bind:value={editName} aria-label="Name" />
-            <textarea class="field" rows="2" bind:value={editDescription} aria-label="Description"
+            <input
+              class="field"
+              bind:value={editName}
+              aria-label={m.account_analyses_save_name_label()}
+            />
+            <textarea
+              class="field"
+              rows="2"
+              bind:value={editDescription}
+              aria-label={m.account_analyses_save_description_label()}
             ></textarea>
             <div class="row-actions">
               <Button
                 variant="primary"
                 loading={drawerBusy}
                 disabled={!editName.trim()}
-                onclick={saveEdit}>Save</Button
+                onclick={saveEdit}>{m.common_save()}</Button
               >
               <Button
                 variant="secondary"
@@ -172,30 +195,34 @@
                   editing = false;
                   editName = a.name;
                   editDescription = a.description;
-                }}>Cancel</Button
+                }}>{m.common_cancel()}</Button
               >
             </div>
           {:else}
-            <p class="muted">{a.description || 'No description.'}</p>
+            <p class="muted">{a.description || m.account_analyses_drawer_no_description()}</p>
           {/if}
         </section>
       {/if}
 
       {#if a.owned}
         <section class="drawer-block">
-          <h4>Shared with</h4>
+          <h4>{m.account_analyses_drawer_shared_heading()}</h4>
           {#if shareMsg}<AuthNotice variant={shareMsg.kind}>{shareMsg.text}</AuthNotice>{/if}
           {#if shares.length === 0}
-            <p class="muted">Not shared with anyone yet.</p>
+            <p class="muted">{m.account_analyses_drawer_not_shared()}</p>
           {:else}
             <ul class="share-list">
               {#each shares as s (s.granteeId)}
                 <li>
-                  <span>{s.email} · {s.canEdit ? 'can edit' : 'read-only'}</span>
+                  <span
+                    >{s.email} · {s.canEdit
+                      ? m.account_analyses_drawer_share_can_edit()
+                      : m.account_analyses_drawer_share_read_only()}</span
+                  >
                   <button
                     type="button"
                     class="link-danger"
-                    onclick={() => removeShareEntry(s.granteeId)}>Remove</button
+                    onclick={() => removeShareEntry(s.granteeId)}>{m.common_remove()}</button
                   >
                 </li>
               {/each}
@@ -205,33 +232,36 @@
             <input
               class="field"
               type="email"
-              placeholder="Share with email…"
+              placeholder={m.account_analyses_drawer_share_placeholder()}
               bind:value={shareEmail}
-              aria-label="Recipient email"
+              aria-label={m.account_analyses_drawer_share_email_label()}
             />
             <label class="inline"
-              ><input type="checkbox" bind:checked={shareCanEdit} /> Can edit</label
+              ><input type="checkbox" bind:checked={shareCanEdit} />
+              {m.account_analyses_drawer_share_edit_label()}</label
             >
             <Button
               type="submit"
               variant="secondary"
               loading={shareBusy}
-              disabled={!shareEmail.trim()}>Share</Button
+              disabled={!shareEmail.trim()}>{m.account_analyses_drawer_share_submit()}</Button
             >
           </form>
         </section>
 
         <section class="drawer-block danger">
-          <h4>Delete</h4>
-          <p class="muted">Removes this analysis for you and everyone it’s shared with.</p>
-          <Button variant="secondary" loading={drawerBusy} onclick={removeAnalysis}>Delete</Button>
+          <h4>{m.account_analyses_drawer_delete_heading()}</h4>
+          <p class="muted">{m.account_analyses_drawer_delete_intro()}</p>
+          <Button variant="secondary" loading={drawerBusy} onclick={removeAnalysis}
+            >{m.account_analyses_drawer_delete_submit()}</Button
+          >
         </section>
       {/if}
     </div>
   {:else}
     <div class="drawer-empty">
       <p class="muted">
-        Select an analysis to see its details, share it, or open it in the Workbench.
+        {m.account_analyses_drawer_empty()}
       </p>
     </div>
   {/if}

@@ -6,6 +6,7 @@
   // controlled presentation child — the ScopeEditor owns the draft `$state`
   // and the mutators; this component renders the group and reports user
   // intent back through callback props. It holds no draft state of its own.
+  import { m } from '$lib/paraglide/messages.js';
   import type { ScopeGroup } from '$lib/state/url-internals';
   import type { ProbeDto } from '$lib/api/queries';
   import type { DiscourseFunction } from '$lib/discourse-function';
@@ -54,26 +55,32 @@
 
 <article
   class="group"
-  aria-label="Scope group {groupIndex + 1}"
+  aria-label={m.workbench_scope_group_aria_label({ index: groupIndex + 1 })}
   style:--lock-color={lockMeta?.color ?? 'var(--color-accent)'}
 >
   <header class="group-header">
     <div class="group-title-line">
-      <span class="group-eyebrow">Group {groupIndex + 1}</span>
+      <span class="group-eyebrow">{m.workbench_scope_group_eyebrow({ index: groupIndex + 1 })}</span
+      >
       <span class="group-summary">
-        {group.probeIds.length} probe{group.probeIds.length === 1 ? '' : 's'} ·
-        {group.sourceIds.length} source{group.sourceIds.length === 1 ? '' : 's'}
-        {#if lockMeta}· locked to <strong>{lockMeta.label}</strong>{/if}
+        {group.probeIds.length === 1
+          ? m.workbench_scope_group_summary_probes_one({ count: group.probeIds.length })
+          : m.workbench_scope_group_summary_probes_other({ count: group.probeIds.length })} ·
+        {group.sourceIds.length === 1
+          ? m.workbench_scope_group_summary_sources_one({ count: group.sourceIds.length })
+          : m.workbench_scope_group_summary_sources_other({ count: group.sourceIds.length })}
+        {#if lockMeta}{m.workbench_scope_group_summary_locked_to()}
+          <strong>{lockMeta.label}</strong>{/if}
       </span>
       {#if canRemove}
         <button
           type="button"
           class="group-remove-btn"
           onclick={onRemove}
-          aria-label="Remove this scope group"
-          title="Remove this scope group"
+          aria-label={m.workbench_scope_group_remove_label()}
+          title={m.workbench_scope_group_remove_label()}
         >
-          × Remove group
+          {m.workbench_scope_group_remove()}
         </button>
       {/if}
     </div>
@@ -83,14 +90,14 @@
   <section class="step" data-step="1">
     <header class="step-header">
       <span class="step-num" aria-hidden="true">1</span>
-      <h3 class="step-title">Probes</h3>
-      <span class="step-hint">Pick one or more probes for this scope group.</span>
+      <h3 class="step-title">{m.workbench_scope_group_step_probes_title()}</h3>
+      <span class="step-hint">{m.workbench_scope_group_step_probes_hint()}</span>
     </header>
     <div class="probe-grid">
       {#if probesPending}
-        <p class="muted" aria-busy="true">Loading probes…</p>
+        <p class="muted" aria-busy="true">{m.workbench_scope_group_probes_loading()}</p>
       {:else if probeList.length === 0}
-        <p class="muted">No probes available.</p>
+        <p class="muted">{m.workbench_scope_group_probes_empty()}</p>
       {:else}
         {#each probeList as probe (probe.probeId)}
           {@const checked = group.probeIds.includes(probe.probeId)}
@@ -99,7 +106,7 @@
               type="checkbox"
               {checked}
               onchange={() => onToggleProbe(probe.probeId)}
-              aria-label="Include {probe.displayName}"
+              aria-label={m.workbench_scope_group_probe_include({ name: probe.displayName })}
             />
             <span class="probe-name">{probe.displayName}</span>
             <span class="probe-lang">{probe.language.toUpperCase()}</span>
@@ -113,8 +120,8 @@
   <section class="step" data-step="2">
     <header class="step-header">
       <span class="step-num" aria-hidden="true">2</span>
-      <h3 class="step-title">Discourse function</h3>
-      <span class="step-hint">Optional. Dim sources that don't carry the chosen function.</span>
+      <h3 class="step-title">{m.workbench_scope_group_step_df_title()}</h3>
+      <span class="step-hint">{m.workbench_scope_group_step_df_hint()}</span>
     </header>
     <div class="df-row">
       <button
@@ -123,7 +130,7 @@
         class:active={lock === null}
         onclick={() => onSetLock(null)}
       >
-        None — all functions
+        {m.workbench_scope_group_df_none()}
       </button>
       {#each DISCOURSE_FUNCTIONS as df (df.id)}
         <button

@@ -11,6 +11,7 @@
   import type { Presentation } from '$lib/state/url-internals';
   import { reconcilePanelForView } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -49,7 +50,7 @@
   }
 </script>
 
-<LeverRow eyebrow="View" role="radiogroup" ariaLabel="View">
+<LeverRow eyebrow={m.levers_view_eyebrow()} role="radiogroup" ariaLabel={m.levers_view_aria()}>
   {#snippet options()}
     {#each presentations as p (p.id)}
       <LeverButton

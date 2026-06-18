@@ -23,14 +23,18 @@
     type RefusalOutcome
   } from '$lib/api/queries';
   import ProgressiveSemantics from './ProgressiveSemantics.svelte';
+  import { locale as activeLocale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     refusal: RefusalOutcome;
     ctx: FetchContext;
+    /** Phase 144 — defaults to the active UI locale rune; a caller may still
+     *  pin a specific locale (none currently does). */
     locale?: 'en' | 'de';
   }
 
-  let { refusal, ctx, locale = 'en' }: Props = $props();
+  let { refusal, ctx, locale }: Props = $props();
 
   // `unspecified` has no authored content — fall back to the raw message.
   // For any authored kind we query `/content/refusal/{kind}`.
@@ -39,7 +43,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const options = contentQuery(ctx, 'refusal', refusal.refusalKind, locale);
+    const options = contentQuery(ctx, 'refusal', refusal.refusalKind, locale ?? activeLocale());
     return {
       queryKey: [...options.queryKey],
       queryFn: options.queryFn,
@@ -51,17 +55,17 @@
 
 <section class="refusal" role="status" aria-live="polite">
   <header>
-    <span class="badge" aria-label="System declined to answer">Refusal</span>
+    <span class="badge" aria-label={m.base_refusal_aria()}>{m.base_refusal_badge()}</span>
     <span class="kind">{refusal.refusalKind.replaceAll('_', ' ')}</span>
   </header>
 
   {#if refusal.refusalKind === 'unspecified'}
     <p class="raw">{refusal.message}</p>
   {:else if query.isPending}
-    <p class="muted" aria-busy="true">Loading methodological register…</p>
+    <p class="muted" aria-busy="true">{m.base_refusal_loading()}</p>
   {:else if query.isError}
     <p class="raw">{refusal.message}</p>
-    <p class="muted">Content Catalog unavailable.</p>
+    <p class="muted">{m.base_refusal_unavailable()}</p>
   {:else if query.data?.kind === 'success'}
     <ProgressiveSemantics registers={query.data.data.registers} emphasis="methodological" />
   {:else}

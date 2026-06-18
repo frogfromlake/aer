@@ -6,16 +6,18 @@
   // (structural Negative Space vs no captured article in the window) lives in the
   // cell's "how to read" + the per-source metadata-coverage matrix — not a wall
   // of text here, so sibling cells read consistently.
+  import { m } from '$lib/paraglide/messages.js';
+
   let { label }: { label?: string } = $props();
 </script>
 
 <p class="cell-empty" role="note">
   {#if label}
-    No <code>{label}</code> values in this window and scope.
+    {m.cells_empty_with_label({ label })}
   {:else}
-    No data in this window and scope.
+    {m.cells_empty_no_label()}
   {/if}
-  Nothing to chart — never a coerced zero. See “how to read”.
+  {m.cells_empty_coda()}
 </p>
 
 <style>
@@ -24,9 +26,5 @@
     color: var(--color-fg-muted);
     margin: 0;
     line-height: var(--line-height-loose);
-  }
-  .cell-empty code {
-    font-family: var(--font-mono);
-    color: var(--color-fg);
   }
 </style>

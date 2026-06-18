@@ -33,6 +33,7 @@
   import { JOINT_CORPUS_MIN_SOURCES, TOPIC_MIN_DOCS } from '$lib/config/topic-thresholds';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -164,7 +165,7 @@
       // reads "word · word · word"; truncate to fit the left margin with
       // the full label preserved in the hover tip.
       const prettyLabel = (d: NormalisedTopic): string => {
-        if (d.isOutlier) return 'uncategorised';
+        if (d.isOutlier) return m.cells_topicdist_uncategorised();
         const words = d.label
           .replace(/^-?\d+_/, '')
           .split('_')
@@ -201,7 +202,7 @@
         marginRight: 64,
         marginTop: multiLang ? 20 : 8,
         marginBottom: 36,
-        x: { label: 'articles', grid: true, nice: true },
+        x: { label: m.cells_topicdist_axis_articles(), grid: true, nice: true },
         // `tickFormat` maps the composite sort key back to the human topic
         // label. Doing it here (not via a post-render DOM patch) means Plot
         // measures the real label for fit, so a lone long-labelled topic
@@ -210,7 +211,7 @@
         ...(multiLang
           ? {
               fy: {
-                label: 'language',
+                label: m.cells_topicdist_facet_language(),
                 domain: languages
               }
             }
@@ -228,11 +229,11 @@
             // semantic register is the topic label (already on y-axis).
             title: (d: NormalisedTopic) =>
               [
-                `${d.label}${d.isOutlier ? ' (outlier class)' : ''}`,
-                `language: ${d.language}`,
-                `articles: ${d.articleCount}`,
-                `mean confidence: ${d.avgConfidence.toFixed(3)}`,
-                d.isOutlier ? 'BERTopic outlier — no coherent cluster.' : null
+                `${d.label}${d.isOutlier ? m.cells_topicdist_tooltip_outlier_suffix() : ''}`,
+                m.cells_topicdist_tooltip_language({ language: d.language }),
+                m.cells_topicdist_tooltip_articles({ count: d.articleCount }),
+                m.cells_topicdist_tooltip_confidence({ value: d.avgConfidence.toFixed(3) }),
+                d.isOutlier ? m.cells_topicdist_tooltip_outlier_note() : null
               ]
                 .filter((s): s is string => s !== null)
                 .join('\n'),
@@ -272,14 +273,12 @@
 <section class="topic-cell" aria-labelledby="topic-dist-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="topic-dist-title" class="cell-title">
-      <span class="primary">Topics</span>
+      <span class="primary">{m.cells_topicdist_title()}</span>
       <span class="muted"
-        >— BERTopic distribution · <strong class="scope-name">{scopeId}</strong></span
+        >— {m.cells_topicdist_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
-      <span
-        class="tier-badge"
-        title="Tier 2 (Phase 120) — reproducible with pinned model, not bit-for-bit deterministic across platforms."
-        >Tier 2</span
+      <span class="tier-badge" title={m.cells_topicdist_tier_badge_title()}
+        >{m.cells_topicdist_tier_badge()}</span
       >
     </h3>
     {#if rows.length > 0}
@@ -288,25 +287,19 @@
   </header>
 
   {#if isLatestSweep && sweepRange && rows.length > 0}
-    <p
-      class="sweep-caption"
-      title="Topics are computed per background sweep; this cell shows the single latest sweep."
-    >
-      Latest topic sweep · {sweepRange}
+    <p class="sweep-caption" title={m.cells_topicdist_sweep_caption_title()}>
+      {m.cells_topicdist_sweep_caption({ range: sweepRange })}
     </p>
   {/if}
 
   {#if isPending}
-    <p class="muted" aria-busy="true">Loading topic distribution…</p>
+    <p class="muted" aria-busy="true">{m.cells_topicdist_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load topic distribution.</p>
+    <p class="muted">{m.cells_topicdist_error()}</p>
   {:else if rows.length === 0}
-    <p class="muted">
-      No topic assignments in this window. The BERTopic sweep runs in the background — if this probe
-      was just enabled, the first sweep may not have completed yet.
-    </p>
+    <p class="muted">{m.cells_topicdist_empty()}</p>
   {:else}
     {#if isJointCorpus}
       {@const note = methodologyNotes.epistemeJointCorpusDistribution(sources.length)}
@@ -324,43 +317,47 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Horizontal ridges of topics, one per BERTopic cluster, sorted by article count{multiLang
-        ? `, faceted by language partition: ${languages.join(', ')}`
+      aria-label="{m.cells_topicdist_plot_aria()}{multiLang
+        ? m.cells_topicdist_plot_aria_faceted({ languages: languages.join(', ') })
         : ''}"
     ></div>
-    <footer class="provenance" aria-label="Methodology provenance" data-export-exclude="provenance">
+    <footer
+      class="provenance"
+      aria-label={m.cells_topicdist_prov_aria()}
+      data-export-exclude="provenance"
+    >
       <dl>
         <div>
-          <dt>Method</dt>
-          <dd>BERTopic over {rows.length} topics</dd>
+          <dt>{m.cells_topicdist_prov_method()}</dt>
+          <dd>{m.cells_topicdist_prov_method_value({ count: rows.length })}</dd>
         </div>
         <div>
-          <dt>Embeddings</dt>
+          <dt>{m.cells_topicdist_prov_embeddings()}</dt>
           <dd><code>intfloat/multilingual-e5-large</code></dd>
         </div>
         <div>
-          <dt>Tier</dt>
-          <dd>2 — pinned model + seeded UMAP/HDBSCAN (WP-002 §8.1 Option C)</dd>
+          <dt>{m.cells_topicdist_prov_tier()}</dt>
+          <dd>{m.cells_topicdist_prov_tier_value()}</dd>
         </div>
         <div>
-          <dt>Partition</dt>
+          <dt>{m.cells_topicdist_prov_partition()}</dt>
           <dd>
             {multiLang
-              ? 'per-language (no cross-language alignment — WP-004 §3.4)'
-              : `single language (${languages[0]})`}
+              ? m.cells_topicdist_prov_partition_multi()
+              : m.cells_topicdist_prov_partition_single({ language: languages[0] ?? '' })}
           </dd>
         </div>
         {#if modelHashes.length === 1}
           <div>
-            <dt>model_hash</dt>
+            <dt>{m.cells_topicdist_prov_model_hash()}</dt>
             <dd><code class="hash">{modelHashes[0]}</code></dd>
           </div>
         {:else if modelHashes.length > 1}
           <div>
-            <dt>model_hash</dt>
+            <dt>{m.cells_topicdist_prov_model_hash()}</dt>
             <dd>
-              <span class="warn" title="Topic identity may have rotated within this window."
-                >{modelHashes.length} hashes ⚠</span
+              <span class="warn" title={m.cells_topicdist_prov_model_hash_multi_title()}
+                >{m.cells_topicdist_prov_model_hash_multi({ count: modelHashes.length })}</span
               >
             </dd>
           </div>

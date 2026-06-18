@@ -2,7 +2,7 @@
 // compact codec in ./url-codec. Stable import path $lib/state/url-internals. (Phase 141.)
 export * from './url-types';
 import type { UrlState } from './url-types';
-import { NORMALIZATIONS, RESOLUTIONS, VIEWING_MODES } from './url-types';
+import { clampLocale, NORMALIZATIONS, RESOLUTIONS, VIEWING_MODES } from './url-types';
 import { encodePillarState, decodePillarState } from './url-codec';
 
 function parseIso(v: string | null): string | null {
@@ -36,6 +36,8 @@ export function readFromSearch(search: string): UrlState {
   return {
     from: parseIso(p.get('from')),
     to: parseIso(p.get('to')),
+    // Phase 144 — UI locale deep-link. Lenient parse ("de-DE" → "de").
+    lang: clampLocale(p.get('lang')),
     resolution: parseEnum(p.get('resolution'), RESOLUTIONS),
     normalization: parseEnum(p.get('normalization'), NORMALIZATIONS),
     activePillar: parseEnum(p.get('activePillar'), VIEWING_MODES),
@@ -61,6 +63,11 @@ export function writeToSearch(state: UrlState): string {
   const p = new URLSearchParams();
   if (state.from) p.set('from', state.from);
   if (state.to) p.set('to', state.to);
+  // Phase 144 — preserve the UI locale across every URL mutation (this
+  // function rebuilds the query string from scratch). Emitted only when
+  // explicitly pinned; the rune's localStorage/navigator fallback covers the
+  // unpinned case so a clean URL stays clean.
+  if (state.lang) p.set('lang', state.lang);
   if (state.resolution) p.set('resolution', state.resolution);
   // Phase 122k — single canonical Workbench grammar.
   if (state.pillars) {

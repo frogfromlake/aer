@@ -14,6 +14,7 @@
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -73,16 +74,20 @@
         height: Math.max(160, r.length * 26 + 60),
         marginLeft: 140,
         marginRight: 16,
-        x: { label: `mean ${metric}`, grid: true },
+        x: { label: m.cells_ct_axis_mean({ metric: metric ?? '' }), grid: true },
         y: { domain: r.map((d) => d.value), label: null },
-        color: { scheme: 'rdbu', legend: true, label: `mean ${metric}` },
+        color: {
+          scheme: 'rdbu',
+          legend: true,
+          label: m.cells_ct_axis_mean({ metric: metric ?? '' })
+        },
         marks: [
           Plot.barX(r, {
             x: 'mean',
             y: 'value',
             fill: 'mean',
             channels: {
-              articles: { value: 'articles', label: 'articles' },
+              articles: { value: 'articles', label: m.cells_ct_channel_articles() },
               std: { value: 'std', label: '±σ' }
             },
             tip: true
@@ -144,7 +149,9 @@
   <header class="cell-header">
     <h3 id="ct-title-{field}" class="cell-title">
       <code>{field}</code> × <code>{metric ?? '—'}</code>
-      <span class="muted">— cross-tab · <strong class="scope-name">{scopeId}</strong></span>
+      <span class="muted"
+        >— {m.cells_ct_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
+      >
     </h3>
     {#if data && rows.length > 0}
       <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
@@ -152,17 +159,17 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Cross-tab operates on Gold-layer per-article metrics.</p>
+    <p class="muted">{m.cells_ct_silver()}</p>
   {:else if !field}
-    <p class="muted">Pick a metadata field in the <strong>Group by</strong> lever.</p>
+    <p class="muted">{m.cells_ct_need_field()}</p>
   {:else if !metric}
-    <p class="muted">Pick a numeric metric in the <strong>Metric</strong> lever.</p>
+    <p class="muted">{m.cells_ct_need_metric()}</p>
   {:else if ctQ.isPending}
-    <p class="muted" aria-busy="true">Loading cross-tab…</p>
+    <p class="muted" aria-busy="true">{m.cells_ct_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load the cross-tab.</p>
+    <p class="muted">{m.cells_ct_error()}</p>
   {:else if isEmpty}
     <CellEmptyState label={field} />
   {:else if data}
@@ -170,13 +177,14 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Mean {metric} per {field} category"
+      aria-label={m.cells_ct_plot_aria({ metric: metric ?? '', field })}
     ></div>
     <p class="ct-note">
-      <strong>{data.distinctValues}</strong> distinct {data.distinctValues === 1
-        ? 'value'
-        : 'values'}{#if data.distinctValues > data.categories.length}
-        · showing top {data.categories.length}{/if}
+      <strong>{data.distinctValues}</strong>
+      {data.distinctValues === 1
+        ? m.cells_ct_note_distinct_one()
+        : m.cells_ct_note_distinct_other()}{#if data.distinctValues > data.categories.length}
+        · {m.cells_ct_note_showing_top({ count: data.categories.length })}{/if}
     </p>
     <HowToRead presentation="cross_tab" facts={howToReadFacts} />
   {/if}

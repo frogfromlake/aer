@@ -7,7 +7,11 @@
 // `window.location`) and returns a value — never mutating its input and never
 // touching reactive `$state`, which stays owned by the component.
 
+// Relative import (not `$lib`): this pure module is unit-tested under node-env
+// Vitest, which does not resolve the `$lib` alias for runtime imports.
+import { localizedDate } from '../../localization/format-core';
 import type { AnalysisListItem } from '$lib/api/analyses';
+import type { Locale } from '$lib/state/url-internals';
 
 /** Sortable columns of the saved-analyses table. */
 export type SortKey = 'name' | 'ownerEmail' | 'createdAt' | 'updatedAt';
@@ -97,10 +101,11 @@ export function sortArrow(sortKey: SortKey, sortDir: SortDir, key: SortKey): str
   return sortKey === key ? (sortDir === 'asc' ? '▲' : '▼') : '';
 }
 
-/** Format an ISO date as a short local date, or an em-dash for an invalid one. */
-export function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+/** Format an ISO date as a short local date in the given locale, or an em-dash
+ *  for an invalid one. */
+export function fmtDate(iso: string, loc: Locale): string {
+  if (Number.isNaN(new Date(iso).getTime())) return '—';
+  return localizedDate(iso, loc);
 }
 
 /**

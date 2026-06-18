@@ -25,8 +25,10 @@
   import { goto } from '$app/navigation';
   import { urlState, toggleOverlay } from '$lib/state/url.svelte';
   import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
+  import LocaleSwitch from './LocaleSwitch.svelte';
   import { getPillar } from '$lib/presentations';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
+  import { m } from '$lib/paraglide/messages.js';
   import type { PillarId } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
@@ -81,9 +83,9 @@
   const SURFACES = $derived<SurfaceEntry[]>([
     {
       href: '/',
-      label: 'Atmosphere',
+      label: m.chrome_surface_atmosphere(),
       glyph: '◉',
-      hint: '3D globe and probe selection',
+      hint: m.chrome_surface_atmosphere_hint(),
       disabled: false
     },
     {
@@ -95,12 +97,14 @@
         url.selectedProbes.length > 0
           ? `/workbench${buildSelectionWorkbenchUrl(url.selectedProbes)}`
           : '/workbench',
-      label: 'Workbench',
+      label: m.chrome_surface_workbench(),
       glyph: '⚙',
       hint:
         url.selectedProbes.length > 0
-          ? `Open Workbench with ${url.selectedProbes.length} selected probe${url.selectedProbes.length === 1 ? '' : 's'}`
-          : 'Analysis — Aleph · Episteme · Rhizome',
+          ? url.selectedProbes.length === 1
+            ? m.chrome_surface_workbench_hint_selected_one({ count: url.selectedProbes.length })
+            : m.chrome_surface_workbench_hint_selected_other({ count: url.selectedProbes.length })
+          : m.chrome_surface_workbench_hint(),
       disabled: false,
       ...(activeProbe
         ? {
@@ -114,9 +118,9 @@
     },
     {
       href: '/reflection',
-      label: 'Reflection',
+      label: m.chrome_surface_reflection(),
       glyph: '¶',
-      hint: 'Working Papers · Primers · Open research questions',
+      hint: m.chrome_surface_reflection_hint(),
       disabled: false
     }
   ]);
@@ -144,14 +148,14 @@
 </script>
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
-<nav class="rail" aria-label="Primary navigation">
+<nav class="rail" aria-label={m.chrome_nav_primary()}>
   <div class="logo">
     <span class="logo-text">AĒR</span>
   </div>
 
   <!-- Section 1: Surface anchors -->
   <div class="section">
-    <span class="section-eyebrow">Where am I?</span>
+    <span class="section-eyebrow">{m.chrome_section_where_am_i()}</span>
     <ul class="surface-list" role="list">
       {#each SURFACES as s (s.label)}
         <li>
@@ -160,7 +164,7 @@
               class="surface-link disabled"
               role="link"
               aria-disabled="true"
-              aria-label="{s.label} (disabled — pick a probe on the Atmosphere first)"
+              aria-label={m.chrome_surface_disabled_aria({ label: s.label })}
               title={s.hint}
             >
               <span class="glyph" aria-hidden="true">{s.glyph}</span>
@@ -185,8 +189,8 @@
             <div
               class="pillar-sub-item"
               style:--pillar-color={s.pillarSubItem.color}
-              aria-label="Active Pillar: {s.pillarSubItem.label}"
-              title="Active Pillar — switch via the PillarSwitch tiles at the top of the Workbench"
+              aria-label={m.chrome_pillar_subitem_aria({ pillar: s.pillarSubItem.label })}
+              title={m.chrome_pillar_subitem_title()}
             >
               <span class="pillar-sub-arrow" aria-hidden="true">↳</span>
               <span class="pillar-sub-glyph" aria-hidden="true">{s.pillarSubItem.glyph}</span>
@@ -203,19 +207,19 @@
        route; this button opens it over any surface and shows the current
        selection count. -->
   <div class="section section-probe">
-    <span class="section-eyebrow">Dossier</span>
+    <span class="section-eyebrow">{m.chrome_section_dossier()}</span>
     <button
       type="button"
       class="probe-filter-btn"
       onclick={openDossier}
       class:has-selection={url.selectedProbes.length > 0}
-      title="Open the Dossier — search the catalogue & build your probe selection"
+      title={m.chrome_dossier_open_title()}
     >
       <span class="probe-filter-glyph" aria-hidden="true">❒</span>
       <span class="probe-filter-label">
         {url.selectedProbes.length > 0
-          ? `Dossier · ${url.selectedProbes.length} selected`
-          : 'Open Dossier'}
+          ? m.chrome_dossier_selected_label({ count: url.selectedProbes.length })
+          : m.chrome_dossier_open_label()}
       </span>
     </button>
   </div>
@@ -223,15 +227,15 @@
   <!-- Phase 135 — Saved analyses overlay trigger (re-openable Workbench
        deep links, shareable by identity). Same overlay model as the Dossier. -->
   <div class="section section-probe">
-    <span class="section-eyebrow">Library</span>
+    <span class="section-eyebrow">{m.chrome_section_library()}</span>
     <button
       type="button"
       class="probe-filter-btn"
       onclick={openAnalyses}
-      title="Open your saved analyses — re-openable & shareable Workbench views"
+      title={m.chrome_library_open_title()}
     >
       <span class="probe-filter-glyph" aria-hidden="true">★</span>
-      <span class="probe-filter-label">Saved analyses</span>
+      <span class="probe-filter-label">{m.chrome_library_label()}</span>
     </button>
   </div>
 
@@ -243,24 +247,26 @@
        toggles; Sign out ends the session. -->
   {#if currentUser}
     <div class="section user-section">
-      <span class="section-eyebrow">User menu</span>
+      <span class="section-eyebrow">{m.chrome_section_user_menu()}</span>
       <div class="user-display">
         <span class="user-avatar" aria-hidden="true">{userInitial}</span>
         <span class="user-email" title={currentUser.email}>{currentUser.email}</span>
       </div>
+      <!-- Phase 144 — UI-language selector (ADR-042). -->
+      <LocaleSwitch />
       <button type="button" class="rail-menu-btn" onclick={openAccount}>
         <span class="rail-menu-glyph" aria-hidden="true">◐</span>
-        <span class="rail-menu-label">Your account</span>
+        <span class="rail-menu-label">{m.chrome_user_account()}</span>
       </button>
       {#if isAdmin()}
         <button type="button" class="rail-menu-btn" onclick={openAdmin}>
           <span class="rail-menu-glyph" aria-hidden="true">⛨</span>
-          <span class="rail-menu-label">Administration</span>
+          <span class="rail-menu-label">{m.chrome_user_admin()}</span>
         </button>
       {/if}
       <button type="button" class="rail-menu-btn signout" onclick={() => doLogout()}>
         <span class="rail-menu-glyph" aria-hidden="true">⎋</span>
-        <span class="rail-menu-label">Sign out</span>
+        <span class="rail-menu-label">{m.chrome_user_signout()}</span>
       </button>
     </div>
   {/if}

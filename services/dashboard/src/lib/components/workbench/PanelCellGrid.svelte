@@ -8,6 +8,7 @@
   // above the grid in PanelDisclosureNotes. Shared availability data is computed
   // once by PanelHost (the queries must live there) and threaded in as props.
   import type { Component } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import { createQuery } from '@tanstack/svelte-query';
   import type { PresentationDefinition, PresentationCellProps } from '$lib/presentations';
   import {
@@ -131,7 +132,7 @@
       ? {
           kind: 'refusal',
           refusalKind: 'merged_cross_probe_unsupported',
-          message: `Merged composition pools more than one probe onto a single shared axis for "${panel.metric}", a scaled metric — that reads as a cross-context ranking, which AĒR does not render (Brief §1.3). Switch this Panel to split or overlay, narrow it to one probe, or choose a pure-count metric.`,
+          message: m.workbench_grid_merged_cross_probe_refusal({ metric: panel.metric }),
           httpStatus: 422
         }
       : null
@@ -212,8 +213,8 @@
   let AtScaleComponent = $state<Component<PresentationCellProps> | null>(null);
   $effect(() => {
     if (!atScaleActive || AtScaleComponent) return;
-    void import('$lib/components/presentations/CoOccurrenceNetworkAtScale.svelte').then((m) => {
-      AtScaleComponent = m.default;
+    void import('$lib/components/presentations/CoOccurrenceNetworkAtScale.svelte').then((mod) => {
+      AtScaleComponent = mod.default;
     });
   });
 
@@ -229,8 +230,7 @@
       ? {
           kind: 'refusal',
           refusalKind: 'unspecified',
-          message:
-            'The co-occurrence network renders a single relational graph, not a grid of small multiples. This panel resolves to more than one cell (multiple sources / groups / probes under a Split composition). Switch the composition to Merged (all sources pooled into one graph) or scope a single source.',
+          message: m.workbench_grid_cooccurrence_refusal(),
           httpStatus: 422
         }
       : null
@@ -259,7 +259,7 @@
       .catch((err: unknown) => {
         if (t !== loadToken) return;
         CellComponent = null;
-        loadError = err instanceof Error ? err.message : 'Cell failed to load';
+        loadError = err instanceof Error ? err.message : m.errors_generic();
       });
   });
 
@@ -421,33 +421,44 @@
         />
       </div>
     {:else}
-      <p class="muted" aria-busy="true">Loading large-scale renderer…</p>
+      <p class="muted" aria-busy="true">{m.workbench_grid_loading_at_scale()}</p>
     {/if}
   {:else if loadError}
-    <p class="muted">Cell failed to load: {loadError}</p>
+    <p class="muted">{m.workbench_grid_cell_failed({ error: loadError })}</p>
   {:else if !CellComponent}
-    <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+    <p class="muted" aria-busy="true">
+      {m.workbench_grid_loading_presentation({ presentation: presentation.label })}
+    </p>
   {:else if noSharedDimension}
     <p class="muted">
-      No categorical dimension is shared across the scoped sources. Enable a partial field via <strong
-        >Show anyway</strong
-      > in the panel config, or use a cell's config to peek at one source's own dimension.
+      {m.workbench_grid_no_shared_dimension_pre()}
+      <strong>{m.workbench_grid_no_shared_dimension_show_anyway()}</strong>
+      {m.workbench_grid_no_shared_dimension_post()}
     </p>
   {:else if facetPending}
-    <p class="muted" aria-busy="true">Loading facet values for <code>{facetField}</code>…</p>
+    <p class="muted" aria-busy="true">
+      {m.workbench_grid_loading_facet_values()} <code>{facetField}</code>…
+    </p>
   {:else if facetEmpty}
     <p class="muted">
-      No values for <code>{facetField}</code> in the active scope — nothing to facet by.
+      {m.workbench_grid_facet_empty_pre()} <code>{facetField}</code>
+      {m.workbench_grid_facet_empty_post()}
     </p>
   {:else if expandedUnits.length === 0}
-    <p class="muted">No sources in the active scope.</p>
+    <p class="muted">{m.workbench_grid_no_sources()}</p>
   {:else}
     {#if facetFanout}
+      {@const fp = { shown: facetFanout.units.length, total: facetFanout.totalValues }}
+      {@const showing =
+        facetFanout.totalValues === 1
+          ? m.workbench_grid_facet_disclosure_showing_one(fp)
+          : m.workbench_grid_facet_disclosure_showing_other(fp)}
+      {@const cap = facetFanout.capped
+        ? ` ${m.workbench_grid_facet_disclosure_capped({ max: MAX_FACET_CELLS })}`
+        : ''}
       <p class="facet-disclosure" role="note">
-        Faceted by <code>{facetFanout.field}</code> — showing {facetFanout.units.length} of {facetFanout.totalValues}
-        value{facetFanout.totalValues === 1 ? '' : 's'}{facetFanout.capped
-          ? ` (top ${MAX_FACET_CELLS} by article count; the rest are omitted)`
-          : ''}. Each sub-cell holds only articles carrying that value.
+        {m.workbench_grid_facet_disclosure_pre()}
+        <code>{facetFanout.field}</code>{showing}{cap}{m.workbench_grid_facet_disclosure_post()}
       </p>
     {/if}
     {#each expandedUnits as unit (unit.key)}

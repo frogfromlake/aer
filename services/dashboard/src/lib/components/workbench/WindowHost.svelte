@@ -17,6 +17,7 @@
   // Per-window max panels is enforced at the URL-state layer
   // (MAX_PANELS_PER_WINDOW = 8).
   import { onMount } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import { SvelteSet } from 'svelte/reactivity';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import { MAX_PANELS_PER_WINDOW, type PillarState, type PillarId } from '$lib/state/url-internals';
@@ -142,12 +143,12 @@
 
 <section
   class="window-host"
-  aria-label="Workbench window"
+  aria-label={m.workbench_window_aria_label()}
   data-panel-count={panelCount}
   class:maximizing={isMaximizing}
 >
   {#if !activeWindow || panelCount === 0}
-    <p class="muted">This window has no panels.</p>
+    <p class="muted">{m.workbench_window_no_panels()}</p>
   {:else if isMaximizing && maximizedPanelIndex !== null}
     {@const focusedPanel = activeWindow.panels[maximizedPanelIndex]}
     {#if focusedPanel}
@@ -173,8 +174,8 @@
         <!-- Phase 122i revision (C3). Minimised tray of sibling panels.
              Each tile is a compact button: clicking swaps the maximize
              target. Provides quick swap without leaving the canvas. -->
-        <aside class="panel-tray" aria-label="Other panels in this window">
-          <span class="tray-label">Other panels</span>
+        <aside class="panel-tray" aria-label={m.workbench_window_tray_aria_label()}>
+          <span class="tray-label">{m.workbench_window_tray_label()}</span>
           <ul class="tray-list" role="list">
             {#each activeWindow.panels as p, i (i)}
               {#if i !== maximizedPanelIndex}
@@ -183,7 +184,7 @@
                     type="button"
                     class="tray-tile"
                     onclick={() => pickTrayPanel(i)}
-                    title="Show this panel maximized"
+                    title={m.workbench_window_tray_show_maximized()}
                   >
                     <span class="tray-tile-num">#{i + 1}</span>
                     <span class="tray-tile-meta">
@@ -199,9 +200,9 @@
             type="button"
             class="tray-action"
             onclick={unmaximize}
-            title="Restore all panels (Esc)"
+            title={m.workbench_window_tray_restore()}
           >
-            ⤡ Restore grid
+            {m.workbench_window_tray_restore_label()}
           </button>
         </aside>
       {/if}
@@ -218,14 +219,14 @@
         onclick={onAddPanel}
         disabled={!canAddPanel}
         title={canAddPanel
-          ? 'Add a new panel via the ScopeEditor'
-          : `Maximum ${MAX_PANELS_PER_WINDOW} panels per window`}
+          ? m.workbench_window_add_panel_title()
+          : m.workbench_window_add_panel_max_title({ max: MAX_PANELS_PER_WINDOW })}
       >
-        ＋ Panel
+        ＋ {m.workbench_window_add_panel()}
       </button>
       <span class="window-action-spacer"></span>
-      <span class="ppr-eyebrow">Panels per row</span>
-      <div class="ppr-row" role="radiogroup" aria-label="Panels per row">
+      <span class="ppr-eyebrow">{m.workbench_window_panels_per_row()}</span>
+      <div class="ppr-row" role="radiogroup" aria-label={m.workbench_window_panels_per_row()}>
         <button
           type="button"
           role="radio"
@@ -233,9 +234,9 @@
           class="ppr-btn"
           class:active={ppr === null}
           onclick={() => setPanelsPerRow(pillar, activeWindowIndex, null)}
-          title="Auto-fit (wraps at the panel-minimum width)"
+          title={m.workbench_window_ppr_auto_title()}
         >
-          auto
+          {m.workbench_window_ppr_auto()}
         </button>
         {#each [1, 2, 3, 4] as n (n)}
           <button
@@ -245,7 +246,9 @@
             class="ppr-btn"
             class:active={ppr === n}
             onclick={() => setPanelsPerRow(pillar, activeWindowIndex, n)}
-            title="{n} panel{n === 1 ? '' : 's'} per row"
+            title={n === 1
+              ? m.workbench_window_ppr_n_title_one({ n })
+              : m.workbench_window_ppr_n_title_other({ n })}
           >
             {n}
           </button>

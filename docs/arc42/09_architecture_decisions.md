@@ -2964,3 +2964,37 @@ The operator set a binding quality bar for the Iteration-11 consolidation pass: 
 
 * **Positive:** The operator's "≥80% everywhere it means something" intent is honoured with a metric each ecosystem actually uses — Go/Python/`$lib`-TS get a hard, regression-proven floor; Svelte and WebGL keep the behavioural nets (E2E, visual-regression, svelte-check) that are their real best practice. The exemptions are recorded here, so a later contributor cannot mistake the deliberate `.svelte`/`engine.ts` absence for a defect to "fix" by padding. The denominator convention keeps the number honest (no dilution by untestable wiring).
 * **Negative:** The dashboard floor governs only the `.ts` logic layer; component-behaviour confidence rests on the E2E suite, whose breadth must be maintained alongside the coverage gate (component logic should be pushed into `$lib` `.ts` to stay measurable). The exemptions are auditable surface — each must carry its in-config justification, and the visual-regression net for engine-3d must stay green for the GL-core exemption to remain defensible. The per-scope gates add CI config and a small wall-clock cost (coverage instrumentation).
+
+---
+
+## ADR-042: UI Localization — Two Tiers, One Locale Signal (Phase 144)
+
+**Date:** 2026-06-18
+**Status:** Accepted
+
+### Context
+
+The dashboard was English-only at the UI-shell level (an `APP_CONTENT_LANGUAGE = 'en'` constant). Phase 144 makes it a complete EN/DE interface. Most German content already existed and only needed a locale signal wired through: the BFF content-catalog (`configs/content/{en,de}/`) was at 97/97 file parity with real German, and all six Working Papers were already translated under `docs/methodology/{en,de}/`. The only large net-new translation was the ~600 hardcoded UI-shell strings. Three structural constraints shaped the mechanism: the dashboard is **pure SSG** (adapter-static, no server runtime at request time, so locale must resolve client-side); AĒR is **privacy-minimal / no-tracking** (so no locale cookie); and the **English-only Hard Rule** governs code/comments/Arc42/API/commits (so localized strings must be content resources, not code).
+
+### Decision
+
+**Two storage tiers, one locale source of truth.**
+
+**1. UI-shell strings → Paraglide JS (inlang).** Compile-time, type-safe, tree-shaken message functions; zero runtime cost; SSG-safe. Messages are organised **per-feature** under `messages/{en,de}/<feature>.json` (common, base, chrome, atmosphere, workbench, cells, dossier, source, auth, account, reflection, errors), declared as an array of `pathPattern`s the messageFormat plugin merges into one flat namespace. Keys are therefore **globally unique, feature-prefixed** (`auth_login_title`, `workbench_panel_add`). The compiled output (`src/lib/paraglide/`) is gitignored and produced by `pnpm run messages`, run as a prerequisite of every tool that needs it (`check`, `lint`, `test:unit`, `knip`) plus the Vite plugin on dev/build. *The DE message files are localized content resources — like the already-bilingual BFF content YAML — not a violation of the English-only Hard Rule, which continues to govern code, comments, Arc42, API contracts, and commit messages.*
+
+**2. Editorial / domain prose → the existing BFF `/content/*?locale=` catalog** (ADR-020), mechanism unchanged. Phase 144 only wired the locale through (the `contentQuery` call-sites read the locale rune into their TanStack queryKey, so content refetches on switch) and added an **EN-fallback** in the content handler: a missing non-base-locale entry serves the English record (logged at WARN) instead of 404'ing, backed by a **bidirectional CI parity gate** (`configs/content/en ⇄ de`) so the fallback path stays rare.
+
+**3. Working Papers → served per-locale** from the already-translated `docs/methodology/{en,de}/`, synced to `static/content/papers/{en,de}/wp-NNN.md` by `scripts/sync-papers.mjs` (committed output — the dashboard Docker build context excludes `docs/`; a `--check` drift gate runs in lint). The WP route fetches by active locale and `depends('app:locale')`.
+
+**4. One locale rune is the single source of truth** (`src/lib/state/locale.svelte.ts`), replacing the `APP_CONTENT_LANGUAGE` constant. It drives Paraglide (via `overwriteGetLocale` — because Paraglide resolves the locale per `m.*()` call and the rune is a `$state`, a language switch re-renders reactively with **no page reload**), the content `?locale=`, the viewer-language QID-relabel clamp, and `Intl` date/number formatting (`$lib/localization/format.ts`, with a pure `format-core.ts` for node-testability).
+
+**5. Locale state is privacy-clean — NO cookie, NO path-routing.** Resolution order: `?lang=en|de` (deep-link / share, round-tripped through the existing URL-state codec so it survives every other URL mutation) → `localStorage` (`aer.locale`) → `navigator.language` ∈ {en,de} → `en`. No path prefixes keeps the adapter-static prerender simple (prerendered HTML is English; the client re-renders to the resolved locale on hydration). The **selector lives in the SideRail user section** (and on the pre-auth `AuthCard`, which has no rail).
+
+**6. Boundary rule.** A string baked into a component (button / label / error / aria / placeholder / badge) is a Paraglide message; researcher-editable domain prose (refusal / how-to-read / source / probe / metric / discourse-function) is BFF content. **Emic proper nouns stay untranslated** — probe + source display names (*Tagesschau is Tagesschau*), pillar names (Aleph / Episteme / Rhizome), metric machine ids. Surface names localize (Atmosphere→Atmosphäre, Reflection→Reflexion; Workbench stays Workbench).
+
+**7. Parity is enforced.** `scripts/check-i18n-parity.mjs` (part of `pnpm run lint`) fails on any EN⇄DE key mismatch, duplicate key across the merged files, or empty (stub) value — so a missing translation is caught at lint time, never served as silent English.
+
+### Consequences
+
+* **Positive:** One coherent system, not a mixture — every already-bilingual layer (content catalog, Working Papers) now flows through a single locale signal, and the UI shell gains German via the idiomatic SSG-safe mechanism. Switching is reactive (no reload; all surface state is URL-backed). The privacy stance is preserved (no cookie, no analysis-of-what-the-user-reads). Parity gates (Paraglide message parity + BFF content parity + WP sync drift) make a localization gap a CI failure. The per-feature message layout keeps the ~600 strings maintainable and lets translation work fan out by surface.
+* **Negative:** A new build prerequisite (`pnpm run messages`) must run before check/lint/test/build — wired into the scripts, but a contributor running raw `vitest`/`svelte-check` without it sees missing `$lib/paraglide` types. The messageFormat plugin writes all messages back to the *last* `pathPattern` file on IDE export (Sherlock), so message authoring is by hand / per-file, not via the inlang editor (documented). Reactivity requires message calls to be read in a reactive scope (`{m.x()}` inline or `$derived`), not captured in a top-level `const`. Conceptual-vocabulary SoTs that are pure node-tested modules (`registry.ts` presentation/pillar labels, `discourse-function.ts`, `negative-space.ts`, `methodology-copy.ts`) need a `loc`-parameter threading rather than the rune and are localized as a separate slice.

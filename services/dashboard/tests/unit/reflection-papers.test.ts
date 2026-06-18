@@ -241,12 +241,13 @@ describe('papers catalog', () => {
     });
   });
 
-  it('paperContentUrl returns correct path', () => {
-    expect(paperContentUrl('wp-003')).toBe('/content/papers/wp-003.md');
+  it('paperContentUrl returns the per-locale path', () => {
+    expect(paperContentUrl('wp-003', 'en')).toBe('/content/papers/en/wp-003.md');
+    expect(paperContentUrl('wp-003', 'de')).toBe('/content/papers/de/wp-003.md');
   });
 
   it('paperContentUrl lowercases the id', () => {
-    expect(paperContentUrl('WP-004')).toBe('/content/papers/wp-004.md');
+    expect(paperContentUrl('WP-004', 'de')).toBe('/content/papers/de/wp-004.md');
   });
 
   it('all papers have required fields', () => {

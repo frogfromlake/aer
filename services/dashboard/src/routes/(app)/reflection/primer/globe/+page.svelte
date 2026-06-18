@@ -12,6 +12,8 @@
     type FetchContext,
     type QueryOutcome
   } from '$lib/api/queries';
+  import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
 
@@ -20,7 +22,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'primer', 'globe_primer', 'en');
+    const o = contentQuery(ctx, 'primer', 'globe_primer', locale());
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
@@ -28,64 +30,53 @@
     contentQ.data?.kind === 'success' ? contentQ.data.data : null
   );
 
-  // Fallback static sections when the API is unavailable
-  const STATIC_SECTIONS: Array<{ heading: string; body: string }> = [
+  // Fallback static sections when the API is unavailable. Derived so the prose
+  // re-renders on a language switch.
+  const STATIC_SECTIONS = $derived<Array<{ heading: string; body: string }>>([
     {
-      heading: 'What is a probe?',
-      body: `AĒR observes global discourse through <em>probes</em> — strategic observation points within the global information space. Each probe is a grouping of sources that share a cultural and discursive scope. Probe 0, the current proof-of-concept, covers German institutional public discourse through two sources: Tagesschau (public broadcaster RSS) and Bundesregierung (federal government press releases).
-
-A probe is not a country. It is a constellation of sources chosen for the discursive <em>functions</em> they serve in their society — not for their nationality or institutional label.`
+      heading: m.reflection_primer_static_probe_heading(),
+      body: m.reflection_primer_static_probe_body()
     },
     {
-      heading: 'The four discourse functions',
-      body: `Every source in a probe is classified by the discursive function it serves (following WP-001):
-      <ul>
-        <li><strong>Epistemic Authority</strong> — sources that define what is considered true, credible, and legitimate knowledge in a given society.</li>
-        <li><strong>Power Legitimation</strong> — sources that articulate and justify the exercise of political, economic, or social power.</li>
-        <li><strong>Cohesion &amp; Identity</strong> — sources that construct, reinforce, or contest collective identities and social bonds.</li>
-        <li><strong>Subversion &amp; Friction</strong> — sources that challenge dominant narratives, amplify marginalized voices, or contest hegemonic frames.</li>
-      </ul>
-      Probe 0's two sources collectively cover Epistemic Authority (Tagesschau) and Power Legitimation (Bundesregierung).`
+      heading: m.reflection_primer_static_functions_heading(),
+      body: m.reflection_primer_static_functions_body()
     },
     {
-      heading: 'What the globe shows — and what it does not',
-      body: `On the Atmosphere surface, you see luminous glyphs where active probes are monitoring. The day/night terminator marks the current UTC boundary. Probe glyph brightness encodes recent publication activity.
-
-<strong>What AĒR does not show</strong> is as important as what it does. Large parts of the globe are currently unmonitored — no probe, no data. The Negative Space overlay (activatable from the left rail) makes these absences visible rather than naturalizing them. AĒR's coverage is not a map of the world's discourse. It is a map of where AĒR has chosen to look, so far.`
+      heading: m.reflection_primer_static_shows_heading(),
+      body: m.reflection_primer_static_shows_body()
     },
     {
-      heading: 'Descending from the globe',
-      body: `The globe is the landing overview, not the primary working surface. To do scientific work, descend to the Workbench via the side rail or by clicking a probe glyph. There you will find time-series data, entity co-occurrence networks, and the full set of presentations.
-
-The Reflection surface (here) is where methodology becomes legible — every metric's provenance, every probe's dossier, and the six Working Papers that define AĒR's scientific foundations.`
+      heading: m.reflection_primer_static_descend_heading(),
+      body: m.reflection_primer_static_descend_body()
     }
-  ];
+  ]);
 </script>
 
 <svelte:head>
-  <title>AĒR — How to Read the Globe</title>
+  <title>{m.reflection_primer_head_title()}</title>
 </svelte:head>
 
-<ScopeBar label="Reflection — Globe primer navigation">
+<ScopeBar label={m.reflection_primer_scopebar_label()}>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/reflection" class="breadcrumb-root">Reflection</a>
+  <a href="/reflection" class="breadcrumb-root">{m.reflection_primer_breadcrumb_root()}</a>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="breadcrumb-current" aria-current="page">How to Read the Globe</span>
+  <span class="breadcrumb-current" aria-current="page"
+    >{m.reflection_primer_breadcrumb_current()}</span
+  >
 </ScopeBar>
 
 <main class="primer-main" id="main-primer-globe">
   <div class="primer-inner">
     <header class="primer-header">
-      <p class="primer-eyebrow">Primer</p>
-      <h1 class="primer-title">How to Read the Globe</h1>
+      <p class="primer-eyebrow">{m.reflection_primer_eyebrow()}</p>
+      <h1 class="primer-title">{m.reflection_primer_title()}</h1>
       <p class="primer-sub">
-        An introduction to the Atmosphere surface — what probes are, what the globe shows, and
-        critically, what it does not show.
+        {m.reflection_primer_sub()}
       </p>
     </header>
 
     {#if contentQ.isPending}
-      <p class="state-msg" aria-busy="true">Loading primer content…</p>
+      <p class="state-msg" aria-busy="true">{m.reflection_primer_loading()}</p>
     {:else if contentRecord}
       <!-- Content Catalog response -->
       <div class="primer-body">
@@ -109,34 +100,34 @@ The Reflection surface (here) is where methodology becomes legible — every met
     {/if}
 
     <!-- Cross-links -->
-    <nav class="primer-nav" aria-label="Further reading">
-      <h2 class="primer-nav-title">Further reading</h2>
+    <nav class="primer-nav" aria-label={m.reflection_primer_further_reading_aria()}>
+      <h2 class="primer-nav-title">{m.reflection_primer_further_reading_heading()}</h2>
       <ul class="primer-nav-list" role="list">
         <li>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/reflection/wp/wp-001" class="primer-nav-link">
             <span class="nav-link-id">WP-001</span>
-            Toward a Culturally Agnostic Probe Catalog
+            {m.reflection_primer_further_reading_wp001()}
           </a>
         </li>
         <li>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/reflection/wp/wp-003" class="primer-nav-link">
             <span class="nav-link-id">WP-003</span>
-            Platform Bias, Algorithmic Amplification, and the Detection of Non-Human Actors
+            {m.reflection_primer_further_reading_wp003()}
           </a>
         </li>
         <li>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/reflection/wp/wp-006?section=5" class="primer-nav-link">
             <span class="nav-link-id">WP-006 §5</span>
-            The Ethics of Making Discourse Visible
+            {m.reflection_primer_further_reading_wp006()}
           </a>
         </li>
         <li>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/reflection/open-questions" class="primer-nav-link">
-            Open Research Questions →
+            {m.reflection_primer_further_reading_open_questions()}
           </a>
         </li>
       </ul>

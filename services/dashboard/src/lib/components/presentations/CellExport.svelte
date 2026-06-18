@@ -20,6 +20,7 @@
     type ExportPayload,
     type ImageVariant
   } from '$lib/presentations/cell-export';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     /** Resolves the cell's root element to capture (the whole cell section). */
@@ -42,7 +43,7 @@
     e.stopPropagation();
     const node = getNode();
     if (!node) {
-      error = 'no cell to capture';
+      error = m.cells_export_err_no_node();
       return;
     }
     busy = true;
@@ -52,7 +53,7 @@
       if (fmt === 'png') await downloadCellPng(name, node, variant);
       else await downloadCellSvg(name, node, variant);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'image export failed';
+      error = err instanceof Error ? err.message : m.cells_export_err_image();
     } finally {
       busy = false;
     }
@@ -70,46 +71,58 @@
   }
 </script>
 
-<div class="cell-export" role="group" aria-label="Export this cell" data-export-exclude="always">
+<div
+  class="cell-export"
+  role="group"
+  aria-label={m.cells_export_group_aria()}
+  data-export-exclude="always"
+>
   <span class="export-group">
-    <span
-      class="export-eyebrow"
-      title="Publication figure — chart + summary + legend, no provenance">Figure</span
+    <span class="export-eyebrow" title={m.cells_export_figure_title()}
+      >{m.cells_export_figure_label()}</span
     >
     <button
       type="button"
       class="export-btn"
       disabled={busy}
-      onclick={(e) => onImage(e, 'figure', 'png')}>PNG</button
+      onclick={(e) => onImage(e, 'figure', 'png')}>{m.cells_export_png()}</button
     >
     <button
       type="button"
       class="export-btn"
       disabled={busy}
-      onclick={(e) => onImage(e, 'figure', 'svg')}>SVG</button
+      onclick={(e) => onImage(e, 'figure', 'svg')}>{m.cells_export_svg()}</button
     >
   </span>
   <span class="export-divider" aria-hidden="true"></span>
   <span class="export-group">
-    <span class="export-eyebrow" title="Full cell incl. provenance / methodology">Full</span>
-    <button
-      type="button"
-      class="export-btn"
-      disabled={busy}
-      onclick={(e) => onImage(e, 'full', 'png')}>PNG</button
+    <span class="export-eyebrow" title={m.cells_export_full_title()}
+      >{m.cells_export_full_label()}</span
     >
     <button
       type="button"
       class="export-btn"
       disabled={busy}
-      onclick={(e) => onImage(e, 'full', 'svg')}>SVG</button
+      onclick={(e) => onImage(e, 'full', 'png')}>{m.cells_export_png()}</button
+    >
+    <button
+      type="button"
+      class="export-btn"
+      disabled={busy}
+      onclick={(e) => onImage(e, 'full', 'svg')}>{m.cells_export_svg()}</button
     >
   </span>
   <span class="export-divider" aria-hidden="true"></span>
   <span class="export-group">
-    <span class="export-eyebrow" title="Underlying data + summary + how-to-read">Data</span>
-    <button type="button" class="export-btn" disabled={!hasData} onclick={onCsv}>CSV</button>
-    <button type="button" class="export-btn" disabled={!hasData} onclick={onJson}>JSON</button>
+    <span class="export-eyebrow" title={m.cells_export_data_title()}
+      >{m.cells_export_data_label()}</span
+    >
+    <button type="button" class="export-btn" disabled={!hasData} onclick={onCsv}
+      >{m.cells_export_csv()}</button
+    >
+    <button type="button" class="export-btn" disabled={!hasData} onclick={onJson}
+      >{m.cells_export_json()}</button
+    >
   </span>
   {#if error}
     <span class="export-error" role="status">{error}</span>

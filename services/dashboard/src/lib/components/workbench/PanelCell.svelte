@@ -7,6 +7,7 @@
   // the shared-axis union, the accent index) is decided by PanelCellGrid and
   // threaded in as props; this component is otherwise self-contained.
   import type { Component } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import type { PresentationDefinition, PresentationCellProps } from '$lib/presentations';
   import type {
     FetchContext,
@@ -124,23 +125,20 @@
   {#if perCellConfig}
     <div class="cell-config-bar">
       {#if cfg.isOverridden}
-        <span
-          class="cell-custom-badge"
-          title="This cell is on a custom configuration — not directly comparable to its sibling cells."
-        >
-          custom
+        <span class="cell-custom-badge" title={m.workbench_cell_custom_badge_title()}>
+          {m.workbench_cell_custom_badge()}
         </span>
       {/if}
       <button
         type="button"
         class="cell-config-btn"
         class:active={isConfigOpen}
-        aria-label="Configure this cell"
+        aria-label={m.workbench_cell_config_btn_label()}
         aria-expanded={isConfigOpen}
-        title="Per-cell configuration — override the panel default for this cell only"
+        title={m.workbench_cell_config_btn_title()}
         onclick={onToggleConfig}
       >
-        ⚙ Cell
+        {m.workbench_cell_config_btn()}
       </button>
     </div>
   {/if}
@@ -158,11 +156,15 @@
   {/if}
   {#if groupNum !== null}
     <header class="cell-group-eyebrow">
-      <span class="cell-group-badge" aria-hidden="true">Group {groupNum}</span>
+      <span class="cell-group-badge" aria-hidden="true"
+        >{m.workbench_cell_group_badge({ index: groupNum })}</span
+      >
       <span class="cell-group-summary">
         {unit.probeIds.length > 0 ? unit.probeIds.join(', ') : unit.scopeId}
         {#if unit.sourceIds.length > 0}
-          · {unit.sourceIds.length} source{unit.sourceIds.length === 1 ? '' : 's'}
+          · {unit.sourceIds.length === 1
+            ? m.workbench_cell_group_sources_one({ count: unit.sourceIds.length })
+            : m.workbench_cell_group_sources_other({ count: unit.sourceIds.length })}
         {/if}
       </span>
     </header>
@@ -188,8 +190,9 @@
          than the panel, so it is deliberately off-comparison. A loud banner makes
          that unmistakable (cf. the soft `custom` badge for shape-only overrides). -->
     <p class="cell-peek-banner" role="note">
-      ⚠ Showing <code>{cfg.metric}</code> — a different dimension than this panel's
-      <code>{panel.metric}</code>. Not comparable to the sibling cells.
+      {m.workbench_cell_peek_banner_pre()} <code>{cfg.metric}</code>
+      {m.workbench_cell_peek_banner_mid()}
+      <code>{panel.metric}</code>{m.workbench_cell_peek_banner_post()}
     </p>
   {/if}
   <Cell

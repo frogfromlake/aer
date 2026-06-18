@@ -16,6 +16,8 @@
   // the first ship renders a single focus Cell.
   import { createQuery } from '@tanstack/svelte-query';
   import type { Component } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
   import {
     probeDossierQuery,
     type FetchContext,
@@ -180,14 +182,14 @@
       .catch((err: unknown) => {
         if (t !== loadToken) return;
         CellComponent = null;
-        loadError = err instanceof Error ? err.message : 'Cell failed to load';
+        loadError = err instanceof Error ? err.message : m.errors_generic();
       });
   });
 </script>
 
-<section class="aleph-shell" aria-label="Aleph — synchronic snapshot of the dataset">
+<section class="aleph-shell" aria-label={m.workbench_aleph_aria_label()}>
   {#if dossierQ.isPending}
-    <p class="muted" aria-busy="true">Loading dataset…</p>
+    <p class="muted" aria-busy="true">{m.workbench_aleph_loading_dataset()}</p>
   {:else if datasetShape}
     {#if pillarState && dossier}
       <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. The
@@ -207,27 +209,27 @@
            existing bookmarks load unchanged. The legacy path keeps the
            inline dataset-shape strip because WindowHost is not part of
            the legacy rendering. -->
-      <header class="dataset-shape" aria-label="What AĒR sees right now">
+      <header class="dataset-shape" aria-label={m.workbench_aleph_dataset_shape_aria_label()}>
         {#if datasetShape.probes !== null}
           <div class="shape-item">
-            <span class="shape-label">Probes</span>
+            <span class="shape-label">{m.workbench_aleph_shape_probes()}</span>
             <span class="shape-value">{datasetShape.probes}</span>
           </div>
         {/if}
         <div class="shape-item">
-          <span class="shape-label">Sources</span>
+          <span class="shape-label">{m.workbench_aleph_shape_sources()}</span>
           <span class="shape-value">{datasetShape.sources}</span>
         </div>
         <div class="shape-item">
-          <span class="shape-label">Articles in window</span>
-          <span class="shape-value">{datasetShape.articlesInWindow.toLocaleString('en-US')}</span>
+          <span class="shape-label">{m.workbench_aleph_shape_articles()}</span>
+          <span class="shape-value">{formatNumber(datasetShape.articlesInWindow)}</span>
         </div>
         <div class="shape-item">
-          <span class="shape-label">Language</span>
+          <span class="shape-label">{m.workbench_aleph_shape_language()}</span>
           <span class="shape-value">{datasetShape.language.toUpperCase()}</span>
         </div>
         <div class="shape-item">
-          <span class="shape-label">Function coverage</span>
+          <span class="shape-label">{m.workbench_aleph_shape_function_coverage()}</span>
           <span class="shape-value">
             {datasetShape.coverage.covered}/{datasetShape.coverage.total}
           </span>
@@ -238,7 +240,7 @@
 
       <div class="cell-frame">
         <header class="cell-header">
-          <span class="cell-eyebrow">Cell</span>
+          <span class="cell-eyebrow">{m.workbench_aleph_cell_eyebrow()}</span>
           <span class="cell-presentation">{presentation.label}</span>
           <span class="cell-sep" aria-hidden="true">·</span>
           <code class="cell-metric">{metricName}</code>
@@ -246,11 +248,13 @@
 
         <div class="cell-body">
           {#if loadError}
-            <p class="muted">Cell failed to load: {loadError}</p>
+            <p class="muted">{m.workbench_aleph_cell_failed({ error: loadError })}</p>
           {:else if !CellComponent}
-            <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+            <p class="muted" aria-busy="true">
+              {m.workbench_aleph_loading_presentation({ presentation: presentation.label })}
+            </p>
           {:else if cellSources.length === 0}
-            <p class="muted">No sources in the active scope.</p>
+            <p class="muted">{m.workbench_aleph_no_sources()}</p>
           {:else if dossier}
             {@const Cell = CellComponent}
             <Cell
@@ -272,7 +276,7 @@
       <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
     {/if}
   {:else if dossierQ.isError}
-    <p class="muted">Dossier failed to load.</p>
+    <p class="muted">{m.workbench_aleph_dossier_failed()}</p>
   {/if}
 </section>
 

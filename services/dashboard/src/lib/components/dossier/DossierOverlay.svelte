@@ -20,6 +20,7 @@
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import ProbeCard from './ProbeCard.svelte';
   import DateRangePicker from '$lib/components/base/DateRangePicker.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const url = $derived(urlState());
@@ -178,21 +179,25 @@
       class="dossier-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Probe catalogue"
+      aria-label={m.dossier_overlay_aria_label()}
       tabindex="-1"
       bind:this={dialogEl}
     >
       <header class="overlay-header">
         <div class="overlay-titles">
-          <p class="eyebrow">Dossier</p>
-          <h2>Atmospheric record of AĒR’s probes</h2>
+          <p class="eyebrow">{m.dossier_overlay_eyebrow()}</p>
+          <h2>{m.dossier_overlay_title()}</h2>
         </div>
-        <button type="button" class="close-btn" onclick={close} aria-label="Close dossier">×</button
+        <button
+          type="button"
+          class="close-btn"
+          onclick={close}
+          aria-label={m.dossier_overlay_close()}>×</button
         >
       </header>
 
       <div class="window-row">
-        <span class="window-label">Window</span>
+        <span class="window-label">{m.dossier_window_label()}</span>
         <DateRangePicker
           from={url.from}
           to={url.to}
@@ -205,34 +210,38 @@
           type="search"
           class="catalogue-search"
           bind:value={search}
-          placeholder="Search probe, source, language, country…"
-          aria-label="Search the probe catalogue"
+          placeholder={m.dossier_search_placeholder()}
+          aria-label={m.dossier_search_aria_label()}
         />
         {#if languages.length > 1}
-          <select bind:value={langFilter} aria-label="Filter by language">
-            <option value="">All languages</option>
+          <select bind:value={langFilter} aria-label={m.dossier_facet_language_aria_label()}>
+            <option value="">{m.dossier_facet_language_all()}</option>
             {#each languages as l (l)}<option value={l}>{l.toUpperCase()}</option>{/each}
           </select>
         {/if}
         {#if countries.length > 1}
-          <select bind:value={countryFilter} aria-label="Filter by country">
-            <option value="">All countries</option>
+          <select bind:value={countryFilter} aria-label={m.dossier_facet_country_aria_label()}>
+            <option value="">{m.dossier_facet_country_all()}</option>
             {#each countries as c (c)}<option value={c}>{c}</option>{/each}
           </select>
         {/if}
-        <span class="selection-count">{url.selectedProbes.length} selected</span>
+        <span class="selection-count"
+          >{m.dossier_selection_count({ count: url.selectedProbes.length })}</span
+        >
         {#if url.selectedProbes.length > 0}
-          <button type="button" class="clear-sel" onclick={clearSelection}>Clear</button>
+          <button type="button" class="clear-sel" onclick={clearSelection}
+            >{m.dossier_selection_clear()}</button
+          >
         {/if}
       </div>
 
       <div class="overlay-body">
         {#if probesQ.isPending}
-          <p class="muted" aria-busy="true">Loading probe catalogue…</p>
+          <p class="muted" aria-busy="true">{m.dossier_list_loading()}</p>
         {:else if probesQ.isError || probesQ.data?.kind === 'network-error'}
-          <p class="error">Could not load the probe catalogue. Check network connectivity.</p>
+          <p class="error">{m.dossier_list_error()}</p>
         {:else if catalogue.length === 0}
-          <p class="muted">No probes match the current filter.</p>
+          <p class="muted">{m.dossier_list_empty()}</p>
         {:else}
           <div class="probe-cards">
             {#each catalogue as probe (probe.probeId)}
@@ -242,9 +251,13 @@
                     type="checkbox"
                     checked={isSelected(probe.probeId)}
                     onchange={() => toggleSelect(probe.probeId)}
-                    aria-label="Add {probe.displayName} to selection"
+                    aria-label={m.dossier_selection_add({ name: probe.displayName })}
                   />
-                  <span>{isSelected(probe.probeId) ? 'Selected' : 'Select'}</span>
+                  <span
+                    >{isSelected(probe.probeId)
+                      ? m.dossier_selection_selected()
+                      : m.dossier_selection_select()}</span
+                  >
                 </label>
                 <ProbeCard
                   {probe}

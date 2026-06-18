@@ -18,6 +18,7 @@
   // (CellConfigValueLevers = dimension peek + sliders + Band/Scale switches;
   // CellConfigChannelLevers = network/scatter channel selects + label switch);
   // this file is now the popover shell + the inherit/custom note + Reset.
+  import { m } from '$lib/paraglide/messages.js';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import { resetCellOverride } from '$lib/workbench/panel-mutators';
   import { resolveCellConfig } from '$lib/workbench/panel-queries';
@@ -62,7 +63,11 @@
   const dimensionPeekable = $derived(
     (presentation.usesMetric ?? false) || (presentation.usesMetadataField ?? false)
   );
-  const dimensionNoun = $derived(presentation.usesMetadataField ? 'Group by' : 'Metric');
+  const dimensionNoun = $derived(
+    presentation.usesMetadataField
+      ? m.workbench_ccp_dimension_noun_group_by()
+      : m.workbench_ccp_dimension_noun_metric()
+  );
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -75,27 +80,27 @@
 <div
   class="cell-config-popover"
   role="dialog"
-  aria-label="Cell configuration for {cellLabel}"
+  aria-label={m.workbench_ccp_aria_label({ label: cellLabel })}
   onclick={(e) => e.stopPropagation()}
   onkeydown={onKeydown}
   tabindex="-1"
   data-export-exclude="provenance"
 >
   <header class="ccp-header">
-    <span class="ccp-eyebrow">Cell config</span>
+    <span class="ccp-eyebrow">{m.workbench_ccp_eyebrow()}</span>
     <code class="ccp-label" title={cellLabel}>{cellLabel}</code>
-    <button type="button" class="ccp-close" onclick={onClose} aria-label="Close cell configuration">
+    <button type="button" class="ccp-close" onclick={onClose} aria-label={m.workbench_ccp_close()}>
       ×
     </button>
   </header>
 
   {#if cfg.isOverridden}
     <p class="ccp-note">
-      This cell is on a <strong>custom</strong> configuration — not directly comparable to its sibling
-      cells.
+      {m.workbench_ccp_note_custom_pre()} <strong>{m.workbench_ccp_note_custom_strong()}</strong>
+      {m.workbench_ccp_note_custom_post()}
     </p>
   {:else}
-    <p class="ccp-note ccp-note-muted">Inheriting the panel default for every lever.</p>
+    <p class="ccp-note ccp-note-muted">{m.workbench_ccp_note_inheriting()}</p>
   {/if}
 
   <div class="ccp-body">
@@ -121,7 +126,7 @@
         onClose();
       }}
     >
-      ↺ Reset to panel default
+      {m.workbench_ccp_reset()}
     </button>
   </footer>
 </div>

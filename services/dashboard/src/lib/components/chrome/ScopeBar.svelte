@@ -15,6 +15,7 @@
   // hovering rail tooltips.
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     children?: Snippet;
@@ -22,7 +23,7 @@
     label?: string;
   }
 
-  let { children, label = 'Surface navigation' }: Props = $props();
+  let { children, label }: Props = $props();
 
   // Derive surface and layer from the route so the chip stays accurate as the
   // user descends. ScopeBar renders only on Reflection routes today, so the
@@ -32,26 +33,31 @@
     if (p.startsWith('/reflection')) {
       return {
         surface: 'Surface III',
-        surfaceName: 'Reflection',
+        surfaceName: m.chrome_surface_reflection(),
         layer: 'L1',
-        layerName: 'Working Papers'
+        layerName: m.chrome_layer_working_papers()
       };
     }
     return {
       surface: 'Surface I',
-      surfaceName: 'Atmosphere',
+      surfaceName: m.chrome_surface_atmosphere(),
       layer: 'L0',
-      layerName: 'Globe'
+      layerName: m.chrome_layer_globe()
     };
   });
 </script>
 
-<div class="scope-bar" role="navigation" aria-label={label}>
+<div class="scope-bar" role="navigation" aria-label={label ?? m.chrome_scopebar_nav_label()}>
   <div class="inner">
     <span
       class="surface-chip"
-      aria-label="{breadcrumb.surface} · {breadcrumb.surfaceName} · {breadcrumb.layer} {breadcrumb.layerName}"
-      title="Where you are in the AĒR descent (Surface → Layer). See Design Brief §4.1."
+      aria-label={m.chrome_scopebar_chip_aria({
+        surface: breadcrumb.surface,
+        surfaceName: breadcrumb.surfaceName,
+        layer: breadcrumb.layer,
+        layerName: breadcrumb.layerName
+      })}
+      title={m.chrome_scopebar_chip_title()}
     >
       <span class="chip-prefix">{breadcrumb.surface}</span>
       <span class="chip-sep" aria-hidden="true">·</span>

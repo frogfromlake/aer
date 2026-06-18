@@ -4,6 +4,7 @@
   // (Edit scope / Maximize / Remove). Purely presentational: the action
   // handlers (which mutate panel state / toggle the scope editor and own their
   // own stopPropagation) are passed in by PanelHost.
+  import { m } from '$lib/paraglide/messages.js';
   import type { PresentationDefinition } from '$lib/presentations';
   import type { Panel } from '$lib/state/url-internals';
 
@@ -40,8 +41,8 @@
     <code class="panel-metric">{panel.metric}</code>
   {/if}
   {#if panel.locked === true && panel.lockedFunction}
-    <span class="panel-lock" title="Locked from Probe Dossier — return to Dossier to recombine">
-      🔒 Locked to {panel.lockedFunction}
+    <span class="panel-lock" title={m.workbench_panel_lock_title()}>
+      {m.workbench_panel_locked_to({ function: panel.lockedFunction })}
     </span>
   {/if}
   {#if isInteractive}
@@ -55,9 +56,9 @@
         type="button"
         class="panel-action"
         onclick={onEditScope}
-        title="Configure this panel's scope (probes, sources, discourse-function restriction)"
+        title={m.workbench_panel_edit_scope_title()}
       >
-        ⚙ Edit scope
+        {m.workbench_panel_edit_scope()}
       </button>
       {#if canMaximize || isMaximized}
         <!-- Phase 122i revision (C3). Maximize is UI state, not scope editing,
@@ -67,10 +68,12 @@
           type="button"
           class="panel-action"
           onclick={onToggleMaximize}
-          title={isMaximized ? 'Restore (un-maximize) — Esc also works' : 'Maximize this panel'}
+          title={isMaximized
+            ? m.workbench_panel_restore_title()
+            : m.workbench_panel_maximize_title()}
           aria-pressed={isMaximized}
         >
-          {isMaximized ? '⤡ Restore' : '⤢ Maximize'}
+          {isMaximized ? m.workbench_panel_restore() : m.workbench_panel_maximize()}
         </button>
       {/if}
       {#if canRemove}
@@ -78,7 +81,7 @@
           type="button"
           class="panel-action panel-action-remove"
           onclick={onRemove}
-          title="Remove this panel"
+          title={m.workbench_panel_remove_title()}
         >
           ×
         </button>

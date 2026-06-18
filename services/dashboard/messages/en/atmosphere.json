@@ -1,0 +1,44 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "atmosphere_doc_title": "AĒR — Atmosphere",
+
+  "atmosphere_scopebar_label": "Atmosphere surface controls",
+  "atmosphere_primer_link": "How to read the globe →",
+
+  "atmosphere_canvas_label": "AĒR atmosphere: 3D rotating Earth with live day/night terminator",
+
+  "atmosphere_absence_label": "Coverage disclosure",
+  "atmosphere_absence_text": "AĒR cannot measure which regions a source's discourse reaches — so it makes no geographic coverage claim here. Per-source Negative Space is in the Dossier.",
+  "atmosphere_absence_link": "WP-006 §4.2",
+
+  "atmosphere_tooltip_in_selection": "✓ in selection",
+  "atmosphere_tooltip_affordance_in_selection": "Shift+click to remove · click to focus",
+  "atmosphere_tooltip_affordance_add": "Click to select · Shift+click to add",
+  "atmosphere_tooltip_affordance_multi": "Click to select · Shift+click to multi-select",
+  "atmosphere_tooltip_satellite_meta": "source · {sourceName}",
+  "atmosphere_tooltip_satellite_affordance": "Click to open the Dossier for its probe",
+
+  "atmosphere_probe_nav_label": "Probes on the globe",
+  "atmosphere_probe_nav_item_label": "Probe {displayName}, {language}",
+
+  "atmosphere_banner_label": "Probe selection",
+  "atmosphere_banner_count_one": "⊗ {count} probe selected",
+  "atmosphere_banner_count_other": "⊗ {count} probes selected",
+  "atmosphere_banner_open_dossier": "Open Dossier",
+  "atmosphere_banner_open_workbench": "Open Workbench →",
+  "atmosphere_banner_clear": "Clear",
+
+  "atmosphere_fallback_lede": "Atmospheric sensor for human discourse.",
+  "atmosphere_fallback_notice": "Your browser does not support WebGL2, so the 3D atmosphere is unavailable. The live probe state below is the same data the visual surface would render.",
+  "atmosphere_fallback_probes_heading": "Active probes",
+  "atmosphere_fallback_loading": "Loading active probes…",
+  "atmosphere_fallback_no_probes": "No active probes.",
+  "atmosphere_fallback_language_label": "Language",
+  "atmosphere_fallback_emission_points": "Emission points",
+  "atmosphere_fallback_publication_rate": "Publication rate",
+  "atmosphere_fallback_rate_unknown": "—",
+  "atmosphere_fallback_rate_zero": "0 docs/hour",
+  "atmosphere_fallback_rate_trace": "< 0.1 docs/hour",
+  "atmosphere_fallback_rate_value": "{rate} docs/hour",
+  "atmosphere_fallback_reach_note": "Reach is not reported. A probe's emission points mark where its bound publishers emit — not where their content is consumed or influential. No reach claim is made by AĒR."
+}

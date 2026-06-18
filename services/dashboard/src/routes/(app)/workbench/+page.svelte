@@ -8,6 +8,7 @@
   // leaves the user on a minimal empty-state placeholder with a re-open
   // affordance.
   import { createQuery } from '@tanstack/svelte-query';
+  import { m } from '$lib/paraglide/messages.js';
   import { beforeNavigate, goto } from '$app/navigation';
   import { pushUrl, urlState, openOverlay } from '$lib/state/url.svelte';
   import { defaultPresentationForPillar, getPillar } from '$lib/presentations';
@@ -169,7 +170,7 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — Workbench · {activePillar.label}</title>
+  <title>{m.workbench_page_title({ pillar: activePillar.label })}</title>
 </svelte:head>
 
 <!-- Phase 135 — the initial (no-scope) Workbench is transparent so the
@@ -183,10 +184,10 @@
          editor is genuinely not opening (a defensive fallback). -->
     {#if !showCreateEditor}
       <div class="empty-scope">
-        <h1>Workbench</h1>
-        <p class="muted">No scope configured yet.</p>
+        <h1>{m.workbench_page_empty_heading()}</h1>
+        <p class="muted">{m.workbench_page_empty_no_scope()}</p>
         <button type="button" class="reopen-btn" onclick={reopenCreateEditor}>
-          Configure scope →
+          {m.workbench_page_configure_scope()}
         </button>
       </div>
     {/if}
@@ -201,17 +202,19 @@
           type="button"
           class="save-analysis-btn"
           onclick={() => openOverlay('analyses', 'save')}
-          title="Save this Workbench configuration as a re-openable, shareable analysis"
+          title={m.workbench_page_save_analysis_title()}
         >
-          <span aria-hidden="true">★</span> Save analysis
+          <span aria-hidden="true">★</span>
+          {m.workbench_page_save_analysis()}
         </button>
         <button
           type="button"
           class="new-analysis-btn"
           onclick={newAnalysis}
-          title="Clear the Workbench and start a new analysis from the scope editor"
+          title={m.workbench_page_new_analysis_title()}
         >
-          <span aria-hidden="true">＋</span> New analysis
+          <span aria-hidden="true">＋</span>
+          {m.workbench_page_new_analysis()}
         </button>
       </div>
     </div>

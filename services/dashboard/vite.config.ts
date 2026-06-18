@@ -1,4 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { defineConfig, loadEnv } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -10,6 +11,17 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      // Phase 144 — Paraglide compiles per-feature messages/{locale}/*.json
+      // into typed, tree-shaken message functions under src/lib/paraglide/
+      // (gitignored). `strategy: ['baseLocale']` makes prerender/SSR
+      // deterministic English; the client overrides locale resolution at
+      // runtime via `overwriteGetLocale` (state/locale.svelte.ts) — no
+      // path-routing, no cookie (ADR-042).
+      paraglideVitePlugin({
+        project: './project.inlang',
+        outdir: './src/lib/paraglide',
+        strategy: ['baseLocale']
+      }),
       sveltekit(),
       visualizer({
         filename: 'build/stats.html',

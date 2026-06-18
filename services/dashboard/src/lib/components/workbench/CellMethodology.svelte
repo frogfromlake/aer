@@ -16,6 +16,7 @@
   // Phase 124b's inline accordion pattern continues here — one block,
   // collapsible, default-open.
   import { createQuery } from '@tanstack/svelte-query';
+  import { m } from '$lib/paraglide/messages.js';
   import {
     contentQuery,
     provenanceQuery,
@@ -34,6 +35,7 @@
   import type { Presentation } from '$lib/state/url-internals';
   import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
+  import { locale } from '$lib/state/locale.svelte';
 
   interface Props {
     metricName: string;
@@ -71,7 +73,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'metric', metricName, 'en');
+    const o = contentQuery(ctx, 'metric', metricName, locale());
     return {
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
@@ -86,7 +88,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'view_mode', cellContent_id);
+    const o = contentQuery(ctx, 'view_mode', cellContent_id, locale());
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
@@ -131,7 +133,7 @@
 
 <section
   class="cell-methodology epistemic-weight"
-  aria-label="Methodology — {metricName} · {viewLabel}"
+  aria-label={m.workbench_meth_aria_label({ metric: metricName, view: viewLabel })}
 >
   <button
     type="button"
@@ -141,7 +143,7 @@
     onclick={() => (expanded = !expanded)}
   >
     <span class="meth-chevron" aria-hidden="true" class:expanded>›</span>
-    <span class="meth-title">Methodology</span>
+    <span class="meth-title">{m.workbench_meth_title()}</span>
     <span class="meth-cell-id">
       <code class="meth-metric">{metricName}</code>
       <span class="meth-sep" aria-hidden="true">·</span>
@@ -150,8 +152,8 @@
     <span class="meth-badges">
       <Badge tier={badgeTier} />
       {#if hasLimitations}
-        <span class="limitations-pill" title="Known limitations apply to this metric">
-          Known limitations
+        <span class="limitations-pill" title={m.workbench_meth_known_limitations_pill_title()}>
+          {m.workbench_meth_known_limitations_pill()}
         </span>
       {/if}
     </span>
@@ -160,11 +162,11 @@
   {#if expanded}
     <div class="meth-body" id="meth-body-{metricName}-{viewMode}">
       {#if provenanceQ.isPending || metricContentQ.isPending}
-        <p class="muted" aria-busy="true">Loading methodology…</p>
+        <p class="muted" aria-busy="true">{m.workbench_meth_loading()}</p>
       {:else}
         {#if hasLimitations && provenance}
           <details class="meth-block" data-section="limitations" open>
-            <summary class="meth-block-summary">Known limitations</summary>
+            <summary class="meth-block-summary">{m.workbench_meth_known_limitations()}</summary>
             <ul class="limitations-list">
               {#each provenance.knownLimitations as lim (lim)}
                 <li>{lim}</li>
@@ -175,24 +177,24 @@
 
         {#if metricContent}
           <details class="meth-block" data-section="dual-register" open>
-            <summary class="meth-block-summary">What this metric measures</summary>
+            <summary class="meth-block-summary">{m.workbench_meth_what_metric_measures()}</summary>
             <ProgressiveSemantics registers={metricContent.registers} emphasis="methodological" />
           </details>
         {/if}
 
         {#if provenance}
           <details class="meth-block" data-section="provenance" open>
-            <summary class="meth-block-summary">Provenance</summary>
+            <summary class="meth-block-summary">{m.workbench_meth_provenance()}</summary>
             <dl class="provenance-dl">
-              <dt>Tier</dt>
+              <dt>{m.workbench_meth_provenance_tier()}</dt>
               <dd><Badge tier={badgeTier} /></dd>
-              <dt>Validation</dt>
+              <dt>{m.workbench_meth_provenance_validation()}</dt>
               <dd class="status status-{provenance.validationStatus}">
                 {provenance.validationStatus}
               </dd>
-              <dt>Algorithm</dt>
+              <dt>{m.workbench_meth_provenance_algorithm()}</dt>
               <dd>{provenance.algorithmDescription}</dd>
-              <dt>Extractor</dt>
+              <dt>{m.workbench_meth_provenance_extractor()}</dt>
               <dd><code>{provenance.extractorVersionHash}</code></dd>
             </dl>
             {#if provenance.culturalContextNotes}
@@ -203,7 +205,12 @@
 
         {#if viewModeContent}
           <details class="meth-block" data-section="cell-method" open>
-            <summary class="meth-block-summary">{viewLabel} × {metricName}</summary>
+            <summary class="meth-block-summary"
+              >{m.workbench_meth_cell_method_heading({
+                view: viewLabel,
+                metric: metricName
+              })}</summary
+            >
             <p class="cell-method-text">{viewModeContent.registers.methodological.long}</p>
           </details>
         {/if}
@@ -211,11 +218,11 @@
         <div class="meth-links">
           {#if wpHref}
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
-            <a class="meth-link" href={wpHref}>Read the metric's Working Paper →</a>
+            <a class="meth-link" href={wpHref}>{m.workbench_meth_link_working_paper()}</a>
           {/if}
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
           <a class="meth-link" href="/reflection/metric/{metricName}">
-            Full metric provenance page →
+            {m.workbench_meth_link_provenance_page()}
           </a>
         </div>
       {/if}

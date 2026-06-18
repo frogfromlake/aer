@@ -6,6 +6,7 @@
   // (`usesResolution`). Self-contained, panel-bound.
   import type { Panel, Resolution } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -16,12 +17,15 @@
 
   let { panelPath, boundPanel }: Props = $props();
 
-  const RESOLUTIONS: ReadonlyArray<{ id: Resolution; label: string }> = [
-    { id: 'hourly', label: 'Hourly' },
-    { id: 'daily', label: 'Daily' },
-    { id: 'weekly', label: 'Weekly' },
-    { id: 'monthly', label: 'Monthly' }
-  ];
+  const RESOLUTIONS: readonly Resolution[] = ['hourly', 'daily', 'weekly', 'monthly'];
+  const resolutionLabel = (id: Resolution): string =>
+    id === 'hourly'
+      ? m.levers_resolution_hourly()
+      : id === 'weekly'
+        ? m.levers_resolution_weekly()
+        : id === 'monthly'
+          ? m.levers_resolution_monthly()
+          : m.levers_resolution_daily();
 
   const activeResolution = $derived<Resolution>(boundPanel.resolution ?? 'daily');
 
@@ -31,15 +35,15 @@
   }
 </script>
 
-<LeverRow eyebrow="Resolution" role="radiogroup" ariaLabel="Time resolution">
+<LeverRow
+  eyebrow={m.levers_resolution_eyebrow()}
+  role="radiogroup"
+  ariaLabel={m.levers_resolution_aria()}
+>
   {#snippet options()}
-    {#each RESOLUTIONS as r (r.id)}
-      <LeverButton
-        role="radio"
-        active={activeResolution === r.id}
-        onclick={() => pickResolution(r.id)}
-      >
-        {r.label}
+    {#each RESOLUTIONS as r (r)}
+      <LeverButton role="radio" active={activeResolution === r} onclick={() => pickResolution(r)}>
+        {resolutionLabel(r)}
       </LeverButton>
     {/each}
   {/snippet}

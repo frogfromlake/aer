@@ -7,6 +7,7 @@
   //   - faceting unavailable on a multi-source / multi-group panel (Phase 125a),
   //   - cross-panel brushing discoverability hint (Phase 125b).
   // Purely presentational — every condition is computed by PanelCellGrid.
+  import { m } from '$lib/paraglide/messages.js';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
 
   interface Props {
@@ -39,10 +40,8 @@
 
 {#if shareForbidden}
   <MethodologyBanner anchorHref="/reflection/wp/wp-004?section=6.3" anchorLabel="WP-004 §6.3">
-    <strong>Independent axes.</strong> Putting “{metric}” on one shared axis across cultural
-    contexts would assert cross-cultural commensurability, which requires a validated equivalence
-    grant — none exists yet for this metric. Each cell keeps its own optimal scale; read positions
-    within a cell, not across.
+    <strong>{m.workbench_disclosure_independent_axes_strong()}</strong>
+    {m.workbench_disclosure_independent_axes_body({ metric })}
   </MethodologyBanner>
 {/if}
 
@@ -50,8 +49,11 @@
      so absence is named, never silent (Tier 2 "show anyway" payoff). -->
 {#if droppedSources.length > 0 && !noSharedDimension}
   <p class="panel-drop-note" role="note">
-    Not shown: <strong>{droppedSources.join(', ')}</strong> — no
-    <code>{metric}</code> (not emitted).
+    {m.workbench_disclosure_dropped_prefix()}
+    <strong>{droppedSources.join(', ')}</strong>
+    {m.workbench_disclosure_dropped_suffix()}
+    <code>{metric}</code>
+    {m.workbench_disclosure_dropped_not_emitted()}
   </p>
 {/if}
 
@@ -65,9 +67,12 @@
     anchorHref="/reflection/wp/wp-004?section=6.3"
     anchorLabel="WP-004 §6.3"
   >
-    <strong>Faceting unavailable.</strong> Faceting by <code>{facetField}</code> is unavailable for
-    a multi-source / multi-group panel (it would cover only the first). Use <strong>Merged</strong>
-    composition or a single source to facet.
+    <strong>{m.workbench_disclosure_facet_unavailable_strong()}</strong>
+    {m.workbench_disclosure_facet_unavailable_body_pre()}
+    <code>{facetField}</code>
+    {m.workbench_disclosure_facet_unavailable_body_post()}
+    <strong>{m.workbench_disclosure_facet_unavailable_merged()}</strong>
+    {m.workbench_disclosure_facet_unavailable_body_end()}
   </MethodologyBanner>
 {/if}
 
@@ -77,8 +82,10 @@
      panel in the same Window. -->
 {#if showBrushHint}
   <p class="panel-brush-hint" role="note">
-    ↔ Click a mark to highlight that article in linked <strong>Scatter</strong> ↔
-    <strong>Parallel-coordinates</strong> panels in this window (click again to clear).
+    {m.workbench_disclosure_brush_hint_pre()}
+    <strong>{m.workbench_disclosure_brush_hint_scatter()}</strong> ↔
+    <strong>{m.workbench_disclosure_brush_hint_parallel()}</strong>
+    {m.workbench_disclosure_brush_hint_post()}
   </p>
 {/if}
 

@@ -19,6 +19,7 @@
     FUNCTION_INFO_HREF,
     type DiscourseFunction
   } from '$lib/discourse-function';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     /** Discourse-function key. Unknown keys render an inert grey badge so the
@@ -60,8 +61,8 @@
       <a
         class="info"
         href={FUNCTION_INFO_HREF}
-        title="WP-001 §3 — {def.label}"
-        aria-label="Methodologie: {def.label}"
+        title={m.base_function_badge_title({ label: def.label })}
+        aria-label={m.base_function_badge_aria({ label: def.label })}
         onclick={(e) => e.stopPropagation()}
         data-sveltekit-preload-data="hover"
       >
@@ -70,7 +71,11 @@
     {/if}
   </span>
 {:else}
-  <span class="function-badge size-{size} inert" role="img" aria-label="Unknown discourse function">
+  <span
+    class="function-badge size-{size} inert"
+    role="img"
+    aria-label={m.base_function_badge_unknown()}
+  >
     <span class="dot" aria-hidden="true"></span>
     <span class="abbr">—</span>
   </span>

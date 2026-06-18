@@ -171,9 +171,11 @@ func TestGetContent_MissingEntityReturns404(t *testing.T) {
 	}
 }
 
-// TestGetContent_MissingLocaleReturns404 verifies 404 when the entity exists in "en" but
-// the caller requests "de" and no DE record has been authored.
-func TestGetContent_MissingLocaleReturns404(t *testing.T) {
+// TestGetContent_MissingLocaleFallsBackToEN verifies the Phase-144 (ADR-041)
+// EN-fallback: the entity exists in "en" but not "de", and a "de" request is
+// served the English record (200, Locale=en) instead of 404 — a single missing
+// translation degrades to English, never to an empty surface.
+func TestGetContent_MissingLocaleFallsBackToEN(t *testing.T) {
 	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
 
 	locDE := GetContentParamsLocaleDe
@@ -185,8 +187,32 @@ func TestGetContent_MissingLocaleReturns404(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	got, ok := resp.(GetContent200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200 (EN-fallback), got %T", resp)
+	}
+	if got.Locale != ContentResponseLocaleEn {
+		t.Errorf("fallback locale: want en (the content actually served), got %s", got.Locale)
+	}
+}
+
+// TestGetContent_MissingEntityDEReturns404 verifies that a "de" request for an
+// entity absent from BOTH locales still 404s — the EN-fallback only fires when
+// an English record exists to fall back to.
+func TestGetContent_MissingEntityDEReturns404(t *testing.T) {
+	s := NewServer(&mockStore{}, nil, nil, testCatalog(), nil)
+
+	locDE := GetContentParamsLocaleDe
+	resp, err := s.GetContent(context.Background(), GetContentRequestObject{
+		EntityType: GetContentParamsEntityTypeMetric,
+		EntityID:   "nonexistent_metric",
+		Params:     GetContentParams{Locale: &locDE},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if _, ok := resp.(GetContent404JSONResponse); !ok {
-		t.Fatalf("expected 404 (locale not found), got %T", resp)
+		t.Fatalf("expected 404 (absent in both locales), got %T", resp)
 	}
 }
 

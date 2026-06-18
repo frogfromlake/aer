@@ -176,9 +176,9 @@ describe('sortArrow', () => {
 
 describe('fmtDate', () => {
   it('formats a valid ISO date and falls back to an em-dash', () => {
-    expect(fmtDate('2026-05-01T00:00:00Z')).not.toBe('—');
-    expect(typeof fmtDate('2026-05-01T00:00:00Z')).toBe('string');
-    expect(fmtDate('not-a-date')).toBe('—');
+    expect(fmtDate('2026-05-01T00:00:00Z', 'en')).not.toBe('—');
+    expect(typeof fmtDate('2026-05-01T00:00:00Z', 'en')).toBe('string');
+    expect(fmtDate('not-a-date', 'en')).toBe('—');
   });
 });
 

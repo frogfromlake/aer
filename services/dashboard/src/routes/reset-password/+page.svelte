@@ -6,6 +6,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const MIN_LEN = 12;
 
@@ -38,40 +39,40 @@
     }
     error =
       res.code === 'invalid_token'
-        ? 'This reset link is invalid or has expired. Request a new one.'
+        ? m.auth_reset_error_invalid_token()
         : res.code === 'weak_password'
-          ? `Choose a password of at least ${MIN_LEN} characters.`
-          : 'Could not reset the password. Please try again.';
+          ? m.auth_password_too_weak({ min: MIN_LEN })
+          : m.auth_reset_error_generic();
   }
 </script>
 
-<svelte:head><title>Set a new password · AĒR</title></svelte:head>
+<svelte:head><title>{m.auth_reset_doc_title()}</title></svelte:head>
 
-<AuthCard title="Set a new password" subtitle="Choose a new password for your account.">
+<AuthCard title={m.auth_reset_title()} subtitle={m.auth_reset_subtitle()}>
   {#if done}
-    <AuthNotice variant="success">Your password has been reset. You can now sign in.</AuthNotice>
+    <AuthNotice variant="success">{m.auth_reset_done()}</AuthNotice>
   {:else}
     <form onsubmit={submit} novalidate>
       {#if error}
         <AuthNotice variant="error">{error}</AuthNotice>
       {/if}
       {#if !token}
-        <AuthNotice variant="error">This link is missing its reset token.</AuthNotice>
+        <AuthNotice variant="error">{m.auth_reset_missing_token()}</AuthNotice>
       {/if}
 
       <AuthField
         id="password"
-        label="New password"
+        label={m.auth_field_new_password_label()}
         type="password"
         bind:value={password}
         autocomplete="new-password"
         required
         disabled={submitting}
-        hint={`At least ${MIN_LEN} characters.`}
+        hint={m.auth_password_min_hint({ min: MIN_LEN })}
       />
       <AuthField
         id="confirm"
-        label="Confirm password"
+        label={m.auth_field_confirm_password_label()}
         type="password"
         bind:value={confirm}
         autocomplete="new-password"
@@ -79,17 +80,17 @@
         disabled={submitting}
       />
       {#if mismatch}
-        <span class="inline-warn">Passwords do not match.</span>
+        <span class="inline-warn">{m.auth_password_mismatch()}</span>
       {/if}
 
       <Button type="submit" variant="primary" loading={submitting} disabled={!canSubmit}>
-        Reset password
+        {m.auth_reset_submit()}
       </Button>
     </form>
   {/if}
 
   {#snippet footer()}
-    <a class="link" href="/login">Back to sign in</a>
+    <a class="link" href="/login">{m.auth_back_to_signin()}</a>
   {/snippet}
 </AuthCard>
 

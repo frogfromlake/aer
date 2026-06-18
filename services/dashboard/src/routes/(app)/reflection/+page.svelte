@@ -7,28 +7,34 @@
   import { ScopeBar } from '$lib/components/chrome';
   import { getAllPapers } from '$lib/reflection/papers';
   import { OPEN_QUESTIONS } from '$lib/reflection/open-questions';
+  import { m } from '$lib/paraglide/messages.js';
+  import {
+    paperShortTitle,
+    paperAbstract,
+    paperStatus
+  } from '$lib/components/reflection/paper-display';
 
   const papers = getAllPapers();
   const questionCount = OPEN_QUESTIONS.length;
 </script>
 
 <svelte:head>
-  <title>AĒR — Reflection</title>
+  <title>{m.reflection_head_title()}</title>
 </svelte:head>
 
 <!-- Phase 135 — the Reflection landing reads as a glassy surface over the
      layout's persistent globe, matching the global overlays. -->
-<ScopeBar label="Reflection surface navigation">
-  <span class="surface-label">Reflection</span>
-  <span class="surface-sub">Working Papers · Primers · Open Questions</span>
+<ScopeBar label={m.reflection_landing_scopebar_label()}>
+  <span class="surface-label">{m.reflection_landing_surface_label()}</span>
+  <span class="surface-sub">{m.reflection_landing_surface_sub()}</span>
 </ScopeBar>
 
 <button
   type="button"
   class="reflection-close"
   onclick={() => goto('/')}
-  aria-label="Close Reflection"
-  title="Back to the globe"
+  aria-label={m.reflection_landing_close()}
+  title={m.reflection_landing_close_title()}
 >
   ×
 </button>
@@ -37,35 +43,31 @@
   <div class="landing-inner">
     <!-- Surface identity -->
     <header class="landing-header">
-      <p class="surface-eyebrow">Surface III</p>
-      <h1 class="landing-title">Reflection</h1>
+      <p class="surface-eyebrow">{m.reflection_landing_eyebrow()}</p>
+      <h1 class="landing-title">{m.reflection_landing_title()}</h1>
       <p class="landing-abstract">
-        The primary methodological surface. Where every metric's provenance, every probe's dossier,
-        every known limitation, and every Working Paper lives as long-form, typographically
-        disciplined content. A dashboard without it is a surveillance tool; with it peripheral, a
-        research tool with an alibi.
+        {m.reflection_landing_abstract()}
       </p>
     </header>
 
     <!-- Working Papers index -->
     <section class="section" aria-labelledby="wps-heading">
-      <h2 id="wps-heading" class="section-title">Working Papers</h2>
+      <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
       <p class="section-sub">
-        Six papers defining the methodological foundations of AĒR — probe selection, metric
-        validity, platform bias, cross-cultural comparability, temporal granularity, and the
-        observer effect.
+        {m.reflection_landing_wps_sub()}
       </p>
       <ul class="paper-list" role="list">
         {#each papers as p (p.id)}
+          {@const status = paperStatus(p.id)}
           <li>
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/{p.id}" class="paper-card">
               <div class="paper-card-head">
                 <span class="paper-id">{p.id.toUpperCase()}</span>
-                <span class="paper-status">{p.status.split('—')[0]?.trim() ?? p.status}</span>
+                <span class="paper-status">{status.split('—')[0]?.trim() ?? status}</span>
               </div>
-              <p class="paper-short">{p.shortTitle}</p>
-              <p class="paper-abstract">{p.abstract}</p>
+              <p class="paper-short">{paperShortTitle(p.id)}</p>
+              <p class="paper-abstract">{paperAbstract(p.id)}</p>
             </a>
           </li>
         {/each}
@@ -76,32 +78,34 @@
     <div class="entry-grid">
       <!-- Open Research Questions -->
       <section class="entry-card" aria-labelledby="oq-heading">
-        <h2 id="oq-heading" class="entry-title">Open Research Questions</h2>
+        <h2 id="oq-heading" class="entry-title">{m.reflection_landing_oq_heading()}</h2>
         <p class="entry-body">
-          {questionCount} questions requiring interdisciplinary collaboration, gathered from the WP §7
-          and §8 sections. The questions that define where AĒR needs expertise beyond software engineering.
+          {m.reflection_landing_oq_body({ count: questionCount })}
         </p>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/open-questions" class="entry-link"> Browse all questions → </a>
+        <a href="/reflection/open-questions" class="entry-link">
+          {m.reflection_landing_oq_link()}
+        </a>
       </section>
 
       <!-- Globe primer -->
       <section class="entry-card" aria-labelledby="primer-heading">
-        <h2 id="primer-heading" class="entry-title">How to Read the Globe</h2>
+        <h2 id="primer-heading" class="entry-title">{m.reflection_landing_primer_heading()}</h2>
         <p class="entry-body">
-          A short introduction to Surface I — what probe glyphs represent, what the day/night
-          terminator means, and — importantly — what AĒR does
-          <em>not</em> show (the Negative Space framing).
+          {m.reflection_landing_primer_body_pre()}
+          <em>{m.reflection_landing_primer_body_emphasis()}</em>
+          {m.reflection_landing_primer_body_post()}
         </p>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/primer/globe" class="entry-link"> Read the primer → </a>
+        <a href="/reflection/primer/globe" class="entry-link">
+          {m.reflection_landing_primer_link()}
+        </a>
       </section>
     </div>
 
     <!-- Footer note -->
     <p class="landing-footer-note">
-      Reflection is reachable from every metric badge, every refusal surface, and every "Read the
-      full Working Paper" link in the Methodology Tray.
+      {m.reflection_landing_footer_note()}
     </p>
   </div>
 </main>

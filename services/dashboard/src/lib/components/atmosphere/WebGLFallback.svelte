@@ -9,6 +9,8 @@
   // one: AĒR does not claim where a probe's content is read.
   import type { ProbeActivity } from '@aer/engine-3d';
   import type { ProbeDto } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
 
   interface Props {
     /** Active probes from `/api/v1/probes`. Empty while loading. */
@@ -23,31 +25,36 @@
 
   const activityByProbe = $derived(new Map(activity.map((a) => [a.probeId, a.documentsPerHour])));
 
+  // Locale-aware, reactive rate label. Reads `m.*` so it re-evaluates on a
+  // language switch; numbers go through `formatNumber` for locale-correct
+  // decimal separators (e.g. "1.2" vs "1,2").
   function formatRate(docsPerHour: number | undefined): string {
-    if (docsPerHour === undefined || !Number.isFinite(docsPerHour)) return '—';
-    if (docsPerHour === 0) return '0 docs/hour';
-    if (docsPerHour < 0.1) return '< 0.1 docs/hour';
-    return `${docsPerHour.toFixed(1)} docs/hour`;
+    if (docsPerHour === undefined || !Number.isFinite(docsPerHour))
+      return m.atmosphere_fallback_rate_unknown();
+    if (docsPerHour === 0) return m.atmosphere_fallback_rate_zero();
+    if (docsPerHour < 0.1) return m.atmosphere_fallback_rate_trace();
+    return m.atmosphere_fallback_rate_value({
+      rate: formatNumber(docsPerHour, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    });
   }
 </script>
 
 <section class="fallback" aria-labelledby="fallback-title">
   <header>
     <h1 id="fallback-title">ἀήρ</h1>
-    <p class="lede">Atmospheric sensor for human discourse.</p>
+    <p class="lede">{m.atmosphere_fallback_lede()}</p>
     <p class="notice">
-      Your browser does not support WebGL2, so the 3D atmosphere is unavailable. The live probe
-      state below is the same data the visual surface would render.
+      {m.atmosphere_fallback_notice()}
     </p>
   </header>
 
   <section class="probes" aria-labelledby="probes-heading">
-    <h2 id="probes-heading">Active probes</h2>
+    <h2 id="probes-heading">{m.atmosphere_fallback_probes_heading()}</h2>
 
     {#if loading && probes.length === 0}
-      <p class="muted" aria-busy="true">Loading active probes…</p>
+      <p class="muted" aria-busy="true">{m.atmosphere_fallback_loading()}</p>
     {:else if probes.length === 0}
-      <p class="muted">No active probes.</p>
+      <p class="muted">{m.atmosphere_fallback_no_probes()}</p>
     {:else}
       <ul>
         {#each probes as probe (probe.probeId)}
@@ -56,11 +63,13 @@
             <div class="probe-head">
               <span class="probe-name">{probe.displayName}</span>
               <code class="probe-id">{probe.probeId}</code>
-              <span class="lang" aria-label="Language">{probe.language}</span>
+              <span class="lang" aria-label={m.atmosphere_fallback_language_label()}
+                >{probe.language}</span
+              >
             </div>
 
             <dl>
-              <dt>Emission points</dt>
+              <dt>{m.atmosphere_fallback_emission_points()}</dt>
               <dd>
                 <ul class="points">
                   {#each probe.emissionPoints as ep (ep.label)}
@@ -68,7 +77,7 @@
                   {/each}
                 </ul>
               </dd>
-              <dt>Publication rate</dt>
+              <dt>{m.atmosphere_fallback_publication_rate()}</dt>
               <dd>{formatRate(rate)}</dd>
             </dl>
           </li>
@@ -77,8 +86,7 @@
     {/if}
 
     <p class="reach-note">
-      Reach is not reported. A probe's emission points mark where its bound publishers emit — not
-      where their content is consumed or influential. No reach claim is made by AĒR.
+      {m.atmosphere_fallback_reach_note()}
     </p>
   </section>
 </section>

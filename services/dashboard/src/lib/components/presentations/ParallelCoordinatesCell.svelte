@@ -14,6 +14,7 @@
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -112,7 +113,7 @@
         marginRight: 40,
         marginBottom: 84,
         x: { domain: [...axes], label: null, tickRotate: -40 },
-        y: { domain: [0, 1], label: 'per-axis min–max', ticks: 4, tickFormat: '.0%' },
+        y: { domain: [0, 1], label: m.cells_pc_axis_normalised(), ticks: 4, tickFormat: '.0%' },
         marks: [
           Plot.ruleX(axes, { stroke: 'var(--color-border)' }),
           Plot.line(pts, {
@@ -194,7 +195,7 @@
 <section class="pc-cell" aria-labelledby="pc-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="pc-title" class="cell-title">
-      Parallel coordinates
+      {m.cells_pc_title()}
       <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
     </h3>
     {#if data && data.rows.length > 0}
@@ -203,26 +204,26 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Parallel coordinates operate on Gold-layer per-article metrics.</p>
+    <p class="muted">{m.cells_pc_silver()}</p>
   {:else if !enoughMetrics}
-    <p class="muted">Pick at least two metrics in the <strong>Metric set</strong> lever.</p>
+    <p class="muted">{m.cells_pc_need_metrics()}</p>
   {:else if pcQ.isPending}
-    <p class="muted" aria-busy="true">Loading parallel coordinates…</p>
+    <p class="muted" aria-busy="true">{m.cells_pc_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load parallel coordinates.</p>
+    <p class="muted">{m.cells_pc_error()}</p>
   {:else if isEmpty}
     <CellEmptyState />
   {:else if data}
     {#if data.truncated}
-      <p class="pc-note" role="note">Showing the first {data.rows.length} articles (capped).</p>
+      <p class="pc-note" role="note">{m.cells_pc_truncated({ count: data.rows.length })}</p>
     {/if}
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Parallel coordinates across {metrics.length} metrics"
+      aria-label={m.cells_pc_plot_aria({ count: metrics.length })}
     ></div>
     <HowToRead presentation="parallel_coordinates" facts={howToReadFacts} />
   {/if}

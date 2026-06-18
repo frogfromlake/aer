@@ -12,6 +12,7 @@
   // LeverButton. The strip is panel-bound — PanelHost mounts it only for the
   // focused panel, so an unbound (legacy) render shows no levers.
   import { createQuery } from '@tanstack/svelte-query';
+  import { m } from '$lib/paraglide/messages.js';
   import {
     metricsAvailableQuery,
     scopeAvailableMetricsQuery,
@@ -98,7 +99,7 @@
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
   const availableMetricNames = $derived<string[]>(
-    availQ.data?.kind === 'success' ? availQ.data.data.map((m) => m.metricName) : []
+    availQ.data?.kind === 'success' ? availQ.data.data.map((md) => md.metricName) : []
   );
 
   // ---- Scope metric availability (Phase 123c C1 / ADR-038) ---------------
@@ -193,8 +194,8 @@
   // equivalence grant; read it from /metrics/available so the buttons disable.
   const metricEquivalenceLevel = $derived.by<string | null>(() => {
     if (availQ.data?.kind !== 'success') return null;
-    const m = availQ.data.data.find((x) => x.metricName === (boundPanel?.metric ?? ''));
-    return m?.equivalenceStatus?.level ?? m?.equivalenceLevel ?? null;
+    const md = availQ.data.data.find((x) => x.metricName === (boundPanel?.metric ?? ''));
+    return md?.equivalenceStatus?.level ?? md?.equivalenceLevel ?? null;
   });
   const canNormalize = $derived(
     metricEquivalenceLevel === 'deviation' || metricEquivalenceLevel === 'absolute'
@@ -218,7 +219,7 @@
 
 <section
   class="cell-controls"
-  aria-label="Panel controls"
+  aria-label={m.workbench_controls_aria_label()}
   class:locked={isPanelLocked}
   class:collapsed={isCollapsed}
 >
@@ -229,22 +230,23 @@
       type="button"
       class="cell-controls-header"
       aria-expanded={!isCollapsed}
-      aria-label={isCollapsed ? 'Expand panel controls' : 'Collapse panel controls'}
+      aria-label={isCollapsed ? m.workbench_controls_expand() : m.workbench_controls_collapse()}
       onclick={toggleCollapsed}
     >
       {#if isPanelLocked}
         <span class="locked-banner" role="status">
-          🔒 Scope locked to
-          <strong>{boundPanel.lockedFunction ?? 'discourse function'}</strong>'s sources
+          {m.workbench_controls_locked_pre()}
+          <strong>{boundPanel.lockedFunction ?? m.workbench_controls_locked_fallback()}</strong
+          >{m.workbench_controls_locked_post()}
         </span>
       {:else}
-        <span class="header-eyebrow">Panel controls</span>
+        <span class="header-eyebrow">{m.workbench_controls_header_eyebrow()}</span>
       {/if}
       <span
         class="collapse-toggle"
         class:expanded={!isCollapsed}
         aria-hidden="true"
-        title={isCollapsed ? 'Expand panel controls' : 'Collapse panel controls'}
+        title={isCollapsed ? m.workbench_controls_expand() : m.workbench_controls_collapse()}
       >
         {isCollapsed ? '▾' : '▴'}
       </span>

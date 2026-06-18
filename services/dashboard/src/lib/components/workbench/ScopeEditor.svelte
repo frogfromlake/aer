@@ -16,6 +16,7 @@
   // backdrop-click or focus-loss (only Esc / Cancel / Apply close).
   // ScopeGroups are first-class Cards in a stack; multi-group
   // composition is explicit and discoverable.
+  import { m } from '$lib/paraglide/messages.js';
   import type { Panel, ScopeGroup } from '$lib/state/url-internals';
   import type { ProbeDossierDto, ProbeDto, FetchContext, QueryOutcome } from '$lib/api/queries';
   import { probesQuery, probeDossierQuery } from '$lib/api/queries';
@@ -73,8 +74,12 @@
   const initialSeed: string[] = seedProbes && seedProbes.length > 0 ? [...seedProbes] : [];
   // svelte-ignore state_referenced_locally
   const isCreateMode = panel === undefined;
-  const headerTitle = isCreateMode ? 'Configure new panel' : 'Configure panel scope';
-  const applyLabel = isCreateMode ? 'Create panel' : 'Apply changes';
+  const headerTitle = $derived(
+    isCreateMode ? m.workbench_scope_editor_header_create() : m.workbench_scope_editor_header_edit()
+  );
+  const applyLabel = $derived(
+    isCreateMode ? m.workbench_scope_editor_apply_create() : m.workbench_scope_editor_apply_edit()
+  );
 
   // Phase 122k §11 — one-shot draft persistence. ONLY honoured when
   // `enableDraftPersistence` is true (Workbench-page auto-open path).
@@ -279,19 +284,23 @@
     class="scope-editor"
     role="dialog"
     aria-modal="true"
-    aria-label="Configure panel scope"
+    aria-label={m.workbench_scope_editor_aria_label()}
     tabindex="-1"
   >
     <header class="editor-header">
       <div class="header-titles">
-        <p class="header-eyebrow">Workbench · ScopeEditor</p>
+        <p class="header-eyebrow">{m.workbench_scope_editor_eyebrow()}</p>
         <h2>{headerTitle}</h2>
         <p class="header-hint">
-          Configure the corpus this Panel analyses. Pick probes, optionally restrict to a discourse
-          function, then choose sources. Add scope groups to compare scopes side by side.
+          {m.workbench_scope_editor_hint()}
         </p>
       </div>
-      <button type="button" class="close-btn" onclick={cancel} aria-label="Cancel and close">
+      <button
+        type="button"
+        class="close-btn"
+        onclick={cancel}
+        aria-label={m.workbench_scope_editor_close()}
+      >
         ×
       </button>
     </header>
@@ -322,18 +331,18 @@
         type="button"
         class="add-group-btn"
         onclick={addGroup}
-        title="Add a parallel scope group for side-by-side comparison"
+        title={m.workbench_scope_editor_add_group_title()}
       >
-        ＋ Add scope group
+        {m.workbench_scope_editor_add_group()}
       </button>
       <div class="footer-spacer"></div>
-      <button type="button" class="cancel-btn" onclick={cancel}>Cancel</button>
+      <button type="button" class="cancel-btn" onclick={cancel}>{m.common_cancel()}</button>
       <button
         type="button"
         class="apply-btn"
         onclick={apply}
         disabled={!canApply}
-        title={canApply ? '' : 'Each scope group needs at least one probe.'}
+        title={canApply ? '' : m.workbench_scope_editor_apply_disabled_title()}
       >
         {applyLabel}
       </button>

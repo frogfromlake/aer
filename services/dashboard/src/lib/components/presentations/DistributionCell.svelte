@@ -39,6 +39,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -221,7 +222,7 @@
           ...(integerValued ? { tickFormat: 'd' } : {}),
           ...(sharedX ? { domain: [...sharedX] } : plotDomain ? { domain: plotDomain } : {})
         },
-        y: { label: 'articles', grid: true, tickFormat: 'd' },
+        y: { label: m.cells_dist_axis_articles(), grid: true, tickFormat: 'd' },
         marks: [
           Plot.rectY(rows, {
             x1: (d: { center: number; rw: number }) => d.center - d.rw,
@@ -286,12 +287,12 @@
       title: exportMetricName,
       rows: [
         {
-          label: 'range',
+          label: m.cells_dist_readout_range(),
           value: b.overflow
             ? `> ${fmtBinRange(b.lower, b.lower, integerValued)}`
             : fmtBinRange(b.lower, b.upper, integerValued)
         },
-        { label: 'articles', value: fmtValue(b.count) }
+        { label: m.cells_dist_readout_articles(), value: fmtValue(b.count) }
       ]
     };
   }
@@ -352,9 +353,13 @@
   <header class="cell-header">
     <h3 id="dist-title-{metricName}" class="cell-title">
       <code>{dataLayer === 'silver' ? silverAggType : metricName}</code>
-      <span class="muted">— distribution · <strong class="scope-name">{scopeId}</strong></span>
+      <span class="muted"
+        >— {m.cells_dist_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
+      >
       {#if dataLayer === 'silver'}
-        <span class="layer-badge silver" aria-label="Silver layer data">Ag</span>
+        <span class="layer-badge silver" aria-label={m.cells_dist_silver_badge_aria()}
+          >{m.cells_dist_silver_badge()}</span
+        >
       {/if}
     </h3>
     {#if activeDist && activeDist.summary.count > 0}
@@ -363,13 +368,13 @@
   </header>
 
   {#if dataLayer === 'silver' && scope !== 'source'}
-    <p class="muted">Narrow to a single source to view Silver-layer distribution.</p>
+    <p class="muted">{m.cells_dist_silver_narrow()}</p>
   {:else if isPending}
-    <p class="muted" aria-busy="true">Loading distribution…</p>
+    <p class="muted" aria-busy="true">{m.cells_dist_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load distribution.</p>
+    <p class="muted">{m.cells_dist_error()}</p>
   {:else if activeDist && activeDist.summary.count === 0}
     <CellEmptyState label={metricName} />
   {:else if activeDist}
@@ -384,30 +389,30 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Histogram of {metricName}"
+      aria-label={m.cells_dist_plot_aria({ metric: metricName })}
       onmousemove={onPlotMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
     {#if degenerate && degenerateValue != null}
+      {@const degen = s.count === 1 ? m.cells_dist_degenerate_one : m.cells_dist_degenerate_other}
       <p class="overflow-note">
-        Constant value — all <strong>{fmtValue(s.count)}</strong>
-        article{s.count === 1 ? '' : 's'} in scope share
-        <strong>{metricName} = {fmt(degenerateValue)}</strong>. A distribution has no shape when
-        there is no variation; the single bar marks that value.
+        {degen({ count: fmtValue(s.count), metric: metricName, value: fmt(degenerateValue) })}
       </p>
     {/if}
     {#if activeDist.overflowCount > 0 && activeDist.clampedUpper != null}
+      {@const ovf =
+        activeDist.overflowCount === 1 ? m.cells_dist_overflow_one : m.cells_dist_overflow_other}
       <p class="overflow-note">
-        Binned up to {fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper, integerValued)} (robust
-        upper bound) so outliers don't flatten the shape ·
-        <strong>{fmtValue(activeDist.overflowCount)}</strong>
-        article{activeDist.overflowCount === 1 ? '' : 's'} above it{sharedXActive
-          ? ''
-          : ' (amber bar)'} · true max {fmt(activeDist.summary.max)}
+        {ovf({
+          bound: fmtBinRange(activeDist.clampedUpper, activeDist.clampedUpper, integerValued),
+          count: fmtValue(activeDist.overflowCount),
+          amber: sharedXActive ? '' : m.cells_dist_overflow_amber(),
+          max: fmt(activeDist.summary.max)
+        })}
       </p>
     {/if}
-    <dl class="summary" aria-label="Quantile summary">
+    <dl class="summary" aria-label={m.cells_dist_summary_aria()}>
       <div>
         <dt>n</dt>
         <dd>{s.count}</dd>
@@ -503,10 +508,6 @@
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);
-  }
-
-  .overflow-note strong {
-    color: rgba(232, 168, 80, 0.95);
   }
 
   /* Plot's default text fills are dark; coerce to muted on the AĒR theme. */

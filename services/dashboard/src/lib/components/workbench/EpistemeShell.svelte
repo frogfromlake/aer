@@ -13,6 +13,7 @@
   //     lands in a follow-up.
   import { createQuery } from '@tanstack/svelte-query';
   import type { Component } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import {
     probeDossierQuery,
     type FetchContext,
@@ -131,22 +132,19 @@
       .catch((err: unknown) => {
         if (t !== loadToken) return;
         CellComponent = null;
-        loadError = err instanceof Error ? err.message : 'Cell failed to load';
+        loadError = err instanceof Error ? err.message : m.errors_generic();
       });
   });
 </script>
 
-<section class="episteme-shell" aria-label="Episteme — change over time">
+<section class="episteme-shell" aria-label={m.workbench_episteme_aria_label()}>
   {#if isDefaultWindow}
-    <p
-      class="window-note"
-      title="Episteme is the diachronic pillar — it defaults to a fixed recent window so a rare recently-edited older article can't distort the shared time axis. Set a panel's window (or the global range) to widen toward the full history; no data is dropped."
-    >
-      Showing the last 7 days · widen a panel's window for the full history
+    <p class="window-note" title={m.workbench_episteme_window_note_title()}>
+      {m.workbench_episteme_window_note()}
     </p>
   {/if}
   {#if dossierQ.isPending}
-    <p class="muted" aria-busy="true">Loading dataset…</p>
+    <p class="muted" aria-busy="true">{m.workbench_episteme_loading_dataset()}</p>
   {:else if pillarState && dossier}
     <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
     <WindowHost
@@ -161,20 +159,25 @@
     <!-- Phase 122h legacy single-Stratum path. -->
     <PanelControls pillar="episteme" />
     <div class="stratum-stack">
-      <article class="stratum" aria-label="Stratum — {presentation.label}">
+      <article
+        class="stratum"
+        aria-label={m.workbench_episteme_stratum_aria_label({ presentation: presentation.label })}
+      >
         <header class="stratum-header">
-          <span class="stratum-eyebrow">Stratum 1</span>
+          <span class="stratum-eyebrow">{m.workbench_episteme_stratum_eyebrow()}</span>
           <span class="stratum-presentation">{presentation.label}</span>
           <span class="stratum-sep" aria-hidden="true">·</span>
           <code class="stratum-metric">{metricName}</code>
         </header>
         <div class="stratum-body">
           {#if loadError}
-            <p class="muted">Cell failed to load: {loadError}</p>
+            <p class="muted">{m.workbench_episteme_cell_failed({ error: loadError })}</p>
           {:else if !CellComponent}
-            <p class="muted" aria-busy="true">Loading {presentation.label}…</p>
+            <p class="muted" aria-busy="true">
+              {m.workbench_episteme_loading_presentation({ presentation: presentation.label })}
+            </p>
           {:else if cellSources.length === 0}
-            <p class="muted">No sources in the active scope.</p>
+            <p class="muted">{m.workbench_episteme_no_sources()}</p>
           {:else}
             {@const Cell = CellComponent}
             <Cell
@@ -197,15 +200,15 @@
         type="button"
         class="add-stratum"
         disabled
-        title="Multi-stratum stack lands in a follow-up iteration"
+        title={m.workbench_episteme_add_stratum_title()}
       >
-        ＋ Add stratum
+        {m.workbench_episteme_add_stratum()}
       </button>
     </div>
 
     <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
   {:else if dossierQ.isError}
-    <p class="muted">Dossier failed to load.</p>
+    <p class="muted">{m.workbench_episteme_dossier_failed()}</p>
   {/if}
 </section>
 

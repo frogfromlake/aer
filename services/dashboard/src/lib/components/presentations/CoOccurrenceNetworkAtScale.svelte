@@ -19,7 +19,8 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import ArticleListModal from '$lib/components/article/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
-  import { viewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { locale } from '$lib/state/locale.svelte';
   import type { PresentationCellProps } from '$lib/presentations';
   import type { ExportPayload } from '$lib/presentations/cell-export';
   import { HIDDEN_READOUT, fmtValue, type ReadoutState } from '$lib/presentations/cell-readout';
@@ -78,7 +79,9 @@
   // more (the lever goes to 60 s).
   const settleSec = $derived(settleSeconds ?? 12);
 
-  const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
+  const viewerLang = $derived(
+    displayLanguage === 'viewer' ? pickViewerLabelLanguage(locale()) : undefined
+  );
   const netSize = $derived(channels?.netSize ?? 'total_count');
   // Phase 125 / ISSUE 7 — size + colour can bind to different metrics.
   const netMetric = $derived(channels?.netMetric);

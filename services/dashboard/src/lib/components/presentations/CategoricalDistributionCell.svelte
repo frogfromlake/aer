@@ -26,6 +26,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -97,7 +98,7 @@
           domain: rows.map((r) => r.value),
           tickRotate: -40
         },
-        y: { label: 'articles', grid: true, tickFormat: 'd' },
+        y: { label: m.cells_cat_axis_articles(), grid: true, tickFormat: 'd' },
         marks: [
           Plot.barY(rows, {
             x: 'value',
@@ -137,8 +138,8 @@
       y: ev.clientY,
       title: field,
       rows: [
-        { label: 'value', value: r.value },
-        { label: 'articles', value: fmtValue(r.articles) }
+        { label: m.cells_cat_readout_value(), value: r.value },
+        { label: m.cells_cat_readout_articles(), value: fmtValue(r.articles) }
       ]
     };
   }
@@ -189,7 +190,7 @@
     <h3 id="cat-title-{field}" class="cell-title">
       <code>{field}</code>
       <span class="muted"
-        >— category distribution · <strong class="scope-name">{scopeId}</strong></span
+        >— {m.cells_cat_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
     </h3>
     {#if data && data.categories.length > 0}
@@ -198,11 +199,11 @@
   </header>
 
   {#if distQ.isPending}
-    <p class="muted" aria-busy="true">Loading category distribution…</p>
+    <p class="muted" aria-busy="true">{m.cells_cat_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load category distribution.</p>
+    <p class="muted">{m.cells_cat_error()}</p>
   {:else if isEmpty}
     <CellEmptyState label={field} />
   {:else if data}
@@ -210,18 +211,21 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Bar chart of articles per {field} value"
+      aria-label={m.cells_cat_plot_aria({ field })}
       onmousemove={onPlotMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
     <p class="cat-note">
       <strong>{fmtValue(data.totalArticles)}</strong>
-      article{data.totalArticles === 1 ? '' : 's'} carry a value ·
-      <strong>{data.distinctValues}</strong> distinct {data.distinctValues === 1
-        ? 'value'
-        : 'values'}{#if data.distinctValues > data.categories.length}
-        · showing top {data.categories.length}{/if}
+      {data.totalArticles === 1
+        ? m.cells_cat_note_articles_one()
+        : m.cells_cat_note_articles_other()} ·
+      <strong>{data.distinctValues}</strong>
+      {data.distinctValues === 1
+        ? m.cells_cat_note_distinct_one()
+        : m.cells_cat_note_distinct_other()}{#if data.distinctValues > data.categories.length}
+        · {m.cells_cat_note_showing_top({ count: data.categories.length })}{/if}
     </p>
     <HowToRead
       presentation="categorical_distribution"

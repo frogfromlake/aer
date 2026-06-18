@@ -17,6 +17,8 @@
   } from '$lib/api/queries';
   import { pickBadgeTier } from '$lib/components/chrome/methodology-tray-internals';
   import ProgressiveSemantics from '$lib/components/ProgressiveSemantics.svelte';
+  import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
   const metricName = $derived(page.params.name ?? '');
@@ -40,7 +42,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'metric', metricName, 'en');
+    const o = contentQuery(ctx, 'metric', metricName, locale());
     return {
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
@@ -61,14 +63,14 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — {metricName} · Provenance</title>
+  <title>{m.reflection_metric_head_title({ metricName })}</title>
 </svelte:head>
 
-<ScopeBar label="Reflection — Metric provenance navigation">
+<ScopeBar label={m.reflection_metric_scopebar_label()}>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/reflection" class="breadcrumb-root">Reflection</a>
+  <a href="/reflection" class="breadcrumb-root">{m.reflection_metric_breadcrumb_root()}</a>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="breadcrumb-label">Metric</span>
+  <span class="breadcrumb-label">{m.reflection_metric_breadcrumb_label()}</span>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
   <code class="breadcrumb-current" aria-current="page">{metricName}</code>
 </ScopeBar>
@@ -76,36 +78,37 @@
 <main class="metric-main" id="main-metric-provenance">
   <div class="metric-inner">
     {#if isPending}
-      <p class="state-msg" aria-busy="true">Loading metric provenance…</p>
+      <p class="state-msg" aria-busy="true">{m.reflection_metric_loading()}</p>
     {:else}
       <header class="metric-header">
-        <p class="metric-eyebrow">Metric Provenance</p>
+        <p class="metric-eyebrow">{m.reflection_metric_eyebrow()}</p>
         <div class="metric-title-row">
           <h1 class="metric-title"><code>{metricName}</code></h1>
           <Badge tier={badgeTier} />
         </div>
         <p class="metric-sub">
-          The full provenance record for this metric: algorithm, validation status, known
-          limitations, and Working Paper cross-references. The
-          <span class="tray-note">Methodology Tray</span> shows a summary of this content when the metric
-          is focused in any chart.
+          {m.reflection_metric_sub_pre()}
+          <span class="tray-note">{m.reflection_metric_sub_tray()}</span>
+          {m.reflection_metric_sub_post()}
         </p>
       </header>
 
       {#if !provenance && !contentRecord}
         <div class="unavailable">
           <p>
-            Provenance data for <code>{metricName}</code> is not available. Connect to the AĒR backend
-            or check that this metric name is correct.
+            {m.reflection_metric_unavailable_pre()} <code>{metricName}</code>
+            {m.reflection_metric_unavailable_post()}
           </p>
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href="/reflection" class="back-link">← Back to Reflection</a>
+          <a href="/reflection" class="back-link">{m.reflection_metric_back()}</a>
         </div>
       {:else}
         <!-- Dual-register content -->
         {#if contentRecord}
           <section class="prov-section" aria-labelledby="registers-heading">
-            <h2 id="registers-heading" class="section-title">What this metric measures</h2>
+            <h2 id="registers-heading" class="section-title">
+              {m.reflection_metric_measures_heading()}
+            </h2>
             <ProgressiveSemantics registers={contentRecord.registers} emphasis="methodological" />
           </section>
         {/if}
@@ -113,22 +116,25 @@
         <!-- Provenance details -->
         {#if provenance}
           <section class="prov-section" aria-labelledby="prov-heading">
-            <h2 id="prov-heading" class="section-title">Provenance details</h2>
+            <h2 id="prov-heading" class="section-title">{m.reflection_metric_details_heading()}</h2>
             <dl class="prov-dl">
-              <dt>Tier classification</dt>
-              <dd><Badge tier={badgeTier} /> Tier {provenance.tierClassification}</dd>
+              <dt>{m.reflection_metric_detail_tier()}</dt>
+              <dd>
+                <Badge tier={badgeTier} />
+                {m.reflection_metric_detail_tier_value({ tier: provenance.tierClassification })}
+              </dd>
 
-              <dt>Validation status</dt>
+              <dt>{m.reflection_metric_detail_validation()}</dt>
               <dd class="status-{provenance.validationStatus}">{provenance.validationStatus}</dd>
 
-              <dt>Algorithm</dt>
+              <dt>{m.reflection_metric_detail_algorithm()}</dt>
               <dd>{provenance.algorithmDescription}</dd>
 
-              <dt>Extractor version</dt>
+              <dt>{m.reflection_metric_detail_extractor_version()}</dt>
               <dd><code class="mono">{provenance.extractorVersionHash}</code></dd>
 
               {#if provenance.culturalContextNotes}
-                <dt>Cultural context</dt>
+                <dt>{m.reflection_metric_detail_cultural_context()}</dt>
                 <dd>{provenance.culturalContextNotes}</dd>
               {/if}
             </dl>
@@ -136,7 +142,9 @@
 
           {#if provenance.knownLimitations.length > 0}
             <section class="prov-section limitations-section" aria-labelledby="limits-heading">
-              <h2 id="limits-heading" class="section-title">Known limitations</h2>
+              <h2 id="limits-heading" class="section-title">
+                {m.reflection_metric_limitations_heading()}
+              </h2>
               <ul class="limits-list">
                 {#each provenance.knownLimitations as lim (lim)}
                   <li>{lim}</li>
@@ -149,7 +157,9 @@
         <!-- WP cross-references from content catalog -->
         {#if contentRecord?.workingPaperAnchors && contentRecord.workingPaperAnchors.length > 0}
           <section class="prov-section" aria-labelledby="wp-refs-heading">
-            <h2 id="wp-refs-heading" class="section-title">Working Paper references</h2>
+            <h2 id="wp-refs-heading" class="section-title">
+              {m.reflection_metric_wp_refs_heading()}
+            </h2>
             <ul class="wp-ref-list" role="list">
               {#each contentRecord.workingPaperAnchors as anchor (anchor)}
                 {@const parts = anchor.match(/^(WP-\d+)\s*§?\s*(.*)$/i)}
@@ -176,7 +186,7 @@
 
         <footer class="metric-footer">
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href="/reflection" class="footer-link">← Back to Reflection</a>
+          <a href="/reflection" class="footer-link">{m.reflection_metric_back()}</a>
         </footer>
       {/if}
     {/if}

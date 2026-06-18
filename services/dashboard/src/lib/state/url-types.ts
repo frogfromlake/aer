@@ -7,6 +7,26 @@
 
 export type Resolution = '5min' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 export type PillarId = 'aleph' | 'episteme' | 'rhizome';
+
+// Phase 144 — UI locale (app-UI-language). The single set of localized UI
+// languages; mirrors `project.inlang/settings.json` `locales`. Distinct from
+// the viewer/content LabelLanguage (de/en/fr) used for QID relabelling — the
+// UI shell ships en/de only. Carried in the URL as `?lang=` for deep-link /
+// share; the resolved value (with localStorage + navigator fallback) is the
+// `locale` rune in `state/locale.svelte.ts`, the single source of truth fed to
+// Paraglide via `overwriteGetLocale`.
+export type Locale = 'en' | 'de';
+export const LOCALES: readonly Locale[] = ['en', 'de'];
+export const DEFAULT_LOCALE: Locale = 'en';
+
+/** Clamp a raw BCP-47 string ("de-DE", "DE", "de_AT") to a supported UI
+ *  locale, or null. Lower-cases and takes the primary subtag. Pure — shared
+ *  by the URL parser and the locale rune's localStorage/navigator fallback. */
+export function clampLocale(raw: string | null | undefined): Locale | null {
+  if (!raw) return null;
+  const primary = raw.toLowerCase().split(/[-_]/)[0] ?? '';
+  return (LOCALES as readonly string[]).includes(primary) ? (primary as Locale) : null;
+}
 // Phase 130 / ADR-035 — the Rhizome entry-question enum (`RhizomeView`:
 // actors-topics / source-resonance / concept-migration / free-composition)
 // was removed. Rhizome now uses the universal panels+cells model like Aleph
@@ -349,6 +369,13 @@ export interface UrlState {
   from: string | null;
   to: string | null;
   resolution: Resolution | null;
+  // Phase 144 — UI locale deep-link (`?lang=en|de`). Persisted here so the
+  // existing write-path (`writeToSearch` rebuilds the query from scratch)
+  // preserves it across every other URL mutation. The resolved locale rune
+  // (state/locale.svelte.ts) writes it via `setUrl({ lang })`; a shared link
+  // with `?lang=` seeds the rune on load. `null` = not pinned in the URL
+  // (the rune then falls back to localStorage → navigator → en).
+  lang: Locale | null;
   // Normalization mode (Phase 115). `null` and `raw` are equivalent.
   normalization: Normalization | null;
   // Phase 122i / ADR-034 — Multi-Panel Workbench state.
@@ -395,6 +422,7 @@ export const EMPTY_URL_STATE: UrlState = {
   from: null,
   to: null,
   resolution: null,
+  lang: null,
   normalization: null,
   activePillar: null,
   pillars: null,

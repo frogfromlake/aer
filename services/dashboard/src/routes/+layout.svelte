@@ -3,7 +3,18 @@
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
   import { setUnauthenticatedHandler } from '$lib/api/queries';
   import { handleUnauthenticated } from '$lib/state/auth.svelte';
+  // Phase 144 — importing the locale rune applies `overwriteGetLocale` (its
+  // module side-effect) before any `m.*()` message call renders on the client.
+  import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
   let { children } = $props();
+
+  // Keep <html lang> in sync with the active UI locale (a11y + correct
+  // hyphenation/voicing). Prerendered HTML ships `lang="en"`; this corrects it
+  // on the client when the resolved locale is German.
+  $effect(() => {
+    document.documentElement.lang = locale();
+  });
 
   // Phase 134 / ADR-040: route any data-layer 401 to the auth redirect, without
   // the data layer importing the auth/navigation modules.
@@ -24,7 +35,7 @@
 </script>
 
 <QueryClientProvider {client}>
-  <a href="#main" class="skip-link">Skip to main content</a>
+  <a href="#main" class="skip-link">{m.common_skip_to_main()}</a>
   <main id="main">
     {@render children()}
   </main>

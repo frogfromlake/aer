@@ -32,6 +32,8 @@
     type DiscoveryCoveragePerChannelDto,
     type QueryOutcome
   } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
 
   interface Props {
     sourceId: string;
@@ -56,34 +58,21 @@
   // channels are appended at runtime in receive order.
   const CHANNEL_ORDER: ReadonlyArray<string> = ['sitemap', 'rss', 'html_sitemap', 'archive_index'];
 
-  const CHANNEL_LABELS: Record<string, string> = {
-    sitemap: 'XML Sitemap',
-    rss: 'RSS / Atom feeds',
-    html_sitemap: 'HTML sitemap page',
-    archive_index: 'Date-indexed archive walker'
+  const CHANNEL_LABELS: Record<string, () => string> = {
+    sitemap: m.source_channel_sitemap,
+    rss: m.source_channel_rss,
+    html_sitemap: m.source_channel_html_sitemap,
+    archive_index: m.source_channel_archive_index
   };
 
-  // The methodological-register prose surfaced when a channel
-  // underflow alert is active. Static binding (per Phase 122f's
-  // FIELD_PROSE pattern) — promoted to the Content Catalog if a
-  // multilingual variant lands later.
-  const UNDERFLOW_PROSE: Record<string, string> = {
-    sitemap:
-      "The publisher's XML sitemap surfaced fewer URLs than the configured floor. " +
-      'Likely cause: the sitemap moved, the publisher started returning 404, or a ' +
-      'service-sitemap-only configuration started filtering harder. Run audit-source-discovery to re-verify the surface.',
-    rss:
-      "The publisher's RSS feed(s) surfaced fewer URLs than expected. " +
-      'Likely cause: a feed retired, the catalogue page restructured, or the publisher reduced their feed catalogue. ' +
-      "Cross-check the publisher's /service/newsletter or equivalent feeds page.",
-    html_sitemap:
-      'The HTML sitemap page surfaced fewer article-shaped links than expected. ' +
-      'Likely cause: the page moved, the HTML structure changed, or the article-URL regex no longer matches. ' +
-      'Re-derive the `article_url_pattern` from a fresh sample of real article URLs.',
-    archive_index:
-      'The date-indexed archive walker surfaced fewer articles than expected. ' +
-      'Likely cause: the publisher changed the URL pattern, the date format, or the per-day article volume. ' +
-      'Sample two distant dates manually to verify the endpoint still works.'
+  // The methodological-register prose surfaced when a channel underflow
+  // alert is active. Phase 144 — sourced from the per-locale Paraglide
+  // `source` catalogue (keyed by channel name).
+  const UNDERFLOW_PROSE: Record<string, () => string> = {
+    sitemap: m.source_underflow_sitemap,
+    rss: m.source_underflow_rss,
+    html_sitemap: m.source_underflow_html_sitemap,
+    archive_index: m.source_underflow_archive_index
   };
 
   function orderedChannels(
@@ -116,60 +105,48 @@
 
 <section class="discovery-coverage-panel" aria-labelledby="discovery-coverage-heading">
   <header>
-    <h3 id="discovery-coverage-heading">Discovery coverage</h3>
-    <p class="lede">
-      Every crawl pass asks each publisher channel (XML sitemap, RSS feed, HTML sitemap pages,
-      date-indexed archive walker) which articles exist in the recent window. This panel shows what
-      the most recent pass actually returned, per channel.
-    </p>
+    <h3 id="discovery-coverage-heading">{m.source_discovery_heading()}</h3>
+    <p class="lede">{m.source_discovery_lede()}</p>
     <details class="how-to-read">
-      <summary>How to read these numbers</summary>
+      <summary>{m.source_discovery_howto_summary()}</summary>
       <dl>
-        <dt>Discovered</dt>
-        <dd>Raw count of article URLs the channel returned in this pass — before any cleanup.</dd>
-        <dt>Dedup → N</dt>
+        <dt>{m.source_discovery_howto_discovered_dt()}</dt>
+        <dd>{m.source_discovery_howto_discovered_dd()}</dd>
+        <dt>{m.source_discovery_howto_dedup_dt()}</dt>
         <dd>
-          Of the discovered URLs, how many were unique to this channel <em
-            >within this single pass</em
-          >. The first channel to surface a URL gets credit; later channels that hit the same URL
-          report it as discovered but not as dedup-unique. Strong overlap (low dedup number for the
-          richer channel) means the publisher's surfaces agree about which articles exist — this is
-          the healthy case. It does NOT mean articles are being skipped; the crawl still fetches
-          every unique URL.
+          {m.source_discovery_howto_dedup_dd_lead()}
+          <em>{m.source_discovery_howto_dedup_dd_em()}</em
+          >{m.source_discovery_howto_dedup_dd_tail()}
         </dd>
-        <dt>Avg</dt>
-        <dd>
-          Trailing-window average of the discovered count. Sudden drops vs avg are the publisher
-          changing its discovery surface (sitemap broken, archive truncated, RSS format change) and
-          are flagged as an underflow.
-        </dd>
+        <dt>{m.source_discovery_howto_avg_dt()}</dt>
+        <dd>{m.source_discovery_howto_avg_dd()}</dd>
       </dl>
     </details>
   </header>
 
   {#if query.isPending}
-    <p class="loading">Loading discovery telemetry…</p>
+    <p class="loading">{m.source_discovery_loading()}</p>
   {:else if query.isError}
-    <p class="error">Discovery coverage temporarily unavailable.</p>
+    <p class="error">{m.source_discovery_error()}</p>
   {:else if query.data?.kind === 'success'}
     {@const payload = query.data.data}
     <dl class="summary">
       <div>
-        <dt>Window</dt>
-        <dd>{payload.windowDays} days</dd>
+        <dt>{m.source_discovery_summary_window()}</dt>
+        <dd>{m.source_discovery_summary_window_value({ days: payload.windowDays })}</dd>
       </div>
       <div>
-        <dt>Total URLs (last run)</dt>
-        <dd>{payload.totalUrlsDiscoveredLastRun}</dd>
+        <dt>{m.source_discovery_summary_total_urls()}</dt>
+        <dd>{formatNumber(payload.totalUrlsDiscoveredLastRun)}</dd>
       </div>
       <div>
-        <dt>Unique after dedup</dt>
-        <dd>{payload.uniqueUrlsAfterDedupLastRun}</dd>
+        <dt>{m.source_discovery_summary_unique()}</dt>
+        <dd>{formatNumber(payload.uniqueUrlsAfterDedupLastRun)}</dd>
       </div>
       {#if payload.expectedFloorPerRun != null}
         <div>
-          <dt>Expected floor</dt>
-          <dd>{payload.expectedFloorPerRun}</dd>
+          <dt>{m.source_discovery_summary_floor()}</dt>
+          <dd>{formatNumber(payload.expectedFloorPerRun)}</dd>
         </div>
       {/if}
     </dl>
@@ -178,23 +155,35 @@
       {#each orderedChannels(payload) as channel (channel.channel)}
         <li class="channel" class:underflow={channel.underflowAlertActive}>
           <div class="channel-row">
-            <span class="channel-label">{CHANNEL_LABELS[channel.channel] ?? channel.channel}</span>
+            <span class="channel-label"
+              >{(CHANNEL_LABELS[channel.channel] ?? (() => channel.channel))()}</span
+            >
             <span class="channel-counts">
-              {channel.lastRunUrlsDiscovered} discovered
-              <span class="muted">(dedup → {channel.lastRunUrlsAfterDedup})</span>
-              <span class="muted">avg {channel.averageUrlsDiscoveredPerRun.toFixed(1)}</span>
+              {m.source_discovery_channel_counts({
+                discovered: formatNumber(channel.lastRunUrlsDiscovered)
+              })}
+              <span class="muted"
+                >{m.source_discovery_channel_dedup({
+                  count: formatNumber(channel.lastRunUrlsAfterDedup)
+                })}</span
+              >
+              <span class="muted"
+                >{m.source_discovery_channel_avg({
+                  value: channel.averageUrlsDiscoveredPerRun.toFixed(1)
+                })}</span
+              >
             </span>
           </div>
           {#if channel.underflowAlertActive}
             <p class="negative-space-prose">
-              {UNDERFLOW_PROSE[channel.channel] ?? 'Discovery underflow active for this channel.'}
+              {(UNDERFLOW_PROSE[channel.channel] ?? m.source_discovery_underflow_fallback)()}
             </p>
           {/if}
         </li>
       {/each}
     </ul>
   {:else}
-    <p class="empty">No discovery telemetry yet — first crawl run pending.</p>
+    <p class="empty">{m.source_discovery_empty()}</p>
   {/if}
 </section>
 

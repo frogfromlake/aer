@@ -9,6 +9,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let email = $state('');
   let password = $state('');
@@ -37,16 +38,13 @@
       await goto(redirectTarget());
       return;
     }
-    error =
-      res.status === 429
-        ? 'Too many attempts. Please wait a moment and try again.'
-        : 'Invalid email or password.';
+    error = res.status === 429 ? m.auth_login_error_rate_limited() : m.auth_login_error_invalid();
   }
 </script>
 
-<svelte:head><title>Sign in · AĒR</title></svelte:head>
+<svelte:head><title>{m.auth_login_doc_title()}</title></svelte:head>
 
-<AuthCard title="Sign in" subtitle="Access is by invitation only.">
+<AuthCard title={m.auth_login_title()} subtitle={m.auth_login_subtitle()}>
   <form onsubmit={submit} novalidate>
     {#if error}
       <AuthNotice variant="error">{error}</AuthNotice>
@@ -54,17 +52,17 @@
 
     <AuthField
       id="email"
-      label="Email"
+      label={m.auth_field_email_label()}
       type="email"
       bind:value={email}
       autocomplete="username"
-      placeholder="you@institution.org"
+      placeholder={m.auth_field_email_placeholder()}
       required
       disabled={submitting}
     />
     <AuthField
       id="password"
-      label="Password"
+      label={m.auth_field_password_label()}
       type="password"
       bind:value={password}
       autocomplete="current-password"
@@ -72,11 +70,11 @@
       disabled={submitting}
     />
 
-    <Button type="submit" variant="primary" loading={submitting}>Sign in</Button>
+    <Button type="submit" variant="primary" loading={submitting}>{m.auth_login_submit()}</Button>
   </form>
 
   {#snippet footer()}
-    <a class="link" href="/forgot-password">Forgot your password?</a>
+    <a class="link" href="/forgot-password">{m.auth_login_forgot_link()}</a>
   {/snippet}
 </AuthCard>
 

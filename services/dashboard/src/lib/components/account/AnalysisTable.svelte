@@ -6,6 +6,8 @@
   // this child only emits row-open and sort-toggle intents.
   import * as api from '$lib/api/analyses';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { locale } from '$lib/state/locale.svelte';
   import { sortArrow, fmtDate, type SortKey, type SortDir } from './analyses-overlay-internals';
 
   interface Props {
@@ -35,14 +37,12 @@
 
 <div class="table-wrap">
   {#if loading}
-    <p class="muted pad">Loading…</p>
+    <p class="muted pad">{m.common_loading()}</p>
   {:else if loadError}
     <AuthNotice variant="error">{loadError}</AuthNotice>
   {:else if rows.length === 0}
     <p class="muted pad">
-      {totalCount === 0
-        ? 'No saved analyses yet. Open the Workbench and use “Save current view”.'
-        : 'No analyses match these filters.'}
+      {totalCount === 0 ? m.account_analyses_empty_none() : m.account_analyses_empty_filtered()}
     </p>
   {:else}
     <table>
@@ -50,26 +50,26 @@
         <tr>
           <th
             ><button type="button" onclick={() => onToggleSort('name')}
-              >Name {sortArrow(sortKey, sortDir, 'name')}</button
+              >{m.account_analyses_col_name()} {sortArrow(sortKey, sortDir, 'name')}</button
             ></th
           >
-          <th class="hide-sm">Description</th>
+          <th class="hide-sm">{m.account_analyses_col_description()}</th>
           <th
             ><button type="button" onclick={() => onToggleSort('ownerEmail')}
-              >Owner {sortArrow(sortKey, sortDir, 'ownerEmail')}</button
+              >{m.account_analyses_col_owner()} {sortArrow(sortKey, sortDir, 'ownerEmail')}</button
             ></th
           >
           <th
             ><button type="button" onclick={() => onToggleSort('createdAt')}
-              >Created {sortArrow(sortKey, sortDir, 'createdAt')}</button
+              >{m.account_analyses_col_created()} {sortArrow(sortKey, sortDir, 'createdAt')}</button
             ></th
           >
           <th
             ><button type="button" onclick={() => onToggleSort('updatedAt')}
-              >Updated {sortArrow(sortKey, sortDir, 'updatedAt')}</button
+              >{m.account_analyses_col_updated()} {sortArrow(sortKey, sortDir, 'updatedAt')}</button
             ></th
           >
-          <th>Access</th>
+          <th>{m.account_analyses_col_access()}</th>
         </tr>
       </thead>
       <tbody>
@@ -77,16 +77,20 @@
           <tr
             class:selected={a.id === selectedId}
             onclick={() => onOpenRow(a)}
-            aria-label="Open {a.name}"
+            aria-label={m.account_analyses_open_row({ name: a.name })}
           >
             <td class="name">{a.name}</td>
             <td class="hide-sm desc">{a.description || '—'}</td>
-            <td>{a.owned ? 'You' : a.ownerEmail}</td>
-            <td>{fmtDate(a.createdAt)}</td>
-            <td>{fmtDate(a.updatedAt)}</td>
+            <td>{a.owned ? m.account_analyses_owner_you() : a.ownerEmail}</td>
+            <td>{fmtDate(a.createdAt, locale())}</td>
+            <td>{fmtDate(a.updatedAt, locale())}</td>
             <td>
               <span class="badge" class:own={a.owned} class:edit={a.permission === 'editable'}>
-                {a.owned ? 'Owner' : a.permission === 'editable' ? 'Editable' : 'Read-only'}
+                {a.owned
+                  ? m.account_analyses_access_owner()
+                  : a.permission === 'editable'
+                    ? m.account_analyses_access_editable()
+                    : m.account_analyses_access_readonly()}
               </span>
             </td>
           </tr>

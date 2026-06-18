@@ -15,6 +15,7 @@
   import { onMount } from 'svelte';
   import type { MetricsResponseDto, FetchContext, QueryOutcome } from '$lib/api/queries';
   import { metricsQuery } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     cellId: string;
@@ -24,13 +25,24 @@
   let { cellId, ctx = { baseUrl: '/api/v1' } }: Props = $props();
 
   // --- Sentiment window demo parameters ---
+  // `days` is the load-bearing value (query window + option key); the button
+  // label is localized at render time via `windowLabel`.
   const PROBE_0 = 'probe-0';
-  const WINDOW_OPTIONS = [
-    { label: '7 days', days: 7 },
-    { label: '30 days', days: 30 },
-    { label: '90 days', days: 90 }
-  ] as const;
+  const WINDOW_OPTIONS = [{ days: 7 }, { days: 30 }, { days: 90 }] as const;
   type WindowOption = (typeof WINDOW_OPTIONS)[number];
+
+  function windowLabel(days: number): string {
+    switch (days) {
+      case 7:
+        return m.reflection_inline_chart_window_7d();
+      case 30:
+        return m.reflection_inline_chart_window_30d();
+      case 90:
+        return m.reflection_inline_chart_window_90d();
+      default:
+        return String(days);
+    }
+  }
 
   let selectedWindow = $state<WindowOption>(WINDOW_OPTIONS[1]!);
 
@@ -72,7 +84,7 @@
 
     if (points.length === 0) {
       // eslint-disable-next-line svelte/no-dom-manipulating
-      chartEl.innerHTML = '<p class="no-data">No sentiment data for the selected window.</p>';
+      chartEl.innerHTML = `<p class="no-data">${m.reflection_inline_chart_no_data()}</p>`;
       return;
     }
 
@@ -132,11 +144,11 @@
   });
 </script>
 
-<div class="cell" aria-label="Interactive chart: {cellId}">
+<div class="cell" aria-label={m.reflection_inline_chart_aria_label({ cellId })}>
   {#if cellId === 'sentiment-window-demo'}
     <header class="cell-header">
-      <span class="cell-label">Live demonstration — Probe 0 sentiment</span>
-      <div class="controls" role="group" aria-label="Time window">
+      <span class="cell-label">{m.reflection_inline_chart_demo_label()}</span>
+      <div class="controls" role="group" aria-label={m.reflection_inline_chart_window_group_aria()}>
         {#each WINDOW_OPTIONS as opt (opt.days)}
           <button
             type="button"
@@ -145,7 +157,7 @@
             aria-pressed={selectedWindow === opt}
             onclick={() => (selectedWindow = opt)}
           >
-            {opt.label}
+            {windowLabel(opt.days)}
           </button>
         {/each}
       </div>
@@ -153,29 +165,34 @@
 
     <div class="chart-area" bind:this={chartEl} aria-busy={metricsQ.isPending}>
       {#if metricsQ.isPending}
-        <p class="state-msg" aria-live="polite">Loading data…</p>
+        <p class="state-msg" aria-live="polite">{m.reflection_inline_chart_loading()}</p>
       {:else if metricsQ.isError || metricsQ.data?.kind === 'network-error'}
         <p class="state-msg error">
-          Could not reach the BFF. Connect to the AĒR backend to see live data.
+          {m.reflection_inline_chart_no_backend()}
         </p>
       {:else if metricsQ.data?.kind === 'refusal'}
         <p class="state-msg">
-          Data access refused: {metricsQ.data.message}
+          {m.reflection_inline_chart_refused({ message: metricsQ.data.message })}
         </p>
       {/if}
     </div>
 
     <footer class="cell-footer">
       <span class="cell-caption">
-        SentiWS v2.0 lexicon · Tier 1, unvalidated · 5-minute aggregation buckets · Probe 0 sources
-        only
+        {m.reflection_inline_chart_caption()}
       </span>
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href="/reflection/wp/wp-002?section=3" class="cell-link">Read §3 in full →</a>
+      <a href="/reflection/wp/wp-002?section=3" class="cell-link"
+        >{m.reflection_inline_chart_read_section()}</a
+      >
     </footer>
   {:else}
     <div class="placeholder">
-      <p>Interactive cell <code>{cellId}</code> — coming in a future iteration.</p>
+      <p>
+        {m.reflection_inline_chart_placeholder_pre()}
+        <code>{cellId}</code>
+        {m.reflection_inline_chart_placeholder_post()}
+      </p>
     </div>
   {/if}
 </div>

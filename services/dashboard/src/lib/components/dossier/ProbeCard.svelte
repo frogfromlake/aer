@@ -31,6 +31,9 @@
     coveragePercent as computeCoveragePercent,
     publicationRatePerDay as computePublicationRate
   } from './probe-card-internals';
+  import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
 
   interface Props {
     probe: ProbeDto;
@@ -74,7 +77,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'probe', probe.probeId, 'en');
+    const o = contentQuery(ctx, 'probe', probe.probeId, locale());
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 
@@ -111,14 +114,24 @@
     >
       <span class="chevron" class:expanded aria-hidden="true">›</span>
       <h2 id="pc-title-{probe.probeId}" class="probe-title">{probe.displayName}</h2>
-      <code class="probe-id" aria-label="Machine identifier">{probe.probeId}</code>
-      <span class="lang-badge" aria-label="Primary language: {probe.language}">
+      <code class="probe-id" aria-label={m.dossier_probe_machine_id_aria_label()}
+        >{probe.probeId}</code
+      >
+      <span
+        class="lang-badge"
+        aria-label={m.dossier_probe_language_aria_label({ language: probe.language })}
+      >
         {probe.language}
       </span>
       {#if dossier}
         <span class="summary" aria-hidden={expanded ? 'true' : 'false'}>
-          {dossier.sources.length} source{dossier.sources.length === 1 ? '' : 's'} ·
-          {dossier.functionCoverage.covered}/{dossier.functionCoverage.total} functions
+          {(dossier.sources.length === 1
+            ? m.dossier_probe_summary_one
+            : m.dossier_probe_summary_other)({
+            sources: dossier.sources.length,
+            covered: dossier.functionCoverage.covered,
+            total: dossier.functionCoverage.total
+          })}
         </span>
       {/if}
     </button>
@@ -127,9 +140,11 @@
       <!-- Phase 123c (TESTING.md §3 Issue) — direct nav to the per-probe
            methodology dossier, previously reachable only by hand-typed URL. -->
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal reflection route -->
-      <a class="methodology-link" href="/reflection/probe/{probe.probeId}">Methodology ↗</a>
+      <a class="methodology-link" href="/reflection/probe/{probe.probeId}"
+        >{m.dossier_probe_methodology_link()}</a
+      >
       <button type="button" class="metadata-btn" onclick={openMetadataModal}>
-        Metadata coverage
+        {m.dossier_probe_metadata_button()}
       </button>
     </div>
   </header>
@@ -137,9 +152,9 @@
   {#if expanded}
     <div class="probe-body" id="pc-body-{probe.probeId}">
       {#if dossierQ.isPending}
-        <p class="muted" aria-busy="true">Loading…</p>
+        <p class="muted" aria-busy="true">{m.common_loading()}</p>
       {:else if !dossier}
-        <p class="error">Failed to load {probe.probeId}.</p>
+        <p class="error">{m.dossier_probe_load_failed({ probeId: probe.probeId })}</p>
       {:else}
         <!-- Emic frame -->
         {#if probeContentQ.data?.kind === 'success'}
@@ -149,25 +164,34 @@
         <!-- Structural meta -->
         <dl class="meta">
           <div>
-            <dt>Language</dt>
+            <dt>{m.dossier_probe_meta_language()}</dt>
             <dd>{dossier.language.toUpperCase()}</dd>
           </div>
           <div>
-            <dt>Sources</dt>
-            <dd>{dossier.sources.length}</dd>
+            <dt>{m.dossier_probe_meta_sources()}</dt>
+            <dd>{formatNumber(dossier.sources.length)}</dd>
           </div>
           <div>
-            <dt>Publication rate</dt>
+            <dt>{m.dossier_probe_meta_publication_rate()}</dt>
             <dd>
               {publicationRatePerDay !== null
-                ? `${publicationRatePerDay.toFixed(1)} docs/day`
+                ? m.dossier_probe_meta_publication_rate_value({
+                    rate: formatNumber(publicationRatePerDay, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1
+                    })
+                  })
                 : '—'}
             </dd>
           </div>
           <div>
-            <dt>Function coverage</dt>
+            <dt>{m.dossier_probe_meta_function_coverage()}</dt>
             <dd>
-              {dossier.functionCoverage.covered}/{dossier.functionCoverage.total} ({coveragePercent}%)
+              {m.dossier_probe_meta_function_coverage_value({
+                covered: dossier.functionCoverage.covered,
+                total: dossier.functionCoverage.total,
+                percent: coveragePercent
+              })}
             </dd>
           </div>
         </dl>
@@ -178,14 +202,16 @@
         {#if dossier.capabilities}
           {@const caps = dossier.capabilities}
           <section class="capabilities" aria-labelledby="cap-heading-{probe.probeId}">
-            <h3 id="cap-heading-{probe.probeId}" class="section-title">Capabilities</h3>
+            <h3 id="cap-heading-{probe.probeId}" class="section-title">
+              {m.dossier_probe_capabilities_title()}
+            </h3>
             <dl class="meta">
               <div>
-                <dt>Sentiment backbone</dt>
+                <dt>{m.dossier_probe_cap_sentiment_backbone()}</dt>
                 <dd>{caps.sentimentBackbone ?? '—'}</dd>
               </div>
               <div>
-                <dt>Sentiment enrichments</dt>
+                <dt>{m.dossier_probe_cap_sentiment_enrichments()}</dt>
                 <dd>
                   {caps.sentimentEnrichments.length > 0
                     ? caps.sentimentEnrichments.join(' · ')
@@ -193,11 +219,15 @@
                 </dd>
               </div>
               <div>
-                <dt>Silent-edit observability</dt>
-                <dd>{caps.silentEditObservability ? 'Active' : 'Not active'}</dd>
+                <dt>{m.dossier_probe_cap_silent_edit()}</dt>
+                <dd>
+                  {caps.silentEditObservability
+                    ? m.dossier_probe_cap_silent_edit_active()
+                    : m.dossier_probe_cap_silent_edit_inactive()}
+                </dd>
               </div>
               <div>
-                <dt>Per-article discourse function</dt>
+                <dt>{m.dossier_probe_cap_discourse_function()}</dt>
                 <dd>{caps.discourseFunctionClassifier}</dd>
               </div>
             </dl>

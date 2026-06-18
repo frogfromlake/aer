@@ -21,6 +21,8 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatDate } from '$lib/localization/format';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
 
@@ -96,7 +98,7 @@
   }
 
   function fmtBucket(d: Date): string {
-    return d.toLocaleDateString('en-CA');
+    return formatDate(d.toISOString());
   }
 
   const exportRows = $derived<ExportRow[]>(
@@ -136,10 +138,10 @@
 <section class="rev-cell" aria-labelledby="rev-ec-title-{scopeId}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="rev-ec-title-{scopeId}" class="cell-title">
-      <span>Edit clusters</span>
+      <span>{m.cells_revec_title()}</span>
       <span class="muted">
-        — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code> · ≥{MIN_SOURCES}
-        sources
+        — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code> ·
+        {m.cells_revec_subtitle_sources({ count: MIN_SOURCES })}
       </span>
     </h3>
     {#if clusters.length > 0}
@@ -148,20 +150,16 @@
   </header>
 
   {#if clustersQ.isPending}
-    <p class="muted" aria-busy="true">Loading coordinated edits…</p>
+    <p class="muted" aria-busy="true">{m.cells_revec_loading()}</p>
   {:else if clustersQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={clustersQ.data} {ctx} />
   {:else if clustersQ.isError || clustersQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load coordinated edits.</p>
+    <p class="muted">{m.cells_revec_error()}</p>
   {:else if clusters.length === 0}
-    <p class="muted">
-      No entity was silently edited by ≥{MIN_SOURCES} sources in the same bucket. Coincidence is the exception,
-      not the rule — an empty list is the ordinary case.
-    </p>
+    <p class="muted">{m.cells_revec_empty({ count: MIN_SOURCES })}</p>
   {:else}
     <p class="click-hint" aria-hidden="true">
-      Each row is an entity ≥{MIN_SOURCES} sources quietly edited in the same bucket — a disclosed coincidence,
-      not a causal claim. Click a source to see its edited articles.
+      {m.cells_revec_click_hint({ count: MIN_SOURCES })}
     </p>
     <ul class="cluster-list">
       {#each clusters as c (c.entity + c.bucket.toISOString())}
@@ -177,7 +175,7 @@
               <button
                 type="button"
                 class="source-chip"
-                title={`Articles ${src} edited in this bucket`}
+                title={m.cells_revec_chip_title({ source: src })}
                 onclick={() => openSourceDrilldown(src, c.bucket)}
               >
                 {src}
@@ -185,10 +183,12 @@
             {/each}
           </div>
           <div class="cluster-meta">
-            <span title="Total edits touching this entity in the bucket">{c.editCount} edits</span>
+            <span title={m.cells_revec_edits_title()}
+              >{m.cells_revec_edits({ count: c.editCount })}</span
+            >
             <span class="dot" aria-hidden="true">·</span>
-            <span title="Mean semantic shift (E5 cosine distance) of the cluster's edits">
-              shift {c.avgTopicShift.toFixed(3)}
+            <span title={m.cells_revec_shift_title()}>
+              {m.cells_revec_shift({ value: c.avgTopicShift.toFixed(3) })}
             </span>
           </div>
         </li>
@@ -201,7 +201,7 @@
 {#if drilldown}
   <ArticleListModal
     open={drilldown !== null}
-    title={`Articles edited — ${drilldown.source}`}
+    title={m.cells_revec_drilldown_title({ source: drilldown.source })}
     {ctx}
     windowStart={drilldown.bucketStart}
     windowEnd={drilldown.bucketEnd}

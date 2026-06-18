@@ -23,6 +23,21 @@ func (s *Server) GetContent(_ context.Context, request GetContentRequestObject) 
 
 	key := config.CatalogKey(locale, string(request.EntityType), request.EntityID)
 	record, ok := s.catalog[key]
+	if !ok && locale != string(GetContentParamsLocaleEn) {
+		// Phase 144 (ADR-041) — EN-fallback: a non-base locale that lacks this
+		// entry serves the English content rather than 404'ing, so a single
+		// missing translation degrades to English instead of an empty surface.
+		// Logged at WARN so the gap is visible; the response Locale reflects the
+		// English content actually served (honest, never a relabelled lie). A CI
+		// parity gate (configs/content/en ⇄ de) keeps this path rare.
+		fallbackKey := config.CatalogKey(string(GetContentParamsLocaleEn), string(request.EntityType), request.EntityID)
+		if fb, fbOK := s.catalog[fallbackKey]; fbOK {
+			slog.Warn("content locale fallback to en",
+				"op", "GetContent", "requestedLocale", locale,
+				"entityType", request.EntityType, "entityID", request.EntityID)
+			record, ok = fb, true
+		}
+	}
 	if !ok {
 		return GetContent404JSONResponse{Message: "no content found for the requested entity and locale"}, nil
 	}

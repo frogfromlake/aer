@@ -17,6 +17,7 @@
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import Button from '$lib/components/base/Button.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import AnalysisTable from './AnalysisTable.svelte';
   import AnalysisDrawer from './AnalysisDrawer.svelte';
   import {
@@ -79,7 +80,7 @@
     const res = await api.listAnalyses();
     loading = false;
     if (res.ok) items = res.data.analyses ?? [];
-    else loadError = 'Could not load your saved analyses.';
+    else loadError = m.account_analyses_load_failed();
   }
 
   // --- save current view ----------------------------------------------------
@@ -133,10 +134,13 @@
     saving = false;
     if (res.ok) {
       saveStep = 'closed';
-      saveMsg = { kind: 'success', text: `Updated “${loadedAnalysis.name}”.` };
+      saveMsg = {
+        kind: 'success',
+        text: m.account_analyses_updated_notice({ name: loadedAnalysis.name })
+      };
       await loadList();
     } else {
-      saveMsg = { kind: 'error', text: res.message || 'Could not update.' };
+      saveMsg = { kind: 'error', text: res.message || m.account_analyses_update_failed() };
     }
   }
 
@@ -154,10 +158,10 @@
     if (res.ok) {
       saveName = saveDescription = '';
       saveStep = 'closed';
-      saveMsg = { kind: 'success', text: 'Saved.' };
+      saveMsg = { kind: 'success', text: m.account_analyses_saved_notice() };
       await loadList();
     } else {
-      saveMsg = { kind: 'error', text: res.message || 'Could not save.' };
+      saveMsg = { kind: 'error', text: res.message || m.account_analyses_save_failed() };
     }
   }
 
@@ -240,12 +244,14 @@
         class="overlay-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Saved analyses"
+        aria-label={m.account_analyses_title()}
         tabindex="-1"
       >
         <header class="head">
-          <h2>Saved analyses</h2>
-          <button type="button" class="close" aria-label="Close" onclick={close}>×</button>
+          <h2>{m.account_analyses_title()}</h2>
+          <button type="button" class="close" aria-label={m.common_close()} onclick={close}
+            >×</button
+          >
         </header>
 
         <!-- toolbar -->
@@ -253,15 +259,17 @@
           <input
             class="search"
             type="search"
-            placeholder="Search name, description or owner…"
+            placeholder={m.account_analyses_search_placeholder()}
             bind:value={search}
-            aria-label="Search saved analyses"
+            aria-label={m.account_analyses_search_label()}
           />
           {#if canSaveCurrent}
-            <Button variant="primary" onclick={beginSave}>Save current view</Button>
+            <Button variant="primary" onclick={beginSave}
+              >{m.account_analyses_save_current()}</Button
+            >
           {:else}
-            <span class="save-hint" title="Open the Workbench and configure an analysis first"
-              >Configure an analysis in the Workbench to save it</span
+            <span class="save-hint" title={m.account_analyses_save_hint_title()}
+              >{m.account_analyses_save_hint()}</span
             >
           {/if}
         </div>
@@ -272,34 +280,40 @@
           <div class="save-form">
             {#if showSaveChoice && loadedAnalysis}
               <p class="muted">
-                You opened <strong>{loadedAnalysis.name}</strong>. Update it with the current view,
-                or save a separate copy?
+                {m.account_analyses_save_choice({ name: loadedAnalysis.name })}
               </p>
               <div class="row-actions">
                 <Button variant="primary" loading={saving} onclick={updateLoaded}
-                  >Update “{loadedAnalysis.name}”</Button
+                  >{m.account_analyses_save_update({ name: loadedAnalysis.name })}</Button
                 >
-                <Button variant="secondary" onclick={beginSaveAsNew}>Save as new</Button>
-                <Button variant="secondary" onclick={cancelSave}>Cancel</Button>
+                <Button variant="secondary" onclick={beginSaveAsNew}
+                  >{m.account_analyses_save_as_new()}</Button
+                >
+                <Button variant="secondary" onclick={cancelSave}>{m.common_cancel()}</Button>
               </div>
             {:else}
-              <p class="muted">Saves the current Workbench view as a re-openable deep link.</p>
+              <p class="muted">{m.account_analyses_save_intro()}</p>
               <form class="save-fields" onsubmit={saveAsNew} novalidate>
-                <input class="field" placeholder="Name" bind:value={saveName} aria-label="Name" />
                 <input
                   class="field"
-                  placeholder="Description (optional)"
+                  placeholder={m.account_analyses_save_name_placeholder()}
+                  bind:value={saveName}
+                  aria-label={m.account_analyses_save_name_label()}
+                />
+                <input
+                  class="field"
+                  placeholder={m.account_analyses_save_description_placeholder()}
                   bind:value={saveDescription}
-                  aria-label="Description"
+                  aria-label={m.account_analyses_save_description_label()}
                 />
                 <div class="row-actions">
                   <Button
                     type="submit"
                     variant="primary"
                     loading={saving}
-                    disabled={!saveName.trim()}>Save</Button
+                    disabled={!saveName.trim()}>{m.common_save()}</Button
                   >
-                  <Button variant="secondary" onclick={cancelSave}>Cancel</Button>
+                  <Button variant="secondary" onclick={cancelSave}>{m.common_cancel()}</Button>
                 </div>
               </form>
             {/if}
@@ -309,20 +323,40 @@
         <!-- filters -->
         <div class="filters">
           <fieldset>
-            <legend>Show</legend>
-            <label><input type="checkbox" bind:checked={showOwned} /> Owned</label>
-            <label><input type="checkbox" bind:checked={showShared} /> Shared with me</label>
+            <legend>{m.account_analyses_filter_show()}</legend>
+            <label
+              ><input type="checkbox" bind:checked={showOwned} />
+              {m.account_analyses_filter_owned()}</label
+            >
+            <label
+              ><input type="checkbox" bind:checked={showShared} />
+              {m.account_analyses_filter_shared()}</label
+            >
           </fieldset>
           <fieldset>
-            <legend>Permission</legend>
-            <label><input type="checkbox" bind:checked={showEditable} /> Editable</label>
-            <label><input type="checkbox" bind:checked={showReadable} /> Read-only</label>
+            <legend>{m.account_analyses_filter_permission()}</legend>
+            <label
+              ><input type="checkbox" bind:checked={showEditable} />
+              {m.account_analyses_filter_editable()}</label
+            >
+            <label
+              ><input type="checkbox" bind:checked={showReadable} />
+              {m.account_analyses_filter_readonly()}</label
+            >
           </fieldset>
           <fieldset class="dates">
-            <legend>Created</legend>
-            <input type="date" bind:value={createdFrom} aria-label="Created from" />
+            <legend>{m.account_analyses_filter_created()}</legend>
+            <input
+              type="date"
+              bind:value={createdFrom}
+              aria-label={m.account_analyses_filter_created_from()}
+            />
             <span aria-hidden="true">→</span>
-            <input type="date" bind:value={createdTo} aria-label="Created to" />
+            <input
+              type="date"
+              bind:value={createdTo}
+              aria-label={m.account_analyses_filter_created_to()}
+            />
           </fieldset>
         </div>
 

@@ -22,6 +22,7 @@
     type MetadataCoverageFieldDto,
     type QueryOutcome
   } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     probeId: string;
@@ -84,62 +85,40 @@
   };
 
   // Methodology-register prose for the Negative-Space overlay. Bound
-  // statically per field so a low-coverage cell carries WP-003 §3.2's
-  // framing in the publisher-side voice ("this is a publisher choice")
-  // rather than the data-side voice ("we have no data"). Phase 122f
-  // does not route this through the Content Catalog — keeping the
-  // coupling tight to the field set the substrate enumerates.
-  const FIELD_PROSE: Record<string, string> = {
-    published_date:
-      'this source does not emit machine-readable publication dates — temporal analyses must rely on heuristic htmldate inference or the fetch fallback.',
-    modified_date:
-      'this source does not emit modification timestamps — silent edits remain invisible at the metadata layer (cf. Phase 122d revision-archaeology sidecar).',
-    author:
-      'this source does not emit per-article authorship — author-level analyses are not comparable across sources whose authorship is asymmetric.',
-    description:
-      'this source does not emit article descriptions — abstracts must be derived from the full article body where required.',
-    categories:
-      'this source does not emit categorical taxonomies — topic comparisons cannot use publisher-declared sections from this source.',
-    tags: 'this source does not emit free-form tags — tag-based clustering is sparser here than for sources that do.',
-    section:
-      'this source does not emit canonical section names — sectional analyses rely on URL-section heuristics for this source.',
-    image_url:
-      'this source does not emit canonical image references — image-driven analyses are systematically asymmetric.',
-    article_type:
-      'this source does not emit Schema.org article types — discourse-form analyses cannot rely on publisher-declared types here.',
-    word_count:
-      'this source does not emit pre-computed word counts — counts are derived from the cleaned body.',
-    comment_count:
-      'this source does not emit comment counts — engagement-volume comparisons exclude this source.',
-    comment_url:
-      'this source does not emit comment thread URLs — discussion follow-through is unobservable from metadata.',
-    editor:
-      'this source does not emit editorial responsibility — editor-level provenance analyses are systematically asymmetric.',
-    reading_time_minutes:
-      'this source does not emit reading-time hints — must be derived from word count.',
-    dateline_location:
-      'this source does not emit datelines — geographic origin analyses are systematically asymmetric.',
-    paywall_status:
-      'this source does not declare paywall status — accessibility analyses cannot include this source authoritatively.',
-    correction_notice:
-      'this source does not emit correction notices — silent correction practices are unobservable at the metadata layer.',
-    editorial_labels:
-      'this source does not emit editorial labels (op-ed / commentary / news) — register analyses are systematically asymmetric.',
-    external_citations:
-      'this source does not emit external citation metadata — cross-source citation graphs exclude this source.',
-    images:
-      'this source does not emit per-image metadata — multimedia provenance analyses are systematically asymmetric.',
-    social_share_counts:
-      'this source does not emit social share counts — virality comparisons exclude this source.',
-    revision_date:
-      'this source does not emit explicit revision dates — silent revisions remain invisible (cf. Phase 122d).'
+  // per field so a low-coverage cell carries WP-003 §3.2's framing in
+  // the publisher-side voice ("this is a publisher choice") rather than
+  // the data-side voice ("we have no data"). Phase 144 — sourced from
+  // the per-locale Paraglide `source` catalogue (the field set is the
+  // substrate enumeration; each key mirrors a coverage field).
+  const FIELD_PROSE: Record<string, () => string> = {
+    published_date: m.source_coverage_field_prose_published_date,
+    modified_date: m.source_coverage_field_prose_modified_date,
+    author: m.source_coverage_field_prose_author,
+    description: m.source_coverage_field_prose_description,
+    categories: m.source_coverage_field_prose_categories,
+    tags: m.source_coverage_field_prose_tags,
+    section: m.source_coverage_field_prose_section,
+    image_url: m.source_coverage_field_prose_image_url,
+    article_type: m.source_coverage_field_prose_article_type,
+    word_count: m.source_coverage_field_prose_word_count,
+    comment_count: m.source_coverage_field_prose_comment_count,
+    comment_url: m.source_coverage_field_prose_comment_url,
+    editor: m.source_coverage_field_prose_editor,
+    reading_time_minutes: m.source_coverage_field_prose_reading_time_minutes,
+    dateline_location: m.source_coverage_field_prose_dateline_location,
+    paywall_status: m.source_coverage_field_prose_paywall_status,
+    correction_notice: m.source_coverage_field_prose_correction_notice,
+    editorial_labels: m.source_coverage_field_prose_editorial_labels,
+    external_citations: m.source_coverage_field_prose_external_citations,
+    images: m.source_coverage_field_prose_images,
+    social_share_counts: m.source_coverage_field_prose_social_share_counts,
+    revision_date: m.source_coverage_field_prose_revision_date
   };
 
   function fieldProse(name: string, sourceName: string): string {
-    const base =
-      FIELD_PROSE[name] ??
-      `this source does not emit \`${name}\` — analyses that require this field exclude it for this source.`;
-    return `${sourceName} ${base}`;
+    const known = FIELD_PROSE[name];
+    if (known) return `${sourceName} ${known()}`;
+    return m.source_coverage_prose_fallback({ source: sourceName, field: name });
   }
 
   function orderFields(fields: readonly MetadataCoverageFieldDto[]): MetadataCoverageFieldDto[] {
@@ -166,20 +145,16 @@
 
 <section class="metadata-coverage" aria-labelledby="metadata-coverage-heading">
   <header class="mc-header">
-    <h2 id="metadata-coverage-heading" class="section-title">Metadata coverage</h2>
-    <p class="section-lede">
-      Per-source emission posture across the Tier-B / Tier-C fields the WebAdapter records. WP-003
-      §3.2 frames metadata-richness asymmetry as a structural bias; cells flagged as
-      <em>structurally absent</em> reflect the publisher's choice not to emit, not sampling variance.
-    </p>
+    <h2 id="metadata-coverage-heading" class="section-title">{m.source_coverage_heading()}</h2>
+    <p class="section-lede">{m.source_coverage_lede()}</p>
   </header>
 
   {#if query.isPending}
-    <p class="muted" aria-busy="true">Loading metadata coverage…</p>
+    <p class="muted" aria-busy="true">{m.source_coverage_loading()}</p>
   {:else if query.isError || query.data?.kind !== 'success'}
-    <p class="muted">Coverage matrix unavailable.</p>
+    <p class="muted">{m.source_coverage_unavailable()}</p>
   {:else if query.data.data.sources.length === 0}
-    <p class="muted">No sources in the probe scope.</p>
+    <p class="muted">{m.source_coverage_no_sources()}</p>
   {:else}
     <ul class="mc-source-grid" role="list">
       {#each query.data.data.sources as src (src.name)}
@@ -190,15 +165,17 @@
             <summary class="mc-source-summary">
               <span class="mc-summary-glyph" aria-hidden="true">›</span>
               <h3 class="mc-source-name">{src.name}</h3>
-              <span
-                class="mc-summary-meta"
-                title="Fields this source actually populates (≥1 article) out of the full Tier-B/C set"
-              >
-                {populatedCount} / {ordered.length} field{ordered.length === 1 ? '' : 's'} populated
+              <span class="mc-summary-meta" title={m.source_coverage_summary_meta_title()}>
+                {(ordered.length === 1
+                  ? m.source_coverage_summary_meta_one
+                  : m.source_coverage_summary_meta_other)({
+                  populated: populatedCount,
+                  total: ordered.length
+                })}
               </span>
             </summary>
             {#if ordered.length === 0}
-              <p class="muted small">No coverage observations recorded yet for this source.</p>
+              <p class="muted small">{m.source_coverage_no_observations()}</p>
             {:else}
               <ul class="mc-field-list" role="list">
                 {#each ordered as f (f.field)}
@@ -212,11 +189,18 @@
                     <div class="mc-field-head">
                       <span class="mc-field-name" title={f.field}>{f.field}</span>
                       {#if f.structurallyAbsent}
-                        <span class="mc-tag" aria-label="structurally absent">∅ absent</span>
+                        <span class="mc-tag" aria-label={m.source_coverage_field_absent_aria()}
+                          >{m.source_coverage_field_absent_tag()}</span
+                        >
                       {:else if f.totalArticles === 0}
-                        <span class="mc-tag muted" aria-label="no observations">·</span>
+                        <span
+                          class="mc-tag muted"
+                          aria-label={m.source_coverage_field_no_obs_aria()}>·</span
+                        >
                       {:else}
-                        <span class="mc-rate" aria-label="population rate {populated} percent"
+                        <span
+                          class="mc-rate"
+                          aria-label={m.source_coverage_field_rate_aria({ percent: populated })}
                           >{populated}%</span
                         >
                       {/if}
@@ -228,18 +212,19 @@
                       <div
                         class="mc-bar"
                         role="img"
-                        aria-label="extraction-method distribution: {methods
-                          .map((m) => `${m} ${f.byMethod[m] ?? 0}`)
-                          .join(', ')}; null {f.byMethod.null ?? 0}"
+                        aria-label={m.source_coverage_field_bar_aria({
+                          methods: methods.map((mk) => `${mk} ${f.byMethod[mk] ?? 0}`).join(', '),
+                          nullCount: f.byMethod.null ?? 0
+                        })}
                       >
-                        {#each methods as m (m)}
-                          {@const count = f.byMethod[m] ?? 0}
+                        {#each methods as mk (mk)}
+                          {@const count = f.byMethod[mk] ?? 0}
                           {@const w = (100 * count) / Math.max(1, f.totalArticles)}
                           <span
                             class="mc-bar-seg"
                             style:width="{w}%"
-                            style:background={METHOD_COLOR[m] ?? '#888'}
-                            title="{m}: {count}"
+                            style:background={METHOD_COLOR[mk] ?? '#888'}
+                            title="{mk}: {count}"
                           ></span>
                         {/each}
                         {#if (f.byMethod.null ?? 0) > 0}
@@ -251,7 +236,9 @@
                           ></span>
                         {/if}
                       </div>
-                      <span class="mc-meta">{f.totalArticles} articles</span>
+                      <span class="mc-meta"
+                        >{m.source_coverage_field_articles({ count: f.totalArticles })}</span
+                      >
                     {/if}
                   </li>
                 {/each}

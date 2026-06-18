@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   pickViewerLabelLanguage,
-  viewerLabelLanguage,
-  APP_CONTENT_LANGUAGE,
   SUPPORTED_LABEL_LANGUAGES
 } from '../../src/lib/presentations/viewer-language';
 
@@ -32,13 +30,11 @@ describe('pickViewerLabelLanguage', () => {
       expect(SUPPORTED_LABEL_LANGUAGES).toContain(pickViewerLabelLanguage(raw));
     }
   });
-});
 
-describe('viewerLabelLanguage (relabel target = app content language)', () => {
-  it('returns the app content language, not the browser locale', () => {
-    // The dashboard is English-only today; the relabel must follow the app
-    // language so an English UI never relabels entities into a browser locale.
-    expect(viewerLabelLanguage()).toBe(APP_CONTENT_LANGUAGE);
-    expect(SUPPORTED_LABEL_LANGUAGES).toContain(viewerLabelLanguage());
+  it('is the identity on the UI locales (en/de are both in the label set)', () => {
+    // Phase 144 — components feed `locale()` (en|de) through this clamp; both
+    // are baked label languages, so the relabel target equals the UI locale.
+    expect(pickViewerLabelLanguage('en')).toBe('en');
+    expect(pickViewerLabelLanguage('de')).toBe('de');
   });
 });

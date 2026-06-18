@@ -24,6 +24,7 @@
   } from '$lib/workbench/panel-controls-derive';
   import type { ScopeAvailableMetricsDto, ScopeAvailableMetadataDto } from '$lib/api/queries';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -77,8 +78,8 @@
   const metrics = $derived.by<string[]>(() =>
     buildMetricList({ view, availableMetricNames, gate: scopeGate, activeMetric })
   );
-  const analyticalMetrics = $derived<string[]>(metrics.filter((m) => !isMetadataMetric(m)));
-  const metadataMetrics = $derived<string[]>(metrics.filter((m) => isMetadataMetric(m)));
+  const analyticalMetrics = $derived<string[]>(metrics.filter((mn) => !isMetadataMetric(mn)));
+  const metadataMetrics = $derived<string[]>(metrics.filter((mn) => isMetadataMetric(mn)));
 
   // Field picker list: offerable fields + the active field surfaced.
   const metadataFields = $derived.by<string[]>(() =>
@@ -150,29 +151,34 @@
 </script>
 
 {#if viewUsesMetric}
-  <LeverRow eyebrow="Metric" role="radiogroup" ariaLabel="Metric">
+  <LeverRow
+    eyebrow={m.levers_metric_eyebrow()}
+    role="radiogroup"
+    ariaLabel={m.levers_metric_aria()}
+  >
     {#snippet options()}
-      {#each analyticalMetrics as m (m)}
+      {#each analyticalMetrics as mn (mn)}
         <LeverButton
           role="radio"
-          active={activeMetric === m}
+          active={activeMetric === mn}
           variant="metric-btn"
-          onclick={() => pickMetric(m)}
+          onclick={() => pickMetric(mn)}
         >
-          <code>{m}</code>
+          <code>{mn}</code>
         </LeverButton>
       {/each}
       {#if metadataMetrics.length > 0}
-        <span class="metric-group-label" aria-hidden="true">Metadata</span>
-        {#each metadataMetrics as m (m)}
+        <span class="metric-group-label" aria-hidden="true">{m.levers_metric_group_metadata()}</span
+        >
+        {#each metadataMetrics as mn (mn)}
           <LeverButton
             role="radio"
-            active={activeMetric === m}
+            active={activeMetric === mn}
             variant="metric-btn metadata-metric"
-            title="Publisher-declared metadata (structural; less analytical weight than the NLP measures)"
-            onclick={() => pickMetric(m)}
+            title={m.levers_metric_metadata_title()}
+            onclick={() => pickMetric(mn)}
           >
-            <code>{m}</code>
+            <code>{mn}</code>
           </LeverButton>
         {/each}
       {/if}
@@ -183,36 +189,52 @@
 <!-- Phase 133 — categorical metadata FIELD picker (field-driven views). The
      field is the GROUPING dimension and rides in Panel.metric. -->
 {#if viewUsesMetadataField}
-  <LeverRow eyebrow="Group by" role="group" ariaLabel="Group-by field" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_groupby_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_groupby_aria()}
+    rowClass="config-row"
+  >
     {#if metadataFields.length > 0}
       <select
         class="config-select"
         value={activeMetric}
         onchange={(e) => pickMetric((e.currentTarget as HTMLSelectElement).value)}
         onclick={(e) => e.stopPropagation()}
-        aria-label="Categorical metadata field to group by"
+        aria-label={m.levers_groupby_select_aria()}
       >
         {#each metadataFields as f (f)}
           <option value={f}>{f}</option>
         {/each}
       </select>
     {:else}
-      <span class="field-empty">No categorical metadata for this scope (Negative Space).</span>
+      <span class="field-empty">{m.levers_groupby_empty()}</span>
     {/if}
   </LeverRow>
 
   <!-- ADR-038 — metadata withholding (mirror of the metric hint). -->
   {#if partialMetadataFields.length > 0}
     <div class="ctrl-row partial-hint" role="note">
-      <span class="ctrl-eyebrow">Withheld</span>
+      <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
       <div class="partial-hint-body">
         <p class="partial-hint-lead">
-          {partialMetadataFields.length} metadata field{partialMetadataFields.length === 1
-            ? ''
-            : 's'} not present on every one of the {scopedSourceCount} scoped source{scopedSourceCount ===
-          1
-            ? ''
-            : 's'} (metadata asymmetry — a publisher choice, WP-003 §3.2):
+          {partialMetadataFields.length === 1
+            ? m.levers_withheld_fields_lead_one({
+                count: partialMetadataFields.length,
+                sources: scopedSourceCount,
+                sourcePlural:
+                  scopedSourceCount === 1
+                    ? m.levers_withheld_source_plural_one()
+                    : m.levers_withheld_source_plural_other()
+              })
+            : m.levers_withheld_fields_lead_other({
+                count: partialMetadataFields.length,
+                sources: scopedSourceCount,
+                sourcePlural:
+                  scopedSourceCount === 1
+                    ? m.levers_withheld_source_plural_one()
+                    : m.levers_withheld_source_plural_other()
+              })}
         </p>
         <ul class="partial-hint-list" role="list">
           {#each partialMetadataFields as pf (pf.field)}
@@ -220,8 +242,11 @@
             <li class="partial-metric-row">
               <code class="partial-metric">{pf.field}</code>
               <span class="partial-metric-detail">
-                has {pf.sources.length}/{scopedSourceCount}{#if missing.length > 0}
-                  · missing on <strong>{missing.join(', ')}</strong>{/if}
+                {m.levers_withheld_has({
+                  present: pf.sources.length,
+                  total: scopedSourceCount
+                })}{#if missing.length > 0}
+                  {m.levers_withheld_missing_on()} <strong>{missing.join(', ')}</strong>{/if}
               </span>
             </li>
           {/each}
@@ -231,9 +256,11 @@
           role="switch"
           active={activeShowWithheld}
           onclick={toggleShowWithheld}
-          title="Offer these fields anyway. Sources lacking the chosen field render Negative Space, not a forced zero."
+          title={m.levers_withheld_fields_toggle_title()}
         >
-          {activeShowWithheld ? '✓ Showing withheld' : 'Show anyway'}
+          {activeShowWithheld
+            ? m.levers_withheld_showing_fields()
+            : m.levers_withheld_show_anyway()}
         </LeverButton>
       </div>
     </div>
@@ -245,12 +272,26 @@
      sources that carry the chosen metric. -->
 {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
   <div class="ctrl-row partial-hint" role="note">
-    <span class="ctrl-eyebrow">Withheld</span>
+    <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
-        {partialMetrics.length} metric{partialMetrics.length === 1 ? '' : 's'} not present on every one
-        of the {scopedSourceCount} scoped source{scopedSourceCount === 1 ? '' : 's'} — withheld so a panel-wide
-        binding cannot yield silently empty cells:
+        {partialMetrics.length === 1
+          ? m.levers_withheld_metrics_lead_one({
+              count: partialMetrics.length,
+              sources: scopedSourceCount,
+              sourcePlural:
+                scopedSourceCount === 1
+                  ? m.levers_withheld_source_plural_one()
+                  : m.levers_withheld_source_plural_other()
+            })
+          : m.levers_withheld_metrics_lead_other({
+              count: partialMetrics.length,
+              sources: scopedSourceCount,
+              sourcePlural:
+                scopedSourceCount === 1
+                  ? m.levers_withheld_source_plural_one()
+                  : m.levers_withheld_source_plural_other()
+            })}
       </p>
       <ul class="partial-hint-list" role="list">
         {#each partialMetrics as pm (pm.metricName)}
@@ -258,8 +299,11 @@
           <li class="partial-metric-row">
             <code class="partial-metric">{pm.metricName}</code>
             <span class="partial-metric-detail">
-              has {pm.sources.length}/{scopedSourceCount}{#if missing.length > 0}
-                · missing on <strong>{missing.join(', ')}</strong>{/if}
+              {m.levers_withheld_has({
+                present: pm.sources.length,
+                total: scopedSourceCount
+              })}{#if missing.length > 0}
+                {m.levers_withheld_missing_on()} <strong>{missing.join(', ')}</strong>{/if}
             </span>
           </li>
         {/each}
@@ -269,9 +313,9 @@
         role="switch"
         active={activeShowWithheld}
         onclick={toggleShowWithheld}
-        title="Offer these metrics in the picker anyway. The panel renders only the sources that carry the chosen metric — no empty cells, no scope change needed."
+        title={m.levers_withheld_metrics_toggle_title()}
       >
-        {activeShowWithheld ? '✓ Showing withheld (only sources with data render)' : 'Show anyway'}
+        {activeShowWithheld ? m.levers_withheld_showing_metrics() : m.levers_withheld_show_anyway()}
       </LeverButton>
     </div>
   </div>

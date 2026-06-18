@@ -31,6 +31,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, probeIds, windowStart, windowEnd }: PresentationCellProps = $props();
 
@@ -93,14 +94,24 @@
   // Plain-language lead-lag sentence — the headline takeaway.
   const leadLagSentence = $derived.by<string>(() => {
     if (peakLagHours === null || peakCorrelation === null) {
-      return 'No correlated publication rhythm found in the overlapping window.';
+      return m.cells_leadlag_sentence_none();
     }
     const r = peakCorrelation.toFixed(2);
-    if (peakLagHours === 0) return `In step — rhythms align best at lag 0 (r = ${r}).`;
+    if (peakLagHours === 0) return m.cells_leadlag_sentence_in_step({ r });
     const h = Math.abs(peakLagHours);
     return peakLagHours > 0
-      ? `${comparedLabel} follows ${referenceLabel} by ${h}h (peak r = ${r}).`
-      : `${comparedLabel} leads ${referenceLabel} by ${h}h (peak r = ${r}).`;
+      ? m.cells_leadlag_sentence_follows({
+          compared: comparedLabel,
+          reference: referenceLabel,
+          hours: h,
+          r
+        })
+      : m.cells_leadlag_sentence_leads({
+          compared: comparedLabel,
+          reference: referenceLabel,
+          hours: h,
+          r
+        });
   });
 
   // --- Observable Plot render (line + dots + baselines + peak marker) ---
@@ -155,8 +166,8 @@
         height: 240,
         marginLeft: 52,
         marginBottom: 40,
-        x: { label: 'lag (hours) — compared relative to reference →', grid: true, nice: true },
-        y: { label: 'correlation', domain: [yMin, yMax], grid: true },
+        x: { label: m.cells_leadlag_axis_lag(), grid: true, nice: true },
+        y: { label: m.cells_leadlag_axis_correlation(), domain: [yMin, yMax], grid: true },
         marks
       });
       if (plotEl) plotEl.remove();
@@ -196,14 +207,17 @@
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
-      title: `lag ${best.lagHours >= 0 ? '+' : ''}${best.lagHours} h`,
-      rows: [{ label: 'correlation', value: fmtValue(best.correlation) }],
+      title: m.cells_leadlag_readout_lag({
+        sign: best.lagHours >= 0 ? '+' : '',
+        hours: best.lagHours
+      }),
+      rows: [{ label: m.cells_leadlag_readout_correlation(), value: fmtValue(best.correlation) }],
       hint:
         best.lagHours > 0
-          ? 'compared follows reference'
+          ? m.cells_leadlag_hint_follows()
           : best.lagHours < 0
-            ? 'compared leads'
-            : 'in step'
+            ? m.cells_leadlag_hint_leads()
+            : m.cells_leadlag_hint_in_step()
     };
   }
 
@@ -241,7 +255,7 @@
 <section class="leadlag-cell" aria-labelledby="leadlag-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="leadlag-title" class="cell-title">
-      <span>Lead-lag</span>
+      <span>{m.cells_leadlag_title()}</span>
       <span class="muted">
         — <strong class="scope-name">{referenceLabel}</strong> vs
         <strong class="scope-name">{comparedLabel}</strong>
@@ -253,21 +267,15 @@
   </header>
 
   {#if !hasPair}
-    <p class="muted">
-      Lead-lag compares two probes. Add a second probe to this panel's scope (merged composition) to
-      see whether one culture's publication rhythm leads the other.
-    </p>
+    <p class="muted">{m.cells_leadlag_need_pair()}</p>
   {:else if leadLagQ.isPending}
-    <p class="muted" aria-busy="true">Computing lead-lag…</p>
+    <p class="muted" aria-busy="true">{m.cells_leadlag_computing()}</p>
   {:else if leadLagQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={leadLagQ.data} {ctx} />
   {:else if leadLagQ.isError || leadLagQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load lead-lag.</p>
+    <p class="muted">{m.cells_leadlag_error()}</p>
   {:else if result && definedPoints.length === 0}
-    <p class="muted">
-      The two probes have no overlapping hourly activity in this window, so no lead-lag can be
-      computed. Widen the time window or pick probes whose corpora overlap in time.
-    </p>
+    <p class="muted">{m.cells_leadlag_no_overlap()}</p>
   {:else if result}
     {@const note = methodologyNotes.rhizomeLeadLagGrant(result.grant.level)}
     <MethodologyBanner anchorHref={note.anchorHref} anchorLabel={note.anchorLabel}>
@@ -278,7 +286,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Lead-lag cross-correlation between {referenceLabel} and {comparedLabel}"
+      aria-label={m.cells_leadlag_plot_aria({ reference: referenceLabel, compared: comparedLabel })}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>

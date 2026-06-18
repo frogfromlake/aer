@@ -7,6 +7,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const url = $derived(urlState());
   const isOpen = $derived(url.admin === 'open');
@@ -34,7 +35,7 @@
       users = res.data.users ?? [];
       loadError = null;
     } else {
-      loadError = res.code === 'forbidden_role' ? 'Administrator access required.' : res.message;
+      loadError = res.code === 'forbidden_role' ? m.account_admin_access_required() : res.message;
     }
   }
 
@@ -46,14 +47,17 @@
     const res = await authApi.adminCreateUser(inviteEmail.trim(), inviteRole);
     inviteBusy = false;
     if (res.ok) {
-      inviteMsg = { kind: 'success', text: `Invited ${res.data.email}. Share the link below.` };
+      inviteMsg = {
+        kind: 'success',
+        text: m.account_admin_invite_success({ email: res.data.email })
+      };
       lastLink = res.data.link;
       inviteEmail = '';
       await loadUsers();
     } else {
       inviteMsg = {
         kind: 'error',
-        text: res.code === 'email_exists' ? 'A user with this email already exists.' : res.message
+        text: res.code === 'email_exists' ? m.account_admin_invite_email_exists() : res.message
       };
     }
   }
@@ -94,21 +98,21 @@
       class="overlay-panel"
       role="dialog"
       aria-modal="true"
-      aria-label="Administration"
+      aria-label={m.account_admin_title()}
       tabindex="-1"
     >
       <header class="head">
-        <h2>Administration</h2>
-        <button type="button" class="close" aria-label="Close" onclick={close}>×</button>
+        <h2>{m.account_admin_title()}</h2>
+        <button type="button" class="close" aria-label={m.common_close()} onclick={close}>×</button>
       </header>
 
       {#if !admin}
-        <AuthNotice variant="error">Administrator access required.</AuthNotice>
+        <AuthNotice variant="error">{m.account_admin_access_required()}</AuthNotice>
       {:else}
         <section class="block">
-          <h3>Invite a user</h3>
+          <h3>{m.account_admin_invite_heading()}</h3>
           <p class="muted">
-            Self-registration is closed; accounts are created by invitation (licence §3.2).
+            {m.account_admin_invite_intro()}
           </p>
           <form onsubmit={invite} novalidate>
             {#if inviteMsg}<AuthNotice variant={inviteMsg.kind}>{inviteMsg.text}</AuthNotice>{/if}
@@ -116,49 +120,52 @@
               <div class="grow">
                 <AuthField
                   id="invite-email"
-                  label="Email"
+                  label={m.account_admin_invite_email_label()}
                   type="email"
                   bind:value={inviteEmail}
-                  placeholder="new@institution.org"
+                  placeholder={m.account_admin_invite_email_placeholder()}
                   required
                   disabled={inviteBusy}
                 />
               </div>
               <div class="role-field">
-                <label for="invite-role">Role</label>
+                <label for="invite-role">{m.account_admin_invite_role_label()}</label>
                 <select id="invite-role" bind:value={inviteRole} disabled={inviteBusy}>
-                  <option value="researcher">researcher</option>
-                  <option value="admin">admin</option>
+                  <option value="researcher">{m.account_admin_invite_role_researcher()}</option>
+                  <option value="admin">{m.account_admin_invite_role_admin()}</option>
                 </select>
               </div>
             </div>
             <div class="actions">
-              <Button type="submit" variant="primary" loading={inviteBusy}>Create invitation</Button
+              <Button type="submit" variant="primary" loading={inviteBusy}
+                >{m.account_admin_invite_submit()}</Button
               >
             </div>
           </form>
           {#if lastLink}
             <div class="link-box">
-              <span class="link-label">One-time link (deliver to the user):</span>
+              <span class="link-label">{m.account_admin_invite_link_label()}</span>
               <code class="link-value">{lastLink}</code>
               <button
                 type="button"
                 class="copy"
-                onclick={() => navigator.clipboard?.writeText(lastLink ?? '')}>Copy</button
+                onclick={() => navigator.clipboard?.writeText(lastLink ?? '')}
+                >{m.account_admin_invite_copy()}</button
               >
             </div>
           {/if}
         </section>
 
         <section class="block">
-          <h3>Users</h3>
+          <h3>{m.account_admin_users_heading()}</h3>
           {#if loadError}<AuthNotice variant="error">{loadError}</AuthNotice>{/if}
-          <div class="table" role="table" aria-label="Users">
+          <div class="table" role="table" aria-label={m.account_admin_users_table_label()}>
             <div class="row head-row" role="row">
-              <span role="columnheader">Email</span>
-              <span role="columnheader">Role</span>
-              <span role="columnheader">Status</span>
-              <span role="columnheader" class="ta-right">Actions</span>
+              <span role="columnheader">{m.account_admin_users_col_email()}</span>
+              <span role="columnheader">{m.account_admin_users_col_role()}</span>
+              <span role="columnheader">{m.account_admin_users_col_status()}</span>
+              <span role="columnheader" class="ta-right">{m.account_admin_users_col_actions()}</span
+              >
             </div>
             {#each users as u (u.id)}
               <div class="row" role="row">
@@ -168,14 +175,15 @@
                 <span role="cell" class="row-actions">
                   {#if u.status === 'suspended'}
                     <button type="button" class="mini" onclick={() => reactivate(u.id)}
-                      >Reactivate</button
+                      >{m.account_admin_users_reactivate()}</button
                     >
                   {:else}
-                    <button type="button" class="mini" onclick={() => suspend(u.id)}>Suspend</button
+                    <button type="button" class="mini" onclick={() => suspend(u.id)}
+                      >{m.account_admin_users_suspend()}</button
                     >
                   {/if}
                   <button type="button" class="mini" onclick={() => resetFor(u.id)}
-                    >Reset password</button
+                    >{m.account_admin_users_reset_password()}</button
                   >
                 </span>
               </div>

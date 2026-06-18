@@ -7,6 +7,7 @@
   // out of ScopeGroupCard so each stays under the file-length cap. Controlled
   // presentation child — the ScopeEditor owns the draft state; this reports
   // intent through callbacks.
+  import { m } from '$lib/paraglide/messages.js';
   import type { ScopeGroup } from '$lib/state/url-internals';
   import type { ProbeDto } from '$lib/api/queries';
   import type { DiscourseFunction } from '$lib/discourse-function';
@@ -46,13 +47,13 @@
 <section class="step" data-step="3">
   <header class="step-header">
     <span class="step-num" aria-hidden="true">3</span>
-    <h3 class="step-title">Sources</h3>
+    <h3 class="step-title">{m.workbench_scope_sources_step_title()}</h3>
     <span class="step-hint">
-      Within the selected probes. Leave empty to include the whole probe.
+      {m.workbench_scope_sources_step_hint()}
     </span>
   </header>
   {#if group.probeIds.length === 0}
-    <p class="muted-large">Pick at least one probe in step 1 to see its sources here.</p>
+    <p class="muted-large">{m.workbench_scope_sources_pick_probe()}</p>
   {:else}
     {#each group.probeIds as probeId (probeId)}
       {@const probeSources = sourcesForProbe(probeId)}
@@ -66,26 +67,28 @@
                 type="button"
                 class="source-action"
                 onclick={() => onSelectAll(probeId)}
-                title="Include all matching sources of this probe"
+                title={m.workbench_scope_sources_select_all_title()}
               >
-                Select all
+                {m.workbench_scope_sources_select_all()}
               </button>
               <button
                 type="button"
                 class="source-action"
                 onclick={onClearAll}
-                title="Whole-probe scope (no source narrowing)"
+                title={m.workbench_scope_sources_clear_all_title()}
               >
-                Clear all
+                {m.workbench_scope_sources_clear_all()}
               </button>
             </span>
           {/if}
         </header>
         {#if probeSources.length === 0}
           {#if sourcesLoading(probeId)}
-            <p class="muted" aria-busy="true">Loading sources for {probeLabel}…</p>
+            <p class="muted" aria-busy="true">
+              {m.workbench_scope_sources_loading({ probe: probeLabel })}
+            </p>
           {:else}
-            <p class="muted">No sources available for {probeLabel}.</p>
+            <p class="muted">{m.workbench_scope_sources_empty({ probe: probeLabel })}</p>
           {/if}
         {:else}
           <ul class="source-list" role="list">
@@ -99,7 +102,9 @@
                     {checked}
                     disabled={dim}
                     onchange={() => onToggleSource(source.name)}
-                    aria-label="Include {source.emicDesignation ?? source.name}"
+                    aria-label={m.workbench_scope_sources_include({
+                      name: source.emicDesignation ?? source.name
+                    })}
                   />
                   <span class="source-label">
                     <span class="source-name">
@@ -115,14 +120,18 @@
                       <span
                         class="source-df-tag"
                         style:--tag-color={fnMeta?.color ?? 'var(--color-fg-subtle)'}
-                        title="Primary discourse function (provisional, source-level; per-article Phase 122a deferred)"
+                        title={m.workbench_scope_sources_df_tag_title()}
                       >
                         {(source.primaryFunction ?? '').replace('_', ' ')}
                       </span>
                     {/if}
                   </span>
                   {#if dim}
-                    <span class="source-dim-hint">not matching {lockMeta?.label}</span>
+                    <span class="source-dim-hint"
+                      >{m.workbench_scope_sources_not_matching({
+                        function: lockMeta?.label ?? ''
+                      })}</span
+                    >
                   {/if}
                 </label>
               </li>

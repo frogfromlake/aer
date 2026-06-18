@@ -16,6 +16,8 @@
   import type { Panel } from '$lib/state/url-internals';
   import type { ProbeDossierDto, ProbeDto, FetchContext, QueryOutcome } from '$lib/api/queries';
   import { probesQuery } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
   import { createQuery } from '@tanstack/svelte-query';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { getFunctionDef } from '$lib/discourse-function';
@@ -151,7 +153,7 @@
   }
 </script>
 
-<section class="meta-strip" class:expanded aria-label="Panel metadata">
+<section class="meta-strip" class:expanded aria-label={m.workbench_meta_aria_label()}>
   <button
     type="button"
     class="meta-toggle"
@@ -162,23 +164,23 @@
   >
     <span class="meta-chevron" class:expanded aria-hidden="true">›</span>
     <span class="meta-item">
-      <span class="meta-label">Probes</span>
+      <span class="meta-label">{m.workbench_meta_probes()}</span>
       <span class="meta-value">{shape.probes.length}</span>
     </span>
     <span class="meta-item">
-      <span class="meta-label">Sources</span>
+      <span class="meta-label">{m.workbench_meta_sources()}</span>
       <span class="meta-value">{shape.sources.length}</span>
     </span>
     <span class="meta-item">
-      <span class="meta-label">Articles</span>
-      <span class="meta-value">{shape.articlesInWindow.toLocaleString('en-US')}</span>
+      <span class="meta-label">{m.workbench_meta_articles()}</span>
+      <span class="meta-value">{formatNumber(shape.articlesInWindow)}</span>
     </span>
     <span class="meta-item">
-      <span class="meta-label">Lang</span>
+      <span class="meta-label">{m.workbench_meta_lang()}</span>
       <span class="meta-value">{shape.language.toUpperCase()}</span>
     </span>
     <span class="meta-item">
-      <span class="meta-label">DF coverage</span>
+      <span class="meta-label">{m.workbench_meta_df_coverage()}</span>
       <span class="meta-value">{shape.coverage.covered}/{shape.coverage.total}</span>
     </span>
     {#if lockedFnMeta}
@@ -197,9 +199,9 @@
       role="presentation"
     >
       <div class="chip-row">
-        <span class="chip-eyebrow">Probes</span>
+        <span class="chip-eyebrow">{m.workbench_meta_chip_probes()}</span>
         {#if shape.probes.length === 0}
-          <span class="muted">none</span>
+          <span class="muted">{m.workbench_meta_chip_probes_none()}</span>
         {:else}
           <ul class="chips" role="list">
             {#each shape.probes as id (id)}
@@ -208,8 +210,8 @@
                   type="button"
                   class="chip"
                   onclick={() => removeProbe(id)}
-                  aria-label="Remove probe {probeLabel(id)}"
-                  title="Remove probe from this panel"
+                  aria-label={m.workbench_meta_remove_probe_label({ probe: probeLabel(id) })}
+                  title={m.workbench_meta_remove_probe_title()}
                 >
                   {probeLabel(id)}
                   <span class="chip-x" aria-hidden="true">×</span>
@@ -221,9 +223,9 @@
       </div>
 
       <div class="chip-row">
-        <span class="chip-eyebrow">Sources</span>
+        <span class="chip-eyebrow">{m.workbench_meta_chip_sources()}</span>
         {#if shape.sources.length === 0}
-          <span class="muted">whole probe (all sources)</span>
+          <span class="muted">{m.workbench_meta_chip_sources_whole_probe()}</span>
         {:else}
           <ul class="chips" role="list">
             {#each shape.sources as name (name)}
@@ -232,8 +234,8 @@
                   type="button"
                   class="chip"
                   onclick={() => removeSource(name)}
-                  aria-label="Remove source {name}"
-                  title="Remove source from this panel"
+                  aria-label={m.workbench_meta_remove_source_label({ name })}
+                  title={m.workbench_meta_remove_source_title()}
                 >
                   {name}
                   <span class="chip-x" aria-hidden="true">×</span>
@@ -246,13 +248,13 @@
 
       {#if lockedFnMeta}
         <div class="chip-row">
-          <span class="chip-eyebrow">DF lock</span>
+          <span class="chip-eyebrow">{m.workbench_meta_chip_df_lock()}</span>
           <button
             type="button"
             class="chip chip-lock"
             onclick={clearLockedFunction}
-            aria-label="Clear discourse function lock"
-            title="Clear the discourse-function lock for this panel"
+            aria-label={m.workbench_meta_clear_df_lock_label()}
+            title={m.workbench_meta_clear_df_lock_title()}
           >
             🔒 {lockedFnMeta.label}
             <span class="chip-x" aria-hidden="true">×</span>

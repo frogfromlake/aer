@@ -1,0 +1,19 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "common_app_name": "AĒR",
+  "common_loading": "Wird geladen…",
+  "common_skip_to_main": "Zum Hauptinhalt springen",
+  "common_close": "Schließen",
+  "common_close_dialog": "Dialog schließen",
+  "common_cancel": "Abbrechen",
+  "common_apply": "Anwenden",
+  "common_save": "Speichern",
+  "common_remove": "Entfernen",
+  "common_edit": "Bearbeiten",
+  "common_back": "Zurück",
+  "common_open": "Öffnen",
+  "common_retry": "Erneut versuchen",
+  "common_none": "Keine",
+  "common_all": "Alle",
+  "common_more_info": "Weitere Informationen"
+}

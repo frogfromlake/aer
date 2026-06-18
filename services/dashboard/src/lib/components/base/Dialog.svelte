@@ -2,6 +2,7 @@
   // Dialog — accessible modal primitive: focus-trap, Esc-to-close, ARIA-labelled,
   // with default/wide width presets.
   import { onMount, type Snippet } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     open: boolean;
@@ -100,7 +101,9 @@
   >
     <header>
       <h2 id={titleId}>{title}</h2>
-      <button type="button" class="close" aria-label="Close dialog" onclick={close}>×</button>
+      <button type="button" class="close" aria-label={m.common_close_dialog()} onclick={close}
+        >×</button
+      >
     </header>
     <div class="body">
       {#if children}{@render children()}{/if}

@@ -8,6 +8,7 @@
   // composition row.
   import type { Panel } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverButton from './LeverButton.svelte';
 
   interface Props {
@@ -37,60 +38,60 @@
      Direction) separated by a thin vertical divider; Direction appears only
      when Split is active. Merged is its own button, never glued to Vertical. -->
 <div class="ctrl-row composition-row">
-  <div class="comp-group" role="radiogroup" aria-label="Composition">
-    <span class="ctrl-eyebrow">Composition</span>
+  <div class="comp-group" role="radiogroup" aria-label={m.levers_composition_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_composition_eyebrow()}</span>
     <div class="ctrl-options">
       <LeverButton
         role="radio"
         active={boundPanel.composition === 'split'}
-        title="One Cell per source or per ScopeGroup (small-multiples)"
+        title={m.levers_composition_split_title()}
         onclick={() => pickComposition('split')}
       >
-        Split
+        {m.levers_composition_split()}
       </LeverButton>
       {#if supportsOverlay}
         <LeverButton
           role="radio"
           active={boundPanel.composition === 'overlay'}
-          title="One Cell — sources rendered as separate viridis-coloured lines on a shared canvas"
+          title={m.levers_composition_overlay_title()}
           onclick={() => pickComposition('overlay')}
         >
-          Overlay
+          {m.levers_composition_overlay()}
         </LeverButton>
       {/if}
       <LeverButton
         role="radio"
         active={boundPanel.composition === 'merged'}
-        title="One Cell — sources aggregated into a single joint-corpus chart"
+        title={m.levers_composition_merged_title()}
         onclick={() => pickComposition('merged')}
       >
-        Merged
+        {m.levers_composition_merged()}
       </LeverButton>
     </div>
   </div>
 
   {#if boundPanel.composition === 'split'}
     <div class="comp-divider" aria-hidden="true"></div>
-    <div class="comp-group" role="radiogroup" aria-label="Split direction">
-      <span class="ctrl-eyebrow">Direction</span>
+    <div class="comp-group" role="radiogroup" aria-label={m.levers_direction_aria()}>
+      <span class="ctrl-eyebrow">{m.levers_direction_eyebrow()}</span>
       <div class="ctrl-options">
         <LeverButton
           role="radio"
           active={activeSplitDirection === 'horizontal'}
-          title="Arrange split cells side-by-side"
-          ariaLabel="Split direction: horizontal"
+          title={m.levers_direction_horizontal_title()}
+          ariaLabel={m.levers_direction_horizontal_aria()}
           onclick={() => pickSplitDirection('horizontal')}
         >
-          ↔ Horizontal
+          {m.levers_direction_horizontal()}
         </LeverButton>
         <LeverButton
           role="radio"
           active={activeSplitDirection === 'vertical'}
-          title="Stack split cells vertically"
-          ariaLabel="Split direction: vertical"
+          title={m.levers_direction_vertical_title()}
+          ariaLabel={m.levers_direction_vertical_aria()}
           onclick={() => pickSplitDirection('vertical')}
         >
-          ↕ Vertical
+          {m.levers_direction_vertical()}
         </LeverButton>
       </div>
     </div>

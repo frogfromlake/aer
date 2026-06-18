@@ -1,0 +1,7 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "errors_generic": "Something went wrong.",
+  "errors_load_failed": "Could not load the data.",
+  "errors_empty": "No data available.",
+  "errors_not_found": "Not found."
+}

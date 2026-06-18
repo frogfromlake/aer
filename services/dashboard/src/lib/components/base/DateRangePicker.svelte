@@ -9,6 +9,8 @@
   //
   // `Whole dataset` emits (null, null) → the BFF treats absent bounds as
   // "no filter" (in_window == total), per Phase 131a.
+  import { m } from '$lib/paraglide/messages.js';
+
   interface Props {
     from: string | null;
     to: string | null;
@@ -73,10 +75,10 @@
   }
 </script>
 
-<div class="date-range-picker" role="group" aria-label="Time window">
+<div class="date-range-picker" role="group" aria-label={m.base_daterange_window_aria()}>
   <div class="chips">
     <button type="button" class="chip" class:active={mode === 'whole'} onclick={setWhole}>
-      Whole dataset
+      {m.base_daterange_whole()}
     </button>
     <button
       type="button"
@@ -84,7 +86,7 @@
       class:active={mode === '7d'}
       onclick={() => setLast(7, '7d')}
     >
-      Last 7d
+      {m.base_daterange_last7()}
     </button>
     <button
       type="button"
@@ -92,10 +94,10 @@
       class:active={mode === '30d'}
       onclick={() => setLast(30, '30d')}
     >
-      Last 30d
+      {m.base_daterange_last30()}
     </button>
     <button type="button" class="chip" class:active={mode === 'custom'} onclick={setCustom}>
-      Custom…
+      {m.base_daterange_custom()}
     </button>
   </div>
   {#if mode === 'custom'}

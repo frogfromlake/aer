@@ -8,6 +8,7 @@
   // never red/warning — absence invites a question, it does not assert a defect.
   // Colour + prose + WP anchor all come from NS_CLASS_DEFINITIONS (the SoT).
   import { getNSClassDef } from '$lib/negative-space';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     /** NS-class key. Unknown keys render an inert grey badge (never crashes). */
@@ -28,7 +29,7 @@
     class="ns-badge size-{size}"
     style:--ns-color={def.color}
     role="img"
-    aria-label="Negative space: {def.label}"
+    aria-label={m.base_negspace_aria({ label: def.label })}
     title={def.description}
   >
     <span class="dot" aria-hidden="true">∅</span>
@@ -40,8 +41,8 @@
       <a
         class="info"
         href={def.wpAnchor}
-        title="Methodology — {def.label}"
-        aria-label="Methodology: {def.label}"
+        title={m.base_negspace_info_title({ label: def.label })}
+        aria-label={m.base_negspace_info_aria({ label: def.label })}
         onclick={(e) => e.stopPropagation()}
         data-sveltekit-preload-data="hover"
       >
@@ -50,7 +51,7 @@
     {/if}
   </span>
 {:else}
-  <span class="ns-badge size-{size} inert" role="img" aria-label="Unknown negative-space class">
+  <span class="ns-badge size-{size} inert" role="img" aria-label={m.base_negspace_unknown()}>
     <span class="dot" aria-hidden="true">∅</span>
     <span class="abbr">—</span>
   </span>

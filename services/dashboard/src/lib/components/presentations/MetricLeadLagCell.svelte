@@ -21,6 +21,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -77,14 +78,14 @@
 
   const leadLagSentence = $derived.by<string>(() => {
     if (peakLagHours === null || peakCorrelation === null) {
-      return 'No correlated rhythm found in the overlapping window.';
+      return m.cells_mll_sentence_none();
     }
     const r = peakCorrelation.toFixed(2);
-    if (peakLagHours === 0) return `In step — best alignment at lag 0 (r = ${r}).`;
+    if (peakLagHours === 0) return m.cells_mll_sentence_in_step({ r });
     const h = Math.abs(peakLagHours);
     return peakLagHours > 0
-      ? `${yMetric} follows ${xMetric} by ${h}h (peak r = ${r}).`
-      : `${yMetric} leads ${xMetric} by ${h}h (peak r = ${r}).`;
+      ? m.cells_mll_sentence_follows({ y: yMetric, x: xMetric, hours: h, r })
+      : m.cells_mll_sentence_leads({ y: yMetric, x: xMetric, hours: h, r });
   });
 
   let host: HTMLDivElement | undefined = $state();
@@ -135,8 +136,8 @@
         height: 240,
         marginLeft: 52,
         marginBottom: 40,
-        x: { label: `lag (hours) — ${yMetric} relative to ${xMetric} →`, grid: true, nice: true },
-        y: { label: 'correlation', domain: [yMin, yMax], grid: true },
+        x: { label: m.cells_mll_axis_lag({ y: yMetric, x: xMetric }), grid: true, nice: true },
+        y: { label: m.cells_mll_axis_correlation(), domain: [yMin, yMax], grid: true },
         marks
       });
       if (plotEl) plotEl.remove();
@@ -171,14 +172,14 @@
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
-      title: `lag ${best.lagHours >= 0 ? '+' : ''}${best.lagHours} h`,
-      rows: [{ label: 'correlation', value: fmtValue(best.correlation) }],
+      title: m.cells_mll_readout_lag({ sign: best.lagHours >= 0 ? '+' : '', hours: best.lagHours }),
+      rows: [{ label: m.cells_mll_readout_correlation(), value: fmtValue(best.correlation) }],
       hint:
         best.lagHours > 0
-          ? `${yMetric} follows`
+          ? m.cells_mll_hint_follows({ y: yMetric })
           : best.lagHours < 0
-            ? `${yMetric} leads`
-            : 'in step'
+            ? m.cells_mll_hint_leads({ y: yMetric })
+            : m.cells_mll_hint_in_step()
     };
   }
 
@@ -224,7 +225,7 @@
 <section class="leadlag-cell" aria-labelledby="metric-leadlag-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="metric-leadlag-title" class="cell-title">
-      <span>Lead-lag</span>
+      <span>{m.cells_leadlag_title()}</span>
       <span class="muted">
         — <code>{xMetric}</code> → <code>{yMetric}</code> ·
         <strong class="scope-name">{scopeId}</strong>
@@ -236,25 +237,22 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Lead-lag operates on Gold-layer per-article metrics.</p>
+    <p class="muted">{m.cells_mll_silver()}</p>
   {:else if llQ.isPending}
-    <p class="muted" aria-busy="true">Computing lead-lag…</p>
+    <p class="muted" aria-busy="true">{m.cells_mll_computing()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load lead-lag.</p>
+    <p class="muted">{m.cells_mll_error()}</p>
   {:else if result && definedPoints.length === 0}
-    <p class="muted">
-      The two metrics have no overlapping hourly buckets in this window, so no lead-lag can be
-      computed. Widen the time window or pick metrics the scope carries together.
-    </p>
+    <p class="muted">{m.cells_mll_no_overlap()}</p>
   {:else if result}
     <p class="leadlag-takeaway">{leadLagSentence}</p>
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Lead-lag cross-correlation between {xMetric} and {yMetric}"
+      aria-label={m.cells_mll_plot_aria({ x: xMetric, y: yMetric })}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>

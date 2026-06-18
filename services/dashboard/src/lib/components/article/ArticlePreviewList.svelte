@@ -13,6 +13,7 @@
   } from '$lib/api/queries';
   import L5EvidenceReader from '../evidence/L5EvidenceReader.svelte';
   import ArticleRow from './ArticleRow.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     sourceId: string;
@@ -141,55 +142,59 @@
 
 <div class="article-list">
   <!-- Filters -->
-  <div class="filters" role="search" aria-label="Filter articles">
+  <div class="filters" role="search" aria-label={m.source_article_filters_aria_label()}>
     <label class="filter-label">
-      <span class="label-xs">Language</span>
+      <span class="label-xs">{m.source_article_filter_language_label()}</span>
       <input
         type="text"
         class="filter-input"
-        placeholder="e.g. de"
+        placeholder={m.source_article_filter_language_placeholder()}
         bind:value={filterLang}
         oninput={onFilterChange}
-        aria-label="Filter by language code"
+        aria-label={m.source_article_filter_language_aria_label()}
         maxlength="5"
       />
     </label>
     <label class="filter-label">
-      <span class="label-xs">Sentiment</span>
+      <span class="label-xs">{m.source_article_filter_sentiment_label()}</span>
       <select
         class="filter-select"
         bind:value={filterSentiment}
         onchange={onFilterChange}
-        aria-label="Filter by sentiment band"
+        aria-label={m.source_article_filter_sentiment_aria_label()}
       >
-        <option value="">All</option>
-        <option value="positive">Positive</option>
-        <option value="neutral">Neutral</option>
-        <option value="negative">Negative</option>
+        <option value="">{m.common_all()}</option>
+        <option value="positive">{m.source_article_filter_sentiment_positive()}</option>
+        <option value="neutral">{m.source_article_filter_sentiment_neutral()}</option>
+        <option value="negative">{m.source_article_filter_sentiment_negative()}</option>
       </select>
     </label>
     {#if filterLang || filterSentiment}
-      <button type="button" class="reset-btn" onclick={resetFilters}>Clear filters</button>
+      <button type="button" class="reset-btn" onclick={resetFilters}
+        >{m.source_article_filter_clear()}</button
+      >
     {/if}
   </div>
 
   {#if articlesQ.isPending && allItems.length === 0}
-    <p class="state-msg" aria-busy="true">Loading articles…</p>
+    <p class="state-msg" aria-busy="true">{m.source_article_loading()}</p>
   {:else if articlesQ.isError}
-    <p class="state-msg error">Failed to load articles.</p>
+    <p class="state-msg error">{m.source_article_load_failed()}</p>
   {:else if allItems.length === 0}
-    <p class="state-msg muted">No articles found for the current filters.</p>
+    <p class="state-msg muted">{m.source_article_empty_filters()}</p>
   {:else}
-    <div class="table-wrap" role="region" aria-label="Article list">
+    <div class="table-wrap" role="region" aria-label={m.source_article_region_aria_label()}>
       <table class="article-table">
         <thead>
           <tr>
-            <th scope="col">Published</th>
-            <th scope="col">Lang</th>
-            <th scope="col" class="right">Words</th>
-            <th scope="col" class="right">Sentiment</th>
-            <th scope="col"><span class="sr-only">Revision badges</span></th>
-            <th scope="col"><span class="sr-only">Actions</span></th>
+            <th scope="col">{m.source_article_col_published()}</th>
+            <th scope="col">{m.source_article_col_lang()}</th>
+            <th scope="col" class="right">{m.source_article_col_words()}</th>
+            <th scope="col" class="right">{m.source_article_col_sentiment()}</th>
+            <th scope="col"
+              ><span class="sr-only">{m.source_article_col_revision_badges()}</span></th
+            >
+            <th scope="col"><span class="sr-only">{m.source_article_col_actions()}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -204,14 +209,18 @@
       <button
         type="button"
         class="load-more-btn"
-        aria-label="Load more articles"
+        aria-label={m.source_article_load_more_aria_label()}
         disabled={articlesQ.isFetching}
         onclick={loadMore}
       >
-        {articlesQ.isFetching ? 'Loading…' : 'Load more'}
+        {articlesQ.isFetching ? m.common_loading() : m.source_article_load_more()}
       </button>
     {:else}
-      <p class="end-note">All {allItems.length} article{allItems.length !== 1 ? 's' : ''} shown.</p>
+      <p class="end-note">
+        {(allItems.length === 1
+          ? m.source_article_all_shown_one
+          : m.source_article_all_shown_other)({ count: allItems.length })}
+      </p>
     {/if}
   {/if}
 </div>

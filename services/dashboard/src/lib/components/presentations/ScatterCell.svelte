@@ -22,6 +22,7 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -163,12 +164,12 @@
         marginBottom: 44,
         grid: true,
         x: {
-          label: `${xMetric} →`,
+          label: m.cells_scatter_axis_x({ metric: xMetric }),
           labelAnchor: 'center',
           ...(sharedX ? { domain: [...sharedX] } : {})
         },
         y: {
-          label: `↑ ${yMetric}`,
+          label: m.cells_scatter_axis_y({ metric: yMetric }),
           labelAnchor: 'center',
           ...(sharedY ? { domain: [...sharedY] } : {})
         },
@@ -188,7 +189,7 @@
             // is active; full opacity otherwise.
             fillOpacity: (d: ScatterPointDto) =>
               selN === 0 ? 0.7 : selSet!.has(d.articleId ?? '') ? 0.95 : 0.08,
-            channels: { source: { value: 'source', label: 'source' } },
+            channels: { source: { value: 'source', label: m.cells_scatter_channel_source() } },
             tip: true
           }),
           // Phase 125b — emphasis ring on the brushed (selected) points.
@@ -315,11 +316,12 @@
 <section class="scatter-cell" aria-labelledby="scatter-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="scatter-title" class="cell-title">
-      Scatter
+      {m.cells_scatter_title()}
       <span class="muted"
         >— <code>{xMetric}</code> × <code>{yMetric}</code> ·
         <strong class="scope-name">{scopeId}</strong>{#if rLabel}
-          · <span class="r-badge" title="Pearson correlation coefficient">r = {rLabel}</span
+          · <span class="r-badge" title={m.cells_scatter_r_badge_title()}
+            >{m.cells_scatter_r_badge({ r: rLabel })}</span
           >{/if}</span
       >
     </h3>
@@ -329,32 +331,26 @@
   </header>
 
   {#if dataLayer === 'silver'}
-    <p class="notice">
-      Scatter operates on Gold-layer per-article metrics. Switch to Distribution to explore
-      Silver-layer document characteristics.
-    </p>
+    <p class="notice">{m.cells_scatter_silver()}</p>
   {:else if scatterQ.isPending}
-    <p class="muted" aria-busy="true">Loading scatter…</p>
+    <p class="muted" aria-busy="true">{m.cells_scatter_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load the scatter.</p>
+    <p class="muted">{m.cells_scatter_error()}</p>
   {:else if points.length === 0}
-    <p class="muted">
-      No articles carry both <code>{xMetric}</code> and <code>{yMetric}</code> in this window.
-    </p>
+    <p class="muted">{m.cells_scatter_empty({ x: xMetric, y: yMetric })}</p>
   {:else}
     {#if data?.truncated}
       <p class="truncation-note" role="note">
-        Showing the first {points.length} articles (capped) — narrow the window or scope for an exhaustive
-        cloud.
+        {m.cells_scatter_truncated({ count: points.length })}
       </p>
     {/if}
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Scatter plot of {xMetric} versus {yMetric}"
+      aria-label={m.cells_scatter_plot_aria({ x: xMetric, y: yMetric })}
     ></div>
     <HowToRead presentation="metric_scatter" facts={howToReadFacts} />
   {/if}

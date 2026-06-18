@@ -16,6 +16,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { composeHowToRead, type HowToReadFacts } from '$lib/presentations/how-to-read';
+  import { locale } from '$lib/state/locale.svelte';
   import type { Presentation } from '$lib/state/url-internals';
 
   interface Props {
@@ -33,7 +34,7 @@
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'view_mode', `howto_${presentation}`);
+    const o = contentQuery(ctx, 'view_mode', `howto_${presentation}`, locale());
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
 

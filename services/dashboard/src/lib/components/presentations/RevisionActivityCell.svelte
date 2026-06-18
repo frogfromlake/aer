@@ -26,6 +26,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, scope, scopeId, windowStart, windowEnd }: PresentationCellProps = $props();
 
@@ -90,7 +91,7 @@
         height: Math.max(160, rows.length * 38 + 50),
         marginLeft: 150,
         marginBottom: 36,
-        x: { label: 'revisions →', grid: true, nice: true },
+        x: { label: m.cells_revact_axis_revisions(), grid: true, nice: true },
         y: { label: null, domain: rows.map((r) => r.source) },
         marks: [
           Plot.barX(rows, {
@@ -152,10 +153,10 @@
       y: ev.clientY,
       title: e.source,
       rows: [
-        { label: 'revisions', value: fmtValue(e.revisions) },
-        { label: 'articles', value: fmtValue(e.articlesAffected) }
+        { label: m.cells_revact_readout_revisions(), value: fmtValue(e.revisions) },
+        { label: m.cells_revact_readout_articles(), value: fmtValue(e.articlesAffected) }
       ],
-      hint: 'Click to see articles'
+      hint: m.cells_revact_readout_hint()
     };
   }
 
@@ -196,7 +197,7 @@
 <section class="rev-cell" aria-labelledby="rev-title-{scopeId}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="rev-title-{scopeId}" class="cell-title">
-      <span>Revision activity</span>
+      <span>{m.cells_revact_title()}</span>
       <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
     </h3>
     {#if entries.length > 0}
@@ -205,19 +206,17 @@
   </header>
 
   {#if revisionQ.isPending}
-    <p class="muted" aria-busy="true">Loading revision activity…</p>
+    <p class="muted" aria-busy="true">{m.cells_revact_loading()}</p>
   {:else if revisionQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={revisionQ.data} {ctx} />
   {:else if revisionQ.isError || revisionQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load revision activity.</p>
+    <p class="muted">{m.cells_revact_error()}</p>
   {:else if entries.length === 0}
-    <p class="muted">
-      No silent-edit activity observed in this window. Either Wayback CDX has no snapshots for these
-      sources yet, or the publishers have not bumped their sitemap-lastmod inside the window.
-    </p>
+    <p class="muted">{m.cells_revact_empty()}</p>
   {:else}
     <p class="click-hint" aria-hidden="true">
-      <span class="click-hint-icon">↻</span> Click any bar to see the articles edited under that source.
+      <span class="click-hint-icon">↻</span>
+      {m.cells_revact_click_hint()}
     </p>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -225,7 +224,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Revision counts per source. Click a bar to view its articles."
+      aria-label={m.cells_revact_plot_aria()}
       onclick={onHostClick}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
@@ -240,7 +239,7 @@
 {#if drilldownSource}
   <ArticleListModal
     open={drilldownSource !== null}
-    title={`Articles edited — ${drilldownSource}`}
+    title={m.cells_revact_drilldown_title({ source: drilldownSource })}
     {ctx}
     {windowStart}
     {windowEnd}

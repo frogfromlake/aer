@@ -8,6 +8,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   const MIN_LEN = 12;
 
@@ -42,46 +43,43 @@
     }
     error =
       res.code === 'invalid_token'
-        ? 'This invitation link is invalid or has expired. Ask an administrator for a new one.'
+        ? m.auth_invite_error_invalid_token()
         : res.code === 'weak_password'
-          ? `Choose a password of at least ${MIN_LEN} characters.`
+          ? m.auth_password_too_weak({ min: MIN_LEN })
           : res.code === 'consent_required'
-            ? 'You must accept the responsible-use agreement to continue.'
-            : 'Could not activate the account. Please try again.';
+            ? m.auth_invite_error_consent_required()
+            : m.auth_invite_error_generic();
   }
 </script>
 
-<svelte:head><title>Accept invitation · AĒR</title></svelte:head>
+<svelte:head><title>{m.auth_invite_doc_title()}</title></svelte:head>
 
-<AuthCard
-  title="Accept your invitation"
-  subtitle="Set a password and agree to the terms of use to activate your account."
->
+<AuthCard title={m.auth_invite_title()} subtitle={m.auth_invite_subtitle()}>
   <form onsubmit={submit} novalidate>
     {#if error}
       <AuthNotice variant="error">{error}</AuthNotice>
     {/if}
     {#if !token}
-      <AuthNotice variant="error">This link is missing its invitation token.</AuthNotice>
+      <AuthNotice variant="error">{m.auth_invite_missing_token()}</AuthNotice>
     {/if}
 
     <AuthField
       id="password"
-      label="New password"
+      label={m.auth_field_new_password_label()}
       type="password"
       bind:value={password}
       autocomplete="new-password"
       required
       disabled={submitting}
-      hint={`At least ${MIN_LEN} characters.`}
+      hint={m.auth_password_min_hint({ min: MIN_LEN })}
     />
     {#if tooShort}
-      <span class="inline-warn">Password must be at least {MIN_LEN} characters.</span>
+      <span class="inline-warn">{m.auth_password_too_short({ min: MIN_LEN })}</span>
     {/if}
 
     <AuthField
       id="confirm"
-      label="Confirm password"
+      label={m.auth_field_confirm_password_label()}
       type="password"
       bind:value={confirm}
       autocomplete="new-password"
@@ -89,24 +87,21 @@
       disabled={submitting}
     />
     {#if mismatch}
-      <span class="inline-warn">Passwords do not match.</span>
+      <span class="inline-warn">{m.auth_password_mismatch()}</span>
     {/if}
 
     <label class="consent">
       <input type="checkbox" bind:checked={consent} disabled={submitting} />
-      <span>
-        I agree to use AĒR for scientific research only, in accordance with the responsible-use
-        restrictions of the project licence (§3).
-      </span>
+      <span>{m.auth_invite_consent()}</span>
     </label>
 
     <Button type="submit" variant="primary" loading={submitting} disabled={!canSubmit}>
-      Activate account
+      {m.auth_invite_submit()}
     </Button>
   </form>
 
   {#snippet footer()}
-    <a class="link" href="/login">Back to sign in</a>
+    <a class="link" href="/login">{m.auth_back_to_signin()}</a>
   {/snippet}
 </AuthCard>
 

@@ -60,7 +60,10 @@ func TestContentCatalogLoads(t *testing.T) {
 	t.Logf("loaded %d content records", len(catalog))
 }
 
-// TestContentCatalogLocaleParity verifies every en record has a de counterpart.
+// TestContentCatalogLocaleParity verifies the en/de catalogs are in full parity
+// in BOTH directions. en→de keeps the UI from rendering an empty surface; de→en
+// guarantees the Phase-144 (ADR-041) EN-fallback in the content handler always
+// has an English record to fall back to (a de-only entry would 404 for en).
 func TestContentCatalogLocaleParity(t *testing.T) {
 	root := contentRoot(t)
 	catalog, err := LoadContentCatalog(root)
@@ -70,12 +73,15 @@ func TestContentCatalogLocaleParity(t *testing.T) {
 
 	var missing []string
 	for _, rec := range catalog {
-		if rec.Locale != "en" {
-			continue
-		}
-		deKey := CatalogKey("de", rec.EntityType, rec.EntityID)
-		if _, ok := catalog[deKey]; !ok {
-			missing = append(missing, fmt.Sprintf("en:%s:%s has no de counterpart", rec.EntityType, rec.EntityID))
+		switch rec.Locale {
+		case "en":
+			if _, ok := catalog[CatalogKey("de", rec.EntityType, rec.EntityID)]; !ok {
+				missing = append(missing, fmt.Sprintf("en:%s:%s has no de counterpart", rec.EntityType, rec.EntityID))
+			}
+		case "de":
+			if _, ok := catalog[CatalogKey("en", rec.EntityType, rec.EntityID)]; !ok {
+				missing = append(missing, fmt.Sprintf("de:%s:%s has no en counterpart (EN-fallback would 404)", rec.EntityType, rec.EntityID))
+			}
 		}
 	}
 	for _, m := range missing {

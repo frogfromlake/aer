@@ -2,6 +2,7 @@
   // Badge — generic provenance/status pill (validation tier, expired, refused).
   // The tonal primitive the metric-provenance badges build on.
   import type { Snippet } from 'svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   type Tier =
     | 'tier1-unvalidated'
@@ -25,17 +26,17 @@
   function defaultLabel(t: Tier): string {
     switch (t) {
       case 'tier1-unvalidated':
-        return 'Tier 1, unvalidated';
+        return m.base_badge_tier1_unvalidated();
       case 'tier1-validated':
-        return 'Tier 1, validated';
+        return m.base_badge_tier1_validated();
       case 'tier2-validated':
-        return 'Tier 2, validated';
+        return m.base_badge_tier2_validated();
       case 'tier3':
-        return 'Tier 3, non-deterministic';
+        return m.base_badge_tier3();
       case 'expired':
-        return 'Validation expired';
+        return m.base_badge_expired();
       case 'refused':
-        return 'Methodological refusal';
+        return m.base_badge_refused();
     }
   }
 </script>

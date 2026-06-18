@@ -17,6 +17,7 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -157,12 +158,9 @@
     </div>
   {/if}
   {#if dataLayer === 'silver'}
-    <p class="notice">
-      Time-series view is not available for Silver-layer data. Switch to Distribution to explore
-      Silver-layer document characteristics.
-    </p>
+    <p class="notice">{m.cells_ts_silver()}</p>
   {:else if sources.length === 0}
-    <p class="empty">No sources in the active scope.</p>
+    <p class="empty">{m.cells_ts_no_sources()}</p>
   {:else if composition === 'merged'}
     {#if showMergedNote}
       {@const note = methodologyNotes.alephMergedTimeSeries(sources.length)}

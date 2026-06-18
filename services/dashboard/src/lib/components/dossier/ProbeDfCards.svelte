@@ -19,6 +19,7 @@
     unclassifiedSources,
     coveredFunctions
   } from './probe-card-internals';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     /** The probe's machine id — namespaces the aria-controls ids. */
@@ -51,7 +52,7 @@
      Source-Cards for sources whose primary function matches. Uncovered DFs
      render with an explicit "uncovered" hint to surface the Negative Space. -->
 <section class="df-cards" aria-labelledby="df-heading">
-  <h3 id="df-heading" class="section-title">Discourse Functions</h3>
+  <h3 id="df-heading" class="section-title">{m.dossier_df_title()}</h3>
   <ul class="df-list" role="list">
     {#each DISCOURSE_FUNCTIONS as fn (fn)}
       {@const meta = FUNCTION_DEFINITIONS[fn]}
@@ -77,8 +78,10 @@
             <span class="df-label">{meta.label}</span>
             <span class="df-state" aria-hidden="true">
               {covered
-                ? `${fnSources.length} source${fnSources.length === 1 ? '' : 's'}`
-                : 'uncovered'}
+                ? (fnSources.length === 1
+                    ? m.dossier_df_state_sources_one
+                    : m.dossier_df_state_sources_other)({ count: fnSources.length })
+                : m.dossier_df_state_uncovered()}
             </span>
           </button>
           {#if isOpen}
@@ -91,7 +94,7 @@
                   {/each}
                 </ul>
               {:else}
-                <p class="muted">No sources in this probe carry this function.</p>
+                <p class="muted">{m.dossier_df_empty()}</p>
               {/if}
             </div>
           {/if}
@@ -103,9 +106,11 @@
   {#if unclassified.length > 0}
     <div class="df-card df-card-unclassified">
       <header class="df-head df-head-static">
-        <span class="df-label">Unclassified sources</span>
+        <span class="df-label">{m.dossier_df_unclassified_label()}</span>
         <span class="df-state">
-          {unclassified.length} source{unclassified.length === 1 ? '' : 's'}
+          {(unclassified.length === 1
+            ? m.dossier_df_state_sources_one
+            : m.dossier_df_state_sources_other)({ count: unclassified.length })}
         </span>
       </header>
       <div class="df-body">

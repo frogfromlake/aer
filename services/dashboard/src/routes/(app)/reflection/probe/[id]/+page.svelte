@@ -8,32 +8,50 @@
   import { page } from '$app/state';
   import { ScopeBar } from '$lib/components/chrome';
   import { probeDossierQuery, type ProbeDossierDto, type QueryOutcome } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
 
   const ctx = { baseUrl: '/api/v1' };
   const probeId = $derived(page.params.id ?? '');
 
-  const FUNCTION_META: Record<string, { label: string; description: string }> = {
-    epistemic_authority: {
-      label: 'Epistemic Authority',
-      description:
-        'Sources that define what is considered true, credible, and legitimate knowledge in a given society.'
-    },
-    power_legitimation: {
-      label: 'Power Legitimation',
-      description:
-        'Sources that articulate and justify the exercise of political, economic, or social power.'
-    },
-    cohesion_identity: {
-      label: 'Cohesion & Identity',
-      description:
-        'Sources that construct, reinforce, or contest collective identities and social bonds.'
-    },
-    subversion_friction: {
-      label: 'Subversion & Friction',
-      description:
-        'Sources that challenge dominant narratives, amplify marginalized voices, or contest hegemonic frames.'
+  // Discourse-function keys are the load-bearing identifiers (matched against
+  // covered functions); the label/description are localized at render time.
+  const FUNCTION_KEYS = [
+    'epistemic_authority',
+    'power_legitimation',
+    'cohesion_identity',
+    'subversion_friction'
+  ] as const;
+
+  function functionLabel(key: string): string {
+    switch (key) {
+      case 'epistemic_authority':
+        return m.reflection_function_epistemic_authority_label();
+      case 'power_legitimation':
+        return m.reflection_function_power_legitimation_label();
+      case 'cohesion_identity':
+        return m.reflection_function_cohesion_identity_label();
+      case 'subversion_friction':
+        return m.reflection_function_subversion_friction_label();
+      default:
+        return key;
     }
-  };
+  }
+
+  function functionDescription(key: string): string {
+    switch (key) {
+      case 'epistemic_authority':
+        return m.reflection_function_epistemic_authority_desc();
+      case 'power_legitimation':
+        return m.reflection_function_power_legitimation_desc();
+      case 'cohesion_identity':
+        return m.reflection_function_cohesion_identity_desc();
+      case 'subversion_friction':
+        return m.reflection_function_subversion_friction_desc();
+      default:
+        return '';
+    }
+  }
 
   const dossierQ = createQuery<QueryOutcome<ProbeDossierDto>, Error, QueryOutcome<ProbeDossierDto>>(
     () => {
@@ -52,14 +70,14 @@
 </script>
 
 <svelte:head>
-  <title>AĒR — Probe {probeId} · Methodology</title>
+  <title>{m.reflection_probe_head_title({ probeId })}</title>
 </svelte:head>
 
-<ScopeBar label="Reflection — Probe methodology view">
+<ScopeBar label={m.reflection_probe_scopebar_label()}>
   <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a href="/reflection" class="breadcrumb-root">Reflection</a>
+  <a href="/reflection" class="breadcrumb-root">{m.reflection_probe_breadcrumb_root()}</a>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="breadcrumb-label">Probe</span>
+  <span class="breadcrumb-label">{m.reflection_probe_breadcrumb_label()}</span>
   <span class="breadcrumb-sep" aria-hidden="true">›</span>
   <span class="breadcrumb-current" aria-current="page">{probeId}</span>
 </ScopeBar>
@@ -67,49 +85,53 @@
 <main class="probe-main" id="main-probe-methodology">
   <div class="probe-inner">
     {#if dossierQ.isPending}
-      <p class="state-msg" aria-busy="true">Loading probe dossier…</p>
+      <p class="state-msg" aria-busy="true">{m.reflection_probe_loading()}</p>
     {:else if dossierQ.isError || dossierQ.data?.kind === 'network-error'}
       <div class="error-state">
-        <h1>Could not load probe dossier</h1>
-        <p>Connect to the AĒR backend and try again.</p>
+        <h1>{m.reflection_probe_error_title()}</h1>
+        <p>{m.reflection_probe_error_body()}</p>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection" class="back-link">← Back to Reflection</a>
+        <a href="/reflection" class="back-link">{m.reflection_probe_back()}</a>
       </div>
     {:else if !dossier}
       <div class="error-state">
-        <h1>Probe not found</h1>
-        <p>No dossier available for probe <code>{probeId}</code>.</p>
+        <h1>{m.reflection_probe_notfound_title()}</h1>
+        <p>{m.reflection_probe_notfound_body_pre()} <code>{probeId}</code>.</p>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection" class="back-link">← Back to Reflection</a>
+        <a href="/reflection" class="back-link">{m.reflection_probe_back()}</a>
       </div>
     {:else}
       <header class="probe-header">
-        <p class="probe-eyebrow">Probe Dossier — Methodology View</p>
+        <p class="probe-eyebrow">{m.reflection_probe_eyebrow()}</p>
         <h1 class="probe-title">{dossier.displayName}</h1>
         <code class="probe-id-sub">{dossier.probeId}</code>
         <p class="probe-sub">
-          The methodological case study for this probe: why these sources, what discursive functions
-          they serve, what they represent, and what they do not cover.
+          {m.reflection_probe_sub()}
         </p>
       </header>
 
       <!-- Function coverage -->
       <section class="coverage-section" aria-labelledby="coverage-heading">
-        <h2 id="coverage-heading" class="section-title">Discourse Function Coverage</h2>
+        <h2 id="coverage-heading" class="section-title">
+          {m.reflection_probe_coverage_heading()}
+        </h2>
         <p class="section-body">
-          This probe covers <strong>{dossier.functionCoverage.covered}</strong> of
-          <strong>{dossier.functionCoverage.total}</strong> discourse functions defined in
+          {m.reflection_probe_coverage_body_pre()}
+          <strong>{dossier.functionCoverage.covered}</strong>
+          {m.reflection_probe_coverage_body_of()}
+          <strong>{dossier.functionCoverage.total}</strong>
+          {m.reflection_probe_coverage_body_post()}
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/reflection/wp/wp-001?section=3" class="wp-link">WP-001 §3</a>.
         </p>
         <ul class="function-list" role="list">
-          {#each Object.entries(FUNCTION_META) as [key, fn] (key)}
+          {#each FUNCTION_KEYS as key (key)}
             {@const isCovered = coveredFunctions.includes(key as (typeof coveredFunctions)[number])}
             <li class="function-item" class:covered={isCovered} class:uncovered={!isCovered}>
               <span class="function-indicator" aria-hidden="true">{isCovered ? '●' : '○'}</span>
               <div>
-                <p class="function-label">{fn.label}</p>
-                <p class="function-desc">{fn.description}</p>
+                <p class="function-label">{functionLabel(key)}</p>
+                <p class="function-desc">{functionDescription(key)}</p>
               </div>
             </li>
           {/each}
@@ -118,7 +140,7 @@
 
       <!-- Sources -->
       <section class="sources-section" aria-labelledby="sources-heading">
-        <h2 id="sources-heading" class="section-title">Sources in this Probe</h2>
+        <h2 id="sources-heading" class="section-title">{m.reflection_probe_sources_heading()}</h2>
         <ul class="source-list" role="list">
           {#each dossier.sources as source (source.name)}
             <li class="source-item">
@@ -126,25 +148,25 @@
                 <code class="source-id">{source.name}</code>
                 {#if source.primaryFunction}
                   <span class="source-fn">
-                    {FUNCTION_META[source.primaryFunction]?.label ?? source.primaryFunction}
+                    {functionLabel(source.primaryFunction)}
                   </span>
                 {/if}
               </div>
               {#if source.emicDesignation}
                 <p class="source-meta">
-                  <span class="meta-label">Emic designation:</span>
+                  <span class="meta-label">{m.reflection_probe_source_emic_designation()}</span>
                   {source.emicDesignation}
                 </p>
               {/if}
               {#if source.emicContext}
                 <p class="source-meta">
-                  <span class="meta-label">Emic context:</span>
+                  <span class="meta-label">{m.reflection_probe_source_emic_context()}</span>
                   {source.emicContext}
                 </p>
               {/if}
               <p class="source-meta">
-                <span class="meta-label">Articles in window:</span>
-                {source.articlesInWindow.toLocaleString()}
+                <span class="meta-label">{m.reflection_probe_source_articles_in_window()}</span>
+                {formatNumber(source.articlesInWindow)}
               </p>
             </li>
           {/each}
@@ -152,31 +174,31 @@
       </section>
 
       <!-- Methodological context cross-links -->
-      <nav class="methodology-links" aria-label="Methodological context">
-        <h2 class="section-title">Methodological context</h2>
+      <nav class="methodology-links" aria-label={m.reflection_probe_methodology_context_aria()}>
+        <h2 class="section-title">{m.reflection_probe_methodology_context_heading()}</h2>
         <ul class="link-list" role="list">
           <li>
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/wp-001?section=5" class="ctx-link">
-              WP-001 §5 — The Probe Constellation: From Individual Sources to Systemic Observation
+              {m.reflection_probe_ctx_wp001_5()}
             </a>
           </li>
           <li>
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/wp-001?section=6" class="ctx-link">
-              WP-001 §6 — Probe 0 Revisited: Classification Under the Taxonomy
+              {m.reflection_probe_ctx_wp001_6()}
             </a>
           </li>
           <li>
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/wp-003?section=6" class="ctx-link">
-              WP-003 §6 — Demographic Skew and the Digital Divide
+              {m.reflection_probe_ctx_wp003_6()}
             </a>
           </li>
           <li>
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
             <a href="/reflection/wp/wp-006?section=5" class="ctx-link">
-              WP-006 §5 — The Ethics of Making Discourse Visible
+              {m.reflection_probe_ctx_wp006_5()}
             </a>
           </li>
         </ul>
@@ -185,10 +207,10 @@
       <footer class="probe-footer">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
         <a href="/?dossier=open&selectedProbes={probeId}" class="footer-link">
-          Open Probe Dossier →
+          {m.reflection_probe_open_dossier()}
         </a>
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection" class="footer-link">← Back to Reflection</a>
+        <a href="/reflection" class="footer-link">{m.reflection_probe_back()}</a>
       </footer>
     {/if}
   </div>

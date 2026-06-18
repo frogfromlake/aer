@@ -10,12 +10,14 @@
   // owns the slider / toggle levers.
   import type { CellChannelBinding, Panel } from '$lib/state/url-internals';
   import { NET_COLOR_CHANNELS, NET_SIZE_CHANNELS } from '$lib/workbench/cell-levers';
-  import { viewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { locale } from '$lib/state/locale.svelte';
   import {
     resetAllCellOverrides,
     updatePanel,
     type PanelPath
   } from '$lib/workbench/panel-mutators';
+  import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
 
@@ -45,9 +47,9 @@
   const activeDisplayLanguage = $derived<'source' | 'viewer'>(
     boundPanel.displayLanguage ?? 'source'
   );
-  // App content language (clamped to the index's label languages) — shown on the
+  // App UI locale (clamped to the index's label languages) — shown on the
   // toggle so the reader knows which language the relabel resolves to.
-  const viewerLanguage = viewerLabelLanguage();
+  const viewerLanguage = $derived(pickViewerLabelLanguage(locale()));
   const activeMetricSet = $derived<readonly string[]>(boundPanel.metricSet ?? []);
   const activeFieldChain = $derived<readonly string[]>(boundPanel.fieldChain ?? []);
   const activeFacetField = $derived<string>(boundPanel.facetField ?? '');
@@ -62,7 +64,7 @@
   function toggleMetricSetMember(name: string) {
     updatePanel(panelPath, (p) => {
       const cur = p.metricSet ?? [];
-      const next = cur.includes(name) ? cur.filter((m) => m !== name) : [...cur, name];
+      const next = cur.includes(name) ? cur.filter((mn) => mn !== name) : [...cur, name];
       const out = { ...p };
       if (next.length > 0) out.metricSet = next;
       else delete out.metricSet;
@@ -72,7 +74,7 @@
   function toggleFieldChainMember(name: string) {
     updatePanel(panelPath, (p) => {
       const cur = p.fieldChain ?? [];
-      const next = cur.includes(name) ? cur.filter((m) => m !== name) : [...cur, name];
+      const next = cur.includes(name) ? cur.filter((mn) => mn !== name) : [...cur, name];
       const out = { ...p };
       if (next.length > 0) out.fieldChain = next;
       else delete out.fieldChain;
@@ -107,7 +109,8 @@
       // aggregate; seed one if none is bound yet (size + colour seed
       // independently; colour reuses the size metric when none of its own is set).
       const seedMetric = () =>
-        scalarMetricOptions.find((m) => m.startsWith('sentiment_score')) ?? scalarMetricOptions[0];
+        scalarMetricOptions.find((mn) => mn.startsWith('sentiment_score')) ??
+        scalarMetricOptions[0];
       if (key === 'netSize' && value === 'metric' && !ch.netMetric) {
         const seed = seedMetric();
         if (seed) ch.netMetric = seed;
@@ -125,26 +128,26 @@
 </script>
 
 {#if configParams.includes('networkChannels')}
-  <div class="ctrl-row config-row" role="group" aria-label="Network visual channels">
-    <span class="ctrl-eyebrow">Size</span>
+  <div class="ctrl-row config-row" role="group" aria-label={m.levers_network_channels_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_network_size_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.netSize ?? 'total_count'}
       onchange={(e) => setChannel('netSize', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Node size channel"
+      aria-label={m.levers_network_size_select_aria()}
     >
       {#each NET_SIZE_CHANNELS as c (c.id)}
         <option value={c.id}>{c.label}</option>
       {/each}
     </select>
-    <span class="ctrl-eyebrow">Colour</span>
+    <span class="ctrl-eyebrow">{m.levers_network_colour_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.netColor ?? 'label'}
       onchange={(e) => setChannel('netColor', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Node colour channel"
+      aria-label={m.levers_network_colour_select_aria()}
     >
       {#each NET_COLOR_CHANNELS as c (c.id)}
         <option value={c.id}>{c.label}</option>
@@ -152,35 +155,39 @@
     </select>
   </div>
   {#if activeChannels.netSize === 'metric'}
-    <div class="ctrl-row config-row" role="group" aria-label="Size metric">
-      <span class="ctrl-eyebrow">Size metric</span>
+    <div class="ctrl-row config-row" role="group" aria-label={m.levers_network_size_metric_aria()}>
+      <span class="ctrl-eyebrow">{m.levers_network_size_metric_eyebrow()}</span>
       <select
         class="config-select"
         value={activeChannels.netMetric ?? ''}
         onchange={(e) => setChannel('netMetric', (e.currentTarget as HTMLSelectElement).value)}
         onclick={(e) => e.stopPropagation()}
-        aria-label="Node size metric"
+        aria-label={m.levers_network_size_metric_select_aria()}
       >
-        <option value="" disabled>— pick a metric —</option>
-        {#each scalarMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="" disabled>{m.levers_pick_metric_placeholder()}</option>
+        {#each scalarMetricOptions as mn (mn)}
+          <option value={mn}>{mn}</option>
         {/each}
       </select>
     </div>
   {/if}
   {#if activeChannels.netColor === 'metric'}
-    <div class="ctrl-row config-row" role="group" aria-label="Colour metric">
-      <span class="ctrl-eyebrow">Colour metric</span>
+    <div
+      class="ctrl-row config-row"
+      role="group"
+      aria-label={m.levers_network_colour_metric_aria()}
+    >
+      <span class="ctrl-eyebrow">{m.levers_network_colour_metric_eyebrow()}</span>
       <select
         class="config-select"
         value={activeChannels.netColorMetric ?? activeChannels.netMetric ?? ''}
         onchange={(e) => setChannel('netColorMetric', (e.currentTarget as HTMLSelectElement).value)}
         onclick={(e) => e.stopPropagation()}
-        aria-label="Node colour metric"
+        aria-label={m.levers_network_colour_metric_select_aria()}
       >
-        <option value="" disabled>— pick a metric —</option>
-        {#each scalarMetricOptions as m (m)}
-          <option value={m}>{m}</option>
+        <option value="" disabled>{m.levers_pick_metric_placeholder()}</option>
+        {#each scalarMetricOptions as mn (mn)}
+          <option value={mn}>{mn}</option>
         {/each}
       </select>
     </div>
@@ -188,30 +195,37 @@
 {/if}
 
 {#if configParams.includes('displayLanguage')}
-  <LeverRow eyebrow="Labels" role="group" ariaLabel="Display language" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_labels_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_labels_aria()}
+    rowClass="config-row"
+  >
     <LeverButton
       role="switch"
       active={activeDisplayLanguage === 'viewer'}
       onclick={() => setDisplayLanguage(activeDisplayLanguage === 'viewer' ? 'source' : 'viewer')}
-      title={`Source form keeps each entity in its original language; App language relabels Wikidata-linked nodes to the app language (${viewerLanguage}). Unlinked nodes always keep their source form.`}
+      title={m.levers_labels_title({ language: viewerLanguage })}
     >
-      {activeDisplayLanguage === 'viewer' ? `App language (${viewerLanguage})` : 'Source form'}
+      {activeDisplayLanguage === 'viewer'
+        ? m.levers_labels_app({ language: viewerLanguage })
+        : m.levers_labels_source()}
     </LeverButton>
   </LeverRow>
 {/if}
 
 {#if configParams.includes('scatterAxes')}
-  <div class="ctrl-row config-row" role="group" aria-label="Scatter position channels">
-    <span class="ctrl-eyebrow">X · Y</span>
+  <div class="ctrl-row config-row" role="group" aria-label={m.levers_scatter_position_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_scatter_xy_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.x ?? ''}
       onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Scatter X-axis metric"
+      aria-label={m.levers_scatter_x_select_aria()}
     >
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
     <select
@@ -219,38 +233,38 @@
       value={activeChannels.y ?? ''}
       onchange={(e) => setChannel('y', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Scatter Y-axis metric"
+      aria-label={m.levers_scatter_y_select_aria()}
     >
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
   </div>
-  <div class="ctrl-row config-row" role="group" aria-label="Scatter size and colour channels">
-    <span class="ctrl-eyebrow">Size</span>
+  <div class="ctrl-row config-row" role="group" aria-label={m.levers_scatter_sizecolour_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_scatter_size_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.size ?? ''}
       onchange={(e) => setChannel('size', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Scatter point-size metric"
+      aria-label={m.levers_scatter_size_select_aria()}
     >
-      <option value="">— none —</option>
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      <option value="">{m.levers_none_placeholder()}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
-    <span class="ctrl-eyebrow">Colour</span>
+    <span class="ctrl-eyebrow">{m.levers_scatter_colour_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.color ?? ''}
       onchange={(e) => setChannel('color', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Scatter point-colour metric"
+      aria-label={m.levers_scatter_colour_select_aria()}
     >
-      <option value="">— none —</option>
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      <option value="">{m.levers_none_placeholder()}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
   </div>
@@ -258,16 +272,21 @@
 
 <!-- Phase 125 — N-metric set picker (correlation matrix, parallel coords). -->
 {#if configParams.includes('metricSet')}
-  <LeverRow eyebrow="Metric set" role="group" ariaLabel="Metric set" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_metric_set_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_metric_set_aria()}
+    rowClass="config-row"
+  >
     <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
-      {#each scalarMetricOptions as m (m)}
-        <label class="metric-set-chip" class:active={activeMetricSet.includes(m)}>
+      {#each scalarMetricOptions as mn (mn)}
+        <label class="metric-set-chip" class:active={activeMetricSet.includes(mn)}>
           <input
             type="checkbox"
-            checked={activeMetricSet.includes(m)}
-            onchange={() => toggleMetricSetMember(m)}
+            checked={activeMetricSet.includes(mn)}
+            onchange={() => toggleMetricSetMember(mn)}
           />
-          <code>{m}</code>
+          <code>{mn}</code>
         </label>
       {/each}
     </div>
@@ -276,16 +295,21 @@
 
 <!-- Phase 125 — cross-tab numeric metric (bound to channels.x). -->
 {#if configParams.includes('crossMetric')}
-  <LeverRow eyebrow="Metric" role="group" ariaLabel="Cross-tab metric" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_crosstab_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_crosstab_aria()}
+    rowClass="config-row"
+  >
     <select
       class="config-select"
       value={activeChannels.x ?? ''}
       onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Cross-tab numeric metric"
+      aria-label={m.levers_crosstab_select_aria()}
     >
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
   </LeverRow>
@@ -293,7 +317,12 @@
 
 <!-- Phase 125a — Sankey field chain (ordered multi-select of categorical fields). -->
 {#if configParams.includes('sankeyFields')}
-  <LeverRow eyebrow="Fields" role="group" ariaLabel="Sankey fields" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_sankey_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_sankey_aria()}
+    rowClass="config-row"
+  >
     <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
       {#each offerableFields as f (f)}
         <label class="metric-set-chip" class:active={activeFieldChain.includes(f)}>
@@ -306,7 +335,7 @@
         </label>
       {/each}
       {#if offerableFields.length === 0}
-        <span class="field-empty">No categorical metadata for this scope (Negative Space).</span>
+        <span class="field-empty">{m.levers_sankey_empty()}</span>
       {/if}
     </div>
   </LeverRow>
@@ -314,17 +343,17 @@
 
 <!-- Phase 125 — lead-lag x/y metric pickers (x leads y). -->
 {#if configParams.includes('leadLagAxes')}
-  <div class="ctrl-row config-row" role="group" aria-label="Lead-lag metrics">
-    <span class="ctrl-eyebrow">X → Y</span>
+  <div class="ctrl-row config-row" role="group" aria-label={m.levers_leadlag_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_leadlag_xy_eyebrow()}</span>
     <select
       class="config-select"
       value={activeChannels.x ?? ''}
       onchange={(e) => setChannel('x', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Lead-lag X metric (leads)"
+      aria-label={m.levers_leadlag_x_select_aria()}
     >
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
     <select
@@ -332,10 +361,10 @@
       value={activeChannels.y ?? ''}
       onchange={(e) => setChannel('y', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Lead-lag Y metric (follows)"
+      aria-label={m.levers_leadlag_y_select_aria()}
     >
-      {#each scalarMetricOptions as m (m)}
-        <option value={m}>{m}</option>
+      {#each scalarMetricOptions as mn (mn)}
+        <option value={mn}>{mn}</option>
       {/each}
     </select>
   </div>
@@ -343,33 +372,45 @@
 
 <!-- Phase 125a — faceting / small-multiples (per-article presentations only). -->
 {#if viewSupportsFaceting}
-  <LeverRow eyebrow="Facet by" role="group" ariaLabel="Facet by field" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_facet_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_facet_aria()}
+    rowClass="config-row"
+  >
     <select
       class="config-select"
       value={activeFacetField}
       onchange={(e) => setFacetField((e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
-      aria-label="Facet by categorical field"
+      aria-label={m.levers_facet_select_aria()}
     >
-      <option value="">— None —</option>
+      <option value="">{m.levers_facet_none()}</option>
       {#each facetFieldOptions as f (f)}
         <option value={f}>{f}</option>
       {/each}
     </select>
     {#if facetFieldOptions.length === 0}
-      <span class="field-empty">No categorical metadata for this scope (Negative Space).</span>
+      <span class="field-empty">{m.levers_facet_empty()}</span>
     {/if}
   </LeverRow>
 {/if}
 
 <!-- Phase 126 — panel-level "Reset all cells" (clears every per-cell override). -->
 {#if cellOverrideCount > 0}
-  <LeverRow eyebrow="Cells" role="group" ariaLabel="Per-cell overrides" rowClass="config-row">
+  <LeverRow
+    eyebrow={m.levers_cells_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_cells_aria()}
+    rowClass="config-row"
+  >
     <LeverButton
       onclick={() => resetAllCellOverrides(panelPath)}
-      title={`Clear the custom per-cell configuration on all ${cellOverrideCount} overridden cell(s) and return them to the panel default`}
+      title={m.levers_cells_reset_title({ count: cellOverrideCount })}
     >
-      ↺ Reset {cellOverrideCount} custom cell{cellOverrideCount === 1 ? '' : 's'}
+      {cellOverrideCount === 1
+        ? m.levers_cells_reset_one({ count: cellOverrideCount })
+        : m.levers_cells_reset_other({ count: cellOverrideCount })}
     </LeverButton>
   </LeverRow>
 {/if}

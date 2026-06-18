@@ -1,0 +1,44 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "atmosphere_doc_title": "AĒR — Atmosphäre",
+
+  "atmosphere_scopebar_label": "Steuerung der Atmosphären-Oberfläche",
+  "atmosphere_primer_link": "Den Globus lesen →",
+
+  "atmosphere_canvas_label": "AĒR-Atmosphäre: rotierende 3D-Erde mit Tag-Nacht-Grenze in Echtzeit",
+
+  "atmosphere_absence_label": "Hinweis zur Abdeckung",
+  "atmosphere_absence_text": "AĒR kann nicht messen, welche Regionen der Diskurs einer Quelle erreicht — daher wird hier keine Aussage zur geografischen Abdeckung getroffen. Der quellenbezogene Negativraum findet sich im Dossier.",
+  "atmosphere_absence_link": "WP-006 §4.2",
+
+  "atmosphere_tooltip_in_selection": "✓ in der Auswahl",
+  "atmosphere_tooltip_affordance_in_selection": "Umschalt+Klick zum Entfernen · Klick zum Fokussieren",
+  "atmosphere_tooltip_affordance_add": "Klick zum Auswählen · Umschalt+Klick zum Hinzufügen",
+  "atmosphere_tooltip_affordance_multi": "Klick zum Auswählen · Umschalt+Klick für Mehrfachauswahl",
+  "atmosphere_tooltip_satellite_meta": "Quelle · {sourceName}",
+  "atmosphere_tooltip_satellite_affordance": "Klicken, um das Dossier zur zugehörigen Probe zu öffnen",
+
+  "atmosphere_probe_nav_label": "Proben auf dem Globus",
+  "atmosphere_probe_nav_item_label": "Probe {displayName}, {language}",
+
+  "atmosphere_banner_label": "Probenauswahl",
+  "atmosphere_banner_count_one": "⊗ {count} Probe ausgewählt",
+  "atmosphere_banner_count_other": "⊗ {count} Proben ausgewählt",
+  "atmosphere_banner_open_dossier": "Dossier öffnen",
+  "atmosphere_banner_open_workbench": "Workbench öffnen →",
+  "atmosphere_banner_clear": "Zurücksetzen",
+
+  "atmosphere_fallback_lede": "Atmosphärischer Sensor für den menschlichen Diskurs.",
+  "atmosphere_fallback_notice": "Ihr Browser unterstützt kein WebGL2, daher ist die 3D-Atmosphäre nicht verfügbar. Der untenstehende Live-Zustand der Proben zeigt dieselben Daten, die die visuelle Oberfläche darstellen würde.",
+  "atmosphere_fallback_probes_heading": "Aktive Proben",
+  "atmosphere_fallback_loading": "Aktive Proben werden geladen…",
+  "atmosphere_fallback_no_probes": "Keine aktiven Proben.",
+  "atmosphere_fallback_language_label": "Sprache",
+  "atmosphere_fallback_emission_points": "Emissionspunkte",
+  "atmosphere_fallback_publication_rate": "Publikationsrate",
+  "atmosphere_fallback_rate_unknown": "—",
+  "atmosphere_fallback_rate_zero": "0 Dok./Std.",
+  "atmosphere_fallback_rate_trace": "< 0,1 Dok./Std.",
+  "atmosphere_fallback_rate_value": "{rate} Dok./Std.",
+  "atmosphere_fallback_reach_note": "Die Reichweite wird nicht ausgewiesen. Die Emissionspunkte einer Probe markieren, wo die ihr zugeordneten Publizierenden senden — nicht, wo ihre Inhalte konsumiert werden oder Wirkung entfalten. AĒR erhebt keinen Reichweitenanspruch."
+}

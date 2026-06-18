@@ -5,6 +5,7 @@
   // the reader arrived from a Pillar cell (Phase 113c / 122h referrer params).
   import { page } from '$app/state';
   import { buildBackToWorkbenchHref } from '$lib/reflection/wp-page-internals';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     paperId: string | null;
@@ -26,8 +27,8 @@
 </script>
 
 <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-<a href="/reflection" class="breadcrumb-root" aria-label="Back to Reflection surface">
-  Reflection
+<a href="/reflection" class="breadcrumb-root" aria-label={m.reflection_wp_breadcrumb_root_aria()}>
+  {m.reflection_wp_breadcrumb_root()}
 </a>
 <span class="breadcrumb-sep" aria-hidden="true">›</span>
 <span class="breadcrumb-id" aria-current="page">
@@ -38,10 +39,15 @@
   <span class="breadcrumb-section">§{sectionParam}</span>
 {/if}
 {#if backToLaneHref}
-  <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-  <a class="back-to-lane" href={backToLaneHref} aria-label="Back to Workbench">
-    ← Back to Workbench
+  <!-- eslint-disable svelte/no-navigation-without-resolve -- referrer-built internal workbench deep-link -->
+  <a
+    class="back-to-lane"
+    href={backToLaneHref}
+    aria-label={m.reflection_wp_breadcrumb_back_to_workbench_aria()}
+  >
+    {m.reflection_wp_breadcrumb_back_to_workbench()}
   </a>
+  <!-- eslint-enable svelte/no-navigation-without-resolve -->
 {/if}
 
 <style>

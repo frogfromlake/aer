@@ -8,12 +8,12 @@
 import { defaultPresentationForPillar, getPillar, type PillarDefinition } from '$lib/presentations';
 import { setUrl, urlState } from '$lib/state/url.svelte';
 import type { UrlState, PillarId } from '$lib/state/url-internals';
-import { seedPillarFromCurrent, PILLAR_QUESTIONS, PILLAR_PLAIN_LANGUAGE } from './pillar-internals';
+import { seedPillarFromCurrent } from './pillar-internals';
 
-// Phase 142 — the pure cross-pillar seed transform + the plain-language copy
-// maps live in `pillar-internals.ts` (node-unit-testable). Re-exported here so
-// every existing import site (`$lib/pillar`) is unchanged.
-export { PILLAR_QUESTIONS, PILLAR_PLAIN_LANGUAGE };
+// Phase 142 — the pure cross-pillar seed transform lives in
+// `pillar-internals.ts` (node-unit-testable). Phase 144 — the plain-language
+// pillar question/stance copy moved to Paraglide chrome messages (consumed by
+// PillarSwitch.svelte), so it is no longer re-exported here.
 
 /**
  * Switch the active Pillar. Idempotent — no-op when the requested Pillar

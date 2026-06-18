@@ -14,7 +14,8 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import ArticleListModal from '$lib/components/article/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
-  import { viewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
+  import { locale } from '$lib/state/locale.svelte';
   import type { PresentationCellProps } from '$lib/presentations';
   import type { ExportPayload } from '$lib/presentations/cell-export';
   import {
@@ -67,7 +68,9 @@
   // request the app-language label per QID-linked node; 'source' (default)
   // sends nothing and every node keeps its source surface form. The language is
   // the app content language clamped to the index's label languages.
-  const viewerLang = $derived(displayLanguage === 'viewer' ? viewerLabelLanguage() : undefined);
+  const viewerLang = $derived(
+    displayLanguage === 'viewer' ? pickViewerLabelLanguage(locale()) : undefined
+  );
 
   // Phase 131 — configurable top-edge cap (default 60, BFF-clamped to [1,500])
   // and visual-channel binding (node size, node colour).

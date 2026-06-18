@@ -30,6 +30,7 @@
   import { Dialog } from '$lib/components/base';
   import L5EvidenceReader from '../evidence/L5EvidenceReader.svelte';
   import ArticleRow from './ArticleRow.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   // Two modes:
   //
@@ -321,7 +322,11 @@
          fix — dim tabs we've auto-tried and found empty, so the
          user immediately sees which sources actually carry the
          selected entity. -->
-    <div class="source-tabs" role="tablist" aria-label="Source tabs">
+    <div
+      class="source-tabs"
+      role="tablist"
+      aria-label={m.source_article_modal_source_tabs_aria_label()}
+    >
       {#each config.sources as src, idx (src.name)}
         {@const isEmpty =
           triedSourceIndices.has(idx) && idx !== activeSourceIdx && allItems.length === 0}
@@ -333,52 +338,56 @@
           class:active={idx === activeSourceIdx}
           class:empty={isEmpty}
           title={isEmpty
-            ? `${src.label ?? src.name} has no articles for this selection.`
+            ? m.source_article_modal_tab_empty_title({ source: src.label ?? src.name })
             : undefined}
           onclick={() => selectSource(idx)}
         >
-          {src.label ?? src.name}{isEmpty ? ' · 0' : ''}
+          {src.label ?? src.name}{isEmpty ? m.source_article_modal_tab_empty_suffix() : ''}
         </button>
       {/each}
     </div>
   {/if}
 
   {#if activeQuery.isPending && allItems.length === 0}
-    <p class="state-msg" aria-busy="true">Loading articles…</p>
+    <p class="state-msg" aria-busy="true">{m.source_article_loading()}</p>
   {:else if activeQuery.isError || activeQuery.data?.kind === 'network-error'}
-    <p class="state-msg error">Failed to load articles.</p>
+    <p class="state-msg error">{m.source_article_load_failed()}</p>
   {:else if allItems.length === 0}
     <!-- BUG-5 fix — source/filter-specific empty message instead of
          the generic "No articles match the current filter." which
          confused users in multi-source contexts. -->
     {#if config.mode === 'source-articles'}
       {@const activeSrc = config.sources[activeSourceIdx]}
-      {@const srcLabel = activeSrc?.label ?? activeSrc?.name ?? 'this source'}
+      {@const srcLabel =
+        activeSrc?.label ?? activeSrc?.name ?? m.source_article_modal_empty_default_source()}
       <p class="state-msg muted">
-        <strong>{srcLabel}</strong> has no articles{config.entityMatch
-          ? ` mentioning «${config.entityMatch}»`
-          : ''} in the active window.
+        <strong>{srcLabel}</strong>
+        {m.source_article_modal_empty_lead()}{config.entityMatch
+          ? m.source_article_modal_empty_mentioning({ entity: config.entityMatch })
+          : ''}{m.source_article_modal_empty_in_window()}
         {#if config.sources.length > 1 && triedSourceIndices.size >= config.sources.length}
-          (No source in the active scope carries this selection.)
+          {m.source_article_modal_empty_no_source()}
         {/if}
       </p>
     {:else}
-      <p class="state-msg muted">No articles have revisions in the active window for this scope.</p>
+      <p class="state-msg muted">{m.source_article_modal_empty_revisions()}</p>
     {/if}
   {:else}
-    <div class="table-wrap" role="region" aria-label="Article list">
+    <div class="table-wrap" role="region" aria-label={m.source_article_region_aria_label()}>
       <table class="article-table">
         <thead>
           <tr>
-            <th scope="col">Published</th>
+            <th scope="col">{m.source_article_col_published()}</th>
             {#if config.mode === 'revisions-articles'}
-              <th scope="col">Source</th>
+              <th scope="col">{m.source_article_col_source()}</th>
             {/if}
-            <th scope="col">Lang</th>
-            <th scope="col" class="right">Words</th>
-            <th scope="col" class="right">Sentiment</th>
-            <th scope="col"><span class="sr-only">Revision badges</span></th>
-            <th scope="col"><span class="sr-only">Actions</span></th>
+            <th scope="col">{m.source_article_col_lang()}</th>
+            <th scope="col" class="right">{m.source_article_col_words()}</th>
+            <th scope="col" class="right">{m.source_article_col_sentiment()}</th>
+            <th scope="col"
+              ><span class="sr-only">{m.source_article_col_revision_badges()}</span></th
+            >
+            <th scope="col"><span class="sr-only">{m.source_article_col_actions()}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -397,14 +406,18 @@
       <button
         type="button"
         class="load-more-btn"
-        aria-label="Load more articles"
+        aria-label={m.source_article_load_more_aria_label()}
         disabled={activeQuery.isFetching}
         onclick={loadMore}
       >
-        {activeQuery.isFetching ? 'Loading…' : 'Load more'}
+        {activeQuery.isFetching ? m.common_loading() : m.source_article_load_more()}
       </button>
     {:else}
-      <p class="end-note">All {allItems.length} article{allItems.length !== 1 ? 's' : ''} shown.</p>
+      <p class="end-note">
+        {(allItems.length === 1
+          ? m.source_article_all_shown_one
+          : m.source_article_all_shown_other)({ count: allItems.length })}
+      </p>
     {/if}
   {/if}
 </Dialog>

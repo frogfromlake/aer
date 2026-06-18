@@ -29,6 +29,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
 
@@ -123,7 +124,7 @@
         marginLeft: 48,
         marginBottom: 40,
         x: { label: null, type: 'time', grid: false },
-        y: { label: 'revisions ↑', grid: true, nice: true },
+        y: { label: m.cells_revtl_axis_revisions(), grid: true, nice: true },
         color: { legend: true },
         marks: [
           Plot.line(rows, {
@@ -188,10 +189,10 @@
       y: ev.clientY,
       title: pt.source,
       rows: [
-        { label: 'bucket', value: fmtTimestamp(pt.bucket.getTime() / 1000) },
-        { label: 'revisions', value: fmtValue(pt.revisions) }
+        { label: m.cells_revtl_readout_bucket(), value: fmtTimestamp(pt.bucket.getTime() / 1000) },
+        { label: m.cells_revtl_readout_revisions(), value: fmtValue(pt.revisions) }
       ],
-      hint: 'Click to see articles in this bucket'
+      hint: m.cells_revtl_readout_hint()
     };
   }
 
@@ -234,7 +235,7 @@
 <section class="rev-cell" aria-labelledby="rev-tl-title-{scopeId}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="rev-tl-title-{scopeId}" class="cell-title">
-      <span>Revision timeline</span>
+      <span>{m.cells_revtl_title()}</span>
       <span class="muted">
         — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code>
       </span>
@@ -245,16 +246,17 @@
   </header>
 
   {#if revisionQ.isPending}
-    <p class="muted" aria-busy="true">Loading revision timeline…</p>
+    <p class="muted" aria-busy="true">{m.cells_revtl_loading()}</p>
   {:else if revisionQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={revisionQ.data} {ctx} />
   {:else if revisionQ.isError || revisionQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load revision timeline.</p>
+    <p class="muted">{m.cells_revtl_error()}</p>
   {:else if points.length === 0}
-    <p class="muted">No silent-edit activity observed in this window.</p>
+    <p class="muted">{m.cells_revtl_empty()}</p>
   {:else}
     <p class="click-hint" aria-hidden="true">
-      <span class="click-hint-icon">↻</span> Click any point to see the articles edited in that bucket.
+      <span class="click-hint-icon">↻</span>
+      {m.cells_revtl_click_hint()}
     </p>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -262,7 +264,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Revisions over time per source. Click a point to view articles in that bucket."
+      aria-label={m.cells_revtl_plot_aria()}
       onclick={onHostClick}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
@@ -276,7 +278,7 @@
 {#if drilldown}
   <ArticleListModal
     open={drilldown !== null}
-    title={`Articles edited — ${drilldown.source}`}
+    title={m.cells_revtl_drilldown_title({ source: drilldown.source })}
     {ctx}
     windowStart={drilldown.bucketStart}
     windowEnd={drilldown.bucketEnd}

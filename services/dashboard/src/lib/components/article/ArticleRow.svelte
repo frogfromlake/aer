@@ -15,6 +15,8 @@
 
   import { classifyNegativeSpace } from '$lib/negative-space';
   import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatDateTime, formatNumber } from '$lib/localization/format';
 
   interface ArticleRowItem {
     articleId: string;
@@ -57,7 +59,10 @@
 
   function formatTs(iso: string): string {
     try {
-      return new Date(iso).toLocaleString('en-CA', {
+      // Locale-aware numeric date+time (Phase 144). Explicit numeric opts
+      // preserve the compact YYYY-MM-DD HH:mm shape (en) / DD.MM.YYYY HH:mm
+      // (de) the row needs, rather than the default medium/short styling.
+      return formatDateTime(iso, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -86,14 +91,16 @@
   </td>
   {#if showSourceCol}
     <td>
-      <span class="source-cell"><code>{item.source ?? '—'}</code></span>
+      <span class="source-cell"><code>{item.source ?? m.source_article_source_none()}</code></span>
     </td>
   {/if}
   <td>
-    <span class="lang-cell">{item.language ?? '—'}</span>
+    <span class="lang-cell">{item.language ?? m.source_article_lang_none()}</span>
   </td>
   <td class="right">
-    <span class="num-cell">{item.wordCount?.toLocaleString() ?? '—'}</span>
+    <span class="num-cell"
+      >{item.wordCount != null ? formatNumber(item.wordCount) : m.source_article_words_none()}</span
+    >
   </td>
   <td class="right">
     {#if item.sentimentScore !== null && item.sentimentScore !== undefined}
@@ -101,7 +108,7 @@
         {item.sentimentScore.toFixed(3)}
       </span>
     {:else}
-      <span class="num-cell muted">—</span>
+      <span class="num-cell muted">{m.source_article_sentiment_none()}</span>
     {/if}
   </td>
   <!-- Phase 133 — REVISION badge = editorial edits ONLY. A revision is a
@@ -113,12 +120,18 @@
     {#if item.editorialChangeCount !== null && item.editorialChangeCount !== undefined && item.editorialChangeCount > 0}
       <span
         class="badge chain-badge"
-        title="{item.editorialChangeCount} editorial change{item.editorialChangeCount === 1
-          ? ''
-          : 's'}{item.chainLength
-          ? ` · ${item.chainLength} archived capture${item.chainLength === 1 ? '' : 's'} (mostly identical re-archivals)`
-          : ''}{item.latestRevisionAt ? ` · latest ${formatTs(item.latestRevisionAt)}` : ''}"
-        aria-label="Editorial changes: {item.editorialChangeCount}"
+        title="{(item.editorialChangeCount === 1
+          ? m.source_article_editorial_title_one
+          : m.source_article_editorial_title_other)({
+          count: item.editorialChangeCount
+        })}{item.chainLength
+          ? (item.chainLength === 1
+              ? m.source_article_editorial_title_captures_one
+              : m.source_article_editorial_title_captures_other)({ count: item.chainLength })
+          : ''}{item.latestRevisionAt
+          ? m.source_article_editorial_title_latest({ timestamp: formatTs(item.latestRevisionAt) })
+          : ''}"
+        aria-label={m.source_article_editorial_aria_label({ count: item.editorialChangeCount })}
       >
         ✎ {item.editorialChangeCount}
       </span>
@@ -131,8 +144,8 @@
     <button
       type="button"
       class="view-btn"
-      aria-label="View article detail: {formatTs(item.timestamp)}"
-      onclick={() => onOpen(item.articleId)}>View</button
+      aria-label={m.source_article_view_aria_label({ timestamp: formatTs(item.timestamp) })}
+      onclick={() => onOpen(item.articleId)}>{m.source_article_view()}</button
     >
   </td>
 </tr>

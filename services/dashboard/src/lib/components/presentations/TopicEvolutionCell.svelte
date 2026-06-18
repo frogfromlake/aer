@@ -31,6 +31,7 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
   import {
     OUTLIER_COLOUR,
@@ -204,9 +205,11 @@
         title: (d: PlotRow) =>
           [
             labelFor(d),
-            `language: ${d.language}`,
-            `articles: ${d.articleCount}`,
-            `topic_id: ${d.topicId}${d.isOutlier ? ' (outlier)' : ''}`
+            m.cells_topicevo_tooltip_language({ language: d.language }),
+            m.cells_topicevo_tooltip_articles({ count: d.articleCount }),
+            d.isOutlier
+              ? m.cells_topicevo_tooltip_topic_id_outlier({ topicId: d.topicId })
+              : m.cells_topicevo_tooltip_topic_id({ topicId: d.topicId })
           ].join('\n'),
         // Phase 132 — exact-value hover readout. Stacked + ordered (+ optional
         // facet) marks reorder the DOM, so Plot's data-bound `tip` is the
@@ -236,19 +239,21 @@
         marginRight: 16,
         marginBottom: 36,
         marginTop: facetMulti ? 24 : 12,
-        x: { type: 'time', label: 'time', grid: false, nice: true },
+        x: { type: 'time', label: m.cells_topicevo_axis_time(), grid: false, nice: true },
         y: {
           // `labelAnchor: 'center'` rotates the y-label vertically along the
           // axis instead of Plot's default top-left horizontal placement,
           // which overlapped the plot/facet header. A shorter label + wider
           // left margin keep it clear of the tick numbers.
-          label: useStaticBars ? 'articles/bucket' : 'stream volume',
+          label: useStaticBars
+            ? m.cells_topicevo_axis_y_static()
+            : m.cells_topicevo_axis_y_stream(),
           labelAnchor: 'center',
           grid: true
         },
         ...(facetMulti
           ? {
-              fy: { label: 'language', domain: languages }
+              fy: { label: m.cells_topicevo_facet_language(), domain: languages }
             }
           : {}),
         marks: [stackedMark]
@@ -301,18 +306,16 @@
 <section class="topic-cell" aria-labelledby="topic-evo-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="topic-evo-title" class="cell-title">
-      <span class="primary">Topics over time</span>
+      <span class="primary">{m.cells_topicevo_title()}</span>
       <span class="muted"
-        >— BERTopic stream graph · <strong class="scope-name">{scopeId}</strong></span
+        >— {m.cells_topicevo_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
-      <span
-        class="tier-badge"
-        title="Tier 2 (Phase 120) — reproducible with pinned model, not bit-for-bit deterministic across platforms."
-        >Tier 2</span
+      <span class="tier-badge" title={m.cells_topicevo_tier_badge_title()}
+        >{m.cells_topicevo_tier_badge()}</span
       >
       {#if reducedMotion}
-        <span class="reduced-motion-badge" title="Static stacked bars per prefers-reduced-motion."
-          >reduced motion</span
+        <span class="reduced-motion-badge" title={m.cells_topicevo_reduced_motion_badge_title()}
+          >{m.cells_topicevo_reduced_motion_badge()}</span
         >
       {/if}
     </h3>
@@ -322,18 +325,15 @@
   </header>
 
   {#if buckets.length === 0}
-    <p class="muted">Pick a wider window to see topic evolution over time.</p>
+    <p class="muted">{m.cells_topicevo_no_window()}</p>
   {:else if isPending}
-    <p class="muted" aria-busy="true">Loading topic evolution…</p>
+    <p class="muted" aria-busy="true">{m.cells_topicevo_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load topic evolution.</p>
+    <p class="muted">{m.cells_topicevo_error()}</p>
   {:else if plotRows.length === 0}
-    <p class="muted">
-      No topic assignments in this window. The BERTopic sweep loop runs in the background — wait for
-      the next sweep or pick a wider time range.
-    </p>
+    <p class="muted">{m.cells_topicevo_empty()}</p>
   {:else}
     {#if isJointCorpus}
       {@const note = methodologyNotes.epistemeJointCorpusEvolution(sources.length)}
@@ -345,48 +345,58 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label="Stream graph of topic article volume over time, stacked by topic{multiLang
-        ? `, faceted by language partition: ${languages.join(', ')}`
+      aria-label="{m.cells_topicevo_plot_aria()}{multiLang
+        ? m.cells_topicevo_plot_aria_faceted({ languages: languages.join(', ') })
         : ''}"
     ></div>
 
-    <ul class="legend" aria-label="Topic colour legend">
+    <ul class="legend" aria-label={m.cells_topicevo_legend_aria()}>
       {#each legendEntries as e (e.id)}
         <li class="legend-item" class:outlier={e.isOutlier} class:other={e.isOther}>
           <span class="swatch" style="background: {e.colour};" aria-hidden="true"></span>
           <span class="legend-label">{e.label}</span>
           {#if multiLang}
-            <span class="legend-lang">[{e.language}]</span>
+            <span class="legend-lang">{m.cells_topicevo_legend_lang({ language: e.language })}</span
+            >
           {/if}
         </li>
       {/each}
     </ul>
 
-    <footer class="provenance" aria-label="Methodology provenance" data-export-exclude="provenance">
+    <footer
+      class="provenance"
+      aria-label={m.cells_topicevo_prov_aria()}
+      data-export-exclude="provenance"
+    >
       <dl>
         <div>
-          <dt>Buckets</dt>
-          <dd>{buckets.length} sub-windows · {legendEntries.length} series</dd>
-        </div>
-        <div>
-          <dt>Embeddings</dt>
-          <dd><code>intfloat/multilingual-e5-large</code></dd>
-        </div>
-        <div>
-          <dt>Tier</dt>
-          <dd>2 — pinned BERTopic + seeded UMAP/HDBSCAN (WP-002 §8.1 Option C)</dd>
-        </div>
-        <div>
-          <dt>Partition</dt>
+          <dt>{m.cells_topicevo_prov_buckets()}</dt>
           <dd>
-            {multiLang
-              ? 'per-language (no cross-language alignment — WP-004 §3.4)'
-              : `single language (${languages[0]})`}
+            {m.cells_topicevo_prov_buckets_value({
+              buckets: buckets.length,
+              series: legendEntries.length
+            })}
           </dd>
         </div>
         <div>
-          <dt>Palette</dt>
-          <dd>Viridis ramp, arbitrary topic order — colour carries no valence.</dd>
+          <dt>{m.cells_topicevo_prov_embeddings()}</dt>
+          <dd><code>intfloat/multilingual-e5-large</code></dd>
+        </div>
+        <div>
+          <dt>{m.cells_topicevo_prov_tier()}</dt>
+          <dd>{m.cells_topicevo_prov_tier_value()}</dd>
+        </div>
+        <div>
+          <dt>{m.cells_topicevo_prov_partition()}</dt>
+          <dd>
+            {multiLang
+              ? m.cells_topicevo_prov_partition_multi()
+              : m.cells_topicevo_prov_partition_single({ language: languages[0] ?? '' })}
+          </dd>
+        </div>
+        <div>
+          <dt>{m.cells_topicevo_prov_palette()}</dt>
+          <dd>{m.cells_topicevo_prov_palette_value()}</dd>
         </div>
       </dl>
     </footer>

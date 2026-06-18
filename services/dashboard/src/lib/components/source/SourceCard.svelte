@@ -18,6 +18,9 @@
   import { getFunctionDef } from '$lib/discourse-function';
   import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
   import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
+  import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
+  import { formatNumber } from '$lib/localization/format';
 
   interface Props {
     source: ProbeDossierSourceDto;
@@ -69,14 +72,14 @@
   // discourse-function classification; `methodological` = the
   // collection-method reason / bias (publication cadence, source-selection
   // constraints). Surfaced here so a reader knows WHAT they are comparing —
-  // critical once probes from different cultures are composed. Locale 'en'
-  // mirrors ProbeCard; both en/de catalogue entries exist.
+  // critical once probes from different cultures are composed. Phase 144 —
+  // follows the active UI locale (both en/de catalogue entries exist).
   const sourceContentQ = createQuery<
     QueryOutcome<ContentResponseDto>,
     Error,
     QueryOutcome<ContentResponseDto>
   >(() => {
-    const o = contentQuery(ctx, 'source', source.name, 'en');
+    const o = contentQuery(ctx, 'source', source.name, locale());
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
   const sourceContent = $derived(
@@ -85,8 +88,8 @@
 
   let freqDisplay = $derived(
     source.publicationFrequencyPerDay !== null && source.publicationFrequencyPerDay !== undefined
-      ? source.publicationFrequencyPerDay.toFixed(1) + ' / day'
-      : '—'
+      ? m.source_card_freq_per_day({ value: source.publicationFrequencyPerDay.toFixed(1) })
+      : m.source_card_freq_none()
   );
 </script>
 
@@ -105,21 +108,27 @@
     {#if source.silverEligible}
       <span
         class="silver-badge"
-        aria-label="Silver-layer eligible"
-        title="Silver-layer access approved (WP-006 §5.2)">Ag</span
+        aria-label={m.source_card_silver_aria_label()}
+        title={m.source_card_silver_title()}>Ag</span
       >
     {/if}
     <span
       class="toggle-summary"
       aria-hidden={cardExpanded ? 'true' : 'false'}
       title={hasActiveWindow
-        ? `Articles inside selected window · publication rate inside window`
-        : `Total articles for this source · recent publication cadence (last 7 days of articles)`}
+        ? m.source_card_summary_title_window()
+        : m.source_card_summary_title_total()}
     >
       {#if hasActiveWindow}
-        {source.articlesInWindow.toLocaleString()} in window · {freqDisplay}
+        {m.source_card_summary_in_window({
+          count: formatNumber(source.articlesInWindow),
+          freq: freqDisplay
+        })}
       {:else}
-        {source.articlesTotal.toLocaleString()} articles · {freqDisplay}
+        {m.source_card_summary_total({
+          count: formatNumber(source.articlesTotal),
+          freq: freqDisplay
+        })}
       {/if}
     </span>
   </button>
@@ -132,7 +141,7 @@
           class="source-url"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Source URL: {source.url}"
+          aria-label={m.source_card_url_aria_label({ url: source.url })}
         >
           {source.url}
         </a>
@@ -140,36 +149,32 @@
 
       <!-- Article counts — tooltipped, window-conditional. -->
       <dl class="stats-row">
-        <div
-          class="stat"
-          title="All articles ingested for this source. The crawler discovers articles whose sitemap or RSS entry was updated within the last 7 days; individual articles can be older if their listing was recently refreshed by the publisher (re-publications, edits)."
-        >
+        <div class="stat" title={m.source_card_stat_total_title()}>
           <dt>
-            Total
+            {m.source_card_stat_total_label()}
             <span class="info-hint" aria-hidden="true">ⓘ</span>
           </dt>
-          <dd>{source.articlesTotal.toLocaleString()}</dd>
+          <dd>{formatNumber(source.articlesTotal)}</dd>
         </div>
         {#if hasActiveWindow}
-          <div
-            class="stat"
-            title="Articles whose publication date falls inside the date range selected on this page."
-          >
+          <div class="stat" title={m.source_card_stat_in_window_title()}>
             <dt>
-              In window
+              {m.source_card_stat_in_window_label()}
               <span class="info-hint" aria-hidden="true">ⓘ</span>
             </dt>
-            <dd>{source.articlesInWindow.toLocaleString()}</dd>
+            <dd>{formatNumber(source.articlesInWindow)}</dd>
           </div>
         {/if}
         <div
           class="stat"
           title={hasActiveWindow
-            ? 'Publication rate inside the selected window: articles in window divided by the window length in days.'
-            : 'Recent publication cadence: how many articles per day this source publishes, measured over the last 7 days of its newest articles. Robust against older re-published articles that would otherwise deflate a long-run average.'}
+            ? m.source_card_stat_freq_title_window()
+            : m.source_card_stat_freq_title_total()}
         >
           <dt>
-            {hasActiveWindow ? 'Frequency' : 'Recent cadence'}
+            {hasActiveWindow
+              ? m.source_card_stat_freq_label_window()
+              : m.source_card_stat_freq_label_cadence()}
             <span class="info-hint" aria-hidden="true">ⓘ</span>
           </dt>
           <dd>{freqDisplay}</dd>
@@ -177,32 +182,38 @@
         {#if nsTemporalCount > 0}
           <div
             class="stat"
-            title="Temporal-Provenance-Absence: {nsTemporalCount} of {nsDenominator} articles have no real publication date — their timestamp is the crawler fetch time (timestamp_source=fetch_at_fallback). A reflexive disclosure (WP-005 §3.1), not a source defect."
+            title={m.source_card_stat_no_date_title({
+              count: nsTemporalCount,
+              denominator: nsDenominator
+            })}
           >
             <dt>
-              <NegativeSpaceBadge nsClass="temporal_provenance_absence" size="sm" /> No real date
+              <NegativeSpaceBadge nsClass="temporal_provenance_absence" size="sm" />
+              {m.source_card_stat_no_date_label()}
             </dt>
-            <dd>{nsTemporalCount.toLocaleString()} ({nsTemporalShare}%)</dd>
+            <dd>
+              {m.source_card_stat_no_date_value({
+                count: formatNumber(nsTemporalCount),
+                share: nsTemporalShare
+              })}
+            </dd>
           </div>
         {/if}
       </dl>
 
       <!-- WP-001 etic/emic classification -->
       {#if primaryMeta || source.emicDesignation}
-        <section class="classification" aria-label="WP-001 classification">
+        <section class="classification" aria-label={m.source_card_classification_aria_label()}>
           {#if primaryMeta}
             <div class="etic-row">
-              <span class="label-xs">Primary function</span>
+              <span class="label-xs">{m.source_card_primary_function_label()}</span>
               <FunctionBadge function={primaryMeta.key} size="sm" showLabel showInfo />
               {#if secondaryMeta}
                 <span class="label-xs">·</span>
                 <FunctionBadge function={secondaryMeta.key} size="sm" showLabel />
               {/if}
-              <span
-                class="provisional-hint"
-                title="Source-level classification only — per-article discourse function (Phase 122a) is deferred behind source-level/taxonomy validation; see WP-001 §5.4"
-              >
-                (provisional)
+              <span class="provisional-hint" title={m.source_card_provisional_title()}>
+                {m.source_card_provisional_hint()}
               </span>
             </div>
           {/if}
@@ -219,10 +230,10 @@
            independently of the classification block so both always appear (a
            source pending classification still shows justification + bias). -->
       {#if sourceContent}
-        <section class="reflexive-registers" aria-label="Source rationale and bias">
-          <span class="label-xs">Why this classification</span>
+        <section class="reflexive-registers" aria-label={m.source_card_registers_aria_label()}>
+          <span class="label-xs">{m.source_card_registers_why()}</span>
           <p class="register-note">{sourceContent.registers.semantic.long}</p>
-          <span class="label-xs">Collection &amp; bias</span>
+          <span class="label-xs">{m.source_card_registers_bias()}</span>
           <p class="register-note">{sourceContent.registers.methodological.long}</p>
         </section>
       {/if}
@@ -237,15 +248,15 @@
           aria-controls="articles-{source.name}"
           onclick={() => (articlesExpanded = !articlesExpanded)}
         >
-          {articlesExpanded ? '↑ Hide articles' : '↓ View articles'}
+          {articlesExpanded ? m.source_card_articles_hide() : m.source_card_articles_view()}
           <span
             class="article-count-badge"
             class:zero={(hasActiveWindow ? source.articlesInWindow : source.articlesTotal) === 0}
             title={hasActiveWindow
               ? source.articlesInWindow === 0 && source.articlesTotal > 0
-                ? `0 articles in window · ${source.articlesTotal} total`
-                : `${source.articlesInWindow} articles in window`
-              : `${source.articlesTotal} articles (whole dataset)`}
+                ? m.source_card_articles_badge_title_window_zero({ total: source.articlesTotal })
+                : m.source_card_articles_badge_title_window({ count: source.articlesInWindow })
+              : m.source_card_articles_badge_title_total({ total: source.articlesTotal })}
           >
             {hasActiveWindow ? source.articlesInWindow : source.articlesTotal}
           </span>
@@ -257,12 +268,12 @@
           class:active={discoveryExpanded}
           aria-expanded={discoveryExpanded}
           aria-controls="discovery-{source.name}"
-          aria-label="{discoveryExpanded
-            ? 'Hide'
-            : 'Show'} per-channel discovery coverage for source: {source.name}"
+          aria-label={discoveryExpanded
+            ? m.source_card_discovery_toggle_aria_hide({ name: source.name })
+            : m.source_card_discovery_toggle_aria_show({ name: source.name })}
           onclick={() => (discoveryExpanded = !discoveryExpanded)}
         >
-          {discoveryExpanded ? '↑ Hide discovery' : '↓ Discovery coverage'}
+          {discoveryExpanded ? m.source_card_discovery_hide() : m.source_card_discovery_view()}
         </button>
 
         {#if source.documentationUrl}
@@ -271,7 +282,7 @@
             class="action-btn"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open source dossier documentation">↗ Dossier</a
+            aria-label={m.source_card_dossier_link_aria_label()}>{m.source_card_dossier_link()}</a
           >
         {/if}
       </footer>
