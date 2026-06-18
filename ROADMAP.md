@@ -4789,6 +4789,39 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 143: In-Code Documentation Professionalization [P2] - [x] DONE
+
+*A deliberate whole-codebase pass over `crawlers/`, `infra/`, `pkg/`, `scripts/`, `services/` to bring in-code documentation to a uniform, professional, best-practice standard for each language/framework — so a new developer or maintainer can open any file and quickly grasp its role, contracts, and gotchas. **Doc/comment-only: no behaviour, no logic, no public-API changes.** The survey (2026-06-17) found the codebase already strong in most places — `infra/` SQL migrations + `scripts/` bash headers are exemplary, Python is ~95% docstring-covered, dashboard TS/Svelte mostly well-commented — so this is **gap-filling to a consistent bar, not a from-scratch effort**, concentrated in Go (package + exported-symbol docs) with smaller pockets in Python and dashboard TS.*
+
+**Doc standard — best practice per language; concise, "why not what", NEVER restate the signature:**
+- **Go** — godoc: a package comment on every package (on the primary file or a `doc.go`); a doc comment on every exported identifier, starting with the symbol name, one sentence of intent + any invariant/unit/gotcha; a top comment on each `cmd/` main stating what the binary does.
+- **Python** — PEP 257: a module docstring at every file top; a docstring on every public class/function carrying non-obvious intent. Match the house prose style (triple-quote narrative; NO `Args:/Returns:` ceremony — type hints already carry the signature).
+- **TypeScript (`$lib`)** — a file-top context comment + TSDoc (`/** */`) on exported functions/types whose intent isn't obvious from the name. **Svelte** — a short role comment at the top of `<script>` stating the component's job + key contract.
+- **SQL migrations / YAML configs / Dockerfiles / bash** — a header block stating purpose (+ phase/ADR/WP anchor where one exists). Already strong; fill only the few gaps.
+
+**Format rule (operator):** keep per-symbol docs SHORT and precise (one line / a few lines). Reserve longer multi-paragraph documentation for the FILE TOP (package/module/component orientation) where that is best practice. No documentation bloat anywhere.
+
+**Grounding.** Read first: CLAUDE.md (English-only Hard Rule + the architecture), the survey hotspots below, and 2–3 already-exemplary files per language to MATCH the house voice (Go: `services/bff-api/internal/auth/password.go`; Python: `services/analysis-worker/internal/extractors/sentiment.py`; TS: `services/dashboard/src/lib/presentations/cooccurrence-network-shared.ts`; SQL: any `infra/*/migrations/0000*.sql`; bash: `scripts/build/deps_refresh.sh`). Preserve: the English-only invariant; the existing Phase/ADR/WP anchors (live design documentation, NOT stale TODOs — never delete); and ALL load-bearing directives (`//nolint`, `//go:build`, generated `DO NOT EDIT` headers, `# pragma: no cover`, `# type: ignore`, `# noqa`, `// svelte-ignore`, `// eslint-disable`). Verify-first: state intent/constraints, never restate the signature; this is a non-functional pass — `git diff` must be comments/docstrings only.
+
+***Outcome (2026-06-18 — COMPLETE):*** doc/comment-only pass; `git diff` verified comments/docstrings-only (zero logic lines — the one gofmt whitespace reflow it would have caused was reverted), `make lint` + `make test` green (Go Testcontainers + pkg, Python 176, FE 704+41). Scope was confirmed-then-filled, not invented: the codebase was already strong, so this closed the measured gaps and matched the existing house voice rather than imposing a new standard.
+- **Go (bulk):** package comments added to the 11 packages that lacked one (`pkg/{logger,middleware,telemetry,testutils}`; `ingestion-api/{cmd/api,internal/{config,core,storage}}`; `bff-api/{cmd/server,internal/{config,storage}}`); doc comments on the undocumented exported symbols (storage types/constructors, cache-control writer methods). **Enum const-groups already covered by their type doc were left untouched** — per-constant comments would be signature-restating bloat (the operator's no-bloat rule).
+- **Python (small):** module docstrings for `corpus_revision_diff.py` + `main.py`; docstrings on the handful of undocumented public helpers/dataclasses (worker + crawler). The per-file module-docstring norm is *absent even in the exemplar* `sentiment.py`, so module docstrings were added only where purpose was non-obvious, not forced onto every file.
+- **Dashboard (small):** file-top headers on the 4 `$lib/api/queries/*` domain splits + 3 barrels; role comments on the 5 `components/base` primitives. The named "thin headers" (`url-internals`/`url-types`, `api/{analyses,auth}`) were already adequate post-Phase-141 and left as-is. `fe-lint` (eslint+prettier+svelte-check 0/0+knip) green.
+- **infra (minimal):** header blocks on the 6 observability YAML configs (tempo, otel-collector, prometheus, alert.rules, grafana-datasources, dashboards). Migrations + bash already exemplary — untouched.
+- **English-only:** the single German comment block (`workbench/scope-editor-draft.ts`) translated → holds repo-wide. ~48 files, comments/docstrings only.
+
+### Survey hotspots (where the gaps actually are — 2026-06-17)
+* [x] **Go (the bulk).** Package comments for the ~10 packages missing them (`pkg/{logger,middleware,telemetry,testutils}`; `ingestion-api/internal/{config,core,storage}` + `cmd/api`; `bff-api/internal/storage` + `cmd/server`); doc comments on undocumented exported symbols, prioritising the high-cardinality query packages (`bff-api/internal/storage`, `ingestion-api/internal/storage`, `pkg/middleware`). — *Done; also `bff-api/internal/config`. Enum const-groups left to their type docs (no bloat).*
+* [x] **Python (small).** The few missing module docstrings (`analysis-worker/internal/corpus_revision_diff.py`, `analysis-worker/main.py`) + docstrings on the handful of undocumented public helpers. — *Done across worker + crawler; module-docstring norm matched (not forced onto every file).*
+* [x] **Dashboard TS (small).** Flesh out the thin module headers (`$lib/state/url-internals.ts` / `url-types.ts`, `$lib/api/{analyses,auth}.ts`), add TSDoc to undocumented `$lib` exports, and a one-line header to barrel/index files. Svelte components already carry role comments — fill any that don't. — *Done: 4 `api/queries/*` headers + 3 barrels + 5 `base/` role comments; named thin headers were already adequate.*
+* [x] **infra / scripts (minimal — already excellent).** Only the few uncommented YAML configs (e.g. `grafana-datasources.yaml`, `tempo.yaml`); migrations + bash scripts need no work. — *Done: 6 observability YAML headers.*
+* [x] **Dead comments / commented-out code / stale TODO-FIXME.** The survey found effectively NONE — confirm during the pass and remove any that surface; never remove the Phase/ADR/WP anchors. — *Confirmed none; all Phase/ADR/WP anchors preserved.*
+
+### Validation
+* [x] Every package/module/component reads cleanly top-down for a new maintainer; the per-language best-practice format is applied uniformly; no signature-restating or bloat; all load-bearing directives + Phase/ADR/WP anchors intact. `make lint` + `make test` green, and `git diff` shows comments/docstrings only (no logic, no behaviour change). English-only holds repo-wide. *(Optional stretch, deferred: enable a doc-linter — Go `revive` package-comments / ruff `D` rules — as a future ratchet once the gap-fill lands.)*
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4831,22 +4864,6 @@ This phase enforces the following — every implementation choice must satisfy t
 - ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
 
 *Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
-
----
-
-## Phase 143: In-Code Documentation & Comment Consistency [P2] - [ ] TODO
-
-*Bring comments and in-code documentation to a uniform, professional standard — exported-symbol docs where they carry meaning, dead comments and commented-out code removed, English-only enforced. Runs against Phase 138's comment/doc-gap list.*
-
-**Grounding.** Read first: Phase-138 comment/doc-gap list, the English-only rule (CLAUDE.md), the existing doc-comment style per language. Preserve: the English-only invariant for all code/comments/docs, and genuinely useful explanatory comments (the *why*, not the *what*). Verify-first: do not add ceremonial doc-comments that restate the signature — document intent and non-obvious constraints only.
-
-### Sweep
-* [ ] **Exported-symbol docs** added where meaningful (Go doc comments, Python docstrings, JSDoc/Svelte) — intent, invariants, units, gotchas; not signature restatements.
-* [ ] **Dead comments & commented-out code removed**; stale TODO/FIXME either actioned, ticketed, or deleted.
-* [ ] **English-only enforced** across all comments/identifiers (a lint check if feasible).
-
-### Validation
-* [ ] The comment/doc worklist is checked off; no commented-out code blocks remain; English-only holds repo-wide; doc-lint (if added) is green.
 
 ---
 
