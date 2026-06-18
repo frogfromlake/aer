@@ -1,3 +1,7 @@
+// Package testutils holds test-only helpers shared across the Go services.
+// Its job is to keep Testcontainers honest with Hard Rule #1: image tags are
+// read dynamically from compose.yaml (the SSoT) rather than hardcoded in tests,
+// so a tag bump never silently diverges between the running stack and the suite.
 package testutils
 
 import (

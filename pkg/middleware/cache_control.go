@@ -59,6 +59,8 @@ type cacheControlResponseWriter struct {
 	wroteHeader bool
 }
 
+// WriteHeader attaches the Cache-Control directive only when the status is
+// 2xx, then delegates to the wrapped writer. It runs once per response.
 func (w *cacheControlResponseWriter) WriteHeader(status int) {
 	if !w.wroteHeader {
 		w.wroteHeader = true
@@ -69,6 +71,8 @@ func (w *cacheControlResponseWriter) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Write implicitly emits a 200 (and thus the directive) on first use for
+// handlers that write a body without calling WriteHeader explicitly.
 func (w *cacheControlResponseWriter) Write(b []byte) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)

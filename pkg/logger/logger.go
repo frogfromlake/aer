@@ -1,3 +1,7 @@
+// Package logger configures the process-global slog logger shared by every Go
+// service. Output is structured JSON in production/staging and coloured,
+// human-readable text in development — a single Init call at startup picks the
+// handler so the rest of the codebase just uses slog.Default.
 package logger
 
 import (

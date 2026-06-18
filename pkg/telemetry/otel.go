@@ -1,3 +1,7 @@
+// Package telemetry bootstraps the process-global OpenTelemetry tracer shared
+// by the Go services. A single InitProvider call wires up the OTLP/HTTP
+// exporter and W3C trace-context propagation so spans flow to the collector
+// (Tempo); the rest of the codebase uses the otel API directly.
 package telemetry
 
 import (

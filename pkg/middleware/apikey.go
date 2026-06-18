@@ -1,3 +1,8 @@
+// Package middleware holds the net/http middleware shared across the Go
+// services (ingestion-api, bff-api): constant-time API-key auth, CORS,
+// success-only cache-control, and the observability layer (request logging,
+// Prometheus metrics, and trace-id propagation). Each concern lives in its own
+// file; all are framework-agnostic func(http.Handler) http.Handler wrappers.
 package middleware
 
 import (
