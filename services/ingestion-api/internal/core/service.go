@@ -1,3 +1,6 @@
+// Package core holds the ingestion-api's business logic: the batch document
+// ingest loop that writes raw payloads to MinIO Bronze and records each
+// per-document outcome in PostgreSQL, independent of the HTTP transport.
 package core
 
 import (

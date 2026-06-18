@@ -1,3 +1,7 @@
+// Package storage wraps the ingestion-api's two persistence backends — MinIO
+// (raw Bronze objects) and PostgreSQL (ingestion metadata + jobs) — behind
+// small typed clients whose constructors retry with backoff so the service
+// waits out dependency startup races rather than crashing on boot.
 package storage
 
 import (
@@ -13,10 +17,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+// MinioClient wraps the MinIO SDK client used to write raw documents to Bronze.
 type MinioClient struct {
 	Client *minio.Client
 }
 
+// NewMinioClient connects to MinIO with bounded retry and verifies the target
+// bucket exists — it never creates the bucket (provisioned by minio-init per the
+// IaC-only rule). It returns once the service is reachable and the bucket is found.
 func NewMinioClient(ctx context.Context, endpoint, accessKey, secretKey string, useSSL bool, bucketName string) (*MinioClient, error) {
 	var client *minio.Client
 

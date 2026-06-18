@@ -1,3 +1,6 @@
+// Package config loads and validates the ingestion-api's environment-driven
+// configuration via viper. Required secrets are validated at startup so the
+// service refuses to boot with an empty credential (a security default).
 package config
 
 import (

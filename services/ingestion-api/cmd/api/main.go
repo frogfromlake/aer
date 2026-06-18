@@ -1,3 +1,7 @@
+// Command api is the ingestion-api service — the HTTP receiver at the Bronze
+// boundary. It accepts crawler payloads over authenticated HTTP, writes the raw
+// documents to MinIO Bronze, records ingestion metadata in PostgreSQL, and runs
+// a daily retention sweep that matches the Bronze ILM window.
 package main
 
 import (
