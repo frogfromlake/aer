@@ -391,6 +391,8 @@ def _discover_for_source(
 
 
 def cli(argv: list[str] | None = None) -> int:
+    """CLI entrypoint for the web crawler: run one probe's configured sources
+    end-to-end against the ingestion API. Returns a process exit code."""
     parser = argparse.ArgumentParser(
         prog="aer-web-crawler",
         description="AĒR Phase-122 web crawler — one binary, every news-website probe.",

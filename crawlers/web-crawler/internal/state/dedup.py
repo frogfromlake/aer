@@ -39,6 +39,8 @@ def _now_utc() -> datetime:
 
 
 def content_hash(body: bytes | str) -> str:
+    """Hex SHA-256 of a fetched body (str is UTF-8 encoded) — the change-detection
+    fingerprint stored in crawler_state."""
     if isinstance(body, str):
         body = body.encode("utf-8", errors="ignore")
     return hashlib.sha256(body).hexdigest()

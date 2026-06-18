@@ -42,6 +42,8 @@ def canonical_url_or(url: str) -> str:
 
 
 def build_object_key(source: str, canonical_url: str) -> str:
+    """Build the Bronze object key (see the module docstring for the pattern).
+    Deterministic on canonical_url, so a retry overwrites rather than duplicates."""
     digest = hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()[:16]
     safe_source = re.sub(r"[^a-z0-9_-]", "", source.lower())
     return f"web/{safe_source}/{digest}.json"

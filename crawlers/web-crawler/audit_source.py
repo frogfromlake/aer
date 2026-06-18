@@ -171,6 +171,8 @@ __all__ = [
 
 
 def cli(argv: Optional[list[str]] = None) -> int:
+    """CLI entrypoint for aer-audit-source: inventory a candidate source's
+    discovery channels and print a sources.yaml stub. Returns a process exit code."""
     parser = argparse.ArgumentParser(
         prog="audit-source-discovery",
         description="Probe a candidate news source's discovery surfaces (Phase 122g).",

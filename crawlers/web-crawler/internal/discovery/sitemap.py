@@ -24,6 +24,9 @@ from typing import Iterator, Optional
 
 @dataclass(frozen=True)
 class DiscoveredUrl:
+    """One discovered URL plus the sitemap metadata preserved for the WebAdapter
+    (lastmod fallback timestamp, section)."""
+
     url: str
     sitemap_lastmod: Optional[datetime]
     sitemap_section: Optional[str]
