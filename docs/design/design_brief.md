@@ -14,7 +14,54 @@
 > are kept for archival reference; consult ADR-033 for the current surface
 > architecture.
 
-**Status:** Iteration 5 — partially superseded by ADR-033 (Phase 122h, 2026-05-15).
+**Status:** Iteration 5 — partially superseded by ADR-033 (Phase 122h, 2026-05-15); chrome restyled in Phase 151 (see the Phase 151 decision log below).
+
+> **Phase 151 decision log (2026-06-18) — chrome design pass.** A
+> feature-preserving restyle of the persistent chrome to the operator's
+> claude.ai/design "AĒR Design System" (GitHub-connected; the design agent
+> emits React, re-implemented here in Svelte). Tokens stay the SoT
+> (`src/lib/design/tokens.css`); no inline colours/sizes were introduced.
+> Shipped:
+> - **Side rail** (`SideRail.svelte`) — brand → surface anchors (boxed active
+>   state) → a "Where am I" scope card (current probe selection + active
+>   Pillar, replacing the per-anchor pillar sub-item) → bottom mini-buttons
+>   (Open Dossier · Saved analyses · Your account). The user-identity block,
+>   the interface-language selector, Administration, and Sign out moved OFF the
+>   rail into the account overlay. All nav behaviour preserved
+>   (surface-toggle-back-to-globe, `?selectedProbes=` Workbench href, selection
+>   counts, deep-links).
+> - **Account overlay** (`AccountOverlay.svelte`) — now **tabbed**: *Account*
+>   (identity · interface language · password · passkeys · privacy · sign out)
+>   and *Administration* (admin-only tab; the invite/users UI extracted to a
+>   presentational `AdminPanel.svelte`, replacing the standalone AdminOverlay).
+>   Both `?account=open` and `?admin=open` open the overlay; the URL stays
+>   canonical for the active tab so a tab deep-links and round-trips.
+> - **Atmosphere globe chrome** (`AtmosphereChrome.svelte`) — Coverage
+>   disclosure as a top-right titled card (still the honest "no geographic
+>   coverage claim" Negative-Space statement, never a fabricated reach map); a
+>   bottom-left dataset quick-stats window (`StatReadout` primitive). This
+>   window reflects the **dataset, not the analysis window**: probe + source
+>   counts from the registry and an all-time document total from the new
+>   `Probe.documentCount` BFF field (`count(DISTINCT article_id)` over
+>   `aer_silver.documents` — the dossier's `articlesTotal` definition). It is
+>   scoped ONLY by the globe selection cart (`?selectedProbes=`): a selection
+>   shows those probes' totals, an empty selection shows all probes; the
+>   Workbench scope and the time scrubber never touch it. Counts show "—" when
+>   unavailable (never a fabricated zero); dataset age stays a provisional
+>   em-dash — §7.2/§4.4;
+>   "How to read the globe" as a bottom-right primer link (moved off the scope
+>   bar; still kept on the WebGL2-fallback path so non-WebGL clients retain it).
+> - **Selection banner** — when probes are selected, the action strip (Clear ·
+>   Open Dossier · Open Workbench →, reusing the base `Button` primitive) moved
+>   from top-center to **bottom-center**, bottom-aligned with the quick-stats
+>   window, solid + elevated with `radius-lg` rounding (slighter than the
+>   design's pill, per operator direction).
+> - **Top scope bar** (`ScopeBar.svelte`) — the surface·layer chip restyled to
+>   the design's mono-accent `Ⅰ Atmosphere · L1 Globe` form + an aux summary slot
+>   (the Atmosphere dataset readout). Fixed positioning, breadcrumb, and ARIA
+>   preserved.
+> - **New shared primitive** `StatReadout.svelte` (Brief §4.1 numeric readout).
+
 **Authority:** Derived from Manifesto (§I–§V), Arc42 §1.1–§1.4, ADR-003, ADR-016, ADR-017, ADR-020, ADR-033, WP-001 through WP-006, `docs/design/visualization_guidelines.md`, and the 2026-04-24 Reframing Note (merged into this iteration).
 **Audience:** Sole author (for now); future contributors; interdisciplinary reviewers from WP-006 §8.3.
 **Relationship to existing documents:** This brief sits *above* `visualization_guidelines.md` — the guidelines constrain individual rendering decisions; this brief defines what the dashboard *is*. It sits *alongside* ADR-020 (Frontend Technology Stack), which realizes this brief technically; ADR-020's compliance check audits the brief clause by clause.

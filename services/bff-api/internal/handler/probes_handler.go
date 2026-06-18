@@ -46,8 +46,35 @@ func (s *Server) GetSources(ctx context.Context, request GetSourcesRequestObject
 // with emission geometry and bound sources. Registry is loaded from
 // YAML at startup (no runtime I/O). Dual-Register editorial content is
 // served separately via /content/probe/{probeId}.
-func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProbesResponseObject, error) {
+func (s *Server) GetProbes(ctx context.Context, _ GetProbesRequestObject) (GetProbesResponseObject, error) {
 	entries := s.probes.Ordered()
+
+	// Phase 151 — attach the all-time distinct-document count per probe (the
+	// dataset-overview readout on the Atmosphere surface). One grouped query
+	// over the union of all bound sources, summed back per probe. This is
+	// best-effort: if the analytical store is unavailable, `totals` is nil and
+	// every probe's DocumentCount stays nil (the geometry feed must keep
+	// rendering the globe regardless), and the client shows the count as
+	// unavailable rather than a fabricated zero.
+	var totals map[string]int64
+	if s.db != nil {
+		seen := make(map[string]struct{})
+		allSources := make([]string, 0)
+		for _, p := range entries {
+			for _, src := range p.Sources {
+				if _, ok := seen[src]; !ok {
+					seen[src] = struct{}{}
+					allSources = append(allSources, src)
+				}
+			}
+		}
+		if t, err := s.db.GetDocumentTotalsBySource(ctx, allSources); err != nil {
+			slog.Error("handler degraded", "op", "GetProbes", "error", err)
+		} else {
+			totals = t
+		}
+	}
+
 	response := make(GetProbes200JSONResponse, 0, len(entries))
 	for _, p := range entries {
 		// The EmissionPoints element is an anonymous struct in the
@@ -80,6 +107,13 @@ func (s *Server) GetProbes(_ context.Context, _ GetProbesRequestObject) (GetProb
 		if p.Country != "" {
 			c := p.Country
 			probe.Country = &c
+		}
+		if totals != nil {
+			var sum int64
+			for _, src := range p.Sources {
+				sum += totals[src]
+			}
+			probe.DocumentCount = &sum
 		}
 		response = append(response, probe)
 	}

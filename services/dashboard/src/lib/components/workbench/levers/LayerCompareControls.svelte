@@ -1,11 +1,11 @@
 <script lang="ts">
-  // LayerCompareControls — Phase 141 (extracted from PanelControls).
+  // LayerCompareControls — Phase 141 (extracted from PanelControls); Phase 151
+  // narrowed to Compare only (the Layer toggle moved onto the Window row).
   //
-  // Two low-frequency levers grouped on one split row: Layer (Au Gold /
-  // Ag Silver) and Compare (raw / deviation / percentile). Compare is shown only
-  // where the active view consumes normalization; deviation/percentile are
-  // disabled unless the metric carries a deviation/absolute equivalence grant
-  // (ADR-016 / Phase 115), with a "?" explainer instead of a silent refusal.
+  // Compare (raw / deviation / percentile) is shown only where the active view
+  // consumes normalization; deviation/percentile are disabled unless the metric
+  // carries a deviation/absolute equivalence grant (ADR-016 / Phase 115), with a
+  // "?" explainer instead of a silent refusal.
   import type { Normalization, Panel } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
@@ -21,15 +21,10 @@
 
   let { panelPath, boundPanel, viewUsesNormalization, canNormalize }: Props = $props();
 
-  const activeLayer = $derived<'gold' | 'silver'>(boundPanel.layer);
   const activeNormalization = $derived<Normalization>(boundPanel.normalization ?? 'raw');
   const activeMetric = $derived(boundPanel.metric);
   let showCompareHelp = $state(false);
 
-  function pickLayer(next: 'gold' | 'silver') {
-    if (next === activeLayer) return;
-    updatePanel(panelPath, (p) => ({ ...p, layer: next }));
-  }
   function pickNorm(next: Normalization) {
     if (next === activeNormalization) return;
     updatePanel(panelPath, (p) => {
@@ -41,33 +36,10 @@
   }
 </script>
 
-<!-- Layer + Compare on one row — both low-frequency; grouped to save space. -->
-<div class="ctrl-row ctrl-row-split">
-  <div class="ctrl-group" role="radiogroup" aria-label={m.levers_layer_aria()}>
-    <span class="ctrl-eyebrow">{m.levers_layer_eyebrow()}</span>
-    <div class="ctrl-options">
-      <LeverButton
-        role="radio"
-        active={activeLayer === 'gold'}
-        variant="layer-btn"
-        title={m.levers_layer_gold_title()}
-        onclick={() => pickLayer('gold')}
-      >
-        {m.levers_layer_gold()}
-      </LeverButton>
-      <LeverButton
-        role="radio"
-        active={activeLayer === 'silver'}
-        variant="layer-btn silver"
-        title={m.levers_layer_silver_title()}
-        onclick={() => pickLayer('silver')}
-      >
-        {m.levers_layer_silver()}
-      </LeverButton>
-    </div>
-  </div>
-
-  {#if viewUsesNormalization}
+<!-- Compare lever (Phase 151 — Layer moved to the Window row). Shown only where
+     the active view consumes normalization. -->
+{#if viewUsesNormalization}
+  <div class="ctrl-row ctrl-row-split">
     <div class="ctrl-group" role="radiogroup" aria-label={m.levers_compare_aria()}>
       <span class="ctrl-eyebrow">{m.levers_compare_eyebrow()}</span>
       <div class="ctrl-options">
@@ -117,8 +89,8 @@
         {/if}
       </div>
     </div>
-  {/if}
-</div>
+  </div>
+{/if}
 {#if viewUsesNormalization && !canNormalize && showCompareHelp}
   <p class="compare-help" role="note">
     <strong>{m.levers_compare_help_deviation()}</strong>

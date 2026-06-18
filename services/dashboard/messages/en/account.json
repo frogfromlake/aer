@@ -1,6 +1,11 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "account_title": "Your account",
+  "account_tabs_label": "Account sections",
+  "account_tab_account": "Account",
+  "account_tab_admin": "Administration",
+  "account_language_heading": "Interface language",
+  "account_language_intro": "Switch the language of the interface. Your choice is remembered and shareable in the URL.",
   "account_identity_heading": "Identity",
   "account_identity_email": "Email",
   "account_identity_role": "Role",

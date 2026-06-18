@@ -28,10 +28,14 @@
   // Derive surface and layer from the route so the chip stays accurate as the
   // user descends. ScopeBar renders only on Reflection routes today, so the
   // Reflection branch is the live one; the Atmosphere fallback is the default.
+  // `roman` is the compact surface ordinal shown in the chip (Phase 151
+  // design — the chip reads "Ⅰ Atmosphere · L1 Globe"); `surface` keeps the
+  // full "Surface I/III" form for the accessible label.
   const breadcrumb = $derived.by(() => {
     const p = page.url.pathname;
     if (p.startsWith('/reflection')) {
       return {
+        roman: 'III',
         surface: 'Surface III',
         surfaceName: m.chrome_surface_reflection(),
         layer: 'L1',
@@ -39,6 +43,7 @@
       };
     }
     return {
+      roman: 'I',
       surface: 'Surface I',
       surfaceName: m.chrome_surface_atmosphere(),
       layer: 'L0',
@@ -59,14 +64,13 @@
       })}
       title={m.chrome_scopebar_chip_title()}
     >
-      <span class="chip-prefix">{breadcrumb.surface}</span>
-      <span class="chip-sep" aria-hidden="true">·</span>
+      <span class="chip-s">{breadcrumb.roman}</span>
       <span class="chip-name">{breadcrumb.surfaceName}</span>
       <span class="chip-sep" aria-hidden="true">·</span>
-      <span class="chip-layer">{breadcrumb.layer}</span>
+      <span class="chip-l">{breadcrumb.layer}</span>
       <span class="chip-layer-name">{breadcrumb.layerName}</span>
     </span>
-    {#if children}{@render children()}{/if}
+    {#if children}<div class="scope-rest">{@render children()}</div>{/if}
   </div>
 </div>
 
@@ -87,23 +91,19 @@
   .inner {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: 0 var(--space-4);
+    gap: var(--space-4);
+    padding: 0 var(--space-5);
     min-height: var(--scope-bar-height);
     flex-wrap: wrap;
   }
 
+  /* The chip is plain inline text in the design (no pill); the
+     surface ordinal + layer code carry the mono accent, the names stay quiet. */
   .surface-chip {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-1);
-    padding: 2px var(--space-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill);
-    background: var(--color-bg-elevated);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    gap: 6px;
+    font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
     font-family: var(--font-ui);
     white-space: nowrap;
@@ -111,8 +111,10 @@
     flex-shrink: 0;
   }
 
-  .chip-prefix {
+  .chip-s,
+  .chip-l {
     color: var(--color-accent);
+    font-family: var(--font-mono);
     font-weight: var(--font-weight-semibold);
   }
 
@@ -121,16 +123,19 @@
   }
 
   .chip-sep {
-    opacity: 0.5;
-  }
-
-  .chip-layer {
-    color: var(--color-accent);
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
+    color: var(--color-fg-subtle);
   }
 
   .chip-layer-name {
     color: var(--color-fg-muted);
+  }
+
+  /* Per-surface aux content (e.g. the Atmosphere dataset summary) sits to the
+     right of the chip, subdued and able to grow/shrink. */
+  .scope-rest {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
   }
 </style>

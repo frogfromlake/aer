@@ -3,6 +3,8 @@
   "cells_empty_with_label": "Keine Werte für {label} in diesem Zeitfenster und Geltungsbereich.",
   "cells_empty_no_label": "Keine Daten in diesem Zeitfenster und Geltungsbereich.",
   "cells_empty_coda": "Nichts darzustellen — niemals eine erzwungene Null. Siehe „Lesehilfe“.",
+  "cells_howto_heading": "So lesen Sie das",
+  "cells_howto_aria": "So lesen Sie diese Zelle",
   "cells_export_group_aria": "Diese Zelle exportieren",
   "cells_export_figure_label": "Abbildung",
   "cells_export_figure_title": "Publikationsabbildung — Diagramm + Zusammenfassung + Legende, ohne Provenienz",

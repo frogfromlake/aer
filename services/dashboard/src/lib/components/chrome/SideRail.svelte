@@ -1,22 +1,23 @@
 <script lang="ts">
-  // Left side rail — Phase 122h / ADR-033 §3.
+  // Left side rail — Phase 122h / ADR-033 §3; restyled in Phase 151 to the
+  // claude.ai/design "AĒR Design System" chrome (operator-led design pass).
   //
-  // Three labelled sections, each with a section eyebrow that names its role:
+  // Structure (top → bottom):
+  //   1. Brand          — the AĒR wordmark, filling the scope-bar height zone.
+  //   2. Surface group  — the three surface anchors (Atmosphere / Workbench /
+  //                       Reflection). Each carries glyph + full word and a
+  //                       boxed active state.
+  //   3. Scope card     — "Where am I": the current probe selection + the
+  //                       active Pillar (analytical stance). Replaces the
+  //                       per-anchor pillar sub-item; the same information,
+  //                       gathered into one quiet card.
+  //   4. Bottom group   — muted mini-buttons: Open Dossier (with selection
+  //                       count), Saved analyses, Your account.
   //
-  //   1. Where am I?    — Surface anchors (Atmosphere / Workbench / Reflection).
-  //                       Each anchor carries icon + full word. Workbench
-  //                       additionally exposes the active Pillar as a small
-  //                       sub-item (`↳ Aleph` / `↳ Episteme` / `↳ Rhizome`)
-  //                       so the user always sees both the surface AND the
-  //                       analytical stance at a glance.
-  //
-  //   2. Dossier        — Phase 123a: the Dossier is a global overlay
-  //                       (search/catalogue + probe selection), not a
-  //                       surface route. This button opens it over any
-  //                       surface and shows the current selection count.
-  //                       Replaces the Phase-122k Probe-Filter trigger.
-  //
-  //   3. View           — Persistent global toggles (Negative Space overlay).
+  // Phase 151 — the user identity block, the interface-language selector,
+  // Administration, and Sign out moved OFF the rail and INTO the account
+  // overlay (now tabbed). The rail's "Your account" button is the single
+  // entry point to all of them.
   //
   // Keyboard: every interactive target is a native <a> or <button> with
   // browser-default focus handling. `prefers-reduced-motion` suppresses
@@ -24,8 +25,6 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { urlState, toggleOverlay } from '$lib/state/url.svelte';
-  import { user, isAdmin, doLogout } from '$lib/state/auth.svelte';
-  import LocaleSwitch from './LocaleSwitch.svelte';
   import { getPillar } from '$lib/presentations';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import { m } from '$lib/paraglide/messages.js';
@@ -34,42 +33,23 @@
   const url = $derived(urlState());
   const activePillarId = $derived<PillarId>(url.activePillar ?? 'aleph');
   const activePillar = $derived(getPillar(activePillarId));
+  const selectedCount = $derived(url.selectedProbes.length);
 
-  // Phase 123a — the Dossier is a global overlay (ADR-033 amendment), not
-  // a surface route. The rail exposes it as a button that opens the
-  // search/catalogue overlay (`?dossier=open`) over any surface and
-  // surfaces the current selection count. Replaces the Phase-122k
-  // Probe-Filter Modal trigger; probe selection now lives in the overlay.
+  // Phase 123a — the Dossier is a global overlay (ADR-033 amendment), not a
+  // surface route; this button opens the search/catalogue overlay over any
+  // surface and surfaces the current selection count.
   function openDossier() {
     toggleOverlay('dossier');
   }
-
-  // Phase 135 — saved analyses are a global overlay (`?analyses=open`), the
-  // same model as the Dossier. Reachable here and from the account submenu.
-  // Saving the *current* Workbench view lives in the Workbench header (where the
-  // analysis is built), not here — this entry is the library (browse/load).
+  // Phase 135 — saved analyses are a global overlay (`?analyses=open`).
   function openAnalyses() {
     toggleOverlay('analyses');
   }
-
-  // Phase 135 — the account submenu is retired: its items live as standalone,
-  // bottom-anchored rail buttons. Your account / Administration stay toggles.
+  // Phase 151 — the account overlay is now tabbed (account + admin); the rail
+  // opens it on its default (Account) tab.
   function openAccount() {
     toggleOverlay('account');
   }
-  function openAdmin() {
-    toggleOverlay('admin');
-  }
-  const currentUser = $derived(user());
-  const userInitial = $derived((currentUser?.email ?? '?').trim().charAt(0).toUpperCase());
-
-  // Active probe — from the route path param (legacy per-probe routes) OR
-  // from the multi-probe selection cart. Drives the Workbench rail anchor's
-  // active-Pillar sub-item display.
-  const activeProbe = $derived<string | null>(
-    (page.params as Record<string, string | undefined>).probeId ??
-      (url.selectedProbes.length > 0 ? url.selectedProbes[0]! : null)
-  );
 
   interface SurfaceEntry {
     href: string;
@@ -77,7 +57,6 @@
     glyph: string;
     hint: string;
     disabled: boolean;
-    pillarSubItem?: { glyph: string; label: string; color: string };
   }
 
   const SURFACES = $derived<SurfaceEntry[]>([
@@ -89,32 +68,23 @@
       disabled: false
     },
     {
-      // Phase 122k — Workbench is always reachable. Issue 3 — when the user
-      // has a Selection-State the anchor carries ONLY `?selectedProbes=` (no
-      // pillar state), so the Workbench auto-opens the ScopeEditor seeded
-      // from the selection rather than silently seeding a whole-probe panel.
+      // Phase 122k — Workbench is always reachable. When the user has a
+      // Selection-State the anchor carries ONLY `?selectedProbes=` (no pillar
+      // state), so the Workbench auto-opens the ScopeEditor seeded from the
+      // selection rather than silently seeding a whole-probe panel.
       href:
-        url.selectedProbes.length > 0
+        selectedCount > 0
           ? `/workbench${buildSelectionWorkbenchUrl(url.selectedProbes)}`
           : '/workbench',
       label: m.chrome_surface_workbench(),
       glyph: '⚙',
       hint:
-        url.selectedProbes.length > 0
-          ? url.selectedProbes.length === 1
-            ? m.chrome_surface_workbench_hint_selected_one({ count: url.selectedProbes.length })
-            : m.chrome_surface_workbench_hint_selected_other({ count: url.selectedProbes.length })
+        selectedCount > 0
+          ? selectedCount === 1
+            ? m.chrome_surface_workbench_hint_selected_one({ count: selectedCount })
+            : m.chrome_surface_workbench_hint_selected_other({ count: selectedCount })
           : m.chrome_surface_workbench_hint(),
-      disabled: false,
-      ...(activeProbe
-        ? {
-            pillarSubItem: {
-              glyph: activePillar.glyph,
-              label: activePillar.label,
-              color: activePillar.color
-            }
-          }
-        : {})
+      disabled: false
     },
     {
       href: '/reflection',
@@ -149,127 +119,94 @@
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- all rail links are internal surface routes -->
 <nav class="rail" aria-label={m.chrome_nav_primary()}>
-  <div class="logo">
-    <span class="logo-text">AĒR</span>
+  <div class="rail-brand">
+    <span class="rail-wordmark">AĒR</span>
   </div>
 
-  <!-- Section 1: Surface anchors -->
-  <div class="section">
-    <span class="section-eyebrow">{m.chrome_section_where_am_i()}</span>
-    <ul class="surface-list" role="list">
-      {#each SURFACES as s (s.label)}
-        <li>
-          {#if s.disabled}
-            <span
-              class="surface-link disabled"
-              role="link"
-              aria-disabled="true"
-              aria-label={m.chrome_surface_disabled_aria({ label: s.label })}
-              title={s.hint}
-            >
-              <span class="glyph" aria-hidden="true">{s.glyph}</span>
-              <span class="rail-label">{s.label}</span>
-            </span>
-          {:else}
-            <a
-              href={s.href}
-              class="surface-link"
-              class:active={isActiveSurface(s.href)}
-              aria-label={s.label}
-              aria-current={isActiveSurface(s.href) ? 'page' : undefined}
-              title={s.hint}
-              data-sveltekit-preload-data="hover"
-              onclick={(e) => onSurfaceClick(e, s.href)}
-            >
-              <span class="glyph" aria-hidden="true">{s.glyph}</span>
-              <span class="rail-label">{s.label}</span>
-            </a>
-          {/if}
-          {#if s.pillarSubItem}
-            <div
-              class="pillar-sub-item"
-              style:--pillar-color={s.pillarSubItem.color}
-              aria-label={m.chrome_pillar_subitem_aria({ pillar: s.pillarSubItem.label })}
-              title={m.chrome_pillar_subitem_title()}
-            >
-              <span class="pillar-sub-arrow" aria-hidden="true">↳</span>
-              <span class="pillar-sub-glyph" aria-hidden="true">{s.pillarSubItem.glyph}</span>
-              <span class="pillar-sub-label">{s.pillarSubItem.label}</span>
-            </div>
-          {/if}
-        </li>
-      {/each}
-    </ul>
+  <!-- Surface anchors -->
+  <ul class="rail-group" role="list">
+    {#each SURFACES as s (s.label)}
+      <li>
+        {#if s.disabled}
+          <span
+            class="rail-anchor disabled"
+            role="link"
+            aria-disabled="true"
+            aria-label={m.chrome_surface_disabled_aria({ label: s.label })}
+            title={s.hint}
+          >
+            <span class="rail-icon" aria-hidden="true">{s.glyph}</span>
+            <span class="rail-label">{s.label}</span>
+          </span>
+        {:else}
+          <a
+            href={s.href}
+            class="rail-anchor"
+            class:is-active={isActiveSurface(s.href)}
+            aria-label={s.label}
+            aria-current={isActiveSurface(s.href) ? 'page' : undefined}
+            title={s.hint}
+            data-sveltekit-preload-data="hover"
+            onclick={(e) => onSurfaceClick(e, s.href)}
+          >
+            <span class="rail-icon" aria-hidden="true">{s.glyph}</span>
+            <span class="rail-label">{s.label}</span>
+          </a>
+        {/if}
+      </li>
+    {/each}
+  </ul>
+
+  <!-- Scope card — "Where am I": current selection + active Pillar. -->
+  <div class="rail-scope">
+    <span class="rail-scope-h">{m.chrome_section_where_am_i()}</span>
+    <span class="rail-scope-line">
+      {#if selectedCount === 0}
+        {m.chrome_scope_no_probe()}
+      {:else if selectedCount === 1}
+        {m.chrome_scope_probe_one({ count: selectedCount })}
+      {:else}
+        {m.chrome_scope_probe_other({ count: selectedCount })}
+      {/if}
+    </span>
+    <span class="rail-pillar" title={m.chrome_pillar_subitem_title()}>
+      <span class="rail-pillar-dot" aria-hidden="true"></span>
+      <span class="rail-pillar-label">{activePillar.label}</span>
+    </span>
   </div>
 
-  <!-- Section 2: Phase 123a — Dossier overlay trigger. The Dossier is a
-       global overlay (search/catalogue + probe selection), not a surface
-       route; this button opens it over any surface and shows the current
-       selection count. -->
-  <div class="section section-probe">
-    <span class="section-eyebrow">{m.chrome_section_dossier()}</span>
+  <div class="rail-spacer" aria-hidden="true"></div>
+
+  <!-- Bottom group — overlay triggers + account. -->
+  <div class="rail-bottom">
     <button
       type="button"
-      class="probe-filter-btn"
+      class="rail-mini"
+      class:has-selection={selectedCount > 0}
       onclick={openDossier}
-      class:has-selection={url.selectedProbes.length > 0}
       title={m.chrome_dossier_open_title()}
     >
-      <span class="probe-filter-glyph" aria-hidden="true">❒</span>
-      <span class="probe-filter-label">
-        {url.selectedProbes.length > 0
-          ? m.chrome_dossier_selected_label({ count: url.selectedProbes.length })
+      <span class="rail-mini-glyph" aria-hidden="true">❒</span>
+      <span class="rail-mini-label">
+        {selectedCount > 0
+          ? m.chrome_dossier_selected_label({ count: selectedCount })
           : m.chrome_dossier_open_label()}
       </span>
     </button>
-  </div>
-
-  <!-- Phase 135 — Saved analyses overlay trigger (re-openable Workbench
-       deep links, shareable by identity). Same overlay model as the Dossier. -->
-  <div class="section section-probe">
-    <span class="section-eyebrow">{m.chrome_section_library()}</span>
     <button
       type="button"
-      class="probe-filter-btn"
+      class="rail-mini"
       onclick={openAnalyses}
       title={m.chrome_library_open_title()}
     >
-      <span class="probe-filter-glyph" aria-hidden="true">★</span>
-      <span class="probe-filter-label">{m.chrome_library_label()}</span>
+      <span class="rail-mini-glyph" aria-hidden="true">★</span>
+      <span class="rail-mini-label">{m.chrome_library_label()}</span>
+    </button>
+    <button type="button" class="rail-mini" onclick={openAccount} title={m.chrome_user_account()}>
+      <span class="rail-mini-glyph" aria-hidden="true">◐</span>
+      <span class="rail-mini-label">{m.chrome_user_account()}</span>
     </button>
   </div>
-
-  <div class="flex-spacer" aria-hidden="true"></div>
-
-  <!-- User menu (Phase 135) — the former account submenu, flattened into
-       standalone bottom-anchored rail buttons. The avatar + email is a static
-       display (not a button); Your account / Administration stay overlay
-       toggles; Sign out ends the session. -->
-  {#if currentUser}
-    <div class="section user-section">
-      <span class="section-eyebrow">{m.chrome_section_user_menu()}</span>
-      <div class="user-display">
-        <span class="user-avatar" aria-hidden="true">{userInitial}</span>
-        <span class="user-email" title={currentUser.email}>{currentUser.email}</span>
-      </div>
-      <!-- Phase 144 — UI-language selector (ADR-042). -->
-      <LocaleSwitch />
-      <button type="button" class="rail-menu-btn" onclick={openAccount}>
-        <span class="rail-menu-glyph" aria-hidden="true">◐</span>
-        <span class="rail-menu-label">{m.chrome_user_account()}</span>
-      </button>
-      {#if isAdmin()}
-        <button type="button" class="rail-menu-btn" onclick={openAdmin}>
-          <span class="rail-menu-glyph" aria-hidden="true">⛨</span>
-          <span class="rail-menu-label">{m.chrome_user_admin()}</span>
-        </button>
-      {/if}
-      <button type="button" class="rail-menu-btn signout" onclick={() => doLogout()}>
-        <span class="rail-menu-glyph" aria-hidden="true">⎋</span>
-        <span class="rail-menu-label">{m.chrome_user_signout()}</span>
-      </button>
-    </div>
-  {/if}
 </nav>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
@@ -282,296 +219,198 @@
     bottom: 0;
     width: var(--rail-width);
     z-index: 450;
-    background: var(--color-bg-overlay);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: var(--color-bg-elevated);
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    padding: 0 0 var(--space-4);
+    padding: 0 var(--space-3) var(--space-4);
+    gap: var(--space-4);
   }
 
-  /* AĒR brand bar — fills the scope-bar height zone at the top of the rail */
-  .logo {
+  /* AĒR brand bar — fills the scope-bar height zone at the top of the rail. */
+  .rail-brand {
     display: flex;
     align-items: center;
-    justify-content: center;
     width: 100%;
     min-height: var(--scope-bar-height);
     flex-shrink: 0;
-    border-bottom: 1px solid var(--color-border);
+    margin: 4 calc(-1 * var(--space-3));
+    padding: 16px var(--space-3);
   }
-
-  .logo-text {
-    font-family: var(--font-mono);
-    font-size: 15px;
-    font-weight: var(--font-weight-bold);
-    color: var(--color-accent);
+  .rail-wordmark {
+    font-family: var(--font-inter);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-xl);
+    color: var(--color-wordmark);
     letter-spacing: 0.18em;
   }
 
-  /* Sections have generous vertical breathing room per Finding 2.1 —
-     SideRail felt cramped vertically in the first manual test. */
-  .section {
+  /* Surface anchors. */
+  .rail-group {
+    list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-4) var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--color-border);
+    gap: 12px;
+  }
+  .rail-group li {
+    display: flex;
+  }
+  .rail-anchor {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-fg-muted);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    transition:
+      background var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .rail-anchor:hover,
+  .rail-anchor:focus-visible {
+    background: var(--color-surface-hover);
+    color: var(--color-fg);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .rail-anchor.is-active {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-fg);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+  .rail-anchor.is-active .rail-icon {
+    color: var(--color-accent);
+  }
+  .rail-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.2rem;
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-accent);
+  }
+  .rail-label {
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
+  .rail-anchor.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: auto; /* keep tooltip + focus working */
+  }
+  .rail-anchor.disabled:hover,
+  .rail-anchor.disabled:focus-visible {
+    background: transparent;
+    color: var(--color-fg-muted);
+    outline: none;
   }
 
-  .section:last-of-type {
-    border-bottom: none;
+  /* Scope card — "Where am I". */
+  .rail-scope {
+    margin-top: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
-
-  .section-eyebrow {
+  .rail-scope-h {
     font-size: 9.5px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--color-fg-subtle);
     font-family: var(--font-mono);
     font-weight: var(--font-weight-semibold);
-    padding: 0 var(--space-2) var(--space-1);
-    line-height: 1;
+  }
+  .rail-scope-line {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-fg);
+  }
+  .rail-pillar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--color-fg-muted);
+  }
+  .rail-pillar-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    flex-shrink: 0;
+  }
+  .rail-pillar-label {
+    color: var(--color-fg-subtle);
+    letter-spacing: 0.02em;
   }
 
-  .flex-spacer {
+  .rail-spacer {
     flex: 1;
   }
 
-  .surface-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  /* Bottom group — muted mini-buttons. */
+  .rail-bottom {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: 2px;
   }
-
-  .surface-list li {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .surface-link {
+  .rail-mini {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    /* slightly taller per Finding 2.1 — easier hit-target + more visual rhythm */
-    padding: var(--space-3) var(--space-3);
+    gap: var(--space-2);
+    width: 100%;
+    appearance: none;
+    background: transparent;
+    border: none;
     border-radius: var(--radius-md);
-    color: var(--color-fg-muted);
-    text-decoration: none;
+    color: var(--color-fg-subtle);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    cursor: pointer;
     transition:
       background var(--motion-duration-fast) var(--motion-ease-standard),
       color var(--motion-duration-fast) var(--motion-ease-standard);
   }
-  .surface-link .glyph {
-    font-size: 1.3rem;
-    line-height: 1;
-    flex-shrink: 0;
-    color: var(--color-accent);
-  }
-
-  .rail-label {
-    font-size: 13px;
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-ui);
-    letter-spacing: 0.01em;
-    line-height: 1.2;
-  }
-
-  .surface-link:hover,
-  .surface-link:focus-visible {
+  .rail-mini:hover,
+  .rail-mini:focus-visible {
     background: var(--color-surface-hover);
     color: var(--color-fg);
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
   }
-
-  .surface-link.active {
-    color: var(--color-fg);
-    background: var(--color-surface);
-  }
-
-  .surface-link.disabled {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-3);
-    border-radius: var(--radius-md);
-    opacity: 0.35;
-    cursor: not-allowed;
-    pointer-events: auto; /* keep tooltip + focus working */
-    color: var(--color-fg-muted);
-  }
-  .surface-link.disabled .glyph {
-    font-size: 1.3rem;
-    line-height: 1;
-    flex-shrink: 0;
-    color: var(--color-fg-muted);
-  }
-  .surface-link.disabled:hover,
-  .surface-link.disabled:focus-visible {
-    background: transparent;
-    color: var(--color-fg-muted);
-    outline: none;
-  }
-
-  /* Active-Pillar sub-item under the Workbench surface anchor.
-     Visually subordinate (smaller, indented, tinted with pillar color)
-     so it does not compete with the surface label for primary attention.
-     It is purely informational here — the actual switching happens on
-     the PillarSwitch tiles inside the Workbench surface. */
-  .pillar-sub-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px var(--space-3) 4px calc(var(--space-3) + 1.3rem + var(--space-3));
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--pillar-color);
-    line-height: 1.2;
-  }
-
-  .pillar-sub-arrow {
-    color: var(--color-fg-subtle);
-  }
-
-  .pillar-sub-glyph {
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  .pillar-sub-label {
-    font-weight: var(--font-weight-semibold);
-    letter-spacing: 0.02em;
-  }
-
-  /* Probe-section gets a touch more horizontal padding so the
-     Probe-Filter button has full width without bumping the rail edges. */
-  .section-probe {
-    padding-left: var(--space-2);
-    padding-right: var(--space-2);
-  }
-
-  .probe-filter-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    appearance: none;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-muted);
-    padding: var(--space-2);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    cursor: pointer;
-    transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .probe-filter-btn:hover,
-  .probe-filter-btn:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-  .probe-filter-btn.has-selection {
+  .rail-mini.has-selection {
     color: var(--color-accent);
-    border-color: var(--color-accent-muted);
   }
-  .probe-filter-glyph {
-    font-size: var(--font-size-sm);
-  }
-  .probe-filter-label {
-    flex: 1 1 auto;
-    text-align: left;
-  }
-
-  /* Unified bottom rail buttons (Negative Space + user-menu items). Same
-     look as the Library/Dossier buttons so the bottom reads as one menu. */
-  .rail-menu-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    appearance: none;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg-muted);
-    padding: var(--space-2);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    cursor: pointer;
-    text-align: left;
-    transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .rail-menu-btn:hover,
-  .rail-menu-btn:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-  .rail-menu-btn.signout {
-    color: var(--color-status-expired);
-  }
-  .rail-menu-btn.signout:hover,
-  .rail-menu-btn.signout:focus-visible {
-    color: var(--color-status-expired);
-    border-color: var(--color-status-expired);
-  }
-  .rail-menu-glyph {
+  .rail-mini-glyph {
     font-size: var(--font-size-sm);
     flex-shrink: 0;
   }
-  .rail-menu-label {
+  .rail-mini-label {
     flex: 1 1 auto;
-    text-align: left;
-  }
-
-  /* User identity — static display, NOT interactive. */
-  .user-section {
-    gap: var(--space-2);
-  }
-  .user-display {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-1) var(--space-2) var(--space-2);
-  }
-  .user-avatar {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface);
-    color: var(--color-fg);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    display: grid;
-    place-items: center;
-  }
-  .user-email {
-    font-size: 12px;
-    font-family: var(--font-ui);
-    color: var(--color-fg-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .surface-link {
+    .rail-anchor,
+    .rail-mini {
       transition: none;
     }
   }

@@ -17,6 +17,7 @@
   } from '$lib/api/queries';
   import { composeHowToRead, type HowToReadFacts } from '$lib/presentations/how-to-read';
   import { locale } from '$lib/state/locale.svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import type { Presentation } from '$lib/state/url-internals';
 
   interface Props {
@@ -27,7 +28,11 @@
   let { presentation, facts }: Props = $props();
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
-  let expanded = $state(true);
+  // Phase 151 — collapsed by default (operator UX): the note repeats under every
+  // cell of a split/faceted panel, so showing it open everywhere was visually
+  // heavy. Each cell keeps its OWN note (incl. per-cell data-derived lines —
+  // median, r, axis scale) one click away; nothing is lost, the noise is.
+  let expanded = $state(false);
 
   const templateQ = createQuery<
     QueryOutcome<ContentResponseDto>,
@@ -44,7 +49,7 @@
   const lines = $derived(composeHowToRead(presentation, facts, templateBase));
 </script>
 
-<aside class="how-to-read" aria-label="How to read this cell" data-export-exclude="provenance">
+<aside class="how-to-read" aria-label={m.cells_howto_aria()} data-export-exclude="provenance">
   <button
     type="button"
     class="htr-toggle"
@@ -55,7 +60,7 @@
     }}
   >
     <span class="htr-chevron" class:expanded aria-hidden="true">›</span>
-    <span class="htr-title">How to read this</span>
+    <span class="htr-title">{m.cells_howto_heading()}</span>
   </button>
   {#if expanded}
     <ul class="htr-body">

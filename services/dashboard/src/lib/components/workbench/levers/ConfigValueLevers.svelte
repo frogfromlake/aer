@@ -33,14 +33,6 @@
   const activeShowEdges = $derived(boundPanel.showEdges ?? false);
   const activeForceStrength = $derived(boundPanel.forceStrength ?? DEFAULT_FORCE_STRENGTH);
   const activeSettle = $derived(boundPanel.settleSeconds ?? 12);
-  const activeScaleMode = $derived<'shared' | 'free'>(boundPanel.scales ?? 'shared');
-  // A cell with its own X/Y axis always reads free regardless of this panel
-  // Scale toggle — disclose so the toggle never reads as a promise it can't keep.
-  const hasAxisOverride = $derived(
-    Object.values(boundPanel.cellOverrides ?? {}).some(
-      (ov) => ov.channels?.x !== undefined || ov.channels?.y !== undefined
-    )
-  );
 
   // Live slider read-outs — null = not mid-drag, fall back to the committed value.
   let liveBins = $state<number | null>(null);
@@ -91,15 +83,6 @@
       const o = { ...p };
       if (next) o.showEdges = true;
       else delete o.showEdges;
-      return o;
-    });
-  }
-  function setScaleMode(next: 'shared' | 'free') {
-    if (next === activeScaleMode) return;
-    updatePanel(panelPath, (p) => {
-      const o = { ...p };
-      if (next === 'shared') delete o.scales;
-      else o.scales = 'free';
       return o;
     });
   }
@@ -247,34 +230,5 @@
   </LeverRow>
 {/if}
 
-{#if configParams.includes('scales')}
-  <LeverRow
-    eyebrow={m.levers_scale_eyebrow()}
-    role="group"
-    ariaLabel={m.levers_scale_aria()}
-    rowClass="config-row"
-  >
-    <LeverButton
-      role="switch"
-      active={activeScaleMode === 'shared'}
-      onclick={() => setScaleMode(activeScaleMode === 'shared' ? 'free' : 'shared')}
-      title={m.levers_scale_title()}
-    >
-      {activeScaleMode === 'shared' ? m.levers_scale_shared() : m.levers_scale_free()}
-    </LeverButton>
-  </LeverRow>
-  {#if hasAxisOverride}
-    <p class="scale-note">{m.levers_scale_note()}</p>
-  {/if}
-{/if}
-
-<style>
-  /* Phase 126 — clarifying note under the panel Scale toggle when a cell has a
-     custom X/Y axis (then the panel default doesn't apply to that cell). */
-  .scale-note {
-    margin: 0 0 0 calc(3.5rem + var(--space-2));
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-muted);
-    font-style: italic;
-  }
-</style>
+<!-- Phase 151 — the Scale (shared/free axis) toggle moved onto the Composition
+     row (CompositionControls) to save vertical space. -->

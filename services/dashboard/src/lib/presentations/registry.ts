@@ -144,6 +144,14 @@ export interface PresentationDefinition {
    *  parallel coordinates). PanelControls offers the facet picker only when
    *  true; PanelHost ignores `facetField` otherwise. Defaults to false. */
   supportsFaceting?: boolean;
+  /** Phase 151 — whether this presentation has a Silver-layer (per-document)
+   *  query path. True ONLY for `distribution` (DistributionCell routes to the
+   *  Silver aggregation endpoint); every other cell renders a "not available on
+   *  Silver" notice. PanelControls offers the Au-Gold / Ag-Silver layer lever
+   *  ONLY when true, and PanelHost/PanelCellGrid coerces the effective layer to
+   *  gold otherwise — so the toggle never appears where it has no effect.
+   *  Defaults to false. */
+  supportsSilver?: boolean;
   /** Phase 125b + co-occurrence redesign — whether this presentation has a
    *  large-scale (WebGL) renderer variant. True only for `cooccurrence_network`
    *  (the sigma.js at-scale map). PanelHost auto-routes to

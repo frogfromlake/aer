@@ -4822,51 +4822,6 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-# Open Phases
-
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
-
-*Cross-cutting decisions that shape every phase below:*
-
-- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
-- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
-- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
-- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
-- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
-- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
-- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
-
----
-
-## Implementation protocol (every phase)
-
-*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
-
-1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
-2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
-3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
-4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
-5. **Definition of Done (applies to every phase, on top of its specific Validation):**
-   - phase-specific **Validation** checks pass;
-   - run the **`code-review`** skill on the diff;
-   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
-   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
-   - **hand back to the operator to commit — never auto-commit.**
-
----
-
-# Iteration 11 — Consolidation, Quality & Closure
-
-*Reframed 2026-06-14 on operator request. The engineering POC is feature-complete (through Iteration 10), but before AĒR is shown to the first invited researchers the operator wants it at target **code quality** AND demonstrably **maintainable** — not merely feature-complete. This iteration is therefore front-loaded with a code-quality & CI consolidation pass (Phases 136–144) that runs BEFORE the original closure phases (127 coherence, 128 a11y/perf, 129 docs) and before the security/deployment reviews of Iteration 12 — so those reviews run against a clean, green, localized, documented baseline and "some things are already done" by the time they start. **Deployment target (binding, 2026-06-14 planning session):** invited, authenticated researchers on a controlled domain (no open self-registration) — internet-exposed but not a public launch; this sets the threat model Iteration 12 reviews against.*
-
-*Two disciplines govern the consolidation pass:*
-- ***Assess → fix.*** The quality work is inventoried first (Phase 138) into a counted register, then remediated against it — never "refactor by feeling". Same two-stage pattern Iteration 12 uses for security.
-- ***Every cleanup is a ratchet.*** Anything cleaned — dead code, file length, naming, the 80% coverage floor, the CI wall-clock budget — is locked by a lint/CI gate so entropy cannot return. Maintainability is the deliverable, not a one-time clean state.
-
-*Sequencing note (bandwidth).* Bandwidth-heavy operations — `make deps-refresh`, worker/image rebuilds, HuggingFace model downloads — are deferred to real-internet availability (from 2026-06-16); on metered mobile-hotspot they may require a location change. Phases that *author* changes to deps/images (e.g. Phase 137's `deps-refresh` split) can be written offline; only their *validation run* needs bandwidth — schedule those passes accordingly.
-
----
-
 ## Phase 144: UI Localization — German (DE) [P1] - [x] DONE 2026-06-18 (all 13 UI surfaces localized + mechanism + content/WP wiring; Phase 144b closed the conceptual-vocabulary SoT tranche; **Phase 144c closed the last two data surfaces** — the Reflection open-questions research-prose catalog AND the `how-to-read.ts` cell-note building blocks. DoD "no hardcoded English in any user-visible surface" is now **literally met**: the closing sweep found no remaining English-only TS data catalog rendered in the UI.)
 
 *The app is English-only at the UI-shell level (`APP_CONTENT_LANGUAGE` clamp). This phase delivers a **complete EN/DE localization** of the dashboard — every user-visible string, aria-label, placeholder, date/number format, and long-form document — and it is achievable now because most German content **already exists**: the BFF content-catalog is at **97/97 `{en,de}` parity** (real, high-quality German — not stubs) and all six Working Papers are already translated under `docs/methodology/{en,de}/`. The **only large net-new translation is the ~600 hardcoded UI-shell strings**; everything else is wiring a single locale signal through layers that are already bilingual. It is the prerequisite that makes Phase 128's EN/DE-parity audit real.*
@@ -4904,7 +4859,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 144c: Open-Questions Research-Prose Localization (DE) [P1] - [x] DONE 2026-06-18
+## Phase 144c: Open-Questions Research-Prose Localization (DE) [P1] - [x] DONE
 
 *Closed the last English-in-DE surfaces after Phase 144/144b, making the literal DoD — "no hardcoded English in any user-visible surface" — fully true. Two data surfaces were localized: (1) the planned `/reflection/open-questions` Open Research Questions hub (50 questions / 250 prose fields, rendered straight from `src/lib/reflection/open-questions.ts`), and (2) — surfaced by the closing sweep (task f) — the `how-to-read.ts` cell-note **building blocks** (~55 config-derived strings rendered under the German template line in 19 cells; the per-presentation template line itself already came from the localized BFF `view_modes/howto_*` catalog, but `cross_probe_lead_lag` has no catalog entry so its English fallback also leaked). Operator chose (2026-06-18) to fold the how-to-read finding into 144c rather than defer it.*
 
@@ -4932,23 +4887,36 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 151: Dashboard Design & UX Iteration (feature-preserving) [P1] - [ ] TODO
+# Open Phases
 
-*A deliberate, whole-dashboard design + UX pass to raise the visual and interaction quality of the frontend before the coherence/a11y audits and the external launch. The operator iterates the design with Claude's design tool (claude.ai/design — feed the whole app, get per-touchpoint design proposals to prompt against); the load-bearing risk is **feature regression** — a restyle that silently breaks behaviour, state, deep-links, or the reflexive surfaces. This phase therefore pairs the design work with an explicit feature-preservation harness and a documented working method. Positioned AFTER the refactor (139–141) and localization (144) so design iterates on the final structure, and BEFORE the closure audits (127 coherence / 128 a11y) so those validate the post-design surface.*
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
 
-**Grounding.** Read first: `docs/design/design_brief.md` (the visual-token authority) + the Visualization Guidelines, the component inventory under `services/dashboard/src/lib/components/`, the three-surface + Pillar architecture, the URL-state grammar, the Negative-Space / refusal / how-to-read surfaces (the reflexive contract that must survive any restyle). Preserve: **every behavioural contract** — URL deep-linkability, per-Panel/Window/Pillar state, the reflexive surfaces (Negative Space, refusals, "how to read"), the design-token SoT, the static-SvelteKit model. Verify-first: the design brief is the authority — a redesign updates the brief, it does not silently diverge from it.
+*Cross-cutting decisions that shape every phase below:*
 
-### Working method
-* [ ] **claude.ai/design for direction, the codebase for truth.** Treat the tool's per-touchpoint output as *design proposals* — decide visual direction there, then implement in-code deliberately (Claude Code + the harness below); never blind-paste a generated component over a behaviourally load-bearing one. Feed it the design brief + tokens + the non-negotiable constraints (reflexive surfaces, static-SvelteKit, the WCAG-AA target) so proposals respect them. Sequence: shared primitives/tokens first (typography, spacing, buttons, FunctionBadge/NegativeSpaceBadge, cards), then the three surfaces, then auth/overlays — so consistency propagates instead of being re-litigated per screen. A short per-touchpoint decision log keeps the design brief the SoT.
-* [ ] **Scope = chrome, not analytical encoding.** Design iterates layout, spacing, typography, affordances, empty/loading/error states — NOT the data-viz semantics (pillar geometries, no-shared-axis-for-scaled-metrics, the ±1σ band), which are governed by the Visualization Guidelines + WPs, not aesthetics.
-* [ ] **Feature-preservation harness** — before restyling, the behavioural contract per touched component is captured (the Phase-142 tests + the Playwright E2E + a per-component "what must still work" checklist) so a regression is caught, not shipped.
+- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
+- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
+- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
+- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
+- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
+- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
+- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
 
-### Design pass
-* [ ] **Component-by-component UX/design iteration** against the (possibly updated) design brief — visual hierarchy, spacing, typography, interaction affordances, empty/loading/error states — never at the cost of a behavioural contract or the reflexive surfaces.
-* [ ] **Design-brief reconciliation** — the brief is updated to match the shipped design (it stays the SoT); design tokens remain centralised.
+---
 
-### Validation
-* [ ] Every touched component passes its preserved behavioural contract (tests + E2E green; deep-links round-trip; reflexive surfaces intact); the design brief matches the shipped UI; the workflow guide exists and was followed.
+## Implementation protocol (every phase)
+
+*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
+
+1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
+2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
+3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
+4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
+5. **Definition of Done (applies to every phase, on top of its specific Validation):**
+   - phase-specific **Validation** checks pass;
+   - run the **`code-review`** skill on the diff;
+   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
+   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
+   - **hand back to the operator to commit — never auto-commit.**
 
 ---
 

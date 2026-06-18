@@ -1563,6 +1563,9 @@ type Probe struct {
 	// DisplayName Human-friendly probe name for UI display (globe banner, dossier headers, comparison strip). Set in the probe config; the server falls back to `probeId` when it is omitted, so this field is always present.
 	DisplayName string `json:"displayName"`
 
+	// DocumentCount Total number of distinct processed documents across this probe's bound sources — the all-time dataset count (`count(DISTINCT article_id)` over `aer_silver.documents`), the same definition the Probe Dossier reports as `articlesTotal`. It is NOT time-window scoped: it answers "how much of the dataset does this probe contribute", independent of any analysis window. Drives the Atmosphere dataset-overview readout (Design Brief §4.1). Null when the count could not be computed (analytical store unavailable) — the probe geometry still renders; the client shows the count as unavailable rather than fabricating a zero.
+	DocumentCount *int64 `json:"documentCount,omitempty"`
+
 	// EmissionPoints Geographic origins of the probe's bound publishers. Each point is rendered as a glowing marker on the globe. Multiple points allow federated broadcasters or multi-publisher probes to render correctly without implying a reach region between them.
 	EmissionPoints []struct {
 		// Label Human-readable label for this emission point (e.g., "Hamburg (Tagesschau / NDR)"). Rendered in hover tooltips and the L3 panel.

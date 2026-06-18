@@ -77,13 +77,14 @@
   }: Props = $props();
 
   const cellRender = $derived(selectCellRender(panel));
-  const dataLayer = $derived<'gold' | 'silver'>(panel.layer === 'silver' ? 'silver' : 'gold');
+  // Phase 151 — Silver only applies where the presentation supports it (else gold).
+  const dataLayer = $derived<'gold' | 'silver'>(
+    panel.layer === 'silver' && (presentation.supportsSilver ?? false) ? 'silver' : 'gold'
+  );
   // Phase 122k F5 — the panel's own window overrides the inherited default.
   const effectiveWindowStart = $derived(panel.windowStart ?? windowStart);
   const effectiveWindowEnd = $derived(panel.windowEnd ?? windowEnd);
-
-  // Phase 126 — per-cell config popover. Holds the `unit.key` of the open cell,
-  // or null (single-open accordion across the grid).
+  // Phase 126 — per-cell config popover; holds the open cell's `unit.key` (single-open).
   let openConfigKey = $state<string | null>(null);
   function toggleCellConfig(key: string, e: MouseEvent) {
     e.stopPropagation();
@@ -103,9 +104,8 @@
     if (probesQ.data?.kind === 'success') for (const p of probesQ.data.data) map[p.probeId] = p;
     return map;
   });
-  // Source NAMES for a probe: the dossier (ordered) for its own probe, the
-  // registry for the others; narrowed to the dimension-carrying sources (ADR-038)
-  // so the fan-out never renders a known-empty cell.
+  // Source NAMES for a probe: the dossier (ordered) for its own probe, the registry
+  // for the others; narrowed to dimension-carrying sources (ADR-038) — no empty cells.
   function sourceNamesForProbe(probeId: string): string[] {
     const all =
       probeId === dossier.probeId
@@ -123,9 +123,8 @@
     return i < 0 ? 0 : i;
   }
 
-  // Phase 130 / ADR-035 — merged-cross-probe guard (Brief §1.3). A merged cell
-  // pooling >1 probe for a scaled metric would render a cross-context ranking;
-  // refuse it. split / overlay keep each probe on its own axis (unaffected).
+  // Phase 130 / ADR-035 — merged-cross-probe guard (Brief §1.3): a merged cell
+  // pooling >1 probe for a scaled metric would rank cross-context; refuse it.
   const crossProbeMergeRefused = $derived(shouldRefuseMergedCrossProbe(panel, cellRender));
   const crossProbeRefusal = $derived<RefusalOutcome | null>(
     crossProbeMergeRefused

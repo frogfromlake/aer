@@ -31,6 +31,8 @@ export const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesResolution: false,
     configurableParams: ['bins', 'scales'],
     supportsFaceting: true,
+    // The only presentation with a Silver-layer (per-document) query path.
+    supportsSilver: true,
     negativeSpacePolicy: 'badge',
     loadComponent: async () =>
       (await import('$lib/components/presentations/DistributionCell.svelte')).default

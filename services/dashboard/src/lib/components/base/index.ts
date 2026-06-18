@@ -7,3 +7,4 @@ export { default as SkipLink } from './SkipLink.svelte';
 export { default as SidePanel } from './SidePanel.svelte';
 export { default as SegmentedControl } from './SegmentedControl.svelte';
 export { default as FunctionBadge } from './FunctionBadge.svelte';
+export { default as StatReadout } from './StatReadout.svelte';

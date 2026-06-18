@@ -68,3 +68,57 @@ func TestGetProbes_EmptyRegistryReturnsEmptyArray(t *testing.T) {
 		t.Errorf("expected empty array, got %q", body)
 	}
 }
+
+// Phase 151 — the probes feed carries the all-time document total per probe,
+// summed across its bound sources (the Atmosphere dataset-overview readout).
+func TestGetProbes_AttachesDocumentCount(t *testing.T) {
+	store := &mockStore{documentTotalsBySource: map[string]int64{
+		"tagesschau":      100,
+		"bundesregierung": 32,
+	}}
+	router := newTestRouter(NewServer(store, nil, nil, nil, testProbeRegistry()))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/probes", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var probes []Probe
+	if err := json.Unmarshal(rec.Body.Bytes(), &probes); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(probes) != 1 {
+		t.Fatalf("expected 1 probe, got %d", len(probes))
+	}
+	if probes[0].DocumentCount == nil {
+		t.Fatalf("expected documentCount to be set")
+	}
+	if *probes[0].DocumentCount != 132 {
+		t.Errorf("documentCount: want 132 (100+32), got %d", *probes[0].DocumentCount)
+	}
+}
+
+// When the analytical store errors, the geometry feed still renders and
+// documentCount is omitted (nil) rather than a fabricated zero.
+func TestGetProbes_DocumentCountNilWhenStoreErrors(t *testing.T) {
+	store := &mockStore{documentTotalsBySourceErr: errTest}
+	router := newTestRouter(NewServer(store, nil, nil, nil, testProbeRegistry()))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/probes", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 (degraded, not failed), got %d", rec.Code)
+	}
+	var probes []Probe
+	if err := json.Unmarshal(rec.Body.Bytes(), &probes); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(probes) != 1 {
+		t.Fatalf("expected 1 probe, got %d", len(probes))
+	}
+	if probes[0].DocumentCount != nil {
+		t.Errorf("expected nil documentCount on store error, got %d", *probes[0].DocumentCount)
+	}
+}

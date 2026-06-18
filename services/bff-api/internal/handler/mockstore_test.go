@@ -41,6 +41,8 @@ type mockStore struct {
 	languagesForScopeErr              error
 	countLanguagesForSourcesValue     int
 	countLanguagesForSourcesErr       error
+	documentTotalsBySource            map[string]int64
+	documentTotalsBySourceErr         error
 	checkEquivalenceForLanguagesValue bool
 	checkEquivalenceForLanguagesErr   error
 	// Phase 124: metric-class-aware normalization gate (separate from the
@@ -203,6 +205,10 @@ func (m *mockStore) GetPercentileNormalizedMetrics(_ context.Context, start, end
 
 func (m *mockStore) CountLanguagesForSources(_ context.Context, _, _ time.Time, _ []string) (int, error) {
 	return m.countLanguagesForSourcesValue, m.countLanguagesForSourcesErr
+}
+
+func (m *mockStore) GetDocumentTotalsBySource(_ context.Context, _ []string) (map[string]int64, error) {
+	return m.documentTotalsBySource, m.documentTotalsBySourceErr
 }
 
 func (m *mockStore) LanguagesForScope(_ context.Context, _, _ time.Time, _ []string) ([]string, error) {

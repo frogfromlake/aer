@@ -1507,6 +1507,12 @@ export interface components {
              *     ]
              */
             sources: string[];
+            /**
+             * Format: int64
+             * @description Total number of distinct processed documents across this probe's bound sources — the all-time dataset count (`count(DISTINCT article_id)` over `aer_silver.documents`), the same definition the Probe Dossier reports as `articlesTotal`. It is NOT time-window scoped: it answers "how much of the dataset does this probe contribute", independent of any analysis window. Drives the Atmosphere dataset-overview readout (Design Brief §4.1). Null when the count could not be computed (analytical store unavailable) — the probe geometry still renders; the client shows the count as unavailable rather than fabricating a zero.
+             * @example 1432
+             */
+            documentCount?: number | null;
         };
         /**
          * @description A single geographic emission origin for a probe — the location from which one of the probe's bound sources publishes. A probe may have multiple emission points (e.g., a federated broadcaster with regional studios, or a probe bound to several institutional publishers in different cities).

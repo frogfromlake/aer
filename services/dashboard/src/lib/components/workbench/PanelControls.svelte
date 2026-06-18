@@ -41,6 +41,7 @@
   import CompositionControls from './levers/CompositionControls.svelte';
   import ViewControls from './levers/ViewControls.svelte';
   import MetricControls from './levers/MetricControls.svelte';
+  import MetricHints from './levers/MetricHints.svelte';
   import ResolutionControls from './levers/ResolutionControls.svelte';
   import ConfigValueLevers from './levers/ConfigValueLevers.svelte';
   import ConfigChannelLevers from './levers/ConfigChannelLevers.svelte';
@@ -188,6 +189,9 @@
   const viewUsesResolution = $derived(activePresentation.usesResolution ?? false);
   const viewUsesNormalization = $derived(activePresentation.usesNormalization ?? false);
   const viewSupportsFaceting = $derived(activePresentation.supportsFaceting ?? false);
+  // Phase 151 — the Au-Gold / Ag-Silver layer lever only does anything where the
+  // presentation has a Silver query path (distribution); hide it elsewhere.
+  const viewSupportsSilver = $derived(activePresentation.supportsSilver ?? false);
   const configParams = $derived(activePresentation.configurableParams ?? []);
 
   // Compare gate (Phase 131 BUG1): deviation/percentile need a deviation/absolute
@@ -257,34 +261,48 @@
         {panelPath}
         {boundPanel}
         supportsOverlay={activePresentation.supportsOverlay ?? false}
+        showScale={configParams.includes('scales')}
       />
 
-      <ViewControls
-        {panelPath}
-        {presentations}
-        {activePresentation}
-        {scalarMetricOptions}
-        {offerableFields}
-        {availableMetricNames}
-        {availableMetadataFields}
-      />
+      <!-- Phase 151 — View + Metric dropdowns side by side on one row to save
+           vertical space; the withheld hints render as their own rows below. -->
+      <div class="ctrl-row ctrl-row-split vm-row">
+        <ViewControls
+          {panelPath}
+          {presentations}
+          {activePresentation}
+          {scalarMetricOptions}
+          {offerableFields}
+          {availableMetricNames}
+          {availableMetadataFields}
+        />
+        <MetricControls
+          {panelPath}
+          {boundPanel}
+          view={activePresentation.id}
+          {viewUsesMetric}
+          {viewUsesMetadataField}
+          {availableMetricNames}
+          {availableMetadataFields}
+          {scopeGate}
+          {scopeAvailableSet}
+          {offerableFields}
+          metadataResolved={metadataAvail !== null}
+        />
+      </div>
 
-      <MetricControls
+      <MetricHints
         {panelPath}
         {boundPanel}
         view={activePresentation.id}
         {viewUsesMetric}
         {viewUsesMetadataField}
         {availableMetricNames}
-        {availableMetadataFields}
         {partialMetrics}
         {partialMetadataFields}
         {scopedSourceNames}
         {scopedSourceCount}
-        {scopeGate}
         {scopeAvailableSet}
-        {offerableFields}
-        metadataResolved={metadataAvail !== null}
         {configParams}
       />
 
@@ -305,7 +323,7 @@
         />
       {/if}
 
-      <WindowControls {panelPath} {dateWindow} {todayStr} />
+      <WindowControls {panelPath} {dateWindow} {todayStr} {boundPanel} {viewSupportsSilver} />
 
       <LayerCompareControls {panelPath} {boundPanel} {viewUsesNormalization} {canNormalize} />
     {/if}
@@ -381,5 +399,10 @@
 
   .cell-controls.collapsed {
     padding-bottom: var(--space-2);
+  }
+
+  /* Phase 151 — two labelled groups on one row (e.g. View · Metric). */
+  .ctrl-row-split {
+    gap: var(--space-4);
   }
 </style>

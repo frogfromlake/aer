@@ -84,6 +84,9 @@ type Store interface {
 	// Phase 115: percentile-rank normalization, deviation labelling, cross-frame gate.
 	GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
 	CountLanguagesForSources(ctx context.Context, start, end time.Time, sources []string) (int, error)
+	// Phase 151: all-time distinct-document count per source (NOT window-scoped),
+	// for the Atmosphere dataset-overview readout (Probe.documentCount).
+	GetDocumentTotalsBySource(ctx context.Context, sources []string) (map[string]int64, error)
 	LanguagesForScope(ctx context.Context, start, end time.Time, sources []string) ([]string, error)
 	CheckEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error)
 	CheckNormalizationEquivalenceForLanguages(ctx context.Context, metricName string, languages []string) (bool, error)

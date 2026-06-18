@@ -1,16 +1,13 @@
 <script lang="ts">
-  // MetricControls — Phase 141 (extracted from PanelControls).
+  // MetricControls — Phase 141 (extracted from PanelControls); Phase 151 reduced
+  // to the metric/field PICKER (now a compact dropdown that sits beside View on
+  // one row). The "withheld / show anyway" hints moved to sibling MetricHints.
   //
-  // The "what is measured / grouped by" levers: the analytical + metadata metric
-  // picker (scalar views), the categorical metadata FIELD picker (field-driven
-  // views), and the partial-metric / partial-field "withheld" hints with their
-  // "show anyway" toggle (ADR-038 — the default is always the intersection so no
-  // cell renders silently empty; partials are offered only on opt-in). Owns the
-  // two capability-driven reconcile effects (snap a scope-invalid metric/field
-  // back to a valid one).
-  //
-  // The parent passes the already-computed availability data (the queries live
-  // there, shared across levers); this child derives the picker lists from it.
+  // Renders ONE of: the analytical + metadata metric dropdown (scalar views), or
+  // the categorical metadata FIELD dropdown (field-driven views — the field is
+  // the grouping dimension and rides in Panel.metric). Owns the two
+  // capability-driven reconcile effects (snap a scope-invalid metric/field back
+  // to a valid one). The parent passes already-computed availability data.
   import type { Panel, Presentation } from '$lib/state/url-internals';
   import { isMetadataMetric } from '$lib/presentations';
   import {
@@ -18,15 +15,11 @@
     buildMetadataFields,
     firstMetadataField,
     isScopeAvailable,
-    missingSourcesFor as missingSourcesForOf,
     resetMetricForScope as resetMetricForScopeOf,
     type ScopeGate
   } from '$lib/workbench/panel-controls-derive';
-  import type { ScopeAvailableMetricsDto, ScopeAvailableMetadataDto } from '$lib/api/queries';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
-  import LeverRow from './LeverRow.svelte';
-  import LeverButton from './LeverButton.svelte';
 
   interface Props {
     panelPath: PanelPath;
@@ -36,18 +29,12 @@
     viewUsesMetadataField: boolean;
     availableMetricNames: string[];
     availableMetadataFields: readonly string[];
-    partialMetrics: ScopeAvailableMetricsDto['partial'];
-    partialMetadataFields: ScopeAvailableMetadataDto['partial'];
-    scopedSourceNames: readonly string[];
-    scopedSourceCount: number;
     scopeGate: ScopeGate;
     scopeAvailableSet: Set<string> | null;
     /** Offerable categorical fields (shared — computed once in the parent). */
     offerableFields: string[];
     /** metadataAvail query resolved (gates the field reconcile effect). */
     metadataResolved: boolean;
-    /** For the partial-metric hint gate (scatter binds metrics too). */
-    configParams: readonly string[];
   }
 
   let {
@@ -58,15 +45,10 @@
     viewUsesMetadataField,
     availableMetricNames,
     availableMetadataFields,
-    partialMetrics,
-    partialMetadataFields,
-    scopedSourceNames,
-    scopedSourceCount,
     scopeGate,
     scopeAvailableSet,
     offerableFields,
-    metadataResolved,
-    configParams
+    metadataResolved
   }: Props = $props();
 
   const activeMetric = $derived(boundPanel.metric);
@@ -86,9 +68,6 @@
     buildMetadataFields({ viewUsesMetadataField, offerable: offerableFields, activeMetric })
   );
 
-  function missingSourcesFor(have: readonly string[]): string[] {
-    return missingSourcesForOf(have, scopedSourceNames);
-  }
   function resetMetricForScope(): string {
     return resetMetricForScopeOf({
       view,
@@ -101,24 +80,6 @@
   function pickMetric(name: string) {
     if (name === activeMetric) return;
     updatePanel(panelPath, (p) => ({ ...p, metric: name }));
-  }
-
-  // Issue 6 — "show anyway": offer the withheld (partial) metrics. Turning it
-  // OFF snaps a now-unofferable metric back to a scope-valid default.
-  function toggleShowWithheld() {
-    const next = !activeShowWithheld;
-    updatePanel(panelPath, (p) => {
-      const o = { ...p };
-      if (next) {
-        o.showWithheld = true;
-      } else {
-        delete o.showWithheld;
-        if (scopeAvailableSet && !scopeAvailableSet.has(o.metric)) {
-          o.metric = resetMetricForScope();
-        }
-      }
-      return o;
-    });
   }
 
   // Capability-driven default reconcile: when the active SCALAR metric is not
@@ -150,51 +111,34 @@
   });
 </script>
 
+<!-- Phase 151 — the metric/field picker is a dropdown so it sits beside View on
+     one row. Scalar views show the metric select; field-driven views show the
+     categorical FIELD select (the grouping dimension, riding in Panel.metric). -->
 {#if viewUsesMetric}
-  <LeverRow
-    eyebrow={m.levers_metric_eyebrow()}
-    role="radiogroup"
-    ariaLabel={m.levers_metric_aria()}
-  >
-    {#snippet options()}
+  <div class="ctrl-group">
+    <span class="ctrl-eyebrow">{m.levers_metric_eyebrow()}</span>
+    <select
+      class="config-select"
+      value={activeMetric}
+      onchange={(e) => pickMetric((e.currentTarget as HTMLSelectElement).value)}
+      onclick={(e) => e.stopPropagation()}
+      aria-label={m.levers_metric_aria()}
+    >
       {#each analyticalMetrics as mn (mn)}
-        <LeverButton
-          role="radio"
-          active={activeMetric === mn}
-          variant="metric-btn"
-          onclick={() => pickMetric(mn)}
-        >
-          <code>{mn}</code>
-        </LeverButton>
+        <option value={mn}>{mn}</option>
       {/each}
       {#if metadataMetrics.length > 0}
-        <span class="metric-group-label" aria-hidden="true">{m.levers_metric_group_metadata()}</span
-        >
-        {#each metadataMetrics as mn (mn)}
-          <LeverButton
-            role="radio"
-            active={activeMetric === mn}
-            variant="metric-btn metadata-metric"
-            title={m.levers_metric_metadata_title()}
-            onclick={() => pickMetric(mn)}
-          >
-            <code>{mn}</code>
-          </LeverButton>
-        {/each}
+        <optgroup label={m.levers_metric_group_metadata()}>
+          {#each metadataMetrics as mn (mn)}
+            <option value={mn}>{mn}</option>
+          {/each}
+        </optgroup>
       {/if}
-    {/snippet}
-  </LeverRow>
-{/if}
-
-<!-- Phase 133 — categorical metadata FIELD picker (field-driven views). The
-     field is the GROUPING dimension and rides in Panel.metric. -->
-{#if viewUsesMetadataField}
-  <LeverRow
-    eyebrow={m.levers_groupby_eyebrow()}
-    role="group"
-    ariaLabel={m.levers_groupby_aria()}
-    rowClass="config-row"
-  >
+    </select>
+  </div>
+{:else if viewUsesMetadataField}
+  <div class="ctrl-group">
+    <span class="ctrl-eyebrow">{m.levers_groupby_eyebrow()}</span>
     {#if metadataFields.length > 0}
       <select
         class="config-select"
@@ -210,179 +154,14 @@
     {:else}
       <span class="field-empty">{m.levers_groupby_empty()}</span>
     {/if}
-  </LeverRow>
-
-  <!-- ADR-038 — metadata withholding (mirror of the metric hint). -->
-  {#if partialMetadataFields.length > 0}
-    <div class="ctrl-row partial-hint" role="note">
-      <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
-      <div class="partial-hint-body">
-        <p class="partial-hint-lead">
-          {partialMetadataFields.length === 1
-            ? m.levers_withheld_fields_lead_one({
-                count: partialMetadataFields.length,
-                sources: scopedSourceCount,
-                sourcePlural:
-                  scopedSourceCount === 1
-                    ? m.levers_withheld_source_plural_one()
-                    : m.levers_withheld_source_plural_other()
-              })
-            : m.levers_withheld_fields_lead_other({
-                count: partialMetadataFields.length,
-                sources: scopedSourceCount,
-                sourcePlural:
-                  scopedSourceCount === 1
-                    ? m.levers_withheld_source_plural_one()
-                    : m.levers_withheld_source_plural_other()
-              })}
-        </p>
-        <ul class="partial-hint-list" role="list">
-          {#each partialMetadataFields as pf (pf.field)}
-            {@const missing = missingSourcesFor(pf.sources)}
-            <li class="partial-metric-row">
-              <code class="partial-metric">{pf.field}</code>
-              <span class="partial-metric-detail">
-                {m.levers_withheld_has({
-                  present: pf.sources.length,
-                  total: scopedSourceCount
-                })}{#if missing.length > 0}
-                  {m.levers_withheld_missing_on()} <strong>{missing.join(', ')}</strong>{/if}
-              </span>
-            </li>
-          {/each}
-        </ul>
-        <LeverButton
-          variant="partial-toggle"
-          role="switch"
-          active={activeShowWithheld}
-          onclick={toggleShowWithheld}
-          title={m.levers_withheld_fields_toggle_title()}
-        >
-          {activeShowWithheld
-            ? m.levers_withheld_showing_fields()
-            : m.levers_withheld_show_anyway()}
-        </LeverButton>
-      </div>
-    </div>
-  {/if}
-{/if}
-
-<!-- Phase 123c (C1) + ADR-038 — partial-metric hint (metrics on only SOME
-     scoped sources). "Show anyway" offers them; the panel then renders only the
-     sources that carry the chosen metric. -->
-{#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
-  <div class="ctrl-row partial-hint" role="note">
-    <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
-    <div class="partial-hint-body">
-      <p class="partial-hint-lead">
-        {partialMetrics.length === 1
-          ? m.levers_withheld_metrics_lead_one({
-              count: partialMetrics.length,
-              sources: scopedSourceCount,
-              sourcePlural:
-                scopedSourceCount === 1
-                  ? m.levers_withheld_source_plural_one()
-                  : m.levers_withheld_source_plural_other()
-            })
-          : m.levers_withheld_metrics_lead_other({
-              count: partialMetrics.length,
-              sources: scopedSourceCount,
-              sourcePlural:
-                scopedSourceCount === 1
-                  ? m.levers_withheld_source_plural_one()
-                  : m.levers_withheld_source_plural_other()
-            })}
-      </p>
-      <ul class="partial-hint-list" role="list">
-        {#each partialMetrics as pm (pm.metricName)}
-          {@const missing = missingSourcesFor(pm.sources)}
-          <li class="partial-metric-row">
-            <code class="partial-metric">{pm.metricName}</code>
-            <span class="partial-metric-detail">
-              {m.levers_withheld_has({
-                present: pm.sources.length,
-                total: scopedSourceCount
-              })}{#if missing.length > 0}
-                {m.levers_withheld_missing_on()} <strong>{missing.join(', ')}</strong>{/if}
-            </span>
-          </li>
-        {/each}
-      </ul>
-      <LeverButton
-        variant="partial-toggle"
-        role="switch"
-        active={activeShowWithheld}
-        onclick={toggleShowWithheld}
-        title={m.levers_withheld_metrics_toggle_title()}
-      >
-        {activeShowWithheld ? m.levers_withheld_showing_metrics() : m.levers_withheld_show_anyway()}
-      </LeverButton>
-    </div>
   </div>
 {/if}
 
 <style>
-  /* Phase 133 (Issue 4) — metadata-metric group inline label. */
-  .metric-group-label {
-    align-self: center;
-    margin-left: var(--space-2);
-    padding-left: var(--space-2);
-    border-left: 1px solid var(--color-border);
-    font-size: var(--font-size-2xs, 10px);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-fg-subtle, var(--color-fg-muted));
-  }
-
-  /* Phase 123c (C1) — partial-metric (withheld) hint. A calm, low-emphasis note
-     in the warning hue; never an error — the withholding is a deliberate honesty
-     guard. The row itself overrides the base alignment. */
-  .partial-hint {
-    align-items: flex-start;
-  }
-  .partial-hint-body {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    line-height: var(--line-height-loose);
-    color: var(--color-fg-muted);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .partial-hint-lead {
-    margin: 0;
-  }
-  .partial-hint-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .partial-metric-row {
-    display: flex;
-    align-items: baseline;
+  .ctrl-group {
+    display: inline-flex;
+    align-items: center;
     gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-  .partial-metric {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    background: color-mix(in srgb, var(--color-status-expired) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-status-expired) 24%, var(--color-border));
-    border-radius: var(--radius-sm);
-    padding: 0 4px;
-    white-space: nowrap;
-  }
-  .partial-metric-detail {
-    color: var(--color-fg-subtle);
-  }
-  .partial-metric-detail strong {
-    color: var(--color-fg-muted);
-    font-weight: var(--font-weight-semibold);
+    min-width: 0;
   }
 </style>

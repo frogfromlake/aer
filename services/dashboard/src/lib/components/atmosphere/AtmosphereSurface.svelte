@@ -44,6 +44,8 @@
   import AtmosphereCanvas from '$lib/components/atmosphere/AtmosphereCanvas.svelte';
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import AtmosphereChrome from '$lib/components/atmosphere/AtmosphereChrome.svelte';
+  import Button from '$lib/components/base/Button.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { urlState, setUrl, toggleOverlay } from '$lib/state/url.svelte';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
@@ -266,6 +268,32 @@
   // route; on other surfaces the canvas stays as a glassy backdrop behind the
   // page content (which overlays it, so the globe is non-interactive there).
   const onAtmosphere = $derived(page.url.pathname === '/');
+
+  // Phase 151 — dataset quick-stats woven into the chrome (Design Brief §4.1).
+  // This window reflects the DATASET, never the analysis window: counts come
+  // from the probe registry + the all-time `documentCount` field (BFF), NOT the
+  // windowed metrics query. It is scoped ONLY by the globe selection cart
+  // (`url.selectedProbes`) — a selection shows those probes' totals, an empty
+  // selection shows ALL probes. The Workbench scope and the time scrubber never
+  // touch it. No fabrication: documents shows "—" when a count is unavailable,
+  // and dataset age has no honest source yet, so it stays a provisional em-dash.
+  const scopedProbes = $derived.by<ProbeDto[]>(() => {
+    const sel = url.selectedProbes;
+    if (sel.length === 0) return probeDtos;
+    return probeDtos.filter((p) => sel.includes(p.probeId));
+  });
+  const statActiveProbes = $derived(scopedProbes.length);
+  const statSources = $derived(scopedProbes.reduce((n, p) => n + (p.sources?.length ?? 0), 0));
+  const statDocuments = $derived.by<number | null>(() => {
+    if (scopedProbes.length === 0) return null;
+    let sum = 0;
+    for (const p of scopedProbes) {
+      if (p.documentCount == null) return null; // unavailable → honest "—", never a fake zero
+      sum += p.documentCount;
+    }
+    return sum;
+  });
+  const docsDisplay = $derived(statDocuments == null ? '—' : formatNumber(statDocuments));
 </script>
 
 <svelte:head>
@@ -273,11 +301,10 @@
 </svelte:head>
 
 {#if onAtmosphere}
-  <!-- Top scope bar: primer link only. -->
-  <ScopeBar label={m.atmosphere_scopebar_label()}>
-    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
-    <a class="primer-link" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
-  </ScopeBar>
+  <!-- Top scope bar: just the Surface · Layer chip. The dataset summary moved
+       to the bottom-left quick-info window (Phase 151), and the "how to read
+       the globe" primer to a bottom-right link on the globe itself. -->
+  <ScopeBar label={m.atmosphere_scopebar_label()} />
 {/if}
 
 {#if decision === 'engine'}
@@ -295,14 +322,11 @@
            reaches (reach is unmeasurable), so it deliberately makes NO
            geographic blind-spot claim here. Per-source Negative Space (date
            provenance, silent edits) lives in the Dossier where it is measurable. -->
-      <aside class="absence-banner" aria-label={m.atmosphere_absence_label()}>
-        <span class="absence-glyph" aria-hidden="true">∅</span>
-        <span class="absence-text">{m.atmosphere_absence_text()}</span>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal WP link -->
-        <a class="absence-link" href="/reflection/wp/wp-006?section=4.2"
-          >{m.atmosphere_absence_link()}</a
-        >
-      </aside>
+      <AtmosphereChrome
+        activeProbes={formatNumber(statActiveProbes)}
+        sources={formatNumber(statSources)}
+        documents={docsDisplay}
+      />
     {/if}
     <AtmosphereCanvas
       probes={probeMarkers}
@@ -376,55 +400,53 @@
     {/if}
 
     {#if onAtmosphere && url.selectedProbes.length > 0}
-      <!-- Phase 123a — top-center Selection Banner (tier 2). The zone is
-           click-through (pointer-events:none) so the globe stays clickable;
-           only the strip itself is interactive. It NEVER auto-opens the
-           large overlay — "Open Dossier" is an explicit CTA (tier 3). -->
+      <!-- Phase 123a / 151 — bottom-center Selection Banner (tier 2). The zone
+           is click-through (pointer-events:none) so the globe stays clickable;
+           only the strip itself is interactive. It NEVER auto-opens the large
+           overlay — "Open Dossier" is an explicit CTA (tier 3). -->
       <div class="banner-zone">
         <div
-          class="compose-cta"
+          class="atm-banner"
           role="status"
           aria-live="polite"
           aria-label={m.atmosphere_banner_label()}
         >
-          <span class="compose-count">
+          <span class="atm-banner-count">
             {#if url.selectedProbes.length === 1}
               {m.atmosphere_banner_count_one({ count: formatNumber(url.selectedProbes.length) })}
             {:else}
               {m.atmosphere_banner_count_other({ count: formatNumber(url.selectedProbes.length) })}
             {/if}
           </span>
-          <button type="button" class="compose-btn" onclick={() => toggleOverlay('dossier')}>
-            {m.atmosphere_banner_open_dossier()}
-          </button>
-          <button
-            type="button"
-            class="compose-btn"
-            onclick={() => {
-              // Issue 3 — carry ONLY the selection to the Workbench (no
-              // pre-built pillar state). The Workbench then auto-opens the
-              // ScopeEditor seeded from `?selectedProbes=`, so the user picks
-              // sources rather than landing on a whole-probe panel over all
-              // sources with the editor skipped.
-              const qs = buildSelectionWorkbenchUrl(url.selectedProbes);
-              descend(() => {
-                // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
-                void goto(`/workbench${qs}`);
-              });
-            }}
-          >
-            {m.atmosphere_banner_open_workbench()}
-          </button>
-          <button
-            type="button"
-            class="compose-clear"
-            onclick={() => {
-              activeProbeId = null;
-              setUrl({ selectedProbes: [] });
-            }}
-          >
-            {m.atmosphere_banner_clear()}
-          </button>
+          <div class="atm-banner-actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              onclick={() => {
+                activeProbeId = null;
+                setUrl({ selectedProbes: [] });
+              }}>{m.atmosphere_banner_clear()}</Button
+            >
+            <Button variant="secondary" size="sm" onclick={() => toggleOverlay('dossier')}
+              >{m.atmosphere_banner_open_dossier()}</Button
+            >
+            <Button
+              variant="primary"
+              size="sm"
+              onclick={() => {
+                // Issue 3 — carry ONLY the selection to the Workbench (no
+                // pre-built pillar state). The Workbench then auto-opens the
+                // ScopeEditor seeded from `?selectedProbes=`, so the user picks
+                // sources rather than landing on a whole-probe panel over all
+                // sources with the editor skipped.
+                const qs = buildSelectionWorkbenchUrl(url.selectedProbes);
+                descend(() => {
+                  // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Workbench route
+                  void goto(`/workbench${qs}`);
+                });
+              }}>{m.atmosphere_banner_open_workbench()}</Button
+            >
+          </div>
         </div>
       </div>
     {/if}
@@ -438,6 +460,12 @@
 {:else if decision === 'fallback' && onAtmosphere}
   <div class="centered">
     <WebGLFallback probes={probeDtos} {activity} loading={probesQ.isPending} />
+    <!-- The globe primer stays reachable without WebGL2 (it explains the
+         probe concept, not just the 3D view). Phase 151 moved the primer to
+         the globe's bottom-right corner via AtmosphereChrome, which renders
+         only on the engine path — so the fallback keeps its own copy here. -->
+    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
+    <a class="fallback-primer" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
   </div>
 
   {#if probesQ.data?.kind === 'refusal'}
@@ -507,21 +535,6 @@
     color: var(--color-fg-subtle);
     white-space: normal;
   }
-  .primer-link {
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    color: var(--color-fg-muted);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--color-border);
-    padding-bottom: 1px;
-    flex-shrink: 0;
-  }
-  .primer-link:hover,
-  .primer-link:focus-visible {
-    color: var(--color-accent);
-    border-bottom-color: var(--color-accent);
-    outline: none;
-  }
   .sr-probe-nav {
     list-style: none;
     padding: 0;
@@ -568,122 +581,55 @@
     max-width: 28rem;
     z-index: 500;
   }
-  /* Multi-probe Compose CTA — floats at bottom-right of the globe stage. */
+  .fallback-primer {
+    margin-top: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .fallback-primer:hover,
+  .fallback-primer:focus-visible {
+    text-decoration: underline;
+  }
+
+  /* Multi-probe Selection Banner (Phase 151 design) — a solid, elevated strip
+     centered at the bottom of the globe stage, bottom-aligned with the
+     quick-stats window. Slighter rounding than the design's pill (radius-lg,
+     matching the stats window) per operator direction. */
   .banner-zone {
     position: absolute;
-    /* Clear the fixed ScopeBar (44px, z-440) so the banner is not hidden
-       behind it — matches the .absence-banner offset. */
-    top: calc(var(--scope-bar-height) + var(--space-3));
     left: 0;
     right: 0;
+    bottom: var(--space-6);
     z-index: 300;
     display: flex;
     justify-content: center;
     /* Click-through zone: the globe stays clickable everywhere except the
-       strip itself (.compose-cta), which re-enables pointer events. */
+       strip itself (.atm-banner), which re-enables pointer events. */
     pointer-events: none;
   }
-  .compose-cta {
+  .atm-banner {
     pointer-events: auto;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: rgba(0, 0, 0, 0.78);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-sm);
+    gap: var(--space-4);
+    /* Vertical padding matches the quick-stats window so the pair reads as the
+       same height. */
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-3);
     color: var(--color-fg);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    backdrop-filter: blur(4px);
   }
-  .compose-count {
-    color: var(--color-accent);
-    letter-spacing: 0.04em;
-    font-weight: var(--font-weight-semibold);
-  }
-  .compose-btn {
-    appearance: none;
-    padding: 2px var(--space-3);
-    background: var(--color-accent);
-    border: none;
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-bg);
-    cursor: pointer;
-  }
-  .compose-btn:hover,
-  .compose-btn:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 85%, white);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-  .compose-clear {
-    appearance: none;
-    padding: 2px var(--space-2);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
-    color: var(--color-fg-muted);
-    cursor: pointer;
-  }
-  .compose-clear:hover,
-  .compose-clear:focus-visible {
+  .atm-banner-count {
+    font-size: var(--font-size-sm);
     color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
   }
-
-  /* Coverage boundary banner — floats above the globe in negSpace mode. */
-  .absence-banner {
-    /* Unobtrusive bottom-right disclosure (Phase 135 — toggle retired). */
-    position: absolute;
-    bottom: var(--space-4);
-    right: var(--space-4);
-    z-index: 350;
+  .atm-banner-actions {
     display: flex;
-    align-items: center;
     gap: var(--space-2);
-    max-width: 38rem;
-    padding: 4px var(--space-2);
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(82, 131, 184, 0.28);
-    border-radius: var(--radius-sm);
-    color: rgba(160, 184, 216, 0.78);
-    font-size: 10.5px;
-    line-height: 1.35;
-    font-family: var(--font-mono);
-    pointer-events: auto;
-    backdrop-filter: blur(4px);
-  }
-  .absence-banner:hover {
-    color: #a0b8d8;
-    background: rgba(0, 0, 0, 0.72);
-  }
-  .absence-glyph {
-    font-size: 0.85rem;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .absence-text {
-    letter-spacing: 0.02em;
-  }
-  .absence-link {
-    color: #5283b8;
-    text-decoration: none;
-    border-bottom: 1px dotted #5283b8;
-    padding-bottom: 1px;
-  }
-  .absence-link:hover,
-  .absence-link:focus-visible {
-    color: #a0b8d8;
-    border-bottom-color: #a0b8d8;
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
   }
 </style>

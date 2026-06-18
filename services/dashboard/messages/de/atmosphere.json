@@ -5,6 +5,14 @@
   "atmosphere_scopebar_label": "Steuerung der Atmosphären-Oberfläche",
   "atmosphere_primer_link": "Den Globus lesen →",
 
+  "atmosphere_stats_label": "Datensatz-Überblick",
+  "atmosphere_stats_active_probes": "Aktive Proben",
+  "atmosphere_stats_sources": "Quellen",
+  "atmosphere_stats_documents": "Dokumente",
+  "atmosphere_stats_documents_caption": "gesamt",
+  "atmosphere_stats_dataset_age": "Datensatz-Alter",
+  "atmosphere_stats_provisional": "vorläufig",
+
   "atmosphere_canvas_label": "AĒR-Atmosphäre: rotierende 3D-Erde mit Tag-Nacht-Grenze in Echtzeit",
 
   "atmosphere_absence_label": "Hinweis zur Abdeckung",

@@ -12,8 +12,6 @@
   import { reconcilePanelForView } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
-  import LeverRow from './LeverRow.svelte';
-  import LeverButton from './LeverButton.svelte';
 
   interface Props {
     panelPath: PanelPath;
@@ -50,17 +48,28 @@
   }
 </script>
 
-<LeverRow eyebrow={m.levers_view_eyebrow()} role="radiogroup" ariaLabel={m.levers_view_aria()}>
-  {#snippet options()}
+<!-- Phase 151 — View is a dropdown (was a radio cluster) so it can sit beside the
+     Metric dropdown on one row, saving vertical space. -->
+<div class="ctrl-group">
+  <span class="ctrl-eyebrow">{m.levers_view_eyebrow()}</span>
+  <select
+    class="config-select"
+    value={activePresentation.id}
+    onchange={(e) => pickView((e.currentTarget as HTMLSelectElement).value as Presentation)}
+    onclick={(e) => e.stopPropagation()}
+    aria-label={m.levers_view_aria()}
+  >
     {#each presentations as p (p.id)}
-      <LeverButton
-        role="radio"
-        active={activePresentation.id === p.id}
-        title={p.description}
-        onclick={() => pickView(p.id)}
-      >
-        {p.label}
-      </LeverButton>
+      <option value={p.id} title={p.description}>{p.label}</option>
     {/each}
-  {/snippet}
-</LeverRow>
+  </select>
+</div>
+
+<style>
+  .ctrl-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+</style>

@@ -217,12 +217,10 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     const strip = page.getByRole('region', { name: 'Panel controls' });
     await expect(strip).toBeVisible();
 
-    // View lever — radiogroup with Distribution active.
-    const viewGroup = strip.getByRole('radiogroup', { name: 'View' });
-    await expect(viewGroup).toBeVisible();
-    await expect(
-      viewGroup.getByRole('radio', { name: 'Distribution', exact: true })
-    ).toHaveAttribute('aria-checked', 'true');
+    // View lever — Phase 151: a dropdown (combobox) with Distribution selected.
+    const viewSelect = strip.getByRole('combobox', { name: 'View' });
+    await expect(viewSelect).toBeVisible();
+    await expect(viewSelect).toHaveValue('distribution');
 
     // Composition lever — Merged active, Split offered.
     const compGroup = strip.getByRole('radiogroup', { name: 'Composition' });
@@ -232,11 +230,10 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     );
     await expect(compGroup.getByRole('radio', { name: 'Split', exact: true })).toBeVisible();
 
-    // Metric lever — sentiment is the bound metric.
-    const metricGroup = strip.getByRole('radiogroup', { name: 'Metric' });
-    await expect(
-      metricGroup.getByRole('radio', { name: 'sentiment_score_sentiws' })
-    ).toHaveAttribute('aria-checked', 'true');
+    // Metric lever — Phase 151: a dropdown (combobox); sentiment is the bound metric.
+    await expect(strip.getByRole('combobox', { name: 'Metric' })).toHaveValue(
+      'sentiment_score_sentiws'
+    );
 
     // Config lever — distribution declares `bins`, so the Histogram bins group renders.
     await expect(strip.getByRole('group', { name: 'Histogram bins' })).toBeVisible();
@@ -245,16 +242,16 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
   // Phase 144b — the View lever + panel eyebrow are driven by the conceptual-
   // vocabulary SoT (`presentations/registry.ts`), localized in this phase. With
   // `?lang=de` the registry accessors resolve German with no consumer change:
-  // the View radiogroup aria-label ("Darstellung"), the active presentation
-  // radio and the panel eyebrow all read "Verteilung".
+  // the View dropdown aria-label ("Darstellung"), its selected option and the
+  // panel eyebrow all read "Verteilung" (Phase 151 — View is now a combobox).
   test('?lang=de localizes the registry-driven View lever + panel eyebrow', async ({ page }) => {
     await page.goto(`${WORKBENCH_URL}&lang=de`);
 
-    const viewGroup = page.getByRole('radiogroup', { name: 'Darstellung' });
-    await expect(viewGroup.getByRole('radio', { name: 'Verteilung', exact: true })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
+    const viewSelect = page.getByRole('combobox', { name: 'Darstellung' });
+    await expect(viewSelect).toHaveValue('distribution');
+    await expect(
+      viewSelect.getByRole('option', { name: 'Verteilung', exact: true })
+    ).toBeAttached();
     await expect(page.locator('article.panel-host .panel-eyebrow')).toHaveText('Verteilung');
   });
 
