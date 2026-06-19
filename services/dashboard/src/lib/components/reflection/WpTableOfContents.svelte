@@ -13,7 +13,7 @@
   let { mainSections, appendixSections }: Props = $props();
 </script>
 
-<nav class="toc" aria-label={m.reflection_wp_toc_aria_label()}>
+<nav class="toc" style="margin-right: -4rem;" aria-label={m.reflection_wp_toc_aria_label()}>
   <!-- Surface III — scope boundary annotation (Phase 112), shown by default now
        that the Negative-Space toggle is retired. Absence-prose scrolls alongside
        the paper body per Design Brief §5.4. -->
@@ -60,7 +60,10 @@
     border-right: 1px solid rgba(82, 131, 184, 0.4);
     overflow-y: auto;
     padding: var(--space-5) var(--space-3);
-    background: color-mix(in srgb, var(--color-bg-elevated) 90%, rgba(82, 131, 184, 0.15));
+    /* Same glassy treatment as the ScopeBar (top bar). */
+    background: var(--color-bg-overlay);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   @media (max-width: 900px) {

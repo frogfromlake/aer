@@ -17,7 +17,7 @@ registers:
       auf sozialen Stress. Diese Spur ist derzeit leer — fügen Sie eine als cohesion_identity
       klassifizierte Quelle hinzu, um diese analytische Perspektive zu aktivieren.
   methodological:
-    short: "Spur leer: keine als cohesion_identity klassifizierte Quelle in dieser Probe aktiv. Diese Funktion umfasst oft kulturelle, religiöse oder Gemeinschaftspublikationen. WP-001 §3.3 für Klassifikationskriterien konsultieren."
+    short: "Spur leer: keine als cohesion_identity klassifizierte Quelle in dieser Sonde aktiv. Diese Funktion umfasst oft kulturelle, religiöse oder Gemeinschaftspublikationen. WP-001 §3.3 für Klassifikationskriterien konsultieren."
     long: >
       cohesion_identity in WP-001s Taxonomie erfasst Quellen, deren primäre Diskursfunktion
       der Aufbau und die Pflege kollektiver Identität ist — WP-001 §3.3. Dazu gehören nationale
@@ -26,10 +26,10 @@ registers:
       etisch; Quellen müssen sich nicht als identitätsproduzierend verstehen — viele präsentieren
       sich als neutrale Informationsdienste, erfüllen strukturell aber eine Identitätspflegefunktion.
       Eine leere Spur zeigt an, dass keine registrierte Quelle für diese Funktion in der
-      aktuellen Probe vorhanden ist. Aus der Perspektive der Diskursvollständigkeit bedeutet
-      eine fehlende Kohäsions-Identitäts-Stimme, dass die Probe nicht beobachten kann, wie
+      aktuellen Sonde vorhanden ist. Aus der Perspektive der Diskursvollständigkeit bedeutet
+      eine fehlende Kohäsions-Identitäts-Stimme, dass die Sonde nicht beobachten kann, wie
       kollektive Identität in der Zielgesellschaft produziert und angefochten wird. Diese
-      Abwesenheit ist selbst analytisch bedeutsam und sollte im Probe-Registrierungsdatensatz
+      Abwesenheit ist selbst analytisch bedeutsam und sollte im Sonde-Registrierungsdatensatz
       dokumentiert werden (WP-001 Anhang B).
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"

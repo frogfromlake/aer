@@ -41,9 +41,9 @@ registers:
       dieser Offset vernachlässigbar; bei Analysen, die sich speziell auf Montagmorgen- oder
       Sonntagabend-Veröffentlichungen konzentrieren, verdient er Beachtung. (2) Der Zeitstempel
       gibt die RSS-Veröffentlichungszeit an, nicht Ereignis- oder Verfassungszeit — siehe
-      publication_hour für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Probe-0-
+      publication_hour für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Sonde-0-
       Quellen sind Zeitstempel maschinengeneriert und zuverlässig. Validierungsstatus: nicht
-      validiert (keine bekannten aktiven Einschränkungen für Probe 0).
+      validiert (keine bekannten aktiven Einschränkungen für Sonde 0).
 
       Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
       aggregieren als modus-ausgerichtete Wochentagsverteilung über die

@@ -13,23 +13,23 @@ registers:
       dieser Funktion zeigt, wie die faktische Grundlage des öffentlichen Diskurses gepflegt
       und angefochten wird: Wann sprechen epistemische Autoritäten, und zu welchen Themen?
       Wann beschleunigt sich ihr Output, was auf ein umstrittenes Faktenumfeld hinweist?
-      Diese Spur ist für die ausgewählte Probe derzeit leer — es wurde keine Quelle mit
+      Diese Spur ist für die ausgewählte Sonde derzeit leer — es wurde keine Quelle mit
       einer Epistemic-Authority-Klassifikation hinzugefügt. Wenn Sie eine Quelle kennen,
       die diese Rolle in der relevanten Gesellschaft spielt, erwägen Sie eine Nominierung
-      über den Probe-Beitragsprozeß (WP-001 §8).
+      über den Sonde-Beitragsprozeß (WP-001 §8).
   methodological:
-    short: "Spur leer: keine als epistemic_authority klassifizierte Quelle in dieser Probe aktiv. Das Hinzufügen einer Quelle erfordert eine WP-001-Funktionstaxonomie-Beurteilung und Probe-Registrierung. WP-001 §2–§3 konsultieren."
+    short: "Spur leer: keine als epistemic_authority klassifizierte Quelle in dieser Sonde aktiv. Das Hinzufügen einer Quelle erfordert eine WP-001-Funktionstaxonomie-Beurteilung und Sonde-Registrierung. WP-001 §2–§3 konsultieren."
     long: >
       In WP-001s Funktionstaxonomie wird epistemic_authority Quellen zugewiesen, deren
       primäre soziale Funktion darin besteht, Faktenansprüche zu produzieren oder zu
       validieren — wissenschaftliche Verlage, Faktencheck-Organisationen, Qualitätsnachrichteninstitutionen
       und technische Regulierungsbehörden. Die Klassifikation ist etisch (strukturell),
-      nicht emisch (selbstzugeschrieben). Eine leere Spur bedeutet, dass die aktuelle Probe
+      nicht emisch (selbstzugeschrieben). Eine leere Spur bedeutet, dass die aktuelle Sonde
       keine registrierte Quelle mit dieser Klassifikation hat. Um diese Spur zu füllen:
       (1) eine Kandidatenquelle identifizieren, die diese Funktion für die Zielgesellschaft
-      plausibel erfüllt; (2) einen Probe-Registrierungsdatensatz (WP-001 Anhang B) mit etischer
+      plausibel erfüllt; (2) einen Sonde-Registrierungsdatensatz (WP-001 Anhang B) mit etischer
       Klassifikation und emischem Kontext ausfüllen; (3) einen Pull Request gegen den
-      Probe-Katalog öffnen. Diskurs ohne sichtbare epistemische Autoritätsquelle ist analytisch
+      Sonde-Katalog öffnen. Diskurs ohne sichtbare epistemische Autoritätsquelle ist analytisch
       unvollständig — die Abwesenheit selbst ist ein Befund, der dokumentiert werden sollte
       (WP-001 §5.3).
 contentVersion: "v2026-04-a"

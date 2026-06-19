@@ -36,18 +36,18 @@ registers:
       oder Äquivalent). Die Extraktion ist deterministisch: identische Zeitstempel erzeugen
       identische Ausgabe ohne Modellabhängigkeit. Tier 1 gemäß WP-002 §3. Methodologische
       Vorbehalte: (1) AĒR speichert und vergleicht alle Zeitstempel in UTC — lokale
-      Zeitzonen-Offsets werden nicht angewendet. Für den Probe-0-Korpus (tagesschau.de,
+      Zeitzonen-Offsets werden nicht angewendet. Für den Sonde-0-Korpus (tagesschau.de,
       bundesregierung.de) entspricht die Lokalzeit UTC+1 (MEZ) im Winter und UTC+2 (MESZ)
       im Sommer; Tageszeit-Muster im Dashboard erscheinen gegenüber dem deutschen
       Nachrichtenzyklus verschoben, sofern der Betrachter diesen Offset nicht mental
       anwendet. (2) Der Zeitstempel gibt an, wann das RSS-Item veröffentlicht wurde, nicht
       wann das zugrundeliegende Ereignis stattfand oder der Artikel verfasst wurde. Bei
       institutionellen Quellen mit gereihten Redaktionsabläufen kann die Veröffentlichungszeit
-      der Verfassungszeit um Stunden oder Tage nachhinken. (3) Bei Probe-0-Quellen sind
+      der Verfassungszeit um Stunden oder Tage nachhinken. (3) Bei Sonde-0-Quellen sind
       Zeitstempel maschinengeneriert und zuverlässig; bei Quellen mit unregelmäßigen oder
       manipulierten Zeitstempeln spiegelt publication_hour möglicherweise nicht die
       tatsächliche redaktionelle Planung wider. Validierungsstatus: nicht validiert
-      (keine bekannten aktiven Einschränkungen für Probe 0).
+      (keine bekannten aktiven Einschränkungen für Sonde 0).
 
       Komposition (Phase 122i / ADR-034) — mehrquellige merged-Abfragen
       aggregieren als modus-ausgerichtete Stundenverteilung über die

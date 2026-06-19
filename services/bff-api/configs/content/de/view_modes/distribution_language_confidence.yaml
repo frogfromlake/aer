@@ -7,7 +7,7 @@ registers:
     long: >
       Die Verteilungsansicht für language_confidence zeigt die Streuung der Erkennungssicherheit
       über alle Artikel im ausgewählten Fenster. Für eine stabile einsprachige Quelle wird die
-      Verteilung eng nahe 1,0 gepackt sein — dies ist das erwartete Profil für Probe 0. Ein
+      Verteilung eng nahe 1,0 gepackt sein — dies ist das erwartete Profil für Sonde 0. Ein
       langer linker Tail (viele Artikel mit niedrigerer Konfidenz) deutet auf kurze Artikel,
       gemischtsprachigen Inhalt, zitatreichen Text oder Modellunsicherheit bezüglich eines
       bestimmten sprachlichen Registers hin. Diese Ansicht ist primär ein Datenqualitätsinstrument:

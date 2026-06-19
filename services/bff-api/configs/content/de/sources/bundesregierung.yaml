@@ -24,7 +24,7 @@ registers:
       unter strict-lastmod-Filterung der vom Publisher kuratierte RSS-Katalog
       (vier Feeds) der Kanal, der tatsächliche Nachrichten liefert. Die
       Fremd-Locale-Spiegel (/breg-en/, /breg-fr/) sind als technischer
-      Locale-Filter ausgeschlossen (Probe 0 ist deutsch-institutionell). Das
+      Locale-Filter ausgeschlossen (Sonde 0 ist deutsch-institutionell). Das
       Publikationsvolumen ist sehr niedrig und schubweise (~5 Artikel/Tag, nach
       dem Alles-oder-nichts-Rhythmus des Bundespresseamts), daher ist täglich
       die feinste sinnvolle Auflösung (WP-005) — stündliche Buckets enthalten im

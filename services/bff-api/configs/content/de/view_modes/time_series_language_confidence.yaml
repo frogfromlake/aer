@@ -6,7 +6,7 @@ registers:
     short: "Spracherkennungskonfidenz über die Zeit. Für mehrsprachige oder gemischtsprachige Quellen zeigt diese Ansicht, ob sich die sprachliche Zusammensetzung des Inhalts im Beobachtungsfenster verschiebt."
     long: >
       Diese Ansicht stellt language_confidence als Zeitreihe dar. Für einsprachige Quellen
-      wie Probe 0 (durchgehend deutsch) wird diese Kurve flach und hoch verlaufen — nahezu
+      wie Sonde 0 (durchgehend deutsch) wird diese Kurve flach und hoch verlaufen — nahezu
       konstante Erkennungssicherheit. Ihr Wert entfaltet sich bei der Beobachtung von Quellen
       mit gemischtsprachigem Output, Code-Switching oder signifikantem Anteil fremdsprachiger
       Zitate. Konfidenzrückgänge können strukturelle Änderungen einer Quelle anzeigen
@@ -38,7 +38,7 @@ registers:
       können verwechselt werden; (3) Konfidenz nahe 1,0 für durchgehend deutsche Quellen ist
       zu erwarten und zeigt nichts Ungewöhnliches an; (4) diese Metrik ist sinnvoll als
       Datenqualitätssignal, nicht als primärer Diskursindikator. Für einsprachige deutsche
-      Quellen in Probe 0 wird die Zeitreihe erwartungsgemäß flach nahe 1,0 verlaufen.
+      Quellen in Sonde 0 wird die Zeitreihe erwartungsgemäß flach nahe 1,0 verlaufen.
 
       Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
       Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus,

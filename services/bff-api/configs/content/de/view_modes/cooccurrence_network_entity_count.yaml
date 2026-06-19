@@ -41,7 +41,7 @@ registers:
       bedeutet nicht, dass sie kausal verknüpft sind; (2) hochfrequente Entitäten (Eigennamen
       wichtiger politischer Akteure, häufig erwähnte Orte) haben viele Kanten und dominieren
       den Graphen — topN-Filterung verwenden, um strukturell interessante Beziehungen zu
-      fokussieren; (3) im Probe-Scope aggregiert das Netzwerk Co-Occurrences über Quellen,
+      fokussieren; (3) im Sonde-Scope aggregiert das Netzwerk Co-Occurrences über Quellen,
       was getrennte Diskursgemeinschaften zu einem scheinbaren Netzwerk zusammenführen kann;
       (4) Entitätsnamen-Auflösung erfolgt durch exakte Zeichenkettenübereinstimmung — dieselbe
       Entität, die unter zwei verschiedenen Bezeichnungen erscheint (z. B. „Scholz" vs.

@@ -18,7 +18,7 @@ registers:
       Internet-Studies-Forschern und Praktikern, die mit Bot-Erkennung und Datenzugangsfragen
       vertraut sind.
   methodological:
-    short: "Offen: Algorithmische-Kuration-Dokumentation, API-Zugangsalternativen, Bot/CIB-Erkennung in reinen Textkorpora, Demografische-Verzerrung-Quantifizierung. Hooks: SilverMeta-Erweiterbarkeit, Bias-Dokumentationsfelder in der Probe-Registrierung. Siehe WP-003 §7."
+    short: "Offen: Algorithmische-Kuration-Dokumentation, API-Zugangsalternativen, Bot/CIB-Erkennung in reinen Textkorpora, Demografische-Verzerrung-Quantifizierung. Hooks: SilverMeta-Erweiterbarkeit, Bias-Dokumentationsfelder in der Sonde-Registrierung. Siehe WP-003 §7."
     long: >
       WP-003 §7 zeigt die strukturellen Grenzen auf, was AĒR mit seiner aktuellen
       Sammlungsmethodik beobachten kann. Beitrags-Hooks: (1) Algorithmisches Kurationsframework —
@@ -33,7 +33,7 @@ registers:
       Architektur; (4) Demografische Verzerrungsquantifizierung — eine CSS-Zusammenarbeit
       könnte spezifizieren, wie die strukturelle Abwesenheit von Bevölkerungsgruppen dokumentiert
       werden kann, die nicht durch institutionelles RSS repräsentiert sind; Ergebnis würde das
-      Probe-Registrierungsformat erweitern und den Negativraum-Overlay informieren (AĒR Phase 113).
+      Sonde-Registrierungsformat erweitern und den Negativraum-Overlay informieren (AĒR Phase 113).
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-25"

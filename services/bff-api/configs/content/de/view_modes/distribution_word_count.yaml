@@ -3,7 +3,7 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Wortanzahlverteilung. Zeigt die vollständige Form der Artikellängen einer Quelle oder Probe — ob die Quelle kurze Meldungen, lange Analysen oder eine bimodale Mischung aus beidem veröffentlicht."
+    short: "Wortanzahlverteilung. Zeigt die vollständige Form der Artikellängen einer Quelle oder Sonde — ob die Quelle kurze Meldungen, lange Analysen oder eine bimodale Mischung aus beidem veröffentlicht."
     long: >
       Die Verteilungsansicht stellt word_count als Ridgeline-, Violin- oder Dichte-Plot dar —
       sie zeigt die vollständige Wahrscheinlichkeitsmasse über Artikellängen, nicht einen
@@ -12,7 +12,7 @@ registers:
       Verteilung deutet auf eine Mischung kurzer Nachrichten und langer Features hin. Eine
       bimodale Verteilung — zwei deutliche Gipfel — weist auf zwei strukturell verschiedene
       Inhaltstypen im selben Feed hin (z. B. knappe Ticker-Meldungen und vollständige
-      Artikel). Im Vergleich zwischen Quellen einer Probe macht diese Ansicht strukturelle
+      Artikel). Im Vergleich zwischen Quellen einer Sonde macht diese Ansicht strukturelle
       redaktionelle Unterschiede sichtbar, die in einem Zeitreihenmittelwert unsichtbar wären.
 
       Komposition — komponiert das Panel mehr als eine Quelle unter
@@ -36,7 +36,7 @@ registers:
       (1) sehr lange Artikel (> 2000 Wörter) können den rechten Tail dominieren und die
       visuelle Dichte der Hauptverteilung komprimieren; die Benutzeroberfläche bietet optionale
       rechte-Tail-Kürzung; (2) die optimale Bin-Anzahl hängt vom Korpusumfang ab — bei weniger
-      als 100 Artikeln erzeugt feine Unterteilung verrauschte Schätzungen; (3) Probe-Scope-
+      als 100 Artikeln erzeugt feine Unterteilung verrauschte Schätzungen; (3) Sonde-Scope-
       Verteilungen aggregieren alle Quellen und können bimodale Struktur verbergen, die nur
       auf Quellenebene sichtbar ist. Zur Untersuchung von Per-Quellen-Formen die
       Quellbereichseingrenzung verwenden.

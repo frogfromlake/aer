@@ -1,8 +1,8 @@
 <script lang="ts">
   // Surface III — Metric provenance page (Phase 109).
   // Long-form rendering of a metric's algorithm, lexicon, training data,
-  // validation status, known limitations, and WP cross-references.
-  // This is what the methodology tray summarises in its open state.
+  // validation status, known limitations, and WP cross-references — via the
+  // shared MetricProvenanceView (Phase 127 — same body as /reflection/metrics).
   import { createQuery } from '@tanstack/svelte-query';
   import { page } from '$app/state';
   import { ScopeBar } from '$lib/components/chrome';
@@ -16,7 +16,8 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { pickBadgeTier } from '$lib/components/chrome/methodology-tray-internals';
-  import ProgressiveSemantics from '$lib/components/ProgressiveSemantics.svelte';
+  import MetricProvenanceView from '$lib/components/reflection/MetricProvenanceView.svelte';
+  import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import { locale } from '$lib/state/locale.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
@@ -76,6 +77,7 @@
 </ScopeBar>
 
 <main class="metric-main" id="main-metric-provenance">
+  <ReflectionBackLink />
   <div class="metric-inner">
     {#if isPending}
       <p class="state-msg" aria-busy="true">{m.reflection_metric_loading()}</p>
@@ -99,96 +101,15 @@
             {m.reflection_metric_unavailable_pre()} <code>{metricName}</code>
             {m.reflection_metric_unavailable_post()}
           </p>
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href="/reflection" class="back-link">{m.reflection_metric_back()}</a>
         </div>
       {:else}
-        <!-- Dual-register content -->
-        {#if contentRecord}
-          <section class="prov-section" aria-labelledby="registers-heading">
-            <h2 id="registers-heading" class="section-title">
-              {m.reflection_metric_measures_heading()}
-            </h2>
-            <ProgressiveSemantics registers={contentRecord.registers} emphasis="methodological" />
-          </section>
-        {/if}
-
-        <!-- Provenance details -->
-        {#if provenance}
-          <section class="prov-section" aria-labelledby="prov-heading">
-            <h2 id="prov-heading" class="section-title">{m.reflection_metric_details_heading()}</h2>
-            <dl class="prov-dl">
-              <dt>{m.reflection_metric_detail_tier()}</dt>
-              <dd>
-                <Badge tier={badgeTier} />
-                {m.reflection_metric_detail_tier_value({ tier: provenance.tierClassification })}
-              </dd>
-
-              <dt>{m.reflection_metric_detail_validation()}</dt>
-              <dd class="status-{provenance.validationStatus}">{provenance.validationStatus}</dd>
-
-              <dt>{m.reflection_metric_detail_algorithm()}</dt>
-              <dd>{provenance.algorithmDescription}</dd>
-
-              <dt>{m.reflection_metric_detail_extractor_version()}</dt>
-              <dd><code class="mono">{provenance.extractorVersionHash}</code></dd>
-
-              {#if provenance.culturalContextNotes}
-                <dt>{m.reflection_metric_detail_cultural_context()}</dt>
-                <dd>{provenance.culturalContextNotes}</dd>
-              {/if}
-            </dl>
-          </section>
-
-          {#if provenance.knownLimitations.length > 0}
-            <section class="prov-section limitations-section" aria-labelledby="limits-heading">
-              <h2 id="limits-heading" class="section-title">
-                {m.reflection_metric_limitations_heading()}
-              </h2>
-              <ul class="limits-list">
-                {#each provenance.knownLimitations as lim (lim)}
-                  <li>{lim}</li>
-                {/each}
-              </ul>
-            </section>
-          {/if}
-        {/if}
-
-        <!-- WP cross-references from content catalog -->
-        {#if contentRecord?.workingPaperAnchors && contentRecord.workingPaperAnchors.length > 0}
-          <section class="prov-section" aria-labelledby="wp-refs-heading">
-            <h2 id="wp-refs-heading" class="section-title">
-              {m.reflection_metric_wp_refs_heading()}
-            </h2>
-            <ul class="wp-ref-list" role="list">
-              {#each contentRecord.workingPaperAnchors as anchor (anchor)}
-                {@const parts = anchor.match(/^(WP-\d+)\s*§?\s*(.*)$/i)}
-                {#if parts}
-                  {@const wpId = (parts[1] ?? '').toLowerCase()}
-                  {@const section = (parts[2] ?? '').trim()}
-                  <li>
-                    <!-- eslint-disable svelte/no-navigation-without-resolve -->
-                    <a
-                      href="/reflection/wp/{wpId}{section
-                        ? `?section=${encodeURIComponent(section)}`
-                        : ''}"
-                      class="wp-ref-link">{anchor}</a
-                    >
-                    <!-- eslint-enable svelte/no-navigation-without-resolve -->
-                  </li>
-                {:else}
-                  <li class="wp-ref-raw">{anchor}</li>
-                {/if}
-              {/each}
-            </ul>
-          </section>
-        {/if}
-
-        <footer class="metric-footer">
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-          <a href="/reflection" class="footer-link">{m.reflection_metric_back()}</a>
-        </footer>
+        <MetricProvenanceView {provenance} {contentRecord} />
       {/if}
+
+      <footer class="metric-footer">
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href="/reflection" class="footer-link">{m.reflection_metric_back()}</a>
+      </footer>
     {/if}
   </div>
 </main>
@@ -270,123 +191,18 @@
     color: var(--color-fg-muted);
   }
 
-  .prov-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .section-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-fg);
-    margin: 0;
-  }
-
-  /* Provenance DL */
-  .prov-dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-2) var(--space-5);
-    font-size: var(--font-size-sm);
-    padding: var(--space-4);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-  }
-
-  .prov-dl dt {
-    color: var(--color-fg-muted);
-    font-weight: var(--font-weight-medium);
-  }
-
-  .prov-dl dd {
-    margin: 0;
-    color: var(--color-fg);
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-  }
-
-  .status-unvalidated {
-    color: var(--color-status-unvalidated);
-  }
-
-  .status-validated {
-    color: var(--color-status-validated);
-  }
-
-  .status-expired {
-    color: var(--color-status-expired);
-  }
-
-  /* Known limitations */
-  .limitations-section {
-    padding: var(--space-4);
-    background: rgba(192, 96, 96, 0.06);
-    border: 1px solid rgba(192, 96, 96, 0.2);
-    border-radius: var(--radius-md);
-  }
-
-  .limits-list {
-    margin: 0;
-    padding-left: var(--space-5);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .limits-list li {
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-loose);
-    color: var(--color-fg);
-  }
-
-  /* WP refs */
-  .wp-ref-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .wp-ref-link {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
-    text-decoration: none;
-  }
-
-  .wp-ref-link:hover {
-    text-decoration: underline;
-  }
-
-  .wp-ref-raw {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-  }
-
   .metric-footer {
     border-top: 1px solid var(--color-border);
     padding-top: var(--space-5);
   }
 
-  .footer-link,
-  .back-link {
+  .footer-link {
     font-size: var(--font-size-sm);
     color: var(--color-accent);
     text-decoration: none;
   }
 
-  .footer-link:hover,
-  .back-link:hover {
+  .footer-link:hover {
     text-decoration: underline;
   }
 

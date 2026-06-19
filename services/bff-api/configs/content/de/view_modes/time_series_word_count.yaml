@@ -36,7 +36,7 @@ registers:
       RSS-Quellen. Wichtigster Interpretationsvorbehalt: Wortanzahl misst Länge, nicht Tiefe —
       ein längerer Artikel ist nicht zwangsläufig informativer. Quellenübergreifende Vergleiche
       setzen voraus, dass alle Quellen Inhalte in Sprachen produzieren, für die
-      Leerzeichen-Tokenisierung geeignet ist. Für Probe 0 (deutsches institutionelles RSS)
+      Leerzeichen-Tokenisierung geeignet ist. Für Sonde 0 (deutsches institutionelles RSS)
       bestehen keine aktiven Einschränkungen.
 
       Komposition (Phase 122i / ADR-034) — für composition='merged' führt der

@@ -12,7 +12,7 @@ registers:
       flachen Samstag–Sonntag-Balken sind die Signatur institutioneller redaktioneller
       Produktion. Eine gleichmäßige Verteilung zeigt Dauerredaktionsbetrieb an. Eine
       markante Mittwoch-Spitze kann auf eine geplante wöchentliche Berichtsreihe hinweisen.
-      Im Vergleich zwischen Quellen einer Probe zeigt diese Verteilung, ob alle Quellen
+      Im Vergleich zwischen Quellen einer Sonde zeigt diese Verteilung, ob alle Quellen
       denselben strukturellen Kalender teilen oder ob einige Quellen in einem anderen Rhythmus
       arbeiten — ein struktureller Befund über ihre jeweiligen institutionellen Kontexte.
 
@@ -36,9 +36,9 @@ registers:
       (WP-002 §3). Methodologische Hinweise: (1) Rohzählungen sind proportional zum
       Aktivitätsniveau der Quelle; bei Vergleichen einer aktiven Quelle mit einer
       volumenarmen normieren (Artikel pro Wochentag); (2) der UTC-Datumsgrenze-Vorbehalt
-      gilt — siehe den Metrik-Eintrag für publication_weekday; für Probe-0-Quellen betrifft
+      gilt — siehe den Metrik-Eintrag für publication_weekday; für Sonde-0-Quellen betrifft
       dies nur einen kleinen Anteil der Artikel, die nahe Mitternacht UTC veröffentlicht werden;
-      (3) im Probe-Scope aggregiert die Verteilung über alle Quellen — ein Probe-weiter
+      (3) im Sonde-Scope aggregiert die Verteilung über alle Quellen — ein Sonde-weiter
       Montag-Gipfel spiegelt aggregiertes Montags-Volumen wider, was verbergen kann, dass eine
       Quelle stark am Montag veröffentlicht, während eine andere am Donnerstag gipfelt.
       Quellbereichseingrenzung offenbart Per-Quellen-Muster.

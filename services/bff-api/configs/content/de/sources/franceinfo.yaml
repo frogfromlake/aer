@@ -12,7 +12,7 @@ registers:
       daher ist ihre primäre Diskursfunktion die Epistemische Autorität;
       Sekundärfunktion ist Machtlegitimation, da öffentlich-rechtliche Governance
       das redaktionelle Framing strukturell prägt. Sie ist das strukturelle
-      Pendant zu tagesschau (Probe 0) und gibt beiden Sonden einen symmetrischen
+      Pendant zu tagesschau (Sonde 0) und gibt beiden Sonden einen symmetrischen
       Epistemische-Autorität-Anker. Die Klassifikation ist
       provisional_engineering — vom Engineering-Team aus öffentlich bekannten
       Betreibereigenschaften zugewiesen, nicht nach WP-001 §4.4 peer-reviewed
@@ -33,7 +33,7 @@ registers:
       Verzerrungen (WP-003): nur redaktionelle Kuratierung, keine
       Engagement-Metriken, keine Account-Metadaten. Die hohe Kadenz gegenüber den
       ereignisgetriebenen Schüben des Élysée bedeutet, dass Cross-Source-/
-      Cross-Probe-Mengenvergleiche Normalisierung oder die Refusal-Surface
+      Cross-Sonde-Mengenvergleiche Normalisierung oder die Refusal-Surface
       verlangen.
 
       Die Autorschaft ist redaktionell — Artikel tragen individuelle journalistische Bylines, ein `author`-Feld ist also zu erwarten; eine fehlende Byline bei einem Artikel ist eine echte Lücke, keine strukturelle Entscheidung (im Kontrast zur institutionellen Élysée, WP-003 §3.2).

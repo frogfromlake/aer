@@ -3,10 +3,10 @@ entityType: probe
 locale: de
 registers:
   semantic:
-    short: "Frankreichs institutionelle Sonde — öffentlich-rechtlicher Rundfunk (franceinfo) + Staatschef-Kanal (Élysée). Spiegelt Probe 0s EA/PL-Abdeckung. Vorläufig, unvalidiert."
+    short: "Frankreichs institutionelle Sonde — öffentlich-rechtlicher Rundfunk (franceinfo) + Staatschef-Kanal (Élysée). Spiegelt Sonde 0s EA/PL-Abdeckung. Vorläufig, unvalidiert."
     long: >
-      Probe 1 ist AĒRs erster nicht-deutscher Kulturkontext. Sie spiegelt die
-      Diskursfunktions-Abdeckung von Probe 0 in einem zweiten Gemeinwesen, damit
+      Sonde 1 ist AĒRs erster nicht-deutscher Kulturkontext. Sie spiegelt die
+      Diskursfunktions-Abdeckung von Sonde 0 in einem zweiten Gemeinwesen, damit
       beide später auf dem gemeinsamen multilingualen Backbone verglichen werden
       können. franceinfo (öffentlich-rechtlicher Rundfunk France Télévisions,
       hohe Publikationsrate) ist primär als Epistemische Autorität mit
@@ -16,7 +16,7 @@ registers:
       mit sekundärer Epistemischer Autorität klassifiziert — das strukturelle
       Pendant zu bundesregierung. Kohäsion & Identität sowie Subversion &
       Friktion sind auf beiden Sonden konstruktionsbedingt unbesetzt. Jede
-      Probe-1-Metrik meldet validation_status = unvalidated; die Klassifikationen
+      Sonde-1-Metrik meldet validation_status = unvalidated; die Klassifikationen
       sind provisional_engineering und wurden nicht nach WP-001 §4.4
       peer-reviewed.
   methodological:
@@ -38,7 +38,7 @@ registers:
       Publikationsvolumina unterscheiden sich stark (kontinuierlicher Newsroom
       vs. ereignisgetriebene präsidiale Schübe) — das spiegelt institutionelle
       Kommunikationskadenz, kein Rauschen, und ist der Grund, warum
-      Cross-Probe-Mengen­vergleiche Normalisierung oder die Refusal-Surface
+      Cross-Sonde-Mengen­vergleiche Normalisierung oder die Refusal-Surface
       verlangen. Vollständiges Dossier:
       docs/probes/probe-1-fr-institutional-web/. Arc42 §13.11.
 contentVersion: "v2026-05-a"

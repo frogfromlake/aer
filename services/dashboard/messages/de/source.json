@@ -49,7 +49,7 @@
   "source_coverage_lede": "Emissionsverhalten pro Quelle über die Tier-B-/Tier-C-Felder, die der WebAdapter erfasst. WP-003 §3.2 fasst die Asymmetrie der Metadaten-Reichhaltigkeit als strukturellen Bias auf; als strukturell abwesend markierte Zellen spiegeln die Entscheidung des Herausgebers wider, nichts zu emittieren, nicht die Stichprobenvarianz.",
   "source_coverage_loading": "Metadaten-Abdeckung wird geladen…",
   "source_coverage_unavailable": "Abdeckungsmatrix nicht verfügbar.",
-  "source_coverage_no_sources": "Keine Quellen im Umfang der Probe.",
+  "source_coverage_no_sources": "Keine Quellen im Umfang der Sonde.",
   "source_coverage_summary_meta_title": "Felder, die diese Quelle tatsächlich befüllt (≥1 Artikel), aus dem vollständigen Tier-B/C-Satz",
   "source_coverage_summary_meta_one": "{populated} / {total} Feld befüllt",
   "source_coverage_summary_meta_other": "{populated} / {total} Felder befüllt",

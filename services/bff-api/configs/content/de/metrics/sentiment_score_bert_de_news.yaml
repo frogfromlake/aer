@@ -19,7 +19,7 @@ registers:
       Metrik ist absichtlich nur für Deutsch: Dokumente in anderen Sprachen
       erzeugen keinen Eintrag. Als Tier-2.5-Verfeinerung bleibt sie vorläufig —
       nützlich, aber noch nicht durch eine Annotationsstudie auf
-      Probe-0-Institutionsquellen kalibriert.
+      Sonde-0-Institutionsquellen kalibriert.
 
       Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
       composition='merged' bündelt, aggregiert diese Metrik als mittlere

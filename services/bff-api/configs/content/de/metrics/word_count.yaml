@@ -34,7 +34,7 @@ registers:
       für identische Eingaben identische Ausgaben — Tier-1-Metrik gemäß WP-002 §3. Die
       primäre methodische Einschränkung: Leerzeichen-Tokenisierung ist ungeeignet für
       agglutinierende Sprachen (Türkisch, Finnisch) und logografische Schriftsysteme (Chinesisch,
-      Japanisch, Koreanisch). Für den Probe-0-Korpus (deutschsprachige institutionelle RSS-Feeds)
+      Japanisch, Koreanisch). Für den Sonde-0-Korpus (deutschsprachige institutionelle RSS-Feeds)
       ist diese Einschränkung latent, aber nicht aktiv: Deutsch verwendet Leerzeichen konsistent,
       und Komposita werden als einzelne Tokens gezählt (Bundesregierung = 1 Token). Extraktor:
       word-count-v1. Validierungsstatus: nicht validiert.

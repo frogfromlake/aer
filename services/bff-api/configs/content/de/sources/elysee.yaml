@@ -9,7 +9,7 @@ registers:
       Republik. Primäre Diskursfunktion ist Machtlegitimation — Agenda-Setting
       und Framing des Staatsoberhaupts (Communiqués, Allocutions, Discours);
       Sekundärfunktion ist Epistemische Autorität durch die institutionelle
-      Position. Sie ist das Machtlegitimations-Pendant zu bundesregierung (Probe
+      Position. Sie ist das Machtlegitimations-Pendant zu bundesregierung (Sonde
       0), ABER es gilt die kulturelle Asymmetrie (WP-004): der Ort exekutiver
       Machtlegitimation ist im französischen semipräsidentiellen System das
       STAATSoberhaupt, während es in Deutschland der REGIERUNGSchef ist (die
@@ -34,7 +34,7 @@ registers:
       Présidence kommuniziert ereignisgetrieben in Schüben statt kontinuierlich,
       daher ist das Volumen niedrig und unregelmäßig und täglich die feinste
       sinnvolle Auflösung (WP-005). Diese niedrige, schubweise Kadenz ist selbst
-      ein Diskurssignal; Cross-Probe-Mengenvergleiche verlangen Normalisierung
+      ein Diskurssignal; Cross-Sonde-Mengenvergleiche verlangen Normalisierung
       oder die Refusal-Surface (WP-003).
 
       Die Autorschaft ist institutionell — Communiqués, Allocutions und Discours stammen von der Présidence de la République, nicht von namentlichen Journalist:innen; die Quelle trägt konstruktionsbedingt keine Artikel-Byline. Ein fehlendes `author`-Feld ist strukturelle Abwesenheit (eine Herausgeber-Entscheidung), kein Defekt und kein erfundener Name (WP-003 §3.2).

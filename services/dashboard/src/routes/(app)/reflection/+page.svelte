@@ -50,30 +50,6 @@
       </p>
     </header>
 
-    <!-- Working Papers index -->
-    <section class="section" aria-labelledby="wps-heading">
-      <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
-      <p class="section-sub">
-        {m.reflection_landing_wps_sub()}
-      </p>
-      <ul class="paper-list" role="list">
-        {#each papers as p (p.id)}
-          {@const status = paperStatus(p.id)}
-          <li>
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-            <a href="/reflection/wp/{p.id}" class="paper-card">
-              <div class="paper-card-head">
-                <span class="paper-id">{p.id.toUpperCase()}</span>
-                <span class="paper-status">{status.split('—')[0]?.trim() ?? status}</span>
-              </div>
-              <p class="paper-short">{paperShortTitle(p.id)}</p>
-              <p class="paper-abstract">{paperAbstract(p.id)}</p>
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </section>
-
     <!-- Entry points grid -->
     <div class="entry-grid">
       <!-- Open Research Questions -->
@@ -100,6 +76,50 @@
         <a href="/reflection/primer/globe" class="entry-link">
           {m.reflection_landing_primer_link()}
         </a>
+      </section>
+    </div>
+
+    <!-- Working Papers index -->
+    <section class="section" aria-labelledby="wps-heading">
+      <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
+      <p class="section-sub">
+        {m.reflection_landing_wps_sub()}
+      </p>
+      <ul class="paper-list" role="list">
+        {#each papers as p (p.id)}
+          {@const status = paperStatus(p.id)}
+          <li>
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+            <a href="/reflection/wp/{p.id}" class="paper-card">
+              <div class="paper-card-head">
+                <span class="paper-id">{p.id.toUpperCase()}</span>
+                <span class="paper-status">{status.split('—')[0]?.trim() ?? status}</span>
+              </div>
+              <p class="paper-short">{paperShortTitle(p.id)}</p>
+              <p class="paper-abstract">{paperAbstract(p.id)}</p>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    </section>
+
+    <!-- Catalogue entry points — one tile each into the probe + metric
+         aggregates, where every dossier / provenance record is read inline. -->
+    <div class="entry-grid">
+      <!-- Probe dossiers -->
+      <section class="entry-card" aria-labelledby="probes-heading">
+        <h2 id="probes-heading" class="entry-title">{m.reflection_landing_probes_heading()}</h2>
+        <p class="entry-body">{m.reflection_landing_probes_sub()}</p>
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href="/reflection/probes" class="entry-link">{m.reflection_landing_probes_link()}</a>
+      </section>
+
+      <!-- Metric provenance -->
+      <section class="entry-card" aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading" class="entry-title">{m.reflection_landing_metrics_heading()}</h2>
+        <p class="entry-body">{m.reflection_landing_metrics_sub()}</p>
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href="/reflection/metrics" class="entry-link">{m.reflection_landing_metrics_link()}</a>
       </section>
     </div>
 

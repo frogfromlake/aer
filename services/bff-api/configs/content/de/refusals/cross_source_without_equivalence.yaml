@@ -14,7 +14,7 @@ registers:
       unterscheiden. Dies ist besonders wichtig für NLP-Metriken (Sentiment, Entitätsdichte),
       bei denen das Modellverhalten zwischen Quellentypen systematisch variieren kann.
       Strukturelle Metriken (Wortanzahl, zeitliche Verteilung) sind robuster gegenüber
-      quellenübergreifendem Vergleich. Das Probe-Dossier zeigt, welche Metriken für jede
+      quellenübergreifendem Vergleich. Das Sonde-Dossier zeigt, welche Metriken für jede
       Paarung eine Äquivalenzwarnung tragen. Daten der einzelnen Quellen können weiterhin
       separat eingesehen werden; die Einschränkung gilt nur für direkte Überlagerungsvergleiche.
   methodological:
@@ -29,8 +29,8 @@ registers:
       Vergleiche mit einer Methodologie-Warnung; (2) Tier-3-NLP-Metriken (sentiment_score,
       entity_count, language_confidence) sperren direkte quellenübergreifende Vergleiche ohne
       Äquivalenzdokumentation, da Modell-Performance-Unterschiede über Register und Genre
-      gut belegt sind (WP-002 §5, WP-004 §4); (3) Probe-Scope-Aggregationen, die Quellen
-      zusammenführen, sind nicht betroffen, da sie ein Probe-Level-Komposit erzeugen, keinen
+      gut belegt sind (WP-002 §5, WP-004 §4); (3) Sonde-Scope-Aggregationen, die Quellen
+      zusammenführen, sind nicht betroffen, da sie ein Sonde-Level-Komposit erzeugen, keinen
       Seite-an-Seite-Vergleich. Lösung: Temporal-Abweichungsvergleich-Modus verwenden oder
       WP-004 für das Messungsinvarianz-Protokoll konsultieren.
 contentVersion: "v2026-04-a"

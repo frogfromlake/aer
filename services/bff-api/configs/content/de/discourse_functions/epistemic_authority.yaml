@@ -14,7 +14,7 @@ registers:
       diese Quelle wird von anderen als maßgeblich behandelt, unabhängig davon, ob diese
       Autorität gerechtfertigt ist. AĒR verfolgt Epistemische Autorität als eine von vier
       universellen Diskursfunktionen aus WP-001 §3. Aktuell ist tagesschau.de (ARD) die
-      primäre Quelle mit Epistemischer Autorität in Probe 0, vorläufig klassifiziert vom
+      primäre Quelle mit Epistemischer Autorität in Sonde 0, vorläufig klassifiziert vom
       Engineering-Team.
   methodological:
     short: "WP-001 §3 universelle Funktion: informationelle Normsetzung. Als solche klassifizierte Quellen dienen als Referenzpunkte, anhand derer anderer Diskurs gemessen wird."
@@ -23,12 +23,12 @@ registers:
       als Teil von AĒRs Funktionaler Sonden-Taxonomie. Eine Quelle trägt diese Funktion, wenn
       ihr Informationsoutput als Baseline dient, die andere Quellen im selben kulturellen
       Kontext als maßgeblich behandeln. Die Klassifikation folgt dem WP-001-§4.4-Prozess. Für
-      Probe 0 ist der Prozess unvollständig; das Engineering-Team hat Epistemische Autorität
+      Sonde 0 ist der Prozess unvollständig; das Engineering-Team hat Epistemische Autorität
       tagesschau.de aufgrund struktureller Merkmale (öffentlicher Auftrag, ARD-Governance)
       zugewiesen — ohne Peer-Review. Das Feld review_status = 'provisional_engineering' in
       source_classifications dokumentiert diesen Status. Eine Klassifikation als Epistemische
       Autorität impliziert weder redaktionelle Unabhängigkeit noch Abwesenheit von Bias —
-      die WP-003-Dokumentation findet sich in bias_assessment.md des Probe-Dossiers.
+      die WP-003-Dokumentation findet sich in bias_assessment.md des Sonde-Dossiers.
 contentVersion: "v2026-04-a"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-04-19"

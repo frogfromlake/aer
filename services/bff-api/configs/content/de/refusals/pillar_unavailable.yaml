@@ -13,8 +13,8 @@ registers:
       Quelle im ausgewählten Zeitraum nicht aktiv war; die Quelle im Fenster zu wenige Artikel
       hat, um eine sinnvolle Aggregation zu erzeugen; oder der ausgewählte Bereich eine
       Korpus-Level-Berechnung (Rhizome) erfordert, die für diese Quelle noch nicht ausgeführt
-      wurde. Die anderen Bereiche sind nicht betroffen. Das Probe-Dossier nutzen, um zu prüfen,
-      welche Metriken für jede Quelle in dieser Probe aktiv sind.
+      wurde. Die anderen Bereiche sind nicht betroffen. Das Sonde-Dossier nutzen, um zu prüfen,
+      welche Metriken für jede Quelle in dieser Sonde aktiv sind.
   methodological:
     short: "HTTP 403 oder leere Antwort: der angeforderte Bereich (Aleph/Episteme/Rhizome) hat keine berechneten Daten für diesen Geltungsbereich/Zeitfenster. Metrikverfügbarkeit über GET /api/v1/metrics/available prüfen."
     long: >

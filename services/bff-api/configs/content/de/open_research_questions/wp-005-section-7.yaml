@@ -21,7 +21,7 @@ registers:
     long: >
       WP-005 §7 hat direkte Implikationen für AĒRs Zeitreihen-Abfrage-Infrastruktur.
       Beitrags-Hooks: (1) Zerlegungsmethoden-Evaluation — eine Zeitreihenstatistik-Zusammenarbeit
-      könnte eine vergleichende Evaluation auf Probe-0-Daten liefern; Ergebnis würde einen neuen
+      könnte eine vergleichende Evaluation auf Sonde-0-Daten liefern; Ergebnis würde einen neuen
       Zerlegungsendpunkt informieren oder eine Zerlegungsvorverarbeitung zu bestehenden
       Zeitreihenantworten hinzufügen; (2) Wechselpunkt-Erkennung — eine statistische Zusammenarbeit
       könnte einen validierten Algorithmus und dessen Parameter spezifizieren; Ergebnis wäre ein

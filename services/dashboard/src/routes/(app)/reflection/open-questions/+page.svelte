@@ -2,6 +2,8 @@
   // Surface III — Open Research Questions hub (Phase 109).
   // Renders all questions from OPEN_QUESTIONS grouped by source WP.
   import { ScopeBar } from '$lib/components/chrome';
+  import ReflectionToc from '$lib/components/reflection/ReflectionToc.svelte';
+  import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import { questionsByWp, OPEN_QUESTIONS } from '$lib/reflection/open-questions';
   import { getAllPapers } from '$lib/reflection/papers';
   import { m } from '$lib/paraglide/messages.js';
@@ -13,6 +15,17 @@
   const grouped = $derived(questionsByWp());
   const papers = getAllPapers();
   const total = OPEN_QUESTIONS.length;
+
+  // TOC of the WP groups that actually carry questions, anchoring to each group.
+  const tocItems = $derived(
+    papers
+      .filter((p) => (grouped.get(p.id) ?? []).length > 0)
+      .map((p) => ({
+        id: `oq-group-${p.id}`,
+        label: paperShortTitle(p.id),
+        num: p.id.toUpperCase()
+      }))
+  );
 </script>
 
 <svelte:head>
@@ -28,78 +41,100 @@
   >
 </ScopeBar>
 
-<main class="oq-main" id="main-open-questions">
-  <div class="oq-inner">
-    <header class="oq-header">
-      <h1 class="oq-title">{m.reflection_open_questions_title()}</h1>
-      <p class="oq-abstract">
-        {m.reflection_open_questions_abstract({ count: total })}
-      </p>
-    </header>
+<div class="oq-layout" class:no-toc={tocItems.length === 0} id="main-open-questions">
+  {#if tocItems.length > 0}
+    <ReflectionToc items={tocItems} />
+  {/if}
+  <div class="oq-scroll">
+    <ReflectionBackLink />
+    <div class="oq-inner">
+      <header class="oq-header">
+        <h1 class="oq-title">{m.reflection_open_questions_title()}</h1>
+        <p class="oq-abstract">
+          {m.reflection_open_questions_abstract({ count: total })}
+        </p>
+      </header>
 
-    {#each papers as paper (paper.id)}
-      {@const questions = grouped.get(paper.id) ?? []}
-      {#if questions.length > 0}
-        <section class="wp-group" aria-labelledby="group-{paper.id}">
-          <div class="wp-group-header">
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-            <a href="/reflection/wp/{paper.id}" class="wp-group-id">
-              {paper.id.toUpperCase()}
-            </a>
-            <h2 id="group-{paper.id}" class="wp-group-title">{paperShortTitle(paper.id)}</h2>
-            <span class="wp-group-count"
-              >{m.reflection_open_questions_group_count({ count: questions.length })}</span
-            >
-          </div>
+      {#each papers as paper (paper.id)}
+        {@const questions = grouped.get(paper.id) ?? []}
+        {#if questions.length > 0}
+          <section class="wp-group" id="oq-group-{paper.id}" aria-labelledby="group-{paper.id}">
+            <div class="wp-group-header">
+              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+              <a href="/reflection/wp/{paper.id}" class="wp-group-id">
+                {paper.id.toUpperCase()}
+              </a>
+              <h2 id="group-{paper.id}" class="wp-group-title">{paperShortTitle(paper.id)}</h2>
+              <span class="wp-group-count"
+                >{m.reflection_open_questions_group_count({ count: questions.length })}</span
+              >
+            </div>
 
-          <ul class="oq-list" role="list">
-            {#each questions as q (q.id)}
-              <li class="oq-item">
-                <div class="oq-item-head">
-                  <span class="oq-id">{q.id}</span>
-                  <span class="oq-discipline">{q.disciplinaryScope}</span>
-                </div>
-                <p class="oq-label">{q.shortLabel}</p>
-                <p class="oq-question">{q.question}</p>
-                {#if q.deliverable}
-                  <p class="oq-deliverable">
-                    <span class="deliverable-label"
-                      >{m.reflection_open_questions_deliverable_label()}</span
-                    >
-                    {q.deliverable}
-                  </p>
-                {/if}
-                {#if q.pipelineHook}
-                  <p class="oq-hook">
-                    <span class="hook-label">{m.reflection_open_questions_hook_label()}</span>
-                    {q.pipelineHook}
-                  </p>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-    {/each}
+            <ul class="oq-list" role="list">
+              {#each questions as q (q.id)}
+                <li class="oq-item">
+                  <div class="oq-item-head">
+                    <span class="oq-id">{q.id}</span>
+                    <span class="oq-discipline">{q.disciplinaryScope}</span>
+                  </div>
+                  <p class="oq-label">{q.shortLabel}</p>
+                  <p class="oq-question">{q.question}</p>
+                  {#if q.deliverable}
+                    <p class="oq-deliverable">
+                      <span class="deliverable-label"
+                        >{m.reflection_open_questions_deliverable_label()}</span
+                      >
+                      {q.deliverable}
+                    </p>
+                  {/if}
+                  {#if q.pipelineHook}
+                    <p class="oq-hook">
+                      <span class="hook-label">{m.reflection_open_questions_hook_label()}</span>
+                      {q.pipelineHook}
+                    </p>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+      {/each}
 
-    <footer class="oq-footer">
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-      <a href="/reflection" class="back-link">{m.reflection_open_questions_back()}</a>
-    </footer>
+      <footer class="oq-footer">
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href="/reflection" class="back-link">{m.reflection_open_questions_back()}</a>
+      </footer>
+    </div>
   </div>
-</main>
+</div>
 
 <style>
-  .oq-main {
+  .oq-layout {
     position: fixed;
     inset: 0;
     left: var(--rail-width);
     top: var(--scope-bar-height);
     right: var(--tray-right-edge, var(--tray-closed-width));
-    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    overflow: hidden;
     background: color-mix(in srgb, var(--color-bg) 72%, transparent);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
+  }
+
+  .oq-layout.no-toc {
+    grid-template-columns: 1fr;
+  }
+
+  @media (max-width: 900px) {
+    .oq-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .oq-scroll {
+    overflow-y: auto;
   }
 
   .oq-inner {
