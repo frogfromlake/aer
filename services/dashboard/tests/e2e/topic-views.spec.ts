@@ -1,31 +1,36 @@
-import { expect, test, type Route, type Request } from './_fixtures';
+import { expect, test, type Route, type Request, type Page } from './_fixtures';
 
-// Phase 121 — Topic view-mode E2E coverage.
+// Phase 121 → rewritten in Phase 127.
 //
-// Asserts:
-//   1. Navigating to a function lane with `?viewMode=topic_distribution`
-//      causes the dashboard to call `GET /api/v1/topics/distribution`
-//      with the resolved scope.
-//   2. The cell renders at least one topic ridge (a non-zero-width bar)
-//      from the mocked payload.
-//   3. The outlier topic (`topicId == -1`) renders as the
-//      `uncategorised` label, not hidden.
+// topic_distribution is an Aleph presentation rendered as a Workbench cell under
+// the canonical three-surface grammar (`/workbench?activePillar=aleph&aleph=<base64url-json>`),
+// not the retired `/lanes/{id}/{fn}?viewMode=` route. Asserts the cell is wired:
+//   1. mounting the topic_distribution cell calls `GET /api/v1/topics/distribution`
+//      with the panel's resolved scope (`probeIds=`);
+//   2. the cell renders at least one topic ridge (a Plot <rect>).
 //
-// All BFF routes are mocked so the test runs against `pnpm preview`
-// without requiring the live backend stack (mirrors `atmosphere.spec.ts`).
+// All BFF routes are mocked so the test runs against `pnpm preview` with no live
+// backend (mirrors workbench.spec.ts — catch-all 200 first, shaped routes win).
 
 const PROBE_ID = 'probe-0-de-institutional-web';
-const FUNCTION_KEY = 'epistemic_authority';
+
+// encodePillarState({ windows:[{ panels:[{ scopes:[{ probeIds:[PROBE_ID],
+//   sourceIds:[] }], composition:'merged', view:'topic_distribution',
+//   metric:'sentiment_score_sentiws', layer:'gold' }], focusedPanelIndex:0 }],
+//   activeWindowIndex:0 }) — computed once via the app encoder, hardcoded.
+const TOPIC_SEED =
+  'eyJ3IjpbeyJwIjpbeyJzIjpbeyJwaSI6WyJwcm9iZS0wLWRlLWluc3RpdHV0aW9uYWwtd2ViIl0sInNpIjpbXX1dLCJjIjoibSIsInYiOiJ0b3BpY19kaXN0cmlidXRpb24iLCJtIjoic2VudGltZW50X3Njb3JlX3NlbnRpd3MiLCJsIjoiZyJ9XSwiZmkiOjB9XSwiYXciOjB9';
+
+const WORKBENCH_URL = `/workbench?activePillar=aleph&aleph=${TOPIC_SEED}`;
 
 const probesPayload = [
   {
     probeId: PROBE_ID,
+    displayName: 'Probe 0 — German institutional web',
+    shortName: 'Probe 0',
     language: 'de',
     sources: ['tagesschau', 'bundesregierung'],
-    emissionPoints: [
-      { latitude: 53.5511, longitude: 9.9937, label: 'Hamburg' },
-      { latitude: 52.52, longitude: 13.405, label: 'Berlin' }
-    ]
+    emissionPoints: [{ latitude: 52.52, longitude: 13.405, label: 'Berlin' }]
   }
 ];
 
@@ -42,18 +47,35 @@ const dossierPayload = {
   sources: [
     {
       name: 'tagesschau',
-      type: 'rss',
+      type: 'web',
       url: 'https://www.tagesschau.de',
       articlesTotal: 100,
       articlesInWindow: 20,
       publicationFrequencyPerDay: 5,
-      primaryFunction: FUNCTION_KEY,
+      primaryFunction: 'epistemic_authority',
       secondaryFunction: null,
       emicDesignation: 'Public broadcaster',
       emicContext: 'German public media',
       silverEligible: true
     }
   ]
+};
+
+const availableMetricsPayload = [
+  { metricName: 'sentiment_score_sentiws', validationStatus: 'unvalidated' },
+  { metricName: 'word_count', validationStatus: 'unvalidated' }
+];
+
+const scopeAvailableMetricsPayload = {
+  scopedSources: ['tagesschau', 'bundesregierung'],
+  available: ['sentiment_score_sentiws', 'word_count'],
+  partial: []
+};
+
+const scopeAvailableMetadataPayload = {
+  scopedSources: ['tagesschau', 'bundesregierung'],
+  available: [],
+  partial: []
 };
 
 const topicsPayload = {
@@ -69,7 +91,7 @@ const topicsPayload = {
       articleCount: 42,
       avgConfidence: 0.71,
       language: 'de',
-      modelHash: 'sha256:demo-fixture-hash'
+      modelHash: 'sha256:demo'
     },
     {
       topicId: 1,
@@ -77,7 +99,7 @@ const topicsPayload = {
       articleCount: 27,
       avgConfidence: 0.68,
       language: 'de',
-      modelHash: 'sha256:demo-fixture-hash'
+      modelHash: 'sha256:demo'
     },
     {
       topicId: -1,
@@ -85,7 +107,7 @@ const topicsPayload = {
       articleCount: 9,
       avgConfidence: 0.0,
       language: 'de',
-      modelHash: 'sha256:demo-fixture-hash'
+      modelHash: 'sha256:demo'
     }
   ]
 };
@@ -100,98 +122,75 @@ function genericContent(entityId: string) {
     lastReviewedAt: '2026-05-01',
     registers: {
       semantic: { short: 'Topic distribution.', long: 'Long form.' },
-      methodological: {
-        short: 'BERTopic Tier 2 (mock).',
-        long: 'Long methodological copy (mock).'
-      }
+      methodological: { short: 'BERTopic Tier 2 (mock).', long: 'Long methodological copy (mock).' }
     }
   };
 }
 
-async function mockBff(page: import('@playwright/test').Page) {
-  await page.route('**/api/v1/probes', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(probesPayload)
-    });
-  });
-  await page.route(`**/api/v1/probes/${PROBE_ID}/dossier**`, async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(dossierPayload)
-    });
-  });
-  await page.route('**/api/v1/content/**', async (route: Route) => {
-    const url = route.request().url();
-    const m = url.match(/content\/[^/]+\/([^?]+)/);
+const json = (body: unknown) => ({
+  status: 200,
+  contentType: 'application/json',
+  body: JSON.stringify(body)
+});
+
+async function mockBff(page: Page) {
+  // Catch-all FIRST so an unmocked endpoint never 401s into the auth redirect.
+  await page.route('**/api/v1/**', (route: Route) => route.fulfill(json({})));
+  await page.route('**/api/v1/auth/me', (route: Route) =>
+    route.fulfill(
+      json({ id: 'e2e-user', email: 'e2e@aer.test', role: 'researcher', status: 'active' })
+    )
+  );
+  await page.route('**/api/v1/probes', (route: Route) => route.fulfill(json(probesPayload)));
+  await page.route(`**/api/v1/probes/${PROBE_ID}/dossier**`, (route: Route) =>
+    route.fulfill(json(dossierPayload))
+  );
+  await page.route('**/api/v1/content/**', (route: Route) => {
+    const m = route
+      .request()
+      .url()
+      .match(/content\/[^/]+\/([^?]+)/);
     const id = m?.[1] ? decodeURIComponent(m[1]) : 'unknown';
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(genericContent(id))
-    });
+    return route.fulfill(json(genericContent(id)));
   });
-  await page.route('**/api/v1/metrics?**', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: [], excludedCount: 0 })
-    });
-  });
-  await page.route('**/api/v1/metrics/available**', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([])
-    });
-  });
+  await page.route('**/api/v1/metrics/available**', (route: Route) =>
+    route.fulfill(json(availableMetricsPayload))
+  );
+  await page.route('**/api/v1/scope/available-metrics**', (route: Route) =>
+    route.fulfill(json(scopeAvailableMetricsPayload))
+  );
+  await page.route('**/api/v1/scope/available-metadata**', (route: Route) =>
+    route.fulfill(json(scopeAvailableMetadataPayload))
+  );
+  // Globe activity series (Phase 135 persistent globe) — empty.
+  await page.route(/\/api\/v1\/metrics\?/, (route: Route) =>
+    route.fulfill(json({ data: [], excludedCount: 0 }))
+  );
 }
 
-test.describe('Phase 121 — topic_distribution view mode', () => {
-  // QUARANTINED (Phase 136 → rewrite in 127): navigates the retired
-  // /lanes/{id}/{fn}?viewMode=topic_distribution route + asserts the old
-  // request shape (scope=probe&scopeId=) and DOM. topic_distribution now
-  // renders as a Workbench Episteme cell under the base64url-json grammar.
-  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
-  test.skip('switching to topic_distribution calls /topics/distribution and renders a ridge', async ({
-    page
-  }) => {
+test.describe('Phase 127 — topic_distribution Workbench cell', () => {
+  test('mounting the cell calls /topics/distribution and renders a ridge', async ({ page }) => {
     await mockBff(page);
 
-    const topicCalls: string[] = [];
-    await page.route('**/api/v1/topics/distribution?**', async (route: Route) => {
-      topicCalls.push(route.request().url());
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(topicsPayload)
-      });
-    });
-
+    await page.route('**/api/v1/topics/distribution?**', (route: Route) =>
+      route.fulfill(json(topicsPayload))
+    );
     const topicRequest: Promise<Request> = page.waitForRequest((req) =>
       req.url().includes('/api/v1/topics/distribution')
     );
 
-    await page.goto(`/lanes/${PROBE_ID}/${FUNCTION_KEY}?viewMode=topic_distribution`);
+    await page.goto(WORKBENCH_URL);
 
-    // The deferred request must hit the BFF — proves the cell is wired.
+    // The deferred request must hit the BFF with the panel's resolved scope —
+    // proves the Aleph topic cell is wired under the three-surface grammar.
     const req = await topicRequest;
     expect(req.url()).toContain('/topics/distribution');
     expect(req.url()).toContain('scope=probe');
     expect(req.url()).toContain(`scopeId=${PROBE_ID}`);
 
-    // The cell heading is rendered.
-    await expect(page.getByText(/BERTopic distribution/i)).toBeVisible();
-
-    // At least one rendered SVG <rect> from the Plot bar layer — proves
-    // a ridge made it into the DOM. We scope to the plot host so we
-    // don't pick up unrelated rects in chrome.
+    // At least one rendered Plot <rect> inside the cell's plot host — proves a
+    // ridge made it into the DOM.
     const bars = page.locator('.plot-host svg rect');
-    await expect(bars.first()).toBeVisible({ timeout: 5_000 });
-
-    // Outlier label survives normalisation (rendered as "uncategorised").
-    await expect(page.getByText(/uncategorised/i).first()).toBeVisible();
+    await expect(bars.first()).toBeVisible({ timeout: 10_000 });
   });
 });

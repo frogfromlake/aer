@@ -18,6 +18,14 @@ import { expect, test, type Route } from './_fixtures';
 const PROBE_ID = 'probe-0-de-institutional-web';
 const FUNCTION_KEY = 'epistemic_authority';
 
+// encodePillarState({ windows:[{ panels:[{ scopes:[{ probeIds:[PROBE_ID],
+//   sourceIds:[] }], composition:'merged', view:'cooccurrence_network',
+//   metric:'entity_cooccurrence', layer:'gold' }], focusedPanelIndex:0 }],
+//   activeWindowIndex:0 }) — computed once via the app encoder, hardcoded.
+const COOC_SEED =
+  'eyJ3IjpbeyJwIjpbeyJzIjpbeyJwaSI6WyJwcm9iZS0wLWRlLWluc3RpdHV0aW9uYWwtd2ViIl0sInNpIjpbXX1dLCJjIjoibSIsInYiOiJjb29jY3VycmVuY2VfbmV0d29yayIsIm0iOiJlbnRpdHlfY29vY2N1cnJlbmNlIiwibCI6ImcifV0sImZpIjowfV0sImF3IjowfQ';
+const COOC_WORKBENCH_URL = `/workbench?activePillar=rhizome&rhizome=${COOC_SEED}`;
+
 const SENTIMENT_METRICS = [
   'sentiment_score_sentiws',
   'sentiment_score_bert_multilingual',
@@ -190,6 +198,23 @@ function genericContent(entityId: string) {
 }
 
 async function mockCooccurrence(page: import('@playwright/test').Page) {
+  // Catch-all FIRST so an unmocked endpoint (e.g. /scope/available-*) never 401s
+  // into the auth redirect that would strand the Workbench; shaped routes win.
+  await page.route('**/api/v1/**', (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  );
+  await page.route('**/api/v1/auth/me', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'e2e-user',
+        email: 'e2e@aer.test',
+        role: 'researcher',
+        status: 'active'
+      })
+    })
+  );
   await page.route('**/api/v1/probes', async (route: Route) => {
     await route.fulfill({
       status: 200,
@@ -246,29 +271,35 @@ async function mockCooccurrence(page: import('@playwright/test').Page) {
   });
 }
 
-test.describe('Phase 118 / 121b — Wikidata link on cooccurrence node', () => {
-  // QUARANTINED (Phase 136 → rewrite in 127): navigates the retired
-  // /lanes/{id}/{fn}?viewMode=cooccurrence_network route + asserts the old
-  // graph DOM. The cooccurrence cell + Wikidata external-link affordance now
-  // render as a Workbench Rhizome cell under the base64url-json grammar.
-  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
-  test.skip('linked entity renders an <a> to the canonical Wikidata QID URL; unlinked entity does not', async ({
+test.describe('Phase 127 — Wikidata link on cooccurrence node (Workbench Rhizome cell)', () => {
+  // Rewritten in Phase 127 from the retired `/lanes/{id}/{fn}?viewMode=` route.
+  // The cooccurrence cell + Wikidata external-link affordance now render as a
+  // Workbench Rhizome cell under the canonical base64url-json grammar.
+  test('linked entity renders an <a> to the canonical Wikidata QID URL; unlinked entity does not', async ({
     page
   }) => {
     await mockCooccurrence(page);
-    await page.goto(`/lanes/${PROBE_ID}/${FUNCTION_KEY}?viewMode=cooccurrence_network`);
+    await page.goto(COOC_WORKBENCH_URL);
 
     // Wait for the graph to mount: at least one node group must be visible.
     await expect(page.locator('svg.graph g.node').first()).toBeVisible({ timeout: 10_000 });
 
-    // Click the linked node ("Douglas Adams" → Q42).
-    const linkedNode = page.locator('svg.graph g.node').filter({ hasText: 'Douglas Adams' });
-    await linkedNode.first().click();
-
-    // External-link affordance is present and points at Wikidata's canonical
-    // URL pattern (assert on href; do NOT navigate).
     const externalLinks = page.locator('[data-testid="entity-external-links"] a.ext-link');
-    await expect(externalLinks).toHaveCount(2);
+
+    // Click the linked node ("Douglas Adams" → Q42). The d3-force layout keeps
+    // the nodes drifting until the simulation settles, so a single click can
+    // miss; toPass re-clicks until the external-link affordance appears.
+    await expect(async () => {
+      await page
+        .locator('svg.graph g.node')
+        .filter({ hasText: 'Douglas Adams' })
+        .first()
+        .click({ timeout: 2000 });
+      await expect(externalLinks).toHaveCount(2, { timeout: 2000 });
+    }).toPass({ timeout: 15_000 });
+
+    // Both links point at Wikidata's canonical URL pattern (assert href; do NOT
+    // navigate — they target a third-party host).
     await expect(externalLinks.nth(0)).toHaveAttribute('href', 'https://www.wikidata.org/wiki/Q42');
     await expect(externalLinks.nth(1)).toHaveAttribute(
       'href',
@@ -277,12 +308,18 @@ test.describe('Phase 118 / 121b — Wikidata link on cooccurrence node', () => {
     // a11y: the link announces "external".
     await expect(externalLinks.nth(0)).toHaveAttribute('aria-label', /external/i);
 
-    // Now select the unlinked entity. Close the current panel first.
-    await page.locator('button.close-btn').click();
-    const unlinkedNode = page.locator('svg.graph g.node').filter({ hasText: 'Unknown Entity' });
-    await unlinkedNode.first().click();
-
-    // Panel is open but the external-link affordance is NOT rendered.
+    // Switch selection to the unlinked entity — clicking a different node
+    // replaces the current selection (no separate close needed). "Unknown
+    // Entity" has no wikidataQid, so its panel renders without any external
+    // links. toPass re-clicks until the selection panel reflects the new node.
+    await expect(async () => {
+      await page
+        .locator('svg.graph g.node')
+        .filter({ hasText: 'Unknown Entity' })
+        .first()
+        .click({ timeout: 2000 });
+      await expect(page.locator('.entity-name')).toHaveText('Unknown Entity', { timeout: 2000 });
+    }).toPass({ timeout: 15_000 });
     await expect(page.locator('[data-testid="entity-external-links"]')).toHaveCount(0);
   });
 });

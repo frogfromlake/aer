@@ -116,29 +116,24 @@ async function mockBff(page: import('@playwright/test').Page) {
   });
 }
 
-test.describe('Atmosphere — Phase 113c probe descent', () => {
-  // QUARANTINED (Phase 136 → rewrite in 127): asserts the retired
-  // /lanes/{id}/dossier route + Surface-I/II descent. The probe→Dossier flow
-  // now lives in the Atmosphäre overlay (?dossier=open / ?selectedProbes=).
-  // Rewrite against the three-surface grammar in Phase 127, then un-skip.
-  test.skip('deep-linked probe redirects to /lanes/{id}/dossier and renders the Dossier', async ({
-    page
-  }) => {
+test.describe('Atmosphere — probe descent into the Dossier overlay (Phase 123a)', () => {
+  // Rewritten in Phase 127 from the retired `/lanes/{id}/dossier` route. The
+  // probe→Dossier descent now opens the Dossier as a GLOBAL OVERLAY over
+  // Surface I (`?dossier=open` + `?selectedProbes=`), not a route change. The
+  // selected probe's card renders auto-expanded over the persistent globe.
+  // (ProbeCard internals are pinned by dossier.spec.ts; this test asserts the
+  // descent contract — the deep link opens the overlay for that probe.)
+  test('a deep-linked probe opens the Dossier overlay for that probe', async ({ page }) => {
     await mockBff(page);
-    await page.goto(`/?probe=${PROBE_ID}`);
+    await page.goto(`/?dossier=open&selectedProbes=${PROBE_ID}`);
 
-    // Surface I no longer hosts an L3 SidePanel; the descent is a path
-    // change to Surface II L1 Probe Dossier.
-    await expect(page).toHaveURL(new RegExp(`/lanes/${PROBE_ID}/dossier`));
+    // The descent is an overlay, not a navigation: the dossier grammar persists.
+    await expect(page).toHaveURL(/dossier=open/);
 
-    // The Dossier renders the probe identity and the migrated framing
-    // copy that previously lived in the Atmosphere flyout. Only the
-    // semantic register's `long` field is rendered as the emic frame
-    // (ProbeDossier.svelte#emic-frame); the methodological register's
-    // reach disclaimer is delegated to the chrome MethodologyTray and
-    // is not asserted here.
-    await expect(page.getByRole('heading', { name: PROBE_ID })).toBeVisible();
-    await expect(page.getByText(/institutional voice/i)).toBeVisible();
+    // The deep-linked probe's card renders (auto-expanded from selectedProbes).
+    const card = page.locator(`article.probe-card#probe-${PROBE_ID}`);
+    await expect(card).toBeVisible();
+    await expect(card.locator('.probe-id')).toHaveText(PROBE_ID);
   });
 });
 

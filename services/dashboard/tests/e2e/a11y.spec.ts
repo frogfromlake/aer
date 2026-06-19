@@ -34,16 +34,25 @@ for (const route of routes) {
 
 test('a11y: /stories/button (light)', async ({ page }) => {
   await page.goto('/stories/button');
-  await page.getByRole('radio', { name: 'Light' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  // Retry the toggle until it lands: under heavy parallel load the first click
+  // can fire before SvelteKit hydration attaches the handler (the click is then
+  // lost and the theme stays dark). toPass re-clicks until the attribute flips.
+  await expect(async () => {
+    await page.getByRole('radio', { name: 'Light' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light', { timeout: 2000 });
+  }).toPass({ timeout: 15000 });
   const results = await analyze(page);
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 });
 
 test('a11y: /stories/dialog (dialog open)', async ({ page }) => {
   await page.goto('/stories/dialog');
-  await page.getByRole('button', { name: 'Open dialog' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  // Retry the open until it lands — same pre-hydration click race as the
+  // light-theme test above (a lost first click under heavy parallel load).
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Open dialog' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
   const results = await analyze(page);
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 });
