@@ -125,9 +125,11 @@
 </article>
 
 <style>
-  /* Paper body */
+  /* Paper body — the article centres itself; scrolling lives on the parent
+     column (.wp-scroll) so the scrollbar sits at the viewport edge and the
+     whole column scrolls, not just the narrow text (matches the other
+     Reflection surfaces). */
   .paper {
-    overflow-y: auto;
     padding: var(--space-7) var(--space-7) var(--space-9);
     max-width: 72ch;
     margin: 0 auto;

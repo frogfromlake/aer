@@ -13,6 +13,7 @@
   import WpBreadcrumb from '$lib/components/reflection/WpBreadcrumb.svelte';
   import WpTableOfContents from '$lib/components/reflection/WpTableOfContents.svelte';
   import WpPaperBody from '$lib/components/reflection/WpPaperBody.svelte';
+  import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import { splitSections, scrollTargetIds } from '$lib/reflection/wp-page-internals';
   import { m } from '$lib/paraglide/messages.js';
   import type { PageData } from './$types';
@@ -65,8 +66,11 @@
     <WpTableOfContents mainSections={toc.main} appendixSections={toc.appendix} />
   {/if}
 
-  <!-- Paper body -->
-  <WpPaperBody {paper} {title} />
+  <!-- Paper body — scroll lives on the column so the whole pane scrolls -->
+  <div class="wp-scroll">
+    <ReflectionBackLink />
+    <WpPaperBody {paper} {title} />
+  </div>
 </div>
 
 <style>
@@ -88,5 +92,9 @@
     .wp-layout {
       grid-template-columns: 1fr;
     }
+  }
+
+  .wp-scroll {
+    overflow-y: auto;
   }
 </style>

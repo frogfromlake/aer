@@ -5,6 +5,8 @@
   // Replaces the Phase 105 stub.
   import { goto } from '$app/navigation';
   import { ScopeBar } from '$lib/components/chrome';
+  import ReflectionToc from '$lib/components/reflection/ReflectionToc.svelte';
+  import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import { getAllPapers } from '$lib/reflection/papers';
   import { OPEN_QUESTIONS } from '$lib/reflection/open-questions';
   import { m } from '$lib/paraglide/messages.js';
@@ -16,6 +18,13 @@
 
   const papers = getAllPapers();
   const questionCount = OPEN_QUESTIONS.length;
+
+  // TOC of the landing's three content blocks (anchors below).
+  const tocItems = $derived([
+    { id: 'landing-entry', label: m.reflection_landing_toc_entry() },
+    { id: 'landing-wps', label: m.reflection_landing_wps_heading() },
+    { id: 'landing-catalogues', label: m.reflection_landing_toc_catalogues() }
+  ]);
 </script>
 
 <svelte:head>
@@ -39,110 +48,128 @@
   ×
 </button>
 
-<main class="reflection-landing" id="main-reflection">
-  <div class="landing-inner">
-    <!-- Surface identity -->
-    <header class="landing-header">
-      <p class="surface-eyebrow">{m.reflection_landing_eyebrow()}</p>
-      <h1 class="landing-title">{m.reflection_landing_title()}</h1>
-      <p class="landing-abstract">
-        {m.reflection_landing_abstract()}
-      </p>
-    </header>
-
-    <!-- Entry points grid -->
-    <div class="entry-grid">
-      <!-- Open Research Questions -->
-      <section class="entry-card" aria-labelledby="oq-heading">
-        <h2 id="oq-heading" class="entry-title">{m.reflection_landing_oq_heading()}</h2>
-        <p class="entry-body">
-          {m.reflection_landing_oq_body({ count: questionCount })}
+<div class="rl-layout">
+  <ReflectionToc items={tocItems} />
+  <main class="reflection-landing" id="main-reflection">
+    <ReflectionBackLink href="/" label={m.reflection_landing_back_label()} />
+    <div class="landing-inner">
+      <!-- Surface identity -->
+      <header class="landing-header">
+        <p class="surface-eyebrow">{m.reflection_landing_eyebrow()}</p>
+        <h1 class="landing-title">{m.reflection_landing_title()}</h1>
+        <p class="landing-abstract">
+          {m.reflection_landing_abstract()}
         </p>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/open-questions" class="entry-link">
-          {m.reflection_landing_oq_link()}
-        </a>
+      </header>
+
+      <!-- Entry points grid -->
+      <div class="entry-grid" id="landing-entry">
+        <!-- Open Research Questions -->
+        <section class="entry-card" aria-labelledby="oq-heading">
+          <h2 id="oq-heading" class="entry-title">{m.reflection_landing_oq_heading()}</h2>
+          <p class="entry-body">
+            {m.reflection_landing_oq_body({ count: questionCount })}
+          </p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/reflection/open-questions" class="entry-link">
+            {m.reflection_landing_oq_link()}
+          </a>
+        </section>
+
+        <!-- Globe primer -->
+        <section class="entry-card" aria-labelledby="primer-heading">
+          <h2 id="primer-heading" class="entry-title">{m.reflection_landing_primer_heading()}</h2>
+          <p class="entry-body">
+            {m.reflection_landing_primer_body_pre()}
+            <em>{m.reflection_landing_primer_body_emphasis()}</em>
+            {m.reflection_landing_primer_body_post()}
+          </p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/reflection/primer/globe" class="entry-link">
+            {m.reflection_landing_primer_link()}
+          </a>
+        </section>
+      </div>
+
+      <!-- Working Papers index -->
+      <section class="section" id="landing-wps" aria-labelledby="wps-heading">
+        <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
+        <p class="section-sub">
+          {m.reflection_landing_wps_sub()}
+        </p>
+        <ul class="paper-list" role="list">
+          {#each papers as p (p.id)}
+            {@const status = paperStatus(p.id)}
+            <li>
+              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+              <a href="/reflection/wp/{p.id}" class="paper-card">
+                <div class="paper-card-head">
+                  <span class="paper-id">{p.id.toUpperCase()}</span>
+                  <span class="paper-status">{status.split('—')[0]?.trim() ?? status}</span>
+                </div>
+                <p class="paper-short">{paperShortTitle(p.id)}</p>
+                <p class="paper-abstract">{paperAbstract(p.id)}</p>
+              </a>
+            </li>
+          {/each}
+        </ul>
       </section>
 
-      <!-- Globe primer -->
-      <section class="entry-card" aria-labelledby="primer-heading">
-        <h2 id="primer-heading" class="entry-title">{m.reflection_landing_primer_heading()}</h2>
-        <p class="entry-body">
-          {m.reflection_landing_primer_body_pre()}
-          <em>{m.reflection_landing_primer_body_emphasis()}</em>
-          {m.reflection_landing_primer_body_post()}
-        </p>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/primer/globe" class="entry-link">
-          {m.reflection_landing_primer_link()}
-        </a>
-      </section>
-    </div>
-
-    <!-- Working Papers index -->
-    <section class="section" aria-labelledby="wps-heading">
-      <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
-      <p class="section-sub">
-        {m.reflection_landing_wps_sub()}
-      </p>
-      <ul class="paper-list" role="list">
-        {#each papers as p (p.id)}
-          {@const status = paperStatus(p.id)}
-          <li>
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-            <a href="/reflection/wp/{p.id}" class="paper-card">
-              <div class="paper-card-head">
-                <span class="paper-id">{p.id.toUpperCase()}</span>
-                <span class="paper-status">{status.split('—')[0]?.trim() ?? status}</span>
-              </div>
-              <p class="paper-short">{paperShortTitle(p.id)}</p>
-              <p class="paper-abstract">{paperAbstract(p.id)}</p>
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </section>
-
-    <!-- Catalogue entry points — one tile each into the probe + metric
+      <!-- Catalogue entry points — one tile each into the probe + metric
          aggregates, where every dossier / provenance record is read inline. -->
-    <div class="entry-grid">
-      <!-- Probe dossiers -->
-      <section class="entry-card" aria-labelledby="probes-heading">
-        <h2 id="probes-heading" class="entry-title">{m.reflection_landing_probes_heading()}</h2>
-        <p class="entry-body">{m.reflection_landing_probes_sub()}</p>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/probes" class="entry-link">{m.reflection_landing_probes_link()}</a>
-      </section>
+      <div class="entry-grid" id="landing-catalogues">
+        <!-- Probe dossiers -->
+        <section class="entry-card" aria-labelledby="probes-heading">
+          <h2 id="probes-heading" class="entry-title">{m.reflection_landing_probes_heading()}</h2>
+          <p class="entry-body">{m.reflection_landing_probes_sub()}</p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/reflection/probes" class="entry-link">{m.reflection_landing_probes_link()}</a>
+        </section>
 
-      <!-- Metric provenance -->
-      <section class="entry-card" aria-labelledby="metrics-heading">
-        <h2 id="metrics-heading" class="entry-title">{m.reflection_landing_metrics_heading()}</h2>
-        <p class="entry-body">{m.reflection_landing_metrics_sub()}</p>
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-        <a href="/reflection/metrics" class="entry-link">{m.reflection_landing_metrics_link()}</a>
-      </section>
+        <!-- Metric provenance -->
+        <section class="entry-card" aria-labelledby="metrics-heading">
+          <h2 id="metrics-heading" class="entry-title">{m.reflection_landing_metrics_heading()}</h2>
+          <p class="entry-body">{m.reflection_landing_metrics_sub()}</p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/reflection/metrics" class="entry-link">{m.reflection_landing_metrics_link()}</a>
+        </section>
+      </div>
+
+      <!-- Footer note -->
+      <p class="landing-footer-note">
+        {m.reflection_landing_footer_note()}
+      </p>
     </div>
-
-    <!-- Footer note -->
-    <p class="landing-footer-note">
-      {m.reflection_landing_footer_note()}
-    </p>
-  </div>
-</main>
+  </main>
+</div>
 
 <style>
-  .reflection-landing {
+  .rl-layout {
     position: fixed;
     inset: 0;
     left: var(--rail-width);
     top: var(--scope-bar-height);
     right: var(--tray-right-edge, var(--tray-closed-width));
     z-index: 1;
-    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    overflow: hidden;
     /* Glassy dim over the layout's persistent globe — same feel as the overlays. */
     background: color-mix(in srgb, var(--color-bg) 72%, transparent);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
+  }
+
+  @media (max-width: 900px) {
+    .rl-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Scroll lives on the column so the whole pane scrolls (scrollbar at the
+     viewport edge), matching the other Reflection surfaces. */
+  .reflection-landing {
+    overflow-y: auto;
   }
 
   .reflection-close {
