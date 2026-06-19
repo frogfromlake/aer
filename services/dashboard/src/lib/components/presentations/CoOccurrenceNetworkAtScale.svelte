@@ -44,6 +44,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -321,14 +322,24 @@
           y: pointer.y,
           title: String(a.label ?? node),
           rows: [
-            { label: 'Type', value: String(a.nerLabel ?? '') },
-            { label: 'Co-occurrences', value: String(a.totalCount ?? 0) },
-            { label: 'Degree', value: String(a.degree ?? 0) },
+            { label: m.cells_net_readout_type(), value: String(a.nerLabel ?? '') },
+            { label: m.cells_net_readout_cooccurrences(), value: String(a.totalCount ?? 0) },
+            { label: m.cells_net_readout_degree(), value: String(a.degree ?? 0) },
             ...(sizeM && a.metricValue != null
-              ? [{ label: `size · ${sizeM}`, value: Number(a.metricValue).toFixed(3) }]
+              ? [
+                  {
+                    label: m.cells_net_readout_size({ metric: sizeM }),
+                    value: Number(a.metricValue).toFixed(3)
+                  }
+                ]
               : []),
             ...(colorM && colorM !== sizeM && a.metricColorValue != null
-              ? [{ label: `colour · ${colorM}`, value: Number(a.metricColorValue).toFixed(3) }]
+              ? [
+                  {
+                    label: m.cells_net_readout_colour({ metric: colorM }),
+                    value: Number(a.metricColorValue).toFixed(3)
+                  }
+                ]
               : [])
           ]
         };
@@ -500,8 +511,10 @@
 <section class="atscale-cell" aria-labelledby="atscale-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="atscale-title" class="cell-title">
-      Entity co-occurrence
-      <span class="muted">— large-scale view · <strong class="scope-name">{scopeId}</strong></span>
+      {m.cells_net_title()}
+      <span class="muted"
+        >{m.cells_net_subtitle_atscale()}<strong class="scope-name">{scopeId}</strong></span
+      >
     </h3>
     {#if data && renderedNodeCount > 0}
       <div class="header-actions">
@@ -511,27 +524,29 @@
   </header>
 
   <p class="atscale-hint" role="note">
-    Large-scale WebGL map. <strong>Ctrl/⌘ + scroll to zoom</strong> · drag to pan · click a node for
-    its articles. Colour = detected <strong>theme cluster</strong> (the labelled node names each
-    region). The layout settles automatically (Settle = the max wait); Top N sets how many
-    connections appear, Spread how far they fan out.
+    {m.cells_net_atscale_hint_a()}<strong>{m.cells_net_atscale_hint_zoom()}</strong
+    >{m.cells_net_atscale_hint_b()}<strong>{m.cells_net_atscale_hint_cluster()}</strong
+    >{m.cells_net_atscale_hint_c()}
     {#if data}
       <span class="muted density-count"
-        >· {renderedNodeCount} nodes · {data.edges.length} edges</span
+        >{m.cells_net_atscale_density({
+          nodes: renderedNodeCount,
+          edges: data.edges.length
+        })}</span
       >
     {/if}
   </p>
 
   {#if dataLayer === 'silver'}
-    <p class="muted">Co-occurrence is a Gold-layer artefact — not available on the Silver layer.</p>
+    <p class="muted">{m.cells_net_silver_notice_atscale()}</p>
   {:else if graphQ.isPending}
-    <p class="muted" aria-busy="true">Loading the large-scale graph…</p>
+    <p class="muted" aria-busy="true">{m.cells_net_loading_atscale()}</p>
   {:else if refusal}
     <RefusalSurface {refusal} {ctx} />
   {:else if isNetworkError}
-    <p class="muted">Could not load the co-occurrence graph (network error).</p>
+    <p class="muted">{m.cells_net_load_error_atscale()}</p>
   {:else if data && data.nodes.length === 0}
-    <p class="muted">No co-occurring entities in the active scope and window.</p>
+    <p class="muted">{m.cells_net_empty_atscale()}</p>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -544,8 +559,11 @@
     ></div>
     {#if relabelActive}
       <p class="muted coverage-note">
-        Labels: {labeledNodeCount} of {totalNodeCount} nodes relabelled to the app language ({linkedNodeCount}
-        link to Wikidata); the rest keep their source form.
+        {m.cells_net_coverage_atscale({
+          labeled: labeledNodeCount,
+          total: totalNodeCount,
+          linked: linkedNodeCount
+        })}
       </p>
     {/if}
   {/if}
@@ -554,11 +572,13 @@
 
   {#if sizeMetricReq || colorMetricReq}
     <!-- Metric-channel legend — parity with the SVG cell (ISSUE 8). -->
-    <div class="metric-legend" aria-label="Metric channel legend">
+    <div class="metric-legend" aria-label={m.cells_net_metric_legend_aria()}>
       {#if sizeMetricReq}
         {#if metricExtent}
           <div class="metric-legend-row">
-            <span class="metric-legend-title">Size · {sizeMetricReq}</span>
+            <span class="metric-legend-title"
+              >{m.cells_net_legend_size({ metric: sizeMetricReq })}</span
+            >
             <span class="metric-legend-min">{fmtValue(metricExtent.min)}</span>
             <span class="metric-legend-sizes" aria-hidden="true">
               <span class="size-dot size-dot-sm"></span>
@@ -568,25 +588,27 @@
           </div>
         {:else}
           <span class="metric-legend-note"
-            >No node carries “{sizeMetricReq}” (size) in this scope — channel inactive.</span
+            >{m.cells_net_legend_size_inactive_atscale({ metric: sizeMetricReq })}</span
           >
         {/if}
       {/if}
       {#if colorMetricReq}
         {#if metricColorExtent}
           <div class="metric-legend-row">
-            <span class="metric-legend-title">Colour · {colorMetricReq}</span>
+            <span class="metric-legend-title"
+              >{m.cells_net_legend_colour({ metric: colorMetricReq })}</span
+            >
             <span class="metric-legend-min">{fmtValue(metricColorExtent.min)}</span>
             <span class="metric-legend-ramp" aria-hidden="true"></span>
             <span class="metric-legend-max">{fmtValue(metricColorExtent.max)}</span>
           </div>
         {:else}
           <span class="metric-legend-note"
-            >No node carries “{colorMetricReq}” (colour) in this scope — channel inactive.</span
+            >{m.cells_net_legend_colour_inactive_atscale({ metric: colorMetricReq })}</span
           >
         {/if}
       {/if}
-      <span class="metric-legend-note">Grey nodes have no such article (never a coerced 0).</span>
+      <span class="metric-legend-note">{m.cells_net_legend_grey_note()}</span>
     </div>
   {/if}
 
@@ -595,7 +617,9 @@
 
 <ArticleListModal
   open={selectedEntity !== null}
-  title={selectedEntity ? `Articles mentioning "${selectedEntity.text}"` : 'Articles'}
+  title={selectedEntity
+    ? m.cells_net_articles_title({ entity: selectedEntity.text })
+    : m.cells_net_articles_fallback()}
   {ctx}
   {windowStart}
   {windowEnd}
@@ -608,7 +632,7 @@
 />
 
 {#if selectedEntity}
-  <aside class="entity-panel" aria-label="Selected entity">
+  <aside class="entity-panel" aria-label={m.cells_net_selected_entity_aria()}>
     <div class="entity-head">
       <span class="entity-name">{selectedEntity.text}</span>
       <span class="entity-label-badge">{selectedEntity.label}</span>

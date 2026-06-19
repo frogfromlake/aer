@@ -122,14 +122,14 @@
                         style:--tag-color={fnMeta?.color ?? 'var(--color-fg-subtle)'}
                         title={m.workbench_scope_sources_df_tag_title()}
                       >
-                        {(source.primaryFunction ?? '').replace('_', ' ')}
+                        {fnMeta?.label() ?? ''}
                       </span>
                     {/if}
                   </span>
                   {#if dim}
                     <span class="source-dim-hint"
                       >{m.workbench_scope_sources_not_matching({
-                        function: lockMeta?.label ?? ''
+                        function: lockMeta?.label() ?? ''
                       })}</span
                     >
                   {/if}

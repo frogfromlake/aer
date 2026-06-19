@@ -7,6 +7,10 @@
 // from drifting (e.g. a new network colour channel added to one but not the
 // other, or a slider that opens at a different default than the cell renders).
 import type { NetworkColorChannel, NetworkSizeChannel } from '$lib/state/url-internals';
+// Relative import (not `$lib/...`) so the module resolves in the node/vitest
+// environment as well as the bundler — mirrors the other localized `.ts`
+// helpers (e.g. `presentations/how-to-read.ts`).
+import { m } from '../paraglide/messages.js';
 
 // Cell-render defaults — must match what the cells actually render when the
 // lever is unset (DistributionCell bins, CoOccurrenceNetworkCell topN/spread).
@@ -14,20 +18,23 @@ export const DEFAULT_BINS = 30;
 export const DEFAULT_TOPN = 60;
 export const DEFAULT_FORCE_STRENGTH = 50;
 
-export const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: string }> = [
-  { id: 'total_count', label: 'Weight' },
-  { id: 'degree', label: 'Degree' },
+// `label` is a getter (not a plain string) so the rendered option text stays
+// locale-reactive — resolved against the active locale at each render, never
+// frozen at module load.
+export const NET_SIZE_CHANNELS: ReadonlyArray<{ id: NetworkSizeChannel; label: () => string }> = [
+  { id: 'total_count', label: () => m.levers_netsize_weight() },
+  { id: 'degree', label: () => m.levers_netsize_degree() },
   // Phase 125 — size by a per-article metric (mean over the entity's articles).
-  { id: 'metric', label: 'Metric' }
+  { id: 'metric', label: () => m.levers_netsize_metric() }
 ];
-export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: string }> = [
+export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label: () => string }> = [
   // Co-occurrence redesign — colour by detected theme-cluster (Louvain). The
   // default: each topic-region gets its own colour (the "Kriesel" map effect).
-  { id: 'community', label: 'Theme cluster' },
-  { id: 'label', label: 'Entity type' },
-  { id: 'presence', label: 'Source presence' },
-  { id: 'source_overlay', label: 'Source overlay' },
-  { id: 'uniform', label: 'Uniform' },
+  { id: 'community', label: () => m.levers_netcolor_community() },
+  { id: 'label', label: () => m.levers_netcolor_label() },
+  { id: 'presence', label: () => m.levers_netcolor_presence() },
+  { id: 'source_overlay', label: () => m.levers_netcolor_source_overlay() },
+  { id: 'uniform', label: () => m.levers_netcolor_uniform() },
   // Phase 125 — colour by a per-article metric.
-  { id: 'metric', label: 'Metric' }
+  { id: 'metric', label: () => m.levers_netcolor_metric() }
 ];

@@ -174,5 +174,14 @@
   "levers_cells_aria": "Überschreibungen je Zelle",
   "levers_cells_reset_title": "Die benutzerdefinierte Konfiguration auf allen {count} überschriebenen Zellen löschen und sie auf den Panel-Standard zurücksetzen",
   "levers_cells_reset_one": "↺ {count} benutzerdefinierte Zelle zurücksetzen",
-  "levers_cells_reset_other": "↺ {count} benutzerdefinierte Zellen zurücksetzen"
+  "levers_cells_reset_other": "↺ {count} benutzerdefinierte Zellen zurücksetzen",
+  "levers_netsize_weight": "Gewicht",
+  "levers_netsize_degree": "Grad",
+  "levers_netsize_metric": "Metrik",
+  "levers_netcolor_community": "Themen-Cluster",
+  "levers_netcolor_label": "Entitätstyp",
+  "levers_netcolor_presence": "Quellenpräsenz",
+  "levers_netcolor_source_overlay": "Quellen-Overlay",
+  "levers_netcolor_uniform": "Einheitlich",
+  "levers_netcolor_metric": "Metrik"
 }

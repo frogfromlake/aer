@@ -8,6 +8,7 @@
 import { diffWordsWithSpace, type Change } from 'diff';
 import type { ArticleRevisionEntryDto } from '$lib/api/queries';
 import type { NSClass } from '$lib/negative-space';
+import { m } from '../../paraglide/messages.js';
 
 // ── Diff-chain derivation (Phase 133 — editorial versions only) ──────────────
 
@@ -75,11 +76,11 @@ export function silentEditSignals(
 ): string[] {
   const s: string[] = [];
   if (revisionList.some((r) => r.diffStatus === 'changed'))
-    s.push('edited after publication (paragraph or headline change)');
+    s.push(m.evidence_signal_edited_after_publication());
   if (revisionList.some((r) => r.trigger === 'republication_trigger'))
-    s.push('republished under a new URL');
+    s.push(m.evidence_signal_republished_new_url());
   if (revisionStatus === 'failed' || revisionStatus === 'no_snapshots')
-    s.push('archive history could not be established (Wayback gap)');
+    s.push(m.evidence_signal_archive_history_unestablished());
   return s;
 }
 
@@ -139,23 +140,23 @@ export function walkStepLabel(
 // publisher changed since the last archive". Read newest → current.
 export function cumulativeLabel(revisionList: ArticleRevisionEntryDto[]): string {
   const newest = revisionList[revisionList.length - 1]?.snapshotAt;
-  if (!newest) return 'Latest snapshot → current article';
-  return `Latest snapshot ${new Date(newest).toLocaleDateString('en-CA')} → current article`;
+  if (!newest) return m.evidence_cumulative_label_no_date();
+  return m.evidence_cumulative_label({ date: new Date(newest).toLocaleDateString('en-CA') });
 }
 
 export function lookupStatusLabel(status: string): string {
   switch (status) {
     case 'ok':
-      return 'Wayback CDX returned snapshots.';
+      return m.evidence_lookup_ok();
     case 'no_snapshots':
-      return 'No Wayback snapshots — the URL is not yet archived.';
+      return m.evidence_lookup_no_snapshots();
     case 'failed':
-      return 'Wayback lookup failed (timeout or rate-limit).';
+      return m.evidence_lookup_failed();
     case 'skipped':
-      return 'Lookup skipped (canonical URL missing).';
+      return m.evidence_lookup_skipped();
     case 'disabled':
-      return 'Wayback integration is disabled in this deployment.';
+      return m.evidence_lookup_disabled();
     default:
-      return 'No revision metadata recorded for this article.';
+      return m.evidence_lookup_none();
   }
 }

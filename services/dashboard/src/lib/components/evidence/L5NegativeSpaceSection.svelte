@@ -4,6 +4,7 @@
   // article (methodological register, never a defect), open-by-default when ≥1
   // fires. The detailed headline before/after diff lives in the Diff tab.
   import type { ArticleRevisionEntryDto } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
   import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
   import { getNSClassDef } from '$lib/negative-space';
   import { silentEditSignals, nsMarkersFor } from './l5-evidence-internals';
@@ -35,7 +36,7 @@
       {#each nsMarkers as nsClass (nsClass)}
         <NegativeSpaceBadge {nsClass} size="md" showLabel showInfo />
       {/each}
-      <span class="ns-summary-text">What AĒR cannot fully see for this article</span>
+      <span class="ns-summary-text">{m.evidence_ns_cannot_see()}</span>
     </summary>
     <div class="ns-body">
       {#each nsMarkers as nsClass (nsClass)}

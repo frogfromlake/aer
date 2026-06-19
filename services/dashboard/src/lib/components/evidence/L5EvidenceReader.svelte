@@ -22,6 +22,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { Dialog } from '$lib/components/base';
+  import { m } from '$lib/paraglide/messages.js';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import L5MetaGrid from './L5MetaGrid.svelte';
   import L5NegativeSpaceSection from './L5NegativeSpaceSection.svelte';
@@ -116,7 +117,7 @@
   );
 
   let title = $derived.by(() => {
-    if (!articleId) return 'Article';
+    if (!articleId) return m.evidence_article();
     if (detailQ.data?.kind === 'success' && detailQ.data.data) {
       const d = detailQ.data.data;
       return `${d.source} · ${new Date(d.timestamp).toLocaleDateString('en-CA')}`;
@@ -135,33 +136,26 @@
 
 <Dialog {open} {title} onClose={onDialogClose}>
   {#if !open || !articleId}
-    <p class="muted">No article selected.</p>
+    <p class="muted">{m.evidence_no_article_selected()}</p>
   {:else if detailQ.isPending}
-    <p class="muted" aria-busy="true">Loading article…</p>
+    <p class="muted" aria-busy="true">{m.evidence_loading_article()}</p>
   {:else if detailQ.isError}
     {@const err = detailQ.error as { httpStatus?: number; message?: string } | null}
     {#if err?.httpStatus === 404}
-      <p class="error">
-        Article metadata not found in the metadata store. The article still exists in the analytical
-        layer (Gold) and aggregates remain valid, but the full text cannot be retrieved — most
-        likely because PostgreSQL retention has pruned the document record while ClickHouse and
-        MinIO retain longer. Article ID: <code>{articleId}</code>.
-      </p>
+      <p class="error">{m.evidence_metadata_not_found({ id: articleId })}</p>
     {:else}
       <p class="error">
-        Failed to load article{err?.httpStatus ? ` (HTTP ${err.httpStatus})` : ''}. Check network
-        connectivity.
+        {err?.httpStatus
+          ? m.evidence_failed_to_load_with_status({ status: err.httpStatus })
+          : m.evidence_failed_to_load()}
       </p>
     {/if}
   {:else if detailQ.data?.kind === 'refusal'}
     <!-- k-anonymity or silver-eligibility gate -->
     <RefusalSurface refusal={detailQ.data} {ctx} />
-    <p class="refusal-note">
-      The article is not accessible below the k-anonymity threshold (WP-006 §7). The observation
-      exists in the Gold layer; the raw text is withheld to protect source-level attribution.
-    </p>
+    <p class="refusal-note">{m.evidence_k_anonymity_note()}</p>
   {:else if detailQ.data?.kind === 'network-error'}
-    <p class="error">Network error: {detailQ.data.message}</p>
+    <p class="error">{m.evidence_network_error({ message: detailQ.data.message })}</p>
   {:else if detailQ.data?.kind === 'success'}
     {@const article = detailQ.data.data}
     <L5MetaGrid {article} />
@@ -170,7 +164,7 @@
 
     <!-- Article body / Diff tabs. The Diff tab is enabled at chainLength >= 1
          (BUG-11) and dimmed only for non-web articles. -->
-    <div class="text-controls" role="tablist" aria-label="Article view tabs">
+    <div class="text-controls" role="tablist" aria-label={m.evidence_article_view_tabs()}>
       <button
         type="button"
         class="toggle-btn"
@@ -180,7 +174,7 @@
         onclick={(e) => {
           e.stopPropagation();
           activeTab = 'article';
-        }}>Article body</button
+        }}>{m.evidence_article_body()}</button
       >
       <button
         type="button"
@@ -191,14 +185,14 @@
         aria-selected={activeTab === 'diff'}
         disabled={article.sourceType !== 'web' || revisionList.length < 1}
         title={article.sourceType !== 'web'
-          ? 'Diff view is only meaningful for web articles with a canonical URL.'
+          ? m.evidence_diff_tab_title_non_web()
           : revisionList.length < 1
-            ? 'No Wayback snapshots — nothing to diff against.'
-            : 'View paragraph diff between current and archived snapshots'}
+            ? m.evidence_diff_tab_title_no_snapshots()
+            : m.evidence_diff_tab_title_view()}
         onclick={(e) => {
           e.stopPropagation();
           activeTab = 'diff';
-        }}>Diff{revisionList.length >= 1 ? ` (${revisionList.length})` : ''}</button
+        }}>{m.evidence_diff()}{revisionList.length >= 1 ? ` (${revisionList.length})` : ''}</button
       >
     </div>
 
@@ -211,7 +205,7 @@
           class="toggle-btn small"
           class:active={!showRaw}
           aria-pressed={!showRaw}
-          onclick={() => (showRaw = false)}>Cleaned</button
+          onclick={() => (showRaw = false)}>{m.evidence_cleaned()}</button
         >
         {#if article.rawText}
           <button
@@ -219,7 +213,7 @@
             class="toggle-btn small"
             class:active={showRaw}
             aria-pressed={showRaw}
-            onclick={() => (showRaw = true)}>Raw</button
+            onclick={() => (showRaw = true)}>{m.evidence_raw()}</button
           >
         {/if}
       </div>
@@ -254,7 +248,9 @@
     {#if article.extractionProvenance && Object.keys(article.extractionProvenance).length > 0}
       <details class="provenance-section" bind:open={provenanceExpanded}>
         <summary class="provenance-summary">
-          Extraction provenance ({Object.keys(article.extractionProvenance).length} extractors)
+          {m.evidence_extraction_provenance({
+            count: Object.keys(article.extractionProvenance).length
+          })}
         </summary>
         <dl class="provenance-list">
           {#each Object.entries(article.extractionProvenance) as [extractor, version] (extractor)}

@@ -19,6 +19,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
+  import { m } from '$lib/paraglide/messages.js';
   import {
     deriveDiffChain,
     selectedDiffPairIndex,
@@ -107,13 +108,15 @@
     <!-- No editorial change anywhere in the chain — show one clear line rather
          than a cumulative view that just restates "unchanged" (Issue 3). The
          full capture list stays in the Revision history section below. -->
+    {@const sincePart = chainHead
+      ? m.evidence_no_editorial_changes_since({
+          date: new Date(chainHead.snapshotAt).toLocaleDateString('en-CA')
+        })
+      : ''}
     <p class="muted">
-      No editorial changes detected — unchanged across {revisionList.length} archived capture{revisionList.length ===
-      1
-        ? ''
-        : 's'}{chainHead
-        ? ` since ${new Date(chainHead.snapshotAt).toLocaleDateString('en-CA')}`
-        : ''}. Wayback re-archived the page, but the article body never changed after extraction.
+      {revisionList.length === 1
+        ? m.evidence_no_editorial_changes_one({ count: revisionList.length, since: sincePart })
+        : m.evidence_no_editorial_changes_other({ count: revisionList.length, since: sincePart })}
     </p>
   {:else}
     <!-- Disclosure — how the editorial walk relates to the raw captures. The
@@ -121,26 +124,30 @@
          summarised here, never silently hidden (their full list is the
          Revision history below). -->
     <p class="diff-summary">
-      {changedCount} editorial {changedCount === 1 ? 'change' : 'changes'}
+      {changedCount === 1
+        ? m.evidence_editorial_change_count_one({ count: changedCount })
+        : m.evidence_editorial_change_count_other({ count: changedCount })}
       {#if identicalCount > 0}
-        · {identicalCount} identical re-archival{identicalCount === 1 ? '' : 's'} skipped
+        {identicalCount === 1
+          ? m.evidence_identical_rearchival_one({ count: identicalCount })
+          : m.evidence_identical_rearchival_other({ count: identicalCount })}
       {/if}
       {#if pendingCount > 0}
-        · {pendingCount} still computing
+        {m.evidence_still_computing({ count: pendingCount })}
       {/if}
     </p>
 
     <!-- View toggle — only when both an editorial walk and the cumulative
          chain-head comparison are available. -->
     {#if cumulativeAvailable && walkSteps.length > 0}
-      <div class="diff-view-toggle" role="tablist" aria-label="Diff view">
+      <div class="diff-view-toggle" role="tablist" aria-label={m.evidence_diff_view()}>
         <button
           type="button"
           class="toggle-btn small"
           class:active={diffView === 'walk'}
           role="tab"
           aria-selected={diffView === 'walk'}
-          onclick={() => (diffView = 'walk')}>Editorial walk</button
+          onclick={() => (diffView = 'walk')}>{m.evidence_editorial_walk()}</button
         >
         <button
           type="button"
@@ -148,20 +155,20 @@
           class:active={diffView === 'cumulative'}
           role="tab"
           aria-selected={diffView === 'cumulative'}
-          onclick={() => (diffView = 'cumulative')}>vs. current article</button
+          onclick={() => (diffView = 'cumulative')}>{m.evidence_vs_current_article()}</button
         >
       </div>
     {/if}
 
     {#if diffView === 'cumulative' && cumulativeAvailable}
       <div class="diff-controls">
-        <span class="label-xs">Cumulative</span>
+        <span class="label-xs">{m.evidence_cumulative()}</span>
         <span class="diff-pair-readout">{cumulativeLabel(revisionList)}</span>
       </div>
     {:else if walkSteps.length > 0}
       <div class="diff-controls">
         <label class="diff-pair-label">
-          <span class="label-xs">Editorial version</span>
+          <span class="label-xs">{m.evidence_editorial_version()}</span>
           {#if walkSteps.length > 1}
             <input
               type="range"
@@ -169,7 +176,7 @@
               max={walkSteps.length - 1}
               step={1}
               bind:value={walkPos}
-              aria-label="Editorial version selector"
+              aria-label={m.evidence_editorial_version_selector()}
             />
           {/if}
           <span class="diff-pair-readout">
@@ -178,60 +185,52 @@
         </label>
       </div>
     {:else}
-      <p class="muted">
-        No editorial changes to step through — every archived capture parsed to identical content
-        after extraction.
-      </p>
+      <p class="muted">{m.evidence_no_editorial_steps()}</p>
     {/if}
 
     {#if diffPairIndex < 0}
       <!-- No valid pair selected; the controls above explain why. -->
     {:else if diffQ.isPending}
-      <p class="muted" aria-busy="true">Loading diff…</p>
+      <p class="muted" aria-busy="true">{m.evidence_loading_diff()}</p>
     {:else if diffQ.data?.kind === 'refusal'}
       <RefusalSurface refusal={diffQ.data} {ctx} />
     {:else if diffQ.isError || diffQ.data?.kind === 'network-error'}
       {@const err = (diffQ.error ?? null) as { httpStatus?: number; message?: string } | null}
       {#if err?.httpStatus === 404 || (diffQ.data?.kind === 'network-error' && diffQ.data.httpStatus === 404)}
         <!-- BUG-7 fix — operator info removed. -->
-        <p class="muted">Diff is being computed; check back in a few minutes.</p>
+        <p class="muted">{m.evidence_diff_being_computed()}</p>
       {:else}
-        <p class="error">Could not load diff.</p>
+        <p class="error">{m.evidence_could_not_load_diff()}</p>
       {/if}
     {:else if diffQ.data?.kind === 'success' && diffQ.data.data}
       {@const diff = diffQ.data.data}
       {#if diff.pairKind === 'chain_head'}
         <p class="diff-kind-note">
-          <span class="diff-kind-pill">latest vs. current</span>
-          Comparing the current article body to the most recent Wayback snapshot — answers "what has the
-          publisher changed since the IA last archived this URL".
+          <span class="diff-kind-pill">{m.evidence_latest_vs_current()}</span>
+          {m.evidence_chain_head_note()}
         </p>
       {/if}
       {#if diff.headlineChanged}
         <div class="headline-change">
-          <p class="headline-label">Headline changed</p>
+          <p class="headline-label">{m.evidence_headline_changed()}</p>
           <p class="headline-before">
             <span class="op-mark op-del">−</span>
-            {diff.headlineBefore || '(empty)'}
+            {diff.headlineBefore || m.evidence_empty()}
           </p>
           <p class="headline-after">
             <span class="op-mark op-add">+</span>
-            {diff.headlineAfter || '(empty)'}
+            {diff.headlineAfter || m.evidence_empty()}
           </p>
         </div>
       {/if}
       {#if diff.identical}
         <!-- BUG-10 fix — distinct surface for "computed but identical" (vs.
              BUG-7's "pending" state). -->
-        <p class="muted">
-          Both snapshots parse to identical content after extraction. The Wayback Machine archived
-          two captures with different file hashes but trafilatura recovers the same article body
-          from each — likely just an HTTP re-fetch without an editorial change.
-        </p>
+        <p class="muted">{m.evidence_both_identical()}</p>
       {:else if diff.diffParagraphs.length === 0}
-        <p class="muted">No paragraph-level changes detected between these snapshots.</p>
+        <p class="muted">{m.evidence_no_paragraph_changes()}</p>
       {:else}
-        <ol class="diff-list" aria-label="Paragraph diff">
+        <ol class="diff-list" aria-label={m.evidence_paragraph_diff()}>
           {#each diff.diffParagraphs as op, idx (idx)}
             <li class="diff-item op-{op.op}">
               {#if op.op === 'add'}
@@ -269,7 +268,7 @@
                      must never render as a blank row — surface it explicitly
                      instead. -->
                 <span class="op-mark">·</span>
-                <span class="diff-text muted">Unrecognised change (<code>{op.op}</code>).</span>
+                <span class="diff-text muted">{m.evidence_unrecognised_change({ op: op.op })}</span>
               {/if}
             </li>
           {/each}
@@ -278,10 +277,7 @@
     {/if}
   {/if}
 {:else}
-  <p class="muted">
-    No Wayback snapshots are available for this article yet. The diff view becomes available once
-    Wayback CDX captures the first snapshot.
-  </p>
+  <p class="muted">{m.evidence_no_wayback_snapshots()}</p>
 {/if}
 
 <style>

@@ -47,6 +47,7 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   let {
     ctx,
@@ -402,11 +403,11 @@
   let readout = $state<ReadoutState>(HIDDEN_READOUT);
   function showNodeReadout(e: PointerEvent, n: SimNode): void {
     const rows: ReadoutRow[] = [
-      { label: 'weight', value: fmtValue(n.totalCount) },
-      { label: 'degree', value: fmtValue(n.degree) }
+      { label: m.cells_net_readout_weight(), value: fmtValue(n.totalCount) },
+      { label: m.cells_net_readout_degree(), value: fmtValue(n.degree) }
     ];
     if (n.presenceCount > 0) {
-      rows.push({ label: 'in sources', value: fmtValue(n.presenceCount) });
+      rows.push({ label: m.cells_net_readout_in_sources(), value: fmtValue(n.presenceCount) });
     }
     // Phase 125 (ISSUE 8 + ISSUE 7) — when a metric channel is bound, surface
     // that node's metric value so the tooltip reflects the chosen channel(s)
@@ -414,14 +415,15 @@
     // metrics; a node with no such article reads 'no data', never 0.
     if (sizeMetricReq) {
       rows.push({
-        label: `size · ${sizeMetricReq}`,
-        value: n.metricValue != null ? fmtValue(n.metricValue) : 'no data'
+        label: m.cells_net_readout_size({ metric: sizeMetricReq }),
+        value: n.metricValue != null ? fmtValue(n.metricValue) : m.cells_net_readout_no_data()
       });
     }
     if (colorMetricReq && colorMetricReq !== sizeMetricReq) {
       rows.push({
-        label: `colour · ${colorMetricReq}`,
-        value: n.metricColorValue != null ? fmtValue(n.metricColorValue) : 'no data'
+        label: m.cells_net_readout_colour({ metric: colorMetricReq }),
+        value:
+          n.metricColorValue != null ? fmtValue(n.metricColorValue) : m.cells_net_readout_no_data()
       });
     }
     readout = {
@@ -430,17 +432,19 @@
       y: e.clientY,
       title: `${n.id} · ${n.label}`,
       rows,
-      hint: 'Click to see articles'
+      hint: m.cells_net_readout_click_articles()
     };
   }
   function onEdgeHover(e: PointerEvent, edge: SimEdge): void {
     if (panning || draggingNode) return;
-    const rows: ReadoutRow[] = [{ label: 'weight', value: fmtValue(edge.weight) }];
+    const rows: ReadoutRow[] = [
+      { label: m.cells_net_readout_weight(), value: fmtValue(edge.weight) }
+    ];
     if (edge.articleCount > 0) {
-      rows.push({ label: 'articles', value: fmtValue(edge.articleCount) });
+      rows.push({ label: m.cells_net_readout_articles(), value: fmtValue(edge.articleCount) });
     }
     if (isMergedScope && edge.presence.length > 0) {
-      rows.push({ label: 'sources', value: edge.presence.join(', ') });
+      rows.push({ label: m.cells_net_readout_sources(), value: edge.presence.join(', ') });
     }
     readout = {
       visible: true,
@@ -614,29 +618,29 @@
 <section class="net-cell" aria-labelledby="net-title" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="net-title" class="cell-title">
-      Entity co-occurrence
-      <span class="muted">— top {TOP_N} pairs · <strong class="scope-name">{scopeId}</strong></span>
+      {m.cells_net_title()}
+      <span class="muted"
+        >{m.cells_net_subtitle({ count: TOP_N })}<strong class="scope-name">{scopeId}</strong></span
+      >
     </h3>
     {#if nodes.length > 0}
       <div class="header-actions">
         <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-        <button class="reset-btn" onclick={resetView} title="Reset zoom">⊙</button>
+        <button class="reset-btn" onclick={resetView} title={m.cells_net_reset_zoom()}>⊙</button>
       </div>
     {/if}
   </header>
 
   {#if dataLayer === 'silver'}
     <p class="notice">
-      Co-occurrence network is not available for Silver-layer data. Co-occurrence analysis operates
-      on Gold-layer entity extractions. Switch to Distribution to explore Silver-layer document
-      characteristics.
+      {m.cells_net_silver_notice()}
     </p>
   {:else if graphQ.isPending}
-    <p class="muted" aria-busy="true">Loading co-occurrence graph…</p>
+    <p class="muted" aria-busy="true">{m.cells_net_loading()}</p>
   {:else if graphQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={graphQ.data} {ctx} />
   {:else if graphQ.isError || graphQ.data?.kind === 'network-error'}
-    <p class="muted">Could not load co-occurrence graph.</p>
+    <p class="muted">{m.cells_net_load_error()}</p>
   {:else if graphQ.data?.kind === 'success' && graphQ.data.data.edges.length === 0}
     {@const articlesInScope = graphQ.data.data.articlesInScope ?? 0}
     {#if articlesInScope > 0}
@@ -645,16 +649,18 @@
            no rows — i.e. the data exists in `aer_gold.entities` but
            the corpus extractor missed it. Distinct from sparse data;
            the worker also logs `corpus.sweep.pipeline_gap` per source. -->
-      <aside class="pipeline-gap" role="alert" aria-label="Pipeline gap warning">
-        <strong>Pipeline gap detected.</strong>
+      <aside class="pipeline-gap" role="alert" aria-label={m.cells_net_pipeline_gap_aria()}>
+        <strong>{m.cells_net_pipeline_gap_strong()}</strong>
         {articlesInScope}
-        {articlesInScope === 1 ? 'article' : 'articles'} in this window have ≥2 entities, but the co-occurrence
-        sweep produced zero rows. The data exists in
-        <code>aer_gold.entities</code>; the worker's corpus extractor is missing it. Check
-        <code>corpus.sweep.pipeline_gap</code> warnings in the analysis-worker logs.
+        {articlesInScope === 1
+          ? m.cells_net_pipeline_gap_articles_one()
+          : m.cells_net_pipeline_gap_articles_other()}{m.cells_net_pipeline_gap_body_a()}<code
+          >aer_gold.entities</code
+        >{m.cells_net_pipeline_gap_body_b()}<code>corpus.sweep.pipeline_gap</code
+        >{m.cells_net_pipeline_gap_body_c()}
       </aside>
     {:else}
-      <p class="muted">No entity co-occurrences in this window.</p>
+      <p class="muted">{m.cells_net_empty()}</p>
     {/if}
   {:else if nodes.length > 0}
     {#if isMergedScope}
@@ -662,13 +668,14 @@
            merged so the reader does not mistake an overlay graph for a
            single-source one. Mirrors the methodology-banner pattern
            the other pillars already use. -->
-      <aside class="methodology-merged" role="note" aria-label="Merged provenance">
-        <strong>Merged graph</strong> — co-occurrences from {sources.length} sources are pooled into one
-        network. Source provenance is carried by the <em>border ring</em> on each node and the
-        <em>edge stroke</em>, so a metric channel (entity type, source presence, …) on the node
-        <em>fill</em> stays readable. Nodes and edges observed in more than one source render in
-        grey. Picking <em>Source overlay</em> as the Colour channel makes the fill match the border for
-        a single-encoding view.
+      <aside class="methodology-merged" role="note" aria-label={m.cells_net_merged_aria()}>
+        <strong>{m.cells_net_merged_strong()}</strong>{m.cells_net_merged_body({
+          count: sources.length
+        })}<em>{m.cells_net_merged_body_border()}</em>{m.cells_net_merged_body_mid()}<em
+          >{m.cells_net_merged_body_edge()}</em
+        >{m.cells_net_merged_body_mid2()}<em>{m.cells_net_merged_body_fill()}</em
+        >{m.cells_net_merged_body_mid3()}<em>{m.cells_net_merged_body_overlay()}</em
+        >{m.cells_net_merged_body_end()}
       </aside>
     {/if}
     {#if nodes.length < 8}
@@ -677,11 +684,9 @@
            mistake corpus sparseness for an analytical conclusion. The
            BFF logs the same statistic in `op=GetEntityCoOccurrence` /
            `op=PostEntityCoOccurrenceQuery` for operator-side diagnosis. -->
-      <aside class="methodology-note" role="note" aria-label="Sparse-corpus note">
-        <strong>{nodes.length} nodes · {edges.length} edges</strong> — the entity-co-occurrence graph
-        collapsed to a small set. Possible causes: short scope window, few articles in the active source
-        set, NER pipeline conservative on this corpus, or a few dominant entities crowding out the rest.
-        Widen the window or pick a richer source subset.
+      <aside class="methodology-note" role="note" aria-label={m.cells_net_sparse_aria()}>
+        <strong>{m.cells_net_sparse_strong({ nodes: nodes.length, edges: edges.length })}</strong
+        >{m.cells_net_sparse_body()}
       </aside>
     {/if}
     <svg
@@ -690,7 +695,7 @@
       class:panning
       viewBox="0 0 {WIDTH} {HEIGHT}"
       role="img"
-      aria-label="Force-directed entity co-occurrence graph. Ctrl or Cmd plus scroll to zoom, drag to pan, drag nodes to reposition."
+      aria-label={m.cells_net_graph_aria()}
     >
       <!-- Transparent hit-target for pan -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -750,7 +755,12 @@
                 fill-opacity={n.radius > 8 ? '1' : '0.7'}
                 font-family="var(--font-mono)"
                 >{n.displayName}{#if n.relabeled}<tspan class="relabel-mark" dx="3"
-                    >↺<title>Relabelled from “{n.sourceText}” ({viewerLang})</title></tspan
+                    >↺<title
+                      >{m.cells_net_relabel_mark_title({
+                        text: n.sourceText,
+                        lang: viewerLang ?? ''
+                      })}</title
+                    ></tspan
                   >{/if}</text
               >
             </g>
@@ -759,23 +769,32 @@
       </g>
     </svg>
     <p class="hint">
-      Ctrl/⌘ + scroll to zoom · drag background to pan · drag nodes to reposition · click node for
-      articles
+      {m.cells_net_hint()}
     </p>
     {#if totalNodeCount > 0}
       <p class="link-coverage" role="status">
         {#if relabelActive}
-          <strong>{labeledNodeCount}</strong> of {linkedNodeCount} Wikidata-linked
-          {linkedNodeCount === 1 ? 'node' : 'nodes'} shown in the app language (<strong
+          <strong>{labeledNodeCount}</strong>{m.cells_net_coverage_relabel_a({
+            linked: linkedNodeCount
+          })}{linkedNodeCount === 1
+            ? m.cells_net_coverage_node_one()
+            : m.cells_net_coverage_node_other()}{m.cells_net_coverage_relabel_b()}<strong
             >{viewerLang}</strong
-          >); ↺ marks those whose label differs from the source form. The remaining {totalNodeCount -
-            labeledNodeCount} keep their source form
-          {#if linkedNodeCount > labeledNodeCount}(incl. {linkedNodeCount - labeledNodeCount} linked with
-            no {viewerLang} label){/if}.
+          >{m.cells_net_coverage_relabel_c({
+            count: totalNodeCount - labeledNodeCount
+          })}{#if linkedNodeCount > labeledNodeCount}{m.cells_net_coverage_relabel_unlabeled({
+              count: linkedNodeCount - labeledNodeCount,
+              lang: viewerLang ?? ''
+            })}{/if}.
         {:else}
-          {linkedNodeCount} of {totalNodeCount}
-          {totalNodeCount === 1 ? 'node' : 'nodes'} link to Wikidata — switch <em>Labels</em> to the app
-          language to relabel that subset; unlinked nodes stay on their source form.
+          {m.cells_net_coverage_linked({
+            linked: linkedNodeCount,
+            total: totalNodeCount
+          })}{totalNodeCount === 1
+            ? m.cells_net_coverage_node_one()
+            : m.cells_net_coverage_node_other()}{m.cells_net_coverage_linked_b()}<em
+            >{m.cells_net_coverage_labels()}</em
+          >{m.cells_net_coverage_linked_c()}
         {/if}
       </p>
     {/if}
@@ -787,7 +806,7 @@
            Colour channel controls the *fill* metric). When the user
            picks `Source overlay` as the Colour channel, the fill ALSO
            matches the legend — the legend is consistent either way. -->
-      <ul class="source-legend" aria-label="Source overlay legend">
+      <ul class="source-legend" aria-label={m.cells_net_source_legend_aria()}>
         {#each sources as src (src.name)}
           <li>
             <span
@@ -800,7 +819,7 @@
         {/each}
         <li>
           <span class="legend-swatch" style="background:{SHARED_COLOR}" aria-hidden="true"></span>
-          <span class="legend-label">shared (≥2 sources)</span>
+          <span class="legend-label">{m.cells_net_legend_shared()}</span>
         </li>
         <li>
           <span
@@ -808,7 +827,7 @@
             style="background:{UNKNOWN_PROVENANCE_COLOR}"
             aria-hidden="true"
           ></span>
-          <span class="legend-label">provenance unavailable</span>
+          <span class="legend-label">{m.cells_net_legend_provenance_unavailable()}</span>
         </li>
       </ul>
     {/if}
@@ -817,11 +836,13 @@
            can bind to different metrics, each with its own extent; this is the
            visual key for the size ramp and/or colour ramp, with an honest note
            about grey (no-data) nodes. -->
-      <div class="metric-legend" aria-label="Metric channel legend">
+      <div class="metric-legend" aria-label={m.cells_net_metric_legend_aria()}>
         {#if sizeMetricReq}
           {#if metricExtent}
             <div class="metric-legend-row">
-              <span class="metric-legend-title">Size · {sizeMetricReq}</span>
+              <span class="metric-legend-title"
+                >{m.cells_net_legend_size({ metric: sizeMetricReq })}</span
+              >
               <span class="metric-legend-min">{fmtValue(metricExtent.min)}</span>
               <span class="metric-legend-sizes" aria-hidden="true">
                 <span class="size-dot size-dot-sm"></span>
@@ -831,32 +852,32 @@
             </div>
           {:else}
             <span class="metric-legend-note"
-              >No node carries “{sizeMetricReq}” (size) in this scope — channel inactive (honest
-              absence).</span
+              >{m.cells_net_legend_size_inactive({ metric: sizeMetricReq })}</span
             >
           {/if}
         {/if}
         {#if colorMetricReq}
           {#if metricColorExtent}
             <div class="metric-legend-row">
-              <span class="metric-legend-title">Colour · {colorMetricReq}</span>
+              <span class="metric-legend-title"
+                >{m.cells_net_legend_colour({ metric: colorMetricReq })}</span
+              >
               <span class="metric-legend-min">{fmtValue(metricColorExtent.min)}</span>
               <span class="metric-legend-ramp" aria-hidden="true"></span>
               <span class="metric-legend-max">{fmtValue(metricColorExtent.max)}</span>
             </div>
           {:else}
             <span class="metric-legend-note"
-              >No node carries “{colorMetricReq}” (colour) in this scope — channel inactive (honest
-              absence).</span
+              >{m.cells_net_legend_colour_inactive({ metric: colorMetricReq })}</span
             >
           {/if}
         {/if}
-        <span class="metric-legend-note">Grey nodes have no such article (never a coerced 0).</span>
+        <span class="metric-legend-note">{m.cells_net_legend_grey_note()}</span>
       </div>
     {/if}
     <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
   {:else}
-    <p class="muted" aria-busy="true">Laying out…</p>
+    <p class="muted" aria-busy="true">{m.cells_net_laying_out()}</p>
   {/if}
   {#if selectedEntity}
     <div class="entity-panel">
@@ -871,8 +892,8 @@
               href={wikidataHref(selectedEntity.wikidataQid)}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Wikidata page for ${selectedEntity.text} (external, opens in new tab)`}
-              title="Open Wikidata page"
+              aria-label={m.cells_net_wikidata_aria({ entity: selectedEntity.text })}
+              title={m.cells_net_open_wikidata()}
             >
               <span aria-hidden="true">↗ Wikidata</span>
             </a>
@@ -881,8 +902,8 @@
               href={wikipediaHref(selectedEntity.wikidataQid)}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`Wikipedia article for ${selectedEntity.text} (external, opens in new tab)`}
-              title="Open Wikipedia article"
+              aria-label={m.cells_net_wikipedia_aria({ entity: selectedEntity.text })}
+              title={m.cells_net_open_wikipedia()}
             >
               <span aria-hidden="true">↗ Wikipedia</span>
             </a>
@@ -891,7 +912,7 @@
         {/if}
         {#if selectedEntity.coOccursWith.length > 0}
           <span class="cooccurs-hint">
-            co-occurs with:
+            {m.cells_net_cooccurs_with()}
             {#each selectedEntity.coOccursWith.slice(0, 6) as peer (peer)}
               <button
                 class="peer-chip"
@@ -915,14 +936,16 @@
               >
             {/each}
             {#if selectedEntity.coOccursWith.length > 6}
-              <span class="muted">+{selectedEntity.coOccursWith.length - 6} more</span>
+              <span class="muted"
+                >{m.cells_net_more({ count: selectedEntity.coOccursWith.length - 6 })}</span
+              >
             {/if}
           </span>
         {/if}
         <button
           class="close-btn"
           onclick={() => (selectedEntity = null)}
-          aria-label="Close entity panel">✕</button
+          aria-label={m.cells_net_close_panel()}>✕</button
         >
       </header>
     </div>
@@ -938,7 +961,9 @@
      active scope. -->
 <ArticleListModal
   open={selectedEntity !== null}
-  title={selectedEntity ? `Articles mentioning "${selectedEntity.text}"` : 'Articles'}
+  title={selectedEntity
+    ? m.cells_net_articles_title({ entity: selectedEntity.text })
+    : m.cells_net_articles_fallback()}
   {ctx}
   {windowStart}
   {windowEnd}

@@ -13,6 +13,7 @@
 import type { ScopeGroup } from '$lib/state/url-internals';
 import type { ProbeDossierDto } from '$lib/api/queries';
 import type { DiscourseFunction } from '$lib/discourse-function';
+import { m } from '../paraglide/messages.js';
 
 /** A single source row as it arrives on the probe dossier. */
 export type DossierSource = ProbeDossierDto['sources'][number];
@@ -22,16 +23,35 @@ export type SourcesForProbe = (probeId: string) => DossierSource[];
 
 /** DF metadata table — id, human label, and the chip/accent colour. The
  *  single source of truth for the four discourse functions the editor
- *  surfaces (mirrors the worker/BFF DF taxonomy). */
+ *  surfaces (mirrors the worker/BFF DF taxonomy). `label` is a getter so the
+ *  rendered text stays locale-reactive (resolved against the active locale at
+ *  each render) and reuses the canonical `domain_function_*_label` catalog —
+ *  never frozen at module load. */
 export const DISCOURSE_FUNCTIONS: ReadonlyArray<{
   id: DiscourseFunction;
-  label: string;
+  label: () => string;
   color: string;
 }> = [
-  { id: 'epistemic_authority', label: 'Epistemic Authority', color: '#7dc7e5' },
-  { id: 'power_legitimation', label: 'Power Legitimation', color: '#e8a25c' },
-  { id: 'cohesion_identity', label: 'Cohesion & Identity', color: '#a3c984' },
-  { id: 'subversion_friction', label: 'Subversion & Friction', color: '#d97a7a' }
+  {
+    id: 'epistemic_authority',
+    label: () => m.domain_function_epistemic_authority_label(),
+    color: '#7dc7e5'
+  },
+  {
+    id: 'power_legitimation',
+    label: () => m.domain_function_power_legitimation_label(),
+    color: '#e8a25c'
+  },
+  {
+    id: 'cohesion_identity',
+    label: () => m.domain_function_cohesion_identity_label(),
+    color: '#a3c984'
+  },
+  {
+    id: 'subversion_friction',
+    label: () => m.domain_function_subversion_friction_label(),
+    color: '#d97a7a'
+  }
 ];
 
 /** Whether a source matches a DF lock.

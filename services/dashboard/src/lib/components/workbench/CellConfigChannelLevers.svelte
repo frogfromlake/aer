@@ -73,7 +73,7 @@
       aria-label={m.workbench_ccp_node_size_select_label()}
     >
       {#each NET_SIZE_CHANNELS as c (c.id)}
-        <option value={c.id}>{c.label}</option>
+        <option value={c.id}>{c.label()}</option>
       {/each}
     </select>
     <span class="ccp-rk"
@@ -88,7 +88,7 @@
       aria-label={m.workbench_ccp_node_colour_select_label()}
     >
       {#each NET_COLOR_CHANNELS as c (c.id)}
-        <option value={c.id}>{c.label}</option>
+        <option value={c.id}>{c.label()}</option>
       {/each}
     </select>
   </div>

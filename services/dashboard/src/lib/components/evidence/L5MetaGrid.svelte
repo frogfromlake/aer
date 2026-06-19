@@ -2,6 +2,7 @@
   // Article metadata header for the L5 Evidence Reader (Phase 141 extraction
   // from L5EvidenceReader.svelte). Pure presentation of the Silver detail row.
   import type { ArticleDetailDto } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
   import { formatTs } from './l5-evidence-internals';
 
   let { article }: { article: ArticleDetailDto } = $props();
@@ -10,26 +11,26 @@
 <!-- eslint-disable svelte/no-navigation-without-resolve -- article.url is an external link opened in a new tab -->
 <dl class="meta-grid">
   <div class="meta-item">
-    <dt>Source</dt>
+    <dt>{m.evidence_meta_source()}</dt>
     <dd><code>{article.source}</code></dd>
   </div>
   <div class="meta-item">
-    <dt>Published</dt>
+    <dt>{m.evidence_meta_published()}</dt>
     <dd><time datetime={article.timestamp}>{formatTs(article.timestamp)}</time></dd>
   </div>
   {#if article.language}
     <div class="meta-item">
-      <dt>Language</dt>
+      <dt>{m.evidence_meta_language()}</dt>
       <dd><code>{article.language}</code></dd>
     </div>
   {/if}
   <div class="meta-item">
-    <dt>Words</dt>
+    <dt>{m.evidence_meta_words()}</dt>
     <dd>{article.wordCount.toLocaleString()}</dd>
   </div>
   {#if article.url}
     <div class="meta-item">
-      <dt>URL</dt>
+      <dt>{m.evidence_meta_url()}</dt>
       <dd>
         <a href={article.url} target="_blank" rel="noopener noreferrer" class="source-link">
           {article.url}
@@ -38,7 +39,7 @@
     </div>
   {/if}
   <div class="meta-item">
-    <dt>Schema</dt>
+    <dt>{m.evidence_meta_schema()}</dt>
     <dd><code>{article.schemaVersion}</code></dd>
   </div>
 </dl>

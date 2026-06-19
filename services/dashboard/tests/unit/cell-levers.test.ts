@@ -33,8 +33,9 @@ describe('network channel option tables', () => {
   });
 
   it('give every channel a human label', () => {
+    // `label` is a getter (locale-reactive) — resolve it before asserting.
     for (const c of [...NET_SIZE_CHANNELS, ...NET_COLOR_CHANNELS]) {
-      expect(c.label.length).toBeGreaterThan(0);
+      expect(c.label().length).toBeGreaterThan(0);
     }
   });
 });

@@ -12,6 +12,7 @@
       "./messages/{locale}/workbench.json",
       "./messages/{locale}/levers.json",
       "./messages/{locale}/cells.json",
+      "./messages/{locale}/evidence.json",
       "./messages/{locale}/dossier.json",
       "./messages/{locale}/source.json",
       "./messages/{locale}/auth.json",

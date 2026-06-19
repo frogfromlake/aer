@@ -106,14 +106,14 @@
         type="date"
         value={isoDate(from)}
         onchange={(e) => pickFrom((e.currentTarget as HTMLInputElement).value)}
-        aria-label="Window start"
+        aria-label={m.base_daterange_start_aria()}
       />
       <span class="sep" aria-hidden="true">→</span>
       <input
         type="date"
         value={isoDate(to)}
         onchange={(e) => pickTo((e.currentTarget as HTMLInputElement).value)}
-        aria-label="Window end"
+        aria-label={m.base_daterange_end_aria()}
       />
     </div>
   {/if}

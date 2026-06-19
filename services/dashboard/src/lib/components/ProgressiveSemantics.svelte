@@ -20,6 +20,7 @@
   // (`emphasis='methodological'`) flips the visual weighting at L4.
   import type { components } from '$lib/api/types';
   import { SegmentedControl } from '$lib/components/base';
+  import { m } from '$lib/paraglide/messages.js';
 
   type Registers = components['schemas']['ContentRegisters'];
   type RegisterId = 'semantic' | 'methodological';
@@ -49,8 +50,12 @@
   let regionId = $derived(id ?? fallbackRegionId);
 
   const OPTIONS: readonly { id: RegisterId; label: string; hint: string }[] = [
-    { id: 'semantic', label: 'Plain language', hint: 'Reader-first summary' },
-    { id: 'methodological', label: 'Methodology', hint: 'Algorithm, gate, limits' }
+    { id: 'semantic', label: m.cells_ps_plain_label(), hint: m.cells_ps_plain_hint() },
+    {
+      id: 'methodological',
+      label: m.cells_ps_methodology_label(),
+      hint: m.cells_ps_methodology_hint()
+    }
   ];
 
   let activeRegister = $derived(
@@ -67,7 +72,7 @@
       options={OPTIONS}
       value={active}
       onChange={(next) => (active = next)}
-      ariaLabel="Register"
+      ariaLabel={m.cells_ps_register_aria()}
       size="sm"
     />
   </div>
@@ -75,7 +80,9 @@
     id={regionId}
     class="register-body"
     role="region"
-    aria-label="{active === 'semantic' ? 'Plain-language' : 'Methodological'} register"
+    aria-label={active === 'semantic'
+      ? m.cells_ps_region_plain()
+      : m.cells_ps_region_methodological()}
   >
     <p class="primary">{detail === 'short' ? activeRegister.short : activeRegister.long}</p>
   </div>

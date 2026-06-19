@@ -5,6 +5,7 @@
   // rendered for `source_type='web'` articles (the parent gates that) — the
   // Wayback CDX signal needs a canonical URL the IA can archive.
   import type { ArticleRevisionEntryDto, FetchContext, RefusalOutcome } from '$lib/api/queries';
+  import { m } from '$lib/paraglide/messages.js';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { formatTs, sentimentArrow, fmtDelta, lookupStatusLabel } from './l5-evidence-internals';
 
@@ -28,7 +29,7 @@
 <!-- eslint-disable svelte/no-navigation-without-resolve -- rev.archiveUrl is an external link opened in a new tab -->
 {#if revisionsRefusal}
   <details class="revisions-section">
-    <summary class="provenance-summary">Revision history (refused)</summary>
+    <summary class="provenance-summary">{m.evidence_revision_history_refused()}</summary>
     <div class="revisions-body">
       <RefusalSurface refusal={revisionsRefusal} {ctx} />
     </div>
@@ -36,8 +37,9 @@
 {:else if revisionsSuccess}
   <details class="revisions-section" bind:open={expanded}>
     <summary class="provenance-summary">
-      Revision history ({revisionList.length}
-      {revisionList.length === 1 ? 'revision' : 'revisions'})
+      {revisionList.length === 1
+        ? m.evidence_revision_history_one({ count: revisionList.length })
+        : m.evidence_revision_history_other({ count: revisionList.length })}
       {#if revisionStatus && revisionStatus !== 'ok'}
         <span class="status-badge"><code>{revisionStatus}</code></span>
       {/if}
@@ -53,10 +55,10 @@
               <span
                 class="rev-diff-tag rev-diff-{rev.diffStatus}"
                 title={rev.diffStatus === 'changed'
-                  ? 'Editorial change detected at this capture'
+                  ? m.evidence_diff_title_changed()
                   : rev.diffStatus === 'identical'
-                    ? 'Re-archival with no editorial change after extraction'
-                    : 'Diff not yet computed'}
+                    ? m.evidence_diff_title_identical()
+                    : m.evidence_diff_title_pending()}
               >
                 {rev.diffStatus}
               </span>
@@ -65,7 +67,7 @@
               </code>
               {#if rev.archiveUrl}
                 <a href={rev.archiveUrl} target="_blank" rel="noopener noreferrer" class="rev-link">
-                  view snapshot ↗
+                  {m.evidence_view_snapshot()}
                 </a>
               {/if}
               <!-- Phase 122d.3 — discourse-shift deltas for this edit (later −
@@ -77,34 +79,35 @@
                     class="rev-delta-sent"
                     class:pos={(rev.sentimentDelta ?? 0) > 0}
                     class:neg={(rev.sentimentDelta ?? 0) < 0}
-                    title="Sentiment change across this edit (later − earlier), multilingual backbone"
+                    title={m.evidence_sentiment_title()}
                   >
-                    {sentimentArrow(rev.sentimentDelta ?? 0)} sentiment {fmtDelta(
-                      rev.sentimentDelta ?? 0
-                    )}
+                    {sentimentArrow(rev.sentimentDelta ?? 0)}
+                    {m.evidence_sentiment_label()}
+                    {fmtDelta(rev.sentimentDelta ?? 0)}
                   </span>
-                  <span
-                    class="rev-delta-topic"
-                    title="Semantic shift — E5 cosine distance between the two snapshot texts (0 = identical meaning)"
-                  >
-                    ⤳ shift {(rev.topicShiftScore ?? 0).toFixed(3)}
+                  <span class="rev-delta-topic" title={m.evidence_shift_title()}>
+                    ⤳ {m.evidence_shift_label()}
+                    {(rev.topicShiftScore ?? 0).toFixed(3)}
                   </span>
                   {#if (rev.entitiesAdded?.length ?? 0) > 0 || (rev.entitiesRemoved?.length ?? 0) > 0}
                     <span
                       class="rev-delta-ent"
-                      title={`Entities added: ${(rev.entitiesAdded ?? []).join(', ') || '—'}\nEntities removed: ${(rev.entitiesRemoved ?? []).join(', ') || '—'}`}
+                      title={m.evidence_entities_title({
+                        added: (rev.entitiesAdded ?? []).join(', ') || '—',
+                        removed: (rev.entitiesRemoved ?? []).join(', ') || '—'
+                      })}
                     >
                       +{rev.entitiesAdded?.length ?? 0} / −{rev.entitiesRemoved?.length ?? 0}
-                      entities
+                      {m.evidence_entities_label()}
                     </span>
                   {/if}
                 </span>
               {:else if rev.diffStatus === 'changed'}
                 <span
                   class="rev-deltas rev-deltas-pending"
-                  title="Discourse-shift deltas are still being computed for this edit"
+                  title={m.evidence_shift_computing_title()}
                 >
-                  shift computing…
+                  {m.evidence_shift_computing_label()}
                 </span>
               {/if}
             </li>

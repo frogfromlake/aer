@@ -13,6 +13,7 @@
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import { urlState } from '$lib/state/url.svelte';
   import type { Resolution, Normalization } from '$lib/state/url-internals';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     // Phase 122i revision (D1). Either a single source (legacy + split
@@ -65,7 +66,10 @@
   const isMergedMulti = $derived(resolvedSources.length > 1);
   const displayName = $derived(
     isMergedMulti
-      ? `${resolvedSources.length} sources merged · ${resolvedSources.join(', ')}`
+      ? m.cells_chart_merged_display({
+          count: resolvedSources.length,
+          list: resolvedSources.join(', ')
+        })
       : (resolvedSources[0] ?? '')
   );
 
@@ -133,7 +137,11 @@
 <div class="source-lane" aria-labelledby="sl-title-{displayName}">
   <h3 id="sl-title-{displayName}" class="source-lane-title">
     {#if isMergedMulti}
-      <code>{resolvedSources.length} sources merged</code>
+      <code
+        >{resolvedSources.length === 1
+          ? m.cells_chart_merged_heading_one({ count: resolvedSources.length })
+          : m.cells_chart_merged_heading_other({ count: resolvedSources.length })}</code
+      >
       <span class="emic-note">— {resolvedSources.join(' ∪ ')}</span>
     {:else}
       <code>{resolvedSources[0] ?? ''}</code>
@@ -145,11 +153,11 @@
 
   {#if metricsQ.isPending}
     <div class="chart-placeholder" aria-busy="true">
-      <p class="muted">Loading {metricName}…</p>
+      <p class="muted">{m.cells_chart_loading({ metric: metricName })}</p>
     </div>
   {:else if metricsQ.isError}
     <div class="chart-placeholder">
-      <p class="muted">Could not load metrics.</p>
+      <p class="muted">{m.cells_chart_load_error()}</p>
     </div>
   {:else if metricsQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={metricsQ.data} {ctx} />
@@ -160,13 +168,13 @@
       yLow={chartData.low}
       yHigh={chartData.high}
       yLabel={metricName}
-      ariaLabel="{metricName} for {displayName}"
+      ariaLabel={m.cells_chart_series_aria({ metric: metricName, name: displayName })}
       height={180}
       {yDomain}
     />
   {:else}
     <div class="chart-placeholder">
-      <p class="muted">No {metricName} data in this window.</p>
+      <p class="muted">{m.cells_chart_no_data({ metric: metricName })}</p>
     </div>
   {/if}
 </div>

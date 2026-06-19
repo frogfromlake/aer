@@ -70,7 +70,7 @@
           ? m.workbench_scope_group_summary_sources_one({ count: group.sourceIds.length })
           : m.workbench_scope_group_summary_sources_other({ count: group.sourceIds.length })}
         {#if lockMeta}{m.workbench_scope_group_summary_locked_to()}
-          <strong>{lockMeta.label}</strong>{/if}
+          <strong>{lockMeta.label()}</strong>{/if}
       </span>
       {#if canRemove}
         <button
@@ -140,7 +140,7 @@
           style:--chip-color={df.color}
           onclick={() => onSetLock(df.id)}
         >
-          {df.label}
+          {df.label()}
         </button>
       {/each}
     </div>

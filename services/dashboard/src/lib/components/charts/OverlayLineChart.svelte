@@ -30,6 +30,7 @@
     type ReadoutState
   } from '$lib/presentations/cell-readout';
   import CellReadout from '$lib/components/presentations/CellReadout.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     sourceNames: readonly string[];
@@ -280,7 +281,11 @@
 <div class="overlay-lane">
   <header class="overlay-header">
     <h3 class="overlay-title">
-      <code>{sourceNames.length} sources overlaid</code>
+      <code
+        >{sourceNames.length === 1
+          ? m.cells_overlay_heading_one({ count: sourceNames.length })
+          : m.cells_overlay_heading_other({ count: sourceNames.length })}</code
+      >
     </h3>
     <ul class="legend" role="list">
       {#each seriesData as s (s.name)}
@@ -294,18 +299,18 @@
 
   {#if anyPending}
     <div class="chart-placeholder" aria-busy="true">
-      <p class="muted">Loading {metricName}…</p>
+      <p class="muted">{m.cells_chart_loading({ metric: metricName })}</p>
     </div>
   {:else if allEmpty}
     <div class="chart-placeholder">
-      <p class="muted">No {metricName} data in this window.</p>
+      <p class="muted">{m.cells_chart_no_data({ metric: metricName })}</p>
     </div>
   {:else}
     <div
       bind:this={host}
       class="chart"
       role="img"
-      aria-label="{metricName} overlay across {sourceNames.length} sources"
+      aria-label={m.cells_overlay_aria({ metric: metricName, count: sourceNames.length })}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
   {/if}

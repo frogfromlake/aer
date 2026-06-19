@@ -174,5 +174,14 @@
   "levers_cells_aria": "Per-cell overrides",
   "levers_cells_reset_title": "Clear the custom per-cell configuration on all {count} overridden cell(s) and return them to the panel default",
   "levers_cells_reset_one": "↺ Reset {count} custom cell",
-  "levers_cells_reset_other": "↺ Reset {count} custom cells"
+  "levers_cells_reset_other": "↺ Reset {count} custom cells",
+  "levers_netsize_weight": "Weight",
+  "levers_netsize_degree": "Degree",
+  "levers_netsize_metric": "Metric",
+  "levers_netcolor_community": "Theme cluster",
+  "levers_netcolor_label": "Entity type",
+  "levers_netcolor_presence": "Source presence",
+  "levers_netcolor_source_overlay": "Source overlay",
+  "levers_netcolor_uniform": "Uniform",
+  "levers_netcolor_metric": "Metric"
 }
