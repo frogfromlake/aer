@@ -10,7 +10,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { m } from '$lib/paraglide/messages.js';
   import { beforeNavigate, goto } from '$app/navigation';
-  import { pushUrl, urlState, openOverlay } from '$lib/state/url.svelte';
+  import { pushUrl, urlState } from '$lib/state/url.svelte';
   import { defaultPresentationForPillar, getPillar } from '$lib/presentations';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
   import {
@@ -143,17 +143,6 @@
     editorDismissed = false;
   }
 
-  // Phase 135 — "New analysis": wipe the whole Workbench (all pillar state) and
-  // re-open the create-mode ScopeEditor — the explicit equivalent of clicking
-  // the SideRail "Workbench" link again. `pushUrl` so browser-back restores the
-  // previous analysis; `clearDraft` so the editor starts blank (not a resumed
-  // draft). The probe selection cart is kept so the editor seeds from it.
-  function newAnalysis() {
-    clearDraft();
-    editorDismissed = false;
-    pushUrl({ pillars: null, activePillar: null });
-  }
-
   // Phase 122k §11 — leaving the Workbench (SideRail Atmosphere /
   // Dossier / Reflection clicks, or any other route change) invalidates
   // the draft. Same-pathname navigations (the back-from-Apply case
@@ -192,31 +181,10 @@
       </div>
     {/if}
   {:else}
+    <!-- Phase 127 — the Save/New-analysis actions moved into the WindowHost
+         action strip (next to `+ Panel`); the header now holds just the switch. -->
     <div class="workbench-header">
       <PillarSwitch />
-      <!-- Phase 135 — header actions. Save THIS configuration; or start a fresh
-           analysis (wipe + re-open the create editor). Both live where the
-           analysis is built; the SideRail "Saved analyses" entry is the library. -->
-      <div class="header-actions">
-        <button
-          type="button"
-          class="save-analysis-btn"
-          onclick={() => openOverlay('analyses', 'save')}
-          title={m.workbench_page_save_analysis_title()}
-        >
-          <span aria-hidden="true">★</span>
-          {m.workbench_page_save_analysis()}
-        </button>
-        <button
-          type="button"
-          class="new-analysis-btn"
-          onclick={newAnalysis}
-          title={m.workbench_page_new_analysis_title()}
-        >
-          <span aria-hidden="true">＋</span>
-          {m.workbench_page_new_analysis()}
-        </button>
-      </div>
     </div>
     <div class="pillar-body">
       {#if activePillar.id === 'aleph'}
@@ -295,9 +263,8 @@
     background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
   }
 
-  /* Phase 135 — header row: PillarSwitch grows, the Save-analysis action sits
-     to its right. align-items:flex-start keeps the button at the top while the
-     active pillar tile's explanation line makes the switch taller. */
+  /* The header now holds just the PillarSwitch (the analysis actions moved to
+     the WindowHost action strip in Phase 127). */
   .workbench-header {
     display: flex;
     align-items: stretch;
@@ -306,52 +273,6 @@
   .workbench-header > :global(.pillar-switch) {
     flex: 1 1 auto;
     min-width: 0;
-  }
-  .header-actions {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    align-items: stretch;
-  }
-  .save-analysis-btn,
-  .new-analysis-btn {
-    flex: 1;
-    appearance: none;
-    border-radius: var(--radius-sm);
-    padding: var(--space-2) var(--space-4);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .save-analysis-btn {
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border: 1px solid var(--color-accent);
-  }
-  .save-analysis-btn:hover,
-  .save-analysis-btn:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 85%, var(--color-fg));
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-  /* Secondary (ghost) — distinct from the primary Save action. */
-  .new-analysis-btn {
-    background: transparent;
-    color: var(--color-fg-muted);
-    border: 1px solid var(--color-border);
-  }
-  .new-analysis-btn:hover,
-  .new-analysis-btn:focus-visible {
-    color: var(--color-fg);
-    border-color: var(--color-border-strong);
-    background: var(--color-surface-hover);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
   }
 
   .pillar-body {

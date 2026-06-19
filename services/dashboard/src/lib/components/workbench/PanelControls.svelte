@@ -73,6 +73,17 @@
   const isCollapsed = $derived(boundPanel?.cellControlsCollapsed === true);
 
   // ---- Window bounds (Phase 122k F5) -------------------------------------
+  // Snapshot "now" ONCE per mount. Reading `Date.now()` inside the derived made
+  // the Episteme default window's `end` advance on EVERY reactive re-eval — and
+  // `windowBounds` re-runs on any `url` change (opening a global overlay, or any
+  // panel-control write to the URL). That produced fresh windowIso strings →
+  // new scope-availability query keys → those queries refetched → `partialMetrics`
+  // / `partialMetadataFields` briefly emptied → the WITHHELD hint unmounted and
+  // remounted, jumping the panel controls + cell up and down. A stable snapshot
+  // keeps the window strings (and thus the query keys) fixed across re-evals.
+  // (Mirrors the same fix in EpistemeShell; Aleph/Rhizome are unbounded so they
+  // never read `now` and were unaffected — hence the bug was Episteme-only.)
+  const nowAtInit = Date.now();
   // Per-Panel window override, else the global default; Episteme defaults to a
   // disclosed recent window, Aleph/Rhizome stay unbounded.
   const windowBounds = $derived.by(() =>
@@ -82,7 +93,7 @@
       urlFrom: url.from,
       urlTo: url.to,
       isEpisteme: pillar === 'episteme',
-      now: Date.now(),
+      now: nowAtInit,
       lookbackMs: DEFAULT_LOOKBACK_MS
     })
   );
@@ -283,7 +294,6 @@
           {viewUsesMetric}
           {viewUsesMetadataField}
           {availableMetricNames}
-          {availableMetadataFields}
           {scopeGate}
           {scopeAvailableSet}
           {offerableFields}

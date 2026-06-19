@@ -28,7 +28,6 @@
     viewUsesMetric: boolean;
     viewUsesMetadataField: boolean;
     availableMetricNames: string[];
-    availableMetadataFields: readonly string[];
     scopeGate: ScopeGate;
     scopeAvailableSet: Set<string> | null;
     /** Offerable categorical fields (shared — computed once in the parent). */
@@ -44,7 +43,6 @@
     viewUsesMetric,
     viewUsesMetadataField,
     availableMetricNames,
-    availableMetadataFields,
     scopeGate,
     scopeAvailableSet,
     offerableFields,
@@ -100,11 +98,17 @@
   // Categorical-field reconcile (Phase 133 Issue 6 + ADR-038): once availability
   // is in hand, if the active field is not offerable, snap to the first offerable
   // field — or to '' (Negative Space) when the scope shares no field.
+  //
+  // Default from `offerableFields` (the exact dropdown list), NOT the scope's
+  // intersection set: under "show anyway" the picker offers the withheld
+  // categorical fields even though the scope shares none, so seeding from the
+  // intersection (which is []) would leave the Group-by picker empty. Without
+  // "show anyway" offerableFields == the intersection, preserving the empty state.
   $effect(() => {
     if (!viewUsesMetadataField) return;
     if (!metadataResolved) return;
     if (activeMetric && offerableFields.includes(activeMetric)) return;
-    const next = firstMetadataField(availableMetadataFields);
+    const next = firstMetadataField(offerableFields);
     if (next !== activeMetric) {
       updatePanel(panelPath, (p) => ({ ...p, metric: next }));
     }

@@ -22,6 +22,8 @@
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import { MAX_PANELS_PER_WINDOW, type PillarState, type PillarId } from '$lib/state/url-internals';
   import { addPanel, setMaximizedPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
+  import { openOverlay, pushUrl } from '$lib/state/url.svelte';
+  import { clearDraft } from '$lib/workbench/scope-editor-draft';
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
   import { defaultPresentationForPillar } from '$lib/presentations';
   import type { ScopeGroup } from '$lib/state/url-internals';
@@ -100,6 +102,15 @@
 
   function onAddPanel() {
     addPanelEditorOpen = true;
+  }
+
+  // Phase 127 — analysis-lifecycle actions, relocated here next to `+ Panel`
+  // (they were cramped beside the PillarSwitch). "New analysis" wipes the whole
+  // Workbench; the page auto-opens the create editor when pillar state is null.
+  // `clearDraft` so that editor starts blank, not from a resumed draft.
+  function newAnalysis() {
+    clearDraft();
+    pushUrl({ pillars: null, activePillar: null });
   }
 
   function applyNewPanel(scopes: ScopeGroup[], lockedFunction: DiscourseFunction | null) {
@@ -213,9 +224,31 @@
          `+ Panel` is the most-used affordance after panel configuration;
          placing it on top keeps it visible without scrolling. -->
     <div class="window-actions window-actions-top">
+      <!-- Phase 127 — analysis-lifecycle actions on the far left (Save keeps its
+           accent/primary look, New its ghost look); the +Panel action sits to
+           the right of the spacer, just left of the panels-per-row group. -->
       <button
         type="button"
         class="window-action window-action-primary"
+        onclick={() => openOverlay('analyses', 'save')}
+        title={m.workbench_page_save_analysis_title()}
+      >
+        <span aria-hidden="true">★</span>
+        {m.workbench_page_save_analysis()}
+      </button>
+      <button
+        type="button"
+        class="window-action"
+        onclick={newAnalysis}
+        title={m.workbench_page_new_analysis_title()}
+      >
+        <span aria-hidden="true">＋</span>
+        {m.workbench_page_new_analysis()}
+      </button>
+      <span class="window-action-spacer"></span>
+      <button
+        type="button"
+        class="window-action window-action-primary panel-action-trailing"
         onclick={onAddPanel}
         disabled={!canAddPanel}
         title={canAddPanel
@@ -224,7 +257,6 @@
       >
         ＋ {m.workbench_window_add_panel()}
       </button>
-      <span class="window-action-spacer"></span>
       <span class="ppr-eyebrow">{m.workbench_window_panels_per_row()}</span>
       <div class="ppr-row" role="radiogroup" aria-label={m.workbench_window_panels_per_row()}>
         <button
@@ -503,6 +535,11 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     cursor: pointer;
+  }
+
+  /* Phase 127 — slight gap left of the panels-per-row group. */
+  .panel-action-trailing {
+    margin-right: var(--space-2);
   }
 
   .window-action:hover:not(:disabled),

@@ -381,7 +381,9 @@ test.describe('Phase 141 — Workbench ScopeEditor characterization', () => {
     await page.goto(WORKBENCH_URL);
 
     // The WindowHost `＋ Panel` primary action opens the create-mode editor.
-    await page.locator('button.window-action-primary').click();
+    // (Phase 127 added a second primary button — Save analysis — to the strip,
+    // so target +Panel by its specific class.)
+    await page.locator('button.panel-action-trailing').click();
 
     const dialog = page.getByRole('dialog', { name: 'Configure panel scope' });
     await expect(dialog).toBeVisible();
