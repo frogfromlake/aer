@@ -102,8 +102,94 @@ Silver projection from ClickHouse, plus full article bodies from MinIO Silver.
 | **web-crawler** | Python (Scrapy) | One configurable binary; fetches article HTML, polite by default. New source = one YAML entry, no code. |
 | **Ingestion API** | Go | Source-agnostic receiver; writes raw HTML verbatim to Bronze; logs metadata to PostgreSQL. |
 | **Analysis Worker** | Python | Harmonises Bronze → Silver, runs the extractor pipeline → Gold; malformed input is quarantined, never crashes the pipeline. |
-| **BFF API** | Go | The only internet-facing backend. Contract-first REST (OpenAPI), ClickHouse-backed, session-authenticated. |
+| **BFF API** | Go | The only internet-facing backend. Contract-first REST (OpenAPI), session-authenticated; reads ClickHouse (metrics + Silver projection) + MinIO Silver (bodies). |
 | **Dashboard** | SvelteKit (static) | Three surfaces — **Atmosphère** (globe), **Workbench** (the Pillars), **Reflexion** (methodology) — plus a global **Dossier** probe catalogue. |
+
+### Deployment topology
+
+The pipeline above is the *data flow*; this is the *operational* view — a
+zero-trust two-network split with Traefik as the sole TLS ingress and an
+OpenTelemetry → Tempo/Prometheus/Grafana observability stack.
+
+```mermaid
+flowchart TB
+    USER(["Researcher · browser"])
+
+    subgraph front["aer-frontend · internet-facing"]
+        TRAEFIK["Traefik · :80/:443<br/>TLS · sole ingress"]
+        BFF["BFF API"]
+        DASH["Dashboard"]
+        GRAF["Grafana"]
+    end
+
+    subgraph back["aer-backend · zero-trust · no published ports"]
+        ING["Ingestion API"]
+        WORKER["Analysis Worker"]
+        STORES[("PostgreSQL · ClickHouse<br/>MinIO · NATS JetStream")]
+        OTEL["OTel Collector"]
+        TEMPO["Tempo · traces"]
+        PROM["Prometheus · metrics"]
+        OTEL -.-> TEMPO
+        OTEL -.-> PROM
+    end
+
+    MKDOCS["MkDocs docs · :8000"]
+    SWAGGER["Swagger UI · :8089<br/>dev-only · loopback"]
+
+    USER -->|HTTPS| TRAEFIK
+    USER -.->|":8000"| MKDOCS
+    USER -.->|"dev"| SWAGGER
+    TRAEFIK --> DASH & BFF & GRAF
+    BFF --> STORES
+    ING --> STORES
+    WORKER --> STORES
+    BFF & ING & WORKER -.OTLP.-> OTEL
+    TEMPO & PROM -.-> GRAF
+
+    classDef svc fill:#15263f,stroke:#37598b,color:#e7eefb;
+    classDef store fill:#201a37,stroke:#4e3f79,color:#ece5fb;
+    classDef ingress fill:#0e3140,stroke:#2bbccf,color:#dbf7fc,stroke-width:2px;
+    classDef ext fill:#1a2230,stroke:#3c4961,color:#c7d2e3;
+    class TRAEFIK ingress;
+    class BFF,DASH,GRAF,ING,WORKER,OTEL,TEMPO,PROM svc;
+    class STORES store;
+    class USER,MKDOCS,SWAGGER ext;
+    style front fill:#0c1828,stroke:#2c4f7c,color:#8db2e0;
+    style back fill:#0a0f1a,stroke:#233547,color:#8295ad;
+```
+
+*(Backend services publish no host ports by default — `make debug-up` opens them
+for local debugging. The canonical deployment view is [Arc42 §7](docs/arc42/07_deployment_view.md).)*
+
+### Authentication flow
+
+The whole app is **invite-only** and session-gated ([ADR-040](docs/arc42/09_architecture_decisions.md)) —
+there is no open registration. Sessions are **opaque and server-side** (revocable),
+carried in a `__Host-` cookie; passwords are argon2id; there are no bearer tokens in
+the browser.
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    actor R as Researcher
+    participant BFF as BFF API
+    participant PG as PostgreSQL
+
+    A->>BFF: invite (email, role)
+    BFF->>PG: create invited user + single-use token
+    Note over R: gets an accept-invite link (email — Phase 153)
+    R->>BFF: accept-invite (token, chosen password, consent)
+    BFF->>PG: argon2id hash · activate · create session
+    BFF-->>R: __Host- session cookie (auto-login)
+    R->>BFF: GET /api/v1/… (cookie)
+    BFF->>PG: validate session
+    BFF-->>R: data — or 401
+    Note over BFF: machine clients (CI) use X-API-Key instead of the cookie
+```
+
+Returning users hit `/auth/login` (email + password → new session). Full detail in
+[Arc42 §8.7.7](docs/arc42/08_concepts.md) and ADR-040; `make create-admin` bootstraps
+the first admin.
 
 Full architecture: **[Arc42 documentation](docs/arc42/)** (13 chapters + manifesto +
 [ADRs](docs/arc42/09_architecture_decisions.md)). The complete docs portal renders at
