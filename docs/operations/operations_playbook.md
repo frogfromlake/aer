@@ -23,7 +23,7 @@
     - [Ingestion API (Go)](#ingestion-api-go)
     - [BFF API (Go)](#bff-api-go) — incl. [Metric Provenance Config](#metric-provenance-config) *touchpoint*
     - [Analysis Worker (Python)](#analysis-worker-python) — incl. `BiasContext` *touchpoint*
-    - [RSS Crawler](#rss-crawler)
+    - [Web Crawl Operations (Phase 122)](#web-crawl-operations-phase-122)
 9. [Configuration & Documentation Files](#configuration-documentation-files)
     - [Cultural Calendar Files](#cultural-calendar-files) — *touchpoint*
     - [Probe Dossier](#probe-dossier) — *touchpoint*
@@ -1190,9 +1190,9 @@ This is the routine cadence for upgrading the extraction stack — never edit Br
 
 **Graceful shutdown.** Scrapy's `CrawlerProcess` traps `SIGINT` / `SIGTERM` and drains in-flight requests cleanly; any documents already submitted are persisted in `crawler_state` so a re-run after interruption resumes from the last successful URL.
 
-### Archived: RSS Crawler (Pre-Phase-122)
+### Removed: legacy RSS Crawler (Pre-Phase-122)
 
-The legacy Go RSS crawler at `crawlers/_archived/rss-crawler/` is retained for git-history traceability for one release cycle and removed entirely in Phase 129. Do not modify it. Operational guidance for the legacy crawler is preserved in the directory's `MIGRATED.md`; the Phase-122 `WebAdapter` covers the same probe scope with full article bodies.
+The legacy Go RSS crawler (formerly `crawlers/rss-crawler/`, then archived under `crawlers/_archived/rss-crawler/`) was **removed entirely in Phase 129**. Its source and migration notes live in git history (it was archived in Phase 122 and carried a `MIGRATED.md`). The Phase-122 web crawler + `WebAdapter` cover the same probe scope with full article bodies; the worker still registers an `RssAdapter`, so any archived `rss`-shaped Bronze continues to replay.
 
 ---
 
@@ -1422,7 +1422,7 @@ Browser ── /api/* ──► Vite (5173) ──► Traefik (https://localhost
                                        bff-api
 ```
 
-For container Loop A, drop the Vite hop — the browser hits Traefik directly via the `dashboard` router. Non-browser callers (RSS crawler, `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` themselves, directly to BFF on `:8080`. See `compose.yaml` (`bff-api-key` middleware label) and ADR-018.
+For container Loop A, drop the Vite hop — the browser hits Traefik directly via the `dashboard` router. Non-browser callers (the web crawler, `scripts/build/e2e_smoke_test.sh`) keep sending `X-API-Key` themselves, directly to BFF on `:8080`. See `compose.yaml` (`bff-api-key` middleware label) and ADR-018.
 
 ### Authoring flow (typical change)
 
@@ -1447,7 +1447,7 @@ make codegen         # Regenerate OpenAPI stubs, then check for drift
 
 **Testcontainers:** Go and Python tests spin up real database containers using image tags parsed from `compose.yaml` (SSoT enforcement). No hardcoded tags in test files.
 
-**E2E smoke test** (`scripts/build/e2e_smoke_test.sh`): Starts a fixture HTTP server → runs the RSS crawler against test fixtures → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
+**E2E smoke test** (`scripts/build/e2e_smoke_test.sh`): Starts a fixture HTTP server → synthesises `rss`-shaped Bronze fixtures and posts them to the Ingestion API (exercising the still-registered `RssAdapter` path without invoking the retired crawler binary) → waits for pipeline processing → queries BFF API endpoints (metrics, entities, available metrics, provenance) → validates end-to-end data flow including `discourse_function` propagation and multi-resolution queries → teardown.
 
 ### Dashboard E2E + visual regression (Playwright)
 
@@ -1718,7 +1718,8 @@ Under the hood `make reset` runs three Make targets in order: `make reset-state`
 | `aer_postgres_data` | sources, documents, ingestion jobs | `infra/postgres/migrations/` (000001+) |
 | `aer_minio_data` | Bronze, Silver, DLQ buckets | `minio-init` (`infra/minio/setup.sh`) |
 | `aer_clickhouse_data` | every Gold + Silver projection table | `clickhouse-init` (`infra/clickhouse/migrations/`, 000001 → latest) |
-| `aer_rss_crawler_state` | crawler dedup state — forces full re-crawl on next `make crawl` | (recreated empty by the named-volume) |
+
+*(The web crawler keeps no dedup volume — conditional-GET state lives in the Postgres `crawler_state` table inside `aer_postgres_data`, so it is wiped with that volume.)*
 
 **Preserved — build-time artefacts, NEVER wiped:**
 
@@ -1852,8 +1853,8 @@ The contract introduced by Phase 120c: every operation a developer is expected t
 | `make ingestion-up\|down\|restart`, `make worker-up\|down\|restart`, `make bff-up\|down\|restart` | Per-service control. |
 | `make debug-up` / `make debug-down` | Expose internal infra ports to localhost for tooling (psql, mc, curl). |
 | `make logs` | Tail the live container logs across the stack. |
-| `make crawl` | Run the RSS crawler as a one-shot container on `aer-backend`. |
-| `make crawl-reset` | Wipe the crawler dedup state volume so the next `make crawl` re-ingests every feed item. |
+| `make crawl` | Run the web crawler (`crawl-probe0` + `crawl-probe1`) as one-shot containers on `aer-backend`. |
+| `make crawl-probe<id>` | Crawl a single probe. Conditional-GET dedup state lives in the Postgres `crawler_state` table; `make reset` is the canonical wipe (there is no separate `crawl-reset` target). |
 | `make reset` / `make reset-state` / `make reset-validate` | Phase-120b supervised reset: wipe runtime state volumes, re-up via init containers, validate. The canonical recovery path. |
 | `make infra-clean[-postgres\|-minio\|-clickhouse]` | One-layer wipe (interactive confirmation). Prefer `make reset` for full resets. |
 | `make build-services` | Compile Go binaries into `./bin/`. |

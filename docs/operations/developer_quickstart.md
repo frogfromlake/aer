@@ -51,17 +51,17 @@ Both loops come up with empty bronze/silver/gold — the atmosphere has
 nothing to display until you ingest something. Kick off a one-shot crawl:
 
 ```bash
-make crawl          # runs rss-crawler as a one-shot container on aer-backend
-make crawl-reset    # wipes dedup state when backend volumes were cleared
+make crawl          # fans out to crawl-probe0 + crawl-probe1 (the Python web crawler)
+make crawl-probe0   # crawl a single probe (probe0 = DE institutional web)
 ```
 
-`make crawl` builds and runs the crawler under Compose profile `crawlers` — no
-`debug-up` required, identical command in dev and prod. The dedup state lives
-in the `rss_crawler_state` named volume. `make infra-clean`, `-postgres`, and
-`-minio` wipe it automatically (bronze / documents are gone, so dedup must go
-too). If you wipe volumes any other way (raw `docker compose down -v`,
-`docker volume rm`), run `make crawl-reset` manually — otherwise the next
-crawl skips every item as "already seen" and silently ingests nothing.
+`make crawl` builds and runs the web crawler (`crawlers/web-crawler/`, Phase 122 /
+ADR-028) under Compose profile `crawlers` — no `debug-up` required, identical
+command in dev and prod. Conditional-GET dedup state lives in the PostgreSQL
+`crawler_state` table (migration 017), not in a named volume. `make reset` is
+the canonical state wipe, so there is no separate `crawl-reset` target: after a
+`make reset` the next crawl re-fetches everything; if you wipe Postgres any
+other way the crawler simply re-discovers articles on the next run.
 
 ---
 

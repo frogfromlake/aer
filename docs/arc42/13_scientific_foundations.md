@@ -442,25 +442,27 @@ This bias is a **documented parameter of the observation**, not a defect. Every 
 
 ### Selected Sources (Provisional, Subject to Change Without ADR)
 
-| Source | Feed URL | Type | Expected Volume |
+| Source | Entry point (Phase 122 web crawl) | Type | Expected Volume |
 | :--- | :--- | :--- | :--- |
-| **bundesregierung.de** | `https://www.bundesregierung.de/breg-de/aktuelles.rss` | Government press releases | ~5–15 items/day |
-| **tagesschau.de** | `https://www.tagesschau.de/index~rss2.xml` | Public broadcasting news (ARD) | ~20–40 items/day |
+| **bundesregierung.de** | `https://www.bundesregierung.de` (XML sitemaps via `robots.txt`) | Government press releases | ~5–15 items/day |
+| **tagesschau.de** | `https://www.tagesschau.de` (HTML sitemap + archive index) | Public broadcasting news (ARD) | ~30–40 items/day |
 
-Additional quality press feeds may be added as the pipeline matures. Each addition requires only a new entry in `feeds.yaml` and a PostgreSQL seed migration — no code changes to any AĒR service.
+Discovery channels per source are declared in the probe's `sources.yaml` `discovery:` block (ADR-031); the crawler stores raw article HTML in Bronze and the worker extracts full bodies at the Silver boundary.
+
+Additional quality press sources may be added as the pipeline matures. Each addition requires only a new entry in the probe's `sources.yaml` (with its `discovery:` block) and a PostgreSQL seed migration — no code changes to any AĒR service (see `docs/extending/add-a-source.md`).
 
 ### Limitations
 
 - **Editorial content only.** No user-generated content, no comments, no forum threads.
-- **No engagement metrics.** RSS feeds do not expose view counts, shares, or reactions.
-- **No threading or reply structure.** Each item is an independent document with no relational context.
+- **No engagement metrics.** Institutional web pages do not expose view counts, shares, or reactions.
+- **No threading or reply structure.** Each article is an independent document with no relational context.
 - **Limited to German language.** Multilingual processing is deferred until cross-cultural comparability methodology is established (§13.6, Question 4).
-- **RSS feeds may be incomplete.** Many feeds provide truncated descriptions rather than full article text. The `raw_text` field may contain summaries, not complete articles. This limitation is inherent to the RSS format and must be documented in any analysis derived from this probe.
-- **Feed URLs may change without notice.** Government and public broadcasting feed endpoints are not contractually stable. The crawler must handle HTTP 301/404 gracefully.
+- **Full article bodies, but extraction-dependent.** Since the Phase-122 web-crawl migration the crawler stores the raw article HTML verbatim in Bronze, and the worker's `WebAdapter` extracts the full body at the Silver boundary — the RSS-era truncation limitation no longer applies. The residual limitation is now extraction quality: trafilatura recall varies by page template, recorded per-field via the `WebMeta` provenance markers and re-improvable by replaying archived Bronze.
+- **Source URLs may change without notice.** Government and public broadcasting endpoints are not contractually stable. The crawler discovers articles through the per-source `discovery:` channels (ADR-031) and must handle HTTP 301/404 gracefully.
 
 ### Exit Criteria
 
-This probe is **superseded** — not retired — when a scientifically motivated probe selection is made through the research process (§13.5). The RSS crawler remains operational as one data source among many. The engineering calibration data it has collected retains its value for pipeline regression testing and baseline comparisons, even after scientifically selected probes are introduced.
+This probe is **superseded** — not retired — when a scientifically motivated probe selection is made through the research process (§13.5). The web crawler remains operational as one data source among many. The engineering calibration data it has collected retains its value for pipeline regression testing and baseline comparisons, even after scientifically selected probes are introduced.
 
 ## 13.11 Probe 1: Cross-Cultural Calibration (French Institutional Web)
 

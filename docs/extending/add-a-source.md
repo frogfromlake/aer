@@ -249,4 +249,4 @@ This is the architectural payoff documented in [add-a-source-type.md](add-a-sour
 - [add-a-source-type.md](add-a-source-type.md) — when the new source needs a *new platform-class crawler* (Twitter/Reddit/Mastodon/…).
 - WP-006 §3 — the "document, don't filter" principle that motivates the technical-only URL filtering.
 - WP-006 §5.2 — Silver-eligibility review.
-- [Scientific Operations Guide → Workflow 1 (Probe Registration)](../operations/scientific_operations_guide.md#workflow-1-probe-registration) — the canonical procedure for the methodological side of source addition.
+- [Scientific Operations Guide → Workflow 1 (Classifying a New Probe)](../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical procedure for the methodological side of source addition.

@@ -535,6 +535,8 @@ A probe's **function coverage** is a derived property: how many of the four WP-0
 
 Why Path B, not full reconciliation: terminology surgery mid-rewrite is high-risk for little Iteration 5 value. The mismatch is a documentation clarity issue, not a correctness issue — the architecture behind the words is coherent. A later ADR handles any rename with full engineering scope.
 
+> **Update (Phase 129, 2026-06-20).** The promised reconciliation artifact now exists as a costed review proposal — see [`docs/development/terminology-reconciliation-proposal.md`](../development/terminology-reconciliation-proposal.md). It adds a **Path C** (labels-only reconciliation via the existing `displayName`/`shortName` display layer) and re-frames the question against the invited-researcher audience (ADR-040). It opens as a review PR; nothing has been renamed.
+
 **Consequence for the brief.** Wherever this brief uses "probe," it means the grouping in the current engineering sense (= a WP-001 probe constellation). Wherever it uses "source," it means the individual observation point (= a WP-001 probe). Readers coming to the brief directly from WP-001 should mentally translate: "probe" in the brief = "probe constellation" in WP-001; "source" in the brief = "probe" in WP-001.
 
 ---
@@ -846,7 +848,7 @@ A medium-term migration to an OIDC-based authentication flow (a future ADR align
 | `docs/arc42/01_introduction_and_goals.md` | Source of the five quality goals (§2) and the DNA pillars (§2.1). |
 | `docs/design/visualization_guidelines.md` | The brief *encompasses* the guidelines. Guidelines constrain rendering; the brief defines structure. |
 | `docs/design/design_system.md` | The concrete operationalization of the brief. Tokens, typography, color scales, Epistemic Weight classes, base components. The design system grows alongside the brief; see §12. |
-| `docs/design/reframing-note.md` | The working synthesis from the 2026-04-24 review that produced this Iteration 5 rewrite. Expected to be deleted once Iteration 5 is shipping; referenced here for provenance. |
+| `docs/design/reframing-note.md` *(deleted Phase 129)* | The working synthesis from the 2026-04-24 review that produced this Iteration 5 rewrite. Its content was merged into this brief and ADR-033; the note was deleted in Phase 129. Listed here for provenance only. |
 | `docs/arc42/09_architecture_decisions.md` — ADR-003, ADR-016, ADR-017, ADR-020 | ADR-003 (Progressive Disclosure via Metadata Index) is realized as the five-layer descent. ADR-016 (Hybrid Tier Architecture) is realized as §7.8 (Epistemic Weight). ADR-017 (Reflexive Architecture) is realized in Surface III and in refusal-as-feature (§7.4). ADR-020 (Frontend Technology Stack) is written against this brief; its compliance check audits it. |
 | WP-001 §2 (epistemological colonialism), §4 (Etic/Emic), §5.3 (Coverage Map), §8 | Source of §8.4 (probe as granularity unit), the emic-visibility requirements, and the extensibility commitments. Also source of the terminology divergence recorded in §6. |
 | WP-002 §4 (Validation Protocol), §8 (Tier Architecture) | Source of the validation-gated Epistemic Weight transitions in §7.8. |

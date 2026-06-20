@@ -52,8 +52,8 @@ sources:
 
 # --- Technical Feasibility ---
 technical_assessment:
-  crawler_type: ""                  # e.g., "rss-crawler", "custom"
-  adapter_required: ""              # e.g., "RssAdapter" (existing) or "new ForumAdapter"
+  crawler_type: ""                  # e.g., "web-crawler" (existing platform class), or new for a new platform class
+  adapter_required: ""              # e.g., "WebAdapter" (existing) or "new ForumAdapter"
   estimated_storage_impact: ""      # e.g., "~500 MB/year Bronze"
   special_requirements: ""          # e.g., "rate limiting", "authentication", "JavaScript rendering"
 

@@ -257,14 +257,19 @@ The whole observability config (Prometheus config + rules, the OTel collector co
 
 ### 8.7.1 API Authentication
 
-Both the BFF API and the Ingestion API require an API key on all routes except health probes (`/healthz`, `/readyz`). The key is accepted via the `X-API-Key` header or `Authorization: Bearer <key>`. Requests with missing or invalid keys receive a `401 Unauthorized` response.
+Every data route on both services is authenticated; only health probes (`/healthz`, `/readyz`) and — on the BFF — the pre-auth `/auth/*` endpoints (login, accept-invite, forgot/reset-password) are exempt. The two services differ in **what** they accept (Phase 134 / ADR-040):
+
+- **Ingestion API** — `X-API-Key` only. A machine credential protecting data submission from unauthorized crawlers (`INGESTION_API_KEY`).
+- **BFF API** — **session-OR-key** (ADR-040). Browsers authenticate by the opaque `__Host-` session cookie (see §8.7.7); `X-API-Key` (`BFF_API_KEY`) is **demoted to a machine credential** (CI / internal callers), never injected by the gateway for browsers.
+
+Requests with missing or invalid credentials receive `401 Unauthorized`.
 
 | Service | Environment Variable | Purpose |
 | :--- | :--- | :--- |
-| BFF API | `BFF_API_KEY` | Protects metric queries from unauthorized consumers |
+| BFF API | `BFF_API_KEY` | Machine credential for internal/CI callers (browsers use sessions) |
 | Ingestion API | `INGESTION_API_KEY` | Protects data submission from unauthorized crawlers |
 
-The authentication middleware is shared between both services via `pkg/middleware/apikey.go` (`APIKeyAuth` function), satisfying the DRY principle. See §8.2 for the shared library structure.
+The static-key middleware is shared via `pkg/middleware/apikey.go` (`APIKeyAuth`) for the ingestion-api; the BFF wraps its session-or-key gate in `internal/auth/middleware.go`. See §8.2 for the shared library structure and §8.7.7 for the session model.
 
 **Constant-time comparison (Phase 75, ADR-018).** `APIKeyAuth` compares the presented token against the configured key using `crypto/subtle.ConstantTimeCompare`, eliminating the dominant timing side channel that byte-by-byte `==` would expose. A sanity test in `pkg/middleware/apikey_test.go` asserts that a wrong key produces the same 401 outcome regardless of how many leading bytes match. Both services inherit the fix from the same source file. The constant-time guarantee applies only to the comparison itself; surrounding work (header parsing, bearer-token extraction, response serialization) is not in scope and is considered acceptable under the current threat model.
 
@@ -313,6 +318,18 @@ Rotating the pinned hashes is a deliberate, auditable operation — not somethin
 The CI pipeline includes two dedicated security jobs: container image scanning via Trivy (`aquasecurity/trivy-action`) that fails the build on unfixed HIGH/CRITICAL CVEs, and dependency auditing via `govulncheck` (Go) and `pip-audit` (Python) that detect known vulnerabilities in third-party libraries.
 
 **Rotating the supply-chain baseline (Phase 88).** `make deps-refresh` is the single maintainer entrypoint for advancing every externally-pinned dependency in one atomic operation: base image digests across all three Dockerfiles, the analysis-worker `requirements.lock.txt`, and `SENTIWS_SHA256`. The script (`scripts/build/deps_refresh.sh`) is idempotent on a clean baseline — running it when nothing upstream moved produces an empty `git diff`. The full runbook (when to run it, how to add a Python dependency, how to bump a base image tag, Trivy triage table, failure recovery) lives in [`docs/operations_playbook.md` → Dependency Refresh](../operations/operations_playbook.md#dependency-refresh-supply-chain-baseline).
+
+### 8.7.7 Session Access Control (Phase 134 / ADR-040)
+
+The whole application is gated — there is no anonymous data access (LICENSE §4c). Access control is **BFF-driven with no tokens in the client**:
+
+- **Opaque server-side sessions** stored in PostgreSQL (not JWTs), so a session can be revoked immediately (LICENSE §3.3). The session id rides in a `httpOnly` + `Secure` + `SameSite=Strict` + `__Host-` cookie with a sliding idle timeout and an absolute cap.
+- **Passwords** are hashed with **argon2id**. **CSRF** defence combines `Sec-Fetch-Site` checks with the `SameSite` cookie; **HSTS** is set.
+- **No open self-registration** — accounts are created by **invite/approval only**, with consent captured at activation. **RBAC** has two roles: `admin` and `researcher`.
+- **Privacy-minimal** — only email + hash + role + consent are stored; AĒR does **not** track what a user analyses beyond explicitly-saved analyses. DSGVO export/delete is supported.
+- **Least privilege at the database** — BFF auth tables are written through a dedicated `bff_auth` Postgres role (provisioned by `postgres-init-roles`), never the read-only `bff_readonly` analytics role. The first admin is bootstrapped with `make create-admin`.
+
+The auth flows (login, invite, accept-invite, forgot/reset-password) live in `services/bff-api/internal/auth/`. Outbound email for invite/reset is a launch prerequisite tracked separately (Phase 153). See ADR-040 for the full decision record.
 
 ## 8.8 Data Lifecycle Management
 
@@ -514,9 +531,11 @@ NATS redelivery after a partial success can re-insert rows into ClickHouse Gold 
 
 ## 8.17 Frontend Architecture (Cross-cutting Concept)
 
+> **Historical chronicle (Phases 99a–108) — surface vocabulary superseded.** The phase-stamped narrative below records how the frontend was built up between Phases 99 and 108. Its *surface vocabulary* is now superseded: the dashboard's three surfaces are **Atmosphere / Workbench / Reflection** (ADR-033), the analytical middle surface is the **Workbench** (not "Function Lanes"; route `/workbench`, not `/lanes`), the pillar URL key is `?activePillar=` (not `?viewingMode=`), and the Phase-99b `TimeScrubber`/`?probe=`/`?ep=` URL grammar was replaced by the base64url pillar grammar (ADR-034). Read the current architecture in **ADR-033 / ADR-034 / ADR-035** and the *Workbench State Tree* and *Configurable Cells* concepts later in this chapter; the text below is retained for build-history traceability.
+
 The AĒR dashboard is a static SvelteKit application (ADR-020) deployed behind Traefik on the `aer-frontend` network. It is the only internet-facing user interface and the only consumer of the BFF API.
 
-**Three surfaces and five layers.** The dashboard presents its data through three orthogonal encounter modes — **Atmosphere** (a 3D rotating globe showing active probes, absence regions, and the live day/night terminator), **Function Lanes** (the four discourse functions from WP-001 as horizontal time-series lanes), and **Reflection** (long-form methodological prose in the Distill.pub style). All three surfaces share a uniform five-layer descent architecture: Immersion (L0) → Orientation (L1) → Exploration (L2) → Analysis (L3) → Provenance (L4) → Evidence (L5). Descent deepens both hermeneutic access and cultural narrowing; no layer replaces the one above it, and every layer is reachable in one interaction from its neighbour.
+**Three surfaces and five layers.** The dashboard presents its data through three orthogonal encounter modes — **Atmosphere** (a 3D rotating globe showing active probes, absence regions, and the live day/night terminator), the **Workbench** (AĒR's analytical surface, holding the three Pillars Aleph/Episteme/Rhizome — historically prototyped as "Function Lanes" in Phase 106), and **Reflection** (long-form methodological prose in the Distill.pub style). All three surfaces share a uniform five-layer descent architecture: Immersion (L0) → Orientation (L1) → Exploration (L2) → Analysis (L3) → Provenance (L4) → Evidence (L5). Descent deepens both hermeneutic access and cultural narrowing; no layer replaces the one above it, and every layer is reachable in one interaction from its neighbour.
 
 **Four visualization domains (§5.9).** The visualization stack is separated across four framework-agnostic rendering modules, each serving a distinct domain: three.js (3D atmosphere and Rhizome propagation), MapLibre GL JS + deck.gl (2D geo-analytics at L3), uPlot + Observable Plot + D3 (scientific charts), and D3-force (relational networks). The UI framework (Svelte 5) is responsible only for chrome — panels, controls, layouts, routing. Visualization modules are tested in isolation and are framework-agnostic.
 
@@ -757,9 +776,11 @@ Total: 92 YAML files across `services/bff-api/configs/content/{en,de}/`.
 
 ---
 
-## 8.12 Surface II Architecture — Probe Dossier and Function-Lane Shell (Phase 106)
+## 8.25 Surface II Architecture — Probe Dossier and Function-Lane Shell (Phase 106) — *superseded*
 
-Surface II (Function Lanes) is the primary scientific surface of the AĒR dashboard. It is reached from Surface I (Atmosphere) by selecting a probe, and provides two views: the **Probe Dossier** (default landing) and the **Function-Lane Shell** (per-discourse-function analysis view).
+> **Superseded by ADR-033 / ADR-034 (Phase 122k+).** This Phase-106 design — a `/lanes/[probeId]` route with four discourse-function "lanes" and a Probe Dossier landing — no longer reflects the shipped architecture. The analytical surface is now the **Workbench** (`/workbench`, base64url pillar grammar, the four-level `Pillar → Window → Panel → ScopeGroup` tree of ADR-034), and the **Dossier is a global overlay** (`?dossier=open`, Phase 123a), not a route. Retained for build-history traceability. See the *Workbench State Tree* concept later in this chapter and ADR-033/034/035.
+
+Surface II (Function Lanes) was the primary scientific surface of the Phase-106 AĒR dashboard. It was reached from Surface I (Atmosphere) by selecting a probe, and provided two views: the **Probe Dossier** (default landing) and the **Function-Lane Shell** (per-discourse-function analysis view).
 
 ### Route structure
 
@@ -825,7 +846,9 @@ The SideRail's Function Lanes link (`≡`) navigates to `/lanes/<activeProbe>/do
 
 The ScopeBar within the `[probeId]` layout provides lane-switching tabs for the four function keys without re-mounting the chrome.
 
-## 8.13 Surface II — View-Mode Matrix (Phase 107)
+## 8.26 Surface II — View-Mode Matrix (Phase 107) — *superseded*
+
+> **Superseded by the Presentation/Pillar registry (Phases 130–131, ADR-035).** The Phase-107 "view-mode matrix" is the ancestor of today's model, but the vocabulary has moved on: "view modes" were renamed **Presentations** (Phase 140), and a metric now flows into whichever **Pillar** (Aleph/Episteme/Rhizome) its compatible presentations live in. The SoT is `src/lib/viewmodes/registry.ts` (`PILLAR_DEFINITIONS`) + `metric-presentation.ts`; per-cell configuration is the *Configurable Cells* concept later in this chapter (Phase 131). Retained for build-history traceability.
 
 The Function-Lane Shell from Phase 106 (one uPlot time-series per source) becomes one cell of a two-axis catalog:
 
@@ -880,7 +903,7 @@ No `FunctionLaneShell` change is required — the shell renders whatever the reg
 
 Observable Plot lands in its own dynamic-import chunk (~125 kB gzipped) only when the user selects the EDA × distribution cell. d3-force lands in a separate (smaller) chunk for the Network Science cell. The shell budget (80 kB gzipped, Phase 97) is unchanged; the second-largest lazy chunk budget is raised from 80 kB to 160 kB in `scripts/check-bundle-size.mjs` to accommodate Plot. The engine chunk budget (250 kB, Phase 99a) is unchanged.
 
-## 8.14 Surface III Architecture — Reflection (Phase 109)
+## 8.27 Surface III Architecture — Reflection (Phase 109)
 
 Surface III (Reflection) is the primary methodological surface of the AĒR dashboard. It renders the complete scientific foundation of the system as long-form, typographically disciplined content in the Distill.pub style. See [Design Brief §5.7 and §6](../design/design_brief.md) for the full design authority.
 
@@ -930,7 +953,9 @@ Surface III is reachable from:
 
 See [Design Brief](../design/design_brief.md) for the Dual-Register communication pattern that governs how Reflection content is authored and presented. See §8.17 for the cross-cutting frontend architecture that hosts Surface III.
 
-## 8.15 Surface I Refinement — Probe-First Emission and Source Satellites (Phase 110)
+## 8.28 Surface I Refinement — Probe-First Emission and Source Satellites (Phase 110)
+
+> **Partially superseded (route vocabulary).** The probe-first / source-satellite concept still holds, but the Phase-110 navigation targets named below (`/lanes/<probeId>/dossier`) are retired: selecting a probe now grows the cross-surface selection (`?selectedProbes=`) and the Dossier is a global overlay (`?dossier=open`, Phase 123a). See ADR-033.
 
 Surface I (Atmosphere) is a landing overview, not an analysis surface (per the Iteration 5 reframing). Phase 110 reflects this in the engine and on the surface itself: the globe carries one **probe glyph** per probe — at the spherical centroid of its emission points — and one **source satellite** per emission point. The probe glyph is the only scope-selectable target on Surface I; satellites are read-only secondary geometry.
 
@@ -954,9 +979,11 @@ Surface I (Atmosphere) is a landing overview, not an analysis surface (per the I
 
 **Deprecation note.** Phase 100a's source-click descent on Surface I is retired by this phase — its L3/L4 companion panels were already deprecated in the reframing-note supersession list, and no visual-regression baselines for them are captured in `tests/e2e/__snapshots__/`. The new probe-glyph + satellite rendering is not snapshotted (the additive WebGL layer's per-pixel output is hardware-dependent and noisy under headless rendering); engine-level coverage lives in the Vitest unit suite for `glow.ts`, including `probeCentroidLatLon` cases for empty input, single point, two co-hemispheric points, antipodal cancellation, and dateline-straddling pairs.
 
-## 8.16 Silver-Layer Toggle — Surface II Data-Source Selection (Phase 111)
+## 8.29 Silver-Layer Toggle — Surface II Data-Source Selection (Phase 111)
 
-Phase 111 exposes the Silver-layer aggregation endpoints (§8.23) on Surface II behind a segmented **Gold / Silver** toggle in the Function-Lane ScopeBar. The design constraint from Design Brief §9 is that the view-mode matrix cells must operate identically over Silver data — the toggle shifts the data source; it does not change the analytical surface.
+> **Partially superseded (host vocabulary).** The Silver-eligibility gate and the `?layer=silver` URL state still hold, but the Phase-111 host UI named below (the "Function-Lane ScopeBar", the `[probeId]/+layout.svelte` host, the `ViewModeSwitcher`) is retired: per-cell config now lives in the Workbench's `PanelControls`/cell config (ADR-034, §8.33) and "view modes" are now Presentations (Phase 140). See ADR-033/034.
+
+Phase 111 exposed the Silver-layer aggregation endpoints (§8.23) on Surface II behind a segmented **Gold / Silver** toggle in the Function-Lane ScopeBar. The design constraint from Design Brief §9 is that the view-mode matrix cells must operate identically over Silver data — the toggle shifts the data source; it does not change the analytical surface.
 
 **URL state.** The active data layer is serialised as `?layer=silver` in the page URL. `layer=gold` (the default) is omitted to keep URLs clean; the parameter is never emitted unless a probe is selected, because the Silver layer is meaningless without a probe context. The `DataLayer = 'gold' | 'silver'` union type lives in `src/lib/state/url-internals.ts` alongside the rest of the URL state schema. `writeToSearch` emits `layer=silver` only when both `state.probe` and `state.layer === 'silver'` are truthy; `readFromSearch` uses `parseEnum(p.get('layer'), DATA_LAYERS)` for safe round-trips. The toggle persists across scope-bar interactions (source filtering, metric selection) — narrowing to a source re-evaluates eligibility without clearing the layer choice.
 
@@ -982,9 +1009,11 @@ The `silverEligible` flag arrives in the `ProbeDossierSourceDto` from `GET /api/
 
 **Governance boundary.** The Silver toggle is not a power-user escape hatch — it is a governed affordance. The eligibility gate enforces WP-006 §5.2 at the UI layer (via `silverEligible`) and at the BFF layer (via `requireSilverEligible`). The UI-layer check is informational only; the BFF gate is the authoritative enforcement point. A UI bug that bypasses the eligibility panel cannot grant data access because the BFF returns HTTP 403 for ineligible sources unconditionally. This dual-layer design follows Defence-in-Depth for the governance boundary.
 
-## 8.17 Negative Space Overlay (Phase 112)
+## 8.30 Negative Space Overlay (Phase 112) — *evolved by ADR-039*
 
-Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 and §5.4. The overlay is a global reading mode: once active, it persists across surface transitions until the user deactivates it.
+> **Consolidated into the per-cell Negative-Space surface (Phase 122d.2 / ADR-039).** The Phase-112 *global overlay* framing was superseded: Negative Space is now a first-class reflexive surface declared per cell via `PresentationDefinition.negativeSpacePolicy`, with the taxonomy + classifier + invariants in `src/lib/negative-space.ts` and the single visual token `NegativeSpaceBadge.svelte`. The `?negSpace=1` URL toggle described below is retained (now self-disclosing on every cell). Retained for build-history traceability.
+
+Phase 112 implemented the "what AĒR doesn't see" overlay per Design Brief §4.4 and §5.4 as a global reading mode: once active, it persisted across surface transitions until the user deactivated it.
 
 **URL state.** The overlay is serialised as `?negSpace=1` in the page URL. `negSpace=null` (the default) is never emitted; only `true` triggers `p.set('negSpace', '1')` in `writeToSearch`. Unlike `layer`, the `negSpace` parameter is **not** scoped to a probe — the overlay is a system-level epistemic stance, not a per-probe query modifier. `readFromSearch` parses `p.get('negSpace') === '1'` to `true`; any other value (including `negSpace=0`) is treated as `null`. URL round-trips are tested in `tests/unit/url-state.test.ts`.
 
@@ -1006,7 +1035,7 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 - Demographic-skew annotations on Surface II are static prose referencing WP-003 §6.1. Dynamic annotation content (per-source demographic coverage assessments) is deferred pending CSS interdisciplinary review — static annotations prevent the overlay from silently doing nothing while keeping the research boundary visible.
 - The tray's `limitations-first` behaviour (Phase 108) is verified here end-to-end. The `negSpace` value read inside `MethodologyTray.svelte` flows from `urlState().negSpace` via `negativeSpaceActive()`, so the tray reacts reactively to URL changes without additional wiring.
 
-## 8.18 Language Capability Manifest (Phase 118a / ADR-024)
+## 8.31 Language Capability Manifest (Phase 118a / ADR-024)
 
 `services/analysis-worker/configs/language_capabilities.yaml` is the system-of-record for per-language analytical capability across the AĒR analysis worker and the BFF API. It replaces the hard-coded language maps that lived inside `NamedEntityExtractor` (`_LANGUAGE_TO_MODEL`) and `SentimentExtractor` (the module-level `_NEGATION_CUES`, `_NEGATION_DEPS`, `_CLAUSE_BOUNDARY_DEPS` frozensets and the `_SUPPORTED_LANGUAGES` set) prior to Phase 118a.
 
@@ -1023,7 +1052,7 @@ Phase 112 implements the "what AĒR doesn't see" overlay per Design Brief §4.4 
 
 **Adding a language.** See `docs/extending/add-a-language.md` for the operator workflow. The matrix in that document is the human-readable view of the manifest; auto-generation of the matrix from the manifest is slated for Phase 123a.
 
-## 8.20 Workbench State Tree (ADR-034)
+## 8.32 Workbench State Tree (ADR-034)
 
 The Workbench's analytical state is a four-level tree, fully serialised into the URL so deep-links restore byte-for-byte.
 
@@ -1135,9 +1164,11 @@ A cross-surface shopping-cart populated by Atmosphere SHIFT-click and the `Probe
 
 Rune-wrapped exports in `panel-mutators.ts` apply each pure mutator against the live URL store.
 
-## 8.21 Configurable Cells & Visual-Channel Binding (Phase 131)
+**Metadata comparability (ADR-038).** When a Panel pools multiple probes/sources whose metadata coverage differs, the cells follow a three-tier comparability model: **intersection-default** (compare on the shared field set), **show-anyway with a drop + note** (render the wider set, disclosing what was dropped), and **per-cell peek** (inspect a single source's fuller metadata). Absence is disclosed, never coerced to zero (the ADR-039 Negative-Space invariants, §8.30). The model + the feature-interaction test matrix live in `docs/design/workbench_comparability.md`; the decision record is ADR-038.
 
-Phase 131 turns the View-Mode Matrix cells (§8.13) from fixed, shallow renders into **configurable, publication-ready, always-explained** analytical units. The guiding principle (after Kriesel): analysis is not "network vs. chart" — it is **visual channels (position, size, colour, edge-weight) bound to real data**.
+## 8.33 Configurable Cells & Visual-Channel Binding (Phase 131)
+
+Phase 131 turns the View-Mode Matrix cells (§8.26) from fixed, shallow renders into **configurable, publication-ready, always-explained** analytical units. The guiding principle (after Kriesel): analysis is not "network vs. chart" — it is **visual channels (position, size, colour, edge-weight) bound to real data**.
 
 ### Per-cell configuration framework
 
@@ -1175,7 +1206,7 @@ Every cell renders a **composed** "how to read" note (`HowToRead.svelte` + the p
 
 `overlay` composition (N per-source lines on one shared canvas) is implemented only for `time_series`; per-scope cells render one artefact and would show overlay identically to merged. `PresentationDefinition.supportsOverlay` gates the Overlay control so it is offered only where meaningful, and switching to a non-overlay view reconciles an overlay panel to `split`. The split **layout + direction** (`PanelHost.isSplitLayout`) engages whenever a `split`-composed panel renders more than one cell — including the common probe-scope fan-out where `selectCellRender` returns `merged-single` and the host expands per dossier source — so the horizontal/vertical direction toggle is live for every split render, not only the multi-ScopeGroup case.
 
-## 8.22 Cross-Lingual Readability of Relational Artefacts (Phase 123b / ADR-037)
+## 8.34 Cross-Lingual Readability of Relational Artefacts (Phase 123b / ADR-037)
 
 Once probes span languages (Probe 1 = French), a co-occurrence map carries source-language surface forms (`Russie`, `États-Unis`) that a German- or English-only reader cannot read — a structurally-correct artefact becomes practically worthless. AĒR makes the **QID-linked subset** readable in the reader's language via a **label-swap, never a translation** (ADR-037).
 

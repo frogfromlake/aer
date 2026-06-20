@@ -4,6 +4,8 @@ This chapter records all significant architectural decisions using the Architect
 
 > **Note:** ADR-001 was an informal, undocumented decision made during project inception (selection of the Monorepo structure). It is retroactively captured in Chapter 2 (Architecture Constraints) and not repeated here.
 
+> **Numbering convention.** ADR identifiers are **stable insertion-order ids, not a reading sequence** — they are assigned when an ADR is reserved, so the document order is not strictly monotonic (e.g. ADR-032 *Silent-Edit Observability* was reserved early but written up after ADR-033/034/035, and therefore sits physically after them). This mirrors the phase-numbering convention in `ROADMAP.md`. Read by topic, not by position.
+
 ## ADR-002: Data Governance, Resiliency, and The Silver Contract
 
 **Date:** 2026-03-28  
@@ -1074,87 +1076,6 @@ PostgreSQL `documents` and `ingestion_jobs` retain their current 90-day retentio
 * **Ratified:** 2026-04-26 by the implementing engineer.
 * **Review date:** when either retention horizon changes, or when `aer_silver.documents` is replaced by a richer Silver-projection schema.
 `
-## ADR-023: Multilingual Sentiment Strategy
-
-| Property | Value |
-| :--- | :--- |
-| **Date** | 2026-05-02 |
-| **Status** | Accepted |
-| **Relates to** | WP-002 (Metric Validity), ADR-016 (Hybrid Tier Architecture), Phase 119, Phase 123 |
-
-### Context
-
-Phase 119 specifies `mdraw/german-news-sentiment-bert` as the primary German Tier 2 sentiment extractor, with `oliverguhr/german-sentiment-bert` as a domain-mismatch baseline. The pattern is German-specific by construction: a pinned model revision, a per-model determinism CI gate, a per-model Docker image footprint contribution.
-
-Phase 123 sketches `cmarkea/distilcamembert-base-sentiment` for French following the same pattern. At N=2 languages this is acceptable. At N=50 (the project's stated long-term coverage trajectory — see `docs/extending/scalability-roadmap.md`) maintaining 50 separate per-language Tier 2 sentiment extractors is operationally untenable: 50 model revisions to track, 50 determinism gates to run in CI, an exploding image size, 50 memory footprints competing for analysis-worker resources.
-
-The naïve alternative — a single multilingual sentiment model covering all languages — has its own cost: WP-002 §3.2 documents domain transfer as a primary failure mode of sentiment models. A model trained on 100-language Twitter data is structurally less calibrated to e.g. German institutional editorial RSS than a German-news-fine-tuned model on the same texts.
-
-The decision is which of the two costs the architecture should default to, and how to allow the other to coexist where it adds value.
-
-### Decision
-
-**Multilingual model as the Tier 2 default, per-language models as optional Tier 2.5 refinements where available.** Both run in parallel under the ADR-016 dual-metric pattern. The dashboard renders both with Epistemic Weight (Brief §7.8) distinguishing them; the gap between them is itself a research signal that informs WP-002 §3.2's domain-transfer discussion.
-
-Concretely:
-
-1. **Tier 2 default extractor.** A single `MultilingualBertSentimentExtractor` running `cardiffnlp/twitter-xlm-roberta-base-sentiment` (or the equivalent multilingual SOTA at the time of implementation; final selection part of Phase 119's implementation work). Produces `metric_name = "sentiment_score_bert_multilingual"`. Covers all languages the model handles. Single Docker-image footprint contribution. Single determinism CI gate. The Phase 116 language guard ensures the extractor only runs on documents whose `detected_language` is in the model's supported set; for unsupported languages, the metric is genuinely absent (no row written), not zero.
-
-2. **Tier 2.5 per-language refinements.** Where a high-quality per-language news-domain model exists on Hugging Face Hub (e.g. `mdraw/german-news-sentiment-bert` for German, `cmarkea/distilcamembert-base-sentiment` for French), it ships as an additional extractor producing `metric_name = "sentiment_score_bert_<lang>_<domain>"` (e.g. `sentiment_score_bert_de_news`). Optional and language-bound.
-
-3. **Both metrics ship in parallel.** A German document produces both `sentiment_score_bert_multilingual` and `sentiment_score_bert_de_news`. The dashboard surfaces both. Epistemic Weight reflects each metric's `validation_status` independently per ADR-016. The two are NEVER averaged into a composite.
-
-4. **Tier 1 SentiWS pattern unchanged.** SentiWS-class deterministic lexicon extractors remain the Tier 1 baseline per Phase 117. The dual-metric pattern of ADR-016 (Tier 1 + Tier 2 in parallel) is preserved; this ADR refines the Tier 2 layer into Tier 2 (multilingual) + optional Tier 2.5 (per-language).
-
-5. **Phase 119 rescope.** Phase 119 implements (1) the multilingual Tier 2 extractor and (2) the German Tier 2.5 refinement (`mdraw/german-news-sentiment-bert`). The `oliverguhr/german-sentiment-bert` review-domain baseline originally specified in Phase 119 is **demoted** from a primary deliverable to an optional Tier 2.5 refinement (`sentiment_score_bert_de_review`); it ships if and only if the engineering capacity is available, with the same defer-friendly pattern as other language-specific extractors. The methodological motivation for the review-domain baseline (on-pipeline domain-transfer evidence) is preserved by the multilingual-vs-per-language gap, which provides the same signal at lower operational cost.
-
-### Consequences
-
-**Positive.**
-- Sentiment coverage scales with O(1) extractors per language addition: a new probe in a language the multilingual model supports gets sentiment for free.
-- Per-language quality is preserved where a strong native model exists.
-- The methodological caution of WP-002 §3.2 (domain transfer is a real failure mode) is honoured by surfacing both metrics, not by hiding the multilingual model's weaknesses.
-- The Phase 123 NLP section becomes simpler: French ships with the multilingual default automatically; the Tier 2.5 CamemBERT integration is an optional refinement, not a blocker.
-
-**Negative.**
-- The dashboard surfaces more metrics for sentiment-rich probes. The Epistemic Weight system (Brief §7.8) is responsible for keeping the cognitive load manageable.
-- The multilingual model's per-language calibration is unknown until annotation studies run for each context. The `aer_gold.metric_validity` scaffold ships with `validation_status='unvalidated'` for the multilingual extractor at every context-key, mirroring the Tier 1/2 pattern.
-- A multilingual model upgrade (new revision, new model entirely) is a single coordinated change that affects all languages simultaneously. This is intentional: the determinism gate catches drift, but every language's sentiment baseline shifts together. Per-language models do not have this property.
-
-### Implementation Outline
-
-Phase 119 ships:
-- `MultilingualBertSentimentExtractor` (primary, all-language).
-- `GermanNewsBertSentimentExtractor` (Tier 2.5 refinement for German).
-- Determinism CI gates for both.
-- `metric_validity` scaffold rows for both at each Probe-0 context-key.
-- `metric_provenance.yaml` entries for both.
-
-Phase 123 (French) adds:
-- Optional `FrenchNewsBertSentimentExtractor` (Tier 2.5 refinement for French) following the same pattern as the German Tier 2.5 extractor.
-- The multilingual default automatically covers French via the language guard — no extractor work.
-
-Future probes:
-- Tier 2 default coverage requires no work — the multilingual extractor handles it.
-- Tier 2.5 refinements are optional, language-by-language, defer-friendly.
-
-### References
-
-- WP-002 §3.2 (domain transfer as primary failure mode)
-- ADR-016 (Hybrid Tier Architecture, dual-metric pattern)
-- Brief §7.8 (Epistemic Weight)
-- Phase 119, Phase 123
-- `docs/extending/add-a-language.md`
-- `docs/extending/scalability-roadmap.md`
-
-### Decision Record
-
-- **Proposed:** 2026-05-02 by Fabian Quist (senior architect) with AĒR.
-- **Ratified:** 2026-05-02 by the implementing engineer.
-- **Review date:** 2027-05 (12-month review) or on a major shift in multilingual sentiment SOTA.
-
----
-
 ## ADR-023: Multilingual Sentiment Strategy
 
 | Property | Value |

@@ -44,7 +44,7 @@ AĒR's extension cost is bounded by a four-layer model. Each layer answers a dif
 | Telegram | `crawlers/telegram-crawler/` | Future |
 | YouTube | `crawlers/youtube-crawler/` | Future |
 | Bluesky | `crawlers/bluesky-crawler/` | Future |
-| RSS-only legacy | *(retired Phase 122; see `crawlers/_archived/rss-crawler/MIGRATED.md`)* | Retired |
+| RSS-only legacy | *(retired Phase 122, removed Phase 129; see git history)* | Retired |
 
 **The answer to *"how often do I write a new crawler?"* is "once per platform class, then YAML for each source on that platform."** This is the architectural payoff of the Source Adapter pattern (ADR-002 / ADR-028) for Layer-3 collection methods.
 

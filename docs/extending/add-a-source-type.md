@@ -135,9 +135,9 @@ The `silver_eligible=false` default on the source classification is the technica
 
 This is *not* a complete implementation — it is a sketch showing the structural shape of a non-RSS adapter.
 
-### `crawlers/forum-crawler/` (Go)
+### `crawlers/forum-crawler/` (Python)
 
-A new standalone Go binary, structurally analogous to the RSS crawler, but:
+A new standalone Python crawler, structurally analogous to the Phase-122 web crawler (Python preferred per ADR-028 — language consistency with the worker), but:
 
 - Polls the forum's API or scrapes forum pages (depending on accessibility, ToS, robots.txt).
 - Resolves thread structure (parent-child relationships).

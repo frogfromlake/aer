@@ -9,13 +9,13 @@ The business context describes AĒR from the perspective of its users and the da
 ```mermaid
 graph LR
     subgraph "External Data Sources"
-        WikiAPI["Wikipedia REST API"]
-        FutureSrc["Future Sources<br/>(News APIs, Social Media, ...)"]
+        WebSrc["Institutional Web<br/>(news / government sites)"]
+        FutureSrc["Future Sources<br/>(Social Media, APIs, ...)"]
     end
 
     subgraph "External Crawlers"
-        WikiCrawler["wikipedia-scraper<br/>(Go, standalone)"]
-        FutureCrawler["Future Crawlers<br/>(Go/Python, standalone)"]
+        WebCrawler["web-crawler<br/>(Python, Scrapy)"]
+        FutureCrawler["Future Crawlers<br/>(Python preferred, standalone)"]
     end
 
     subgraph "AĒR System Boundary"
@@ -29,9 +29,9 @@ graph LR
         Operator["System Operator"]
     end
 
-    WikiAPI -->|"JSON"| WikiCrawler
+    WebSrc -->|"HTML"| WebCrawler
     FutureSrc -->|"JSON / HTML"| FutureCrawler
-    WikiCrawler -->|"HTTP POST<br/>/api/v1/ingest"| AER
+    WebCrawler -->|"HTTP POST<br/>/api/v1/ingest"| AER
     FutureCrawler -->|"HTTP POST<br/>/api/v1/ingest"| AER
     AER -->|"REST JSON<br/>/api/v1/metrics<br/>/api/v1/entities<br/>/api/v1/languages<br/>/api/v1/metrics/available<br/>/api/v1/metrics/{name}/provenance<br/>/api/v1/sources"| Analyst
     AER -->|"REST JSON<br/>Same endpoints as Analyst<br/>+ validation / bias / provenance metadata"| Researcher
@@ -55,7 +55,7 @@ The technical context zooms in on the protocols, ports, and network boundaries u
 ```mermaid
 graph TD
     subgraph "Internet / Host Network"
-        Crawler["External Crawler<br/>(e.g. wikipedia-scraper)"]
+        Crawler["External Crawler<br/>(e.g. web-crawler)"]
         Browser["Browser<br/>(Analyst / Operator)"]
     end
 

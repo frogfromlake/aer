@@ -4917,6 +4917,45 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 128: Accessibility + Performance Verification [P1] - [x] DONE
+
+*Full WCAG 2.2 AA + Lighthouse CI + High-Fi hardware performance across the complete post-Iteration-10 surface and both content languages (DE+FR alongside EN/DE UI).*
+
+*Runs after Phase 144 — the EN/DE UI-parity check below is now backed by a real localized UI (Phase 144), not aspirational; the Lighthouse/bundle budgets compose with the Phase-137 CI performance budget.*
+
+**Grounding.** Read first: existing Lighthouse/bundle-budget config + the a11y E2E setup, Brief §10 (performance budgets), the engine-3d reduced-motion path. Preserve: existing bundle budgets (shell), the reduced-motion contract. Verify-first: Phase 127 substantially in place (this audits the coherent surface).
+
+* [x] **Axe audit** over every reachable state (three surfaces × Dossier overlay × configurable cells × Composition cells incl. D3-force × auth surfaces × overlays × single/multi-probe). Zero AA violations. — `tests/e2e/a11y-app.spec.ts` (+ existing `a11y.spec.ts`); fixed 4 AA violation classes: Plot `aria-prohibited-attr` (`plot-a11y.ts`), pillar/DF text contrast, panel-host `nested-interactive`, control-strip `target-size` (2.5.8).
+* [x] **Modal a11y** (Dossier overlay focus-trap/Esc/ARIA — already in place); keyboard-operable cell config (fixed `CellConfigPopover` focus-on-open + restore); auth surfaces narrated (`AuthNotice` `role="alert"`). Behaviour pinned by e2e.
+* [x] **Lighthouse + bundle budgets** — `@lhci/cli` + `lighthouserc.cjs` (`make fe-lighthouse`, CI step); bundle gate extended with a per-other-lazy-chunk cap so a new feature chunk (e.g. relational network) fails CI on regression.
+* [~] **Performance** — Kriesel network force budget (auto-stop + Settle cap, already present); **engine pause while overlay open** + tab-hidden pause (`engine.setActive` + Page Visibility, wired in `AtmosphereSurface`). **60 fps / <16 ms frame on M1-class hardware = operator manual pass** (procedure filed in the Operations Playbook).
+* [~] **Reduced-motion** (fly-to→instant via `engine.reducedMotion`; network→static fallback) ✅. **EN/DE parity** enforced by the Phase-144 i18n-parity gate ✅. **Screen-reader pass = operator manual pass** (checklist filed in the Operations Playbook).
+* [x] Arc42 Accessibility & Performance Envelope (§10.3); CI gate spec + bundle-budget table; Operations Playbook manual-pass checklist.
+
+### Validation
+* [~] All CI gates green (axe / Lighthouse / bundle / lint / unit / e2e). **Hardware-test + screen-reader logs = operator-pending** (procedures documented in the Operations Playbook → *Manual accessibility + hardware pass*).
+
+## Phase 129: Documentation Sweep + Terminology Reconciliation [P-Docs] - [x] DONE
+
+*Final consolidation against post-Iteration-10 reality. **Absorbs the Phase-138 stale-docs worklist** — the operator's "go over all `/docs` files and check they are correct" is this phase, now evidence-driven from the inventory rather than ad-hoc.*
+
+*Done 2026-06-20. The `quality_register.md` §5 stale-docs list was the worklist (all checked off there). Both mkdocs sites build `--strict`. Spec-vs-reality corrections surfaced: `add-a-language.md` is hand-authored, not auto-generated (the "cutover" expectation was itself stale); the terminology question is a science↔code **swap**, not a one-word rename. README RSS items deferred to Phase 152 (operator decision — full rewrite there).*
+
+**Grounding.** Read first: all ADRs in `docs/arc42/09_architecture_decisions.md`, CLAUDE.md, the extending guides, the Operations Playbook, `mkdocs.yml`. Preserve: the MkDocs strict-build constraint (cross-references resolve), the English-only documentation rule. Verify-first: which ADRs actually landed vs. planned before writing the coherence pass.
+
+* [x] **Arc42 sweep** — three surfaces / pillar identity / Workbench reconciled across ch03/05/12/13 + §8.17; **access-control layer** (ADR-040) added as §8.7.7 (it was missing from arc42 — a real correctness gap); metadata-comparability (ADR-038) pointer in §8.32; all cross-references resolve.
+* [x] **ADR coherence** — verbatim **ADR-023 duplicate removed**; ADR-numbering convention documented (insertion-order, ADR-032 after ADR-035); ADR-025/026 confirmed still-correctly-Deferred (triggers N=10 / N≥5, current N=2); **`docs/design/reframing-note.md` deleted** (+ denav + design_brief provenance row).
+* [x] **CLAUDE.md sweep** — reviewed; already current (web-crawler, Workbench, ADR-040); only the now-deleted `_archived/rss-crawler/` references updated. *(CLAUDE.md is gitignored — not in the committed diff.)*
+* [x] **Working-Paper cross-link audit** (clean — no retirement drift, §-refs resolve post-renumber); **Operations Playbook** end-to-end (crawl/volume/network/e2e/TOC tables + archived section); **extending guides** reviewed; `add-a-language.md` confirmed hand-authored + current (not auto-generated — spec drift noted).
+* [x] **RSS-crawler retirement** — `crawlers/_archived/rss-crawler/` (whole `_archived/`) deleted; references repointed to git history.
+* [x] **Terminology reconciliation** — `docs/development/terminology-reconciliation-proposal.md` written (Path A reconcile / Path B status-quo / **Path C labels-only** via the existing `displayName`/`shortName` layer, recommended-to-evaluate). Framed against the invited-researcher audience (ADR-040). Nothing renamed; the decision stays open in the doc. *(Committed directly as the review artifact — operator decision 2026-06-20: no separate PR for a solo dev.)*
+* [x] **08_concepts duplicate numbering** — the second `8.12`–`8.22` block renumbered monotonically to **§8.25–8.34** (inbound refs verified safe; one internal ref §8.13→§8.26 fixed); stale Surface-II/Function-Lane sections given supersession banners.
+
+### Validation
+* [x] `mkdocs build --strict` passes (both public + internal sites); all cross-references resolve (one pre-existing `add-a-source` anchor fixed; a couple of unrelated pre-existing anchor INFOs remain, non-fatal); terminology artifact committed (no PR per operator); ROADMAP marked DONE in place per the closure-block convention.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4953,44 +4992,6 @@ This phase enforces the following — every implementation choice must satisfy t
 ## Closure block (Phases 127–129 + 152 README) — run last, against the consolidated surface
 
 *The three original Iteration-11 closure phases keep their scope but move **after** the consolidation pass (136–144): coherence, accessibility/performance, and documentation are verified against the cleaned, localized, green-CI surface — so the audit is not invalidated by a later refactor. They are also the bridge into Iteration 12: a coherent, documented, accessible app is the baseline the security/deployment reviews assume.*
-
----
-
-## Phase 128: Accessibility + Performance Verification [P1] - [ ] TODO
-
-*Full WCAG 2.2 AA + Lighthouse CI + High-Fi hardware performance across the complete post-Iteration-10 surface and both content languages (DE+FR alongside EN/DE UI).*
-
-*Runs after Phase 144 — the EN/DE UI-parity check below is now backed by a real localized UI (Phase 144), not aspirational; the Lighthouse/bundle budgets compose with the Phase-137 CI performance budget.*
-
-**Grounding.** Read first: existing Lighthouse/bundle-budget config + the a11y E2E setup, Brief §10 (performance budgets), the engine-3d reduced-motion path. Preserve: existing bundle budgets (shell), the reduced-motion contract. Verify-first: Phase 127 substantially in place (this audits the coherent surface).
-
-* [x] **Axe audit** over every reachable state (three surfaces × Dossier overlay × configurable cells × Composition cells incl. D3-force × auth surfaces × overlays × single/multi-probe). Zero AA violations. — `tests/e2e/a11y-app.spec.ts` (+ existing `a11y.spec.ts`); fixed 4 AA violation classes: Plot `aria-prohibited-attr` (`plot-a11y.ts`), pillar/DF text contrast, panel-host `nested-interactive`, control-strip `target-size` (2.5.8).
-* [x] **Modal a11y** (Dossier overlay focus-trap/Esc/ARIA — already in place); keyboard-operable cell config (fixed `CellConfigPopover` focus-on-open + restore); auth surfaces narrated (`AuthNotice` `role="alert"`). Behaviour pinned by e2e.
-* [x] **Lighthouse + bundle budgets** — `@lhci/cli` + `lighthouserc.cjs` (`make fe-lighthouse`, CI step); bundle gate extended with a per-other-lazy-chunk cap so a new feature chunk (e.g. relational network) fails CI on regression.
-* [~] **Performance** — Kriesel network force budget (auto-stop + Settle cap, already present); **engine pause while overlay open** + tab-hidden pause (`engine.setActive` + Page Visibility, wired in `AtmosphereSurface`). **60 fps / <16 ms frame on M1-class hardware = operator manual pass** (procedure filed in the Operations Playbook).
-* [~] **Reduced-motion** (fly-to→instant via `engine.reducedMotion`; network→static fallback) ✅. **EN/DE parity** enforced by the Phase-144 i18n-parity gate ✅. **Screen-reader pass = operator manual pass** (checklist filed in the Operations Playbook).
-* [x] Arc42 Accessibility & Performance Envelope (§10.3); CI gate spec + bundle-budget table; Operations Playbook manual-pass checklist.
-
-### Validation
-* [~] All CI gates green (axe / Lighthouse / bundle / lint / unit / e2e). **Hardware-test + screen-reader logs = operator-pending** (procedures documented in the Operations Playbook → *Manual accessibility + hardware pass*).
-
----
-
-## Phase 129: Documentation Sweep + Terminology Reconciliation [P-Docs] - [ ] TODO
-
-*Final consolidation against post-Iteration-10 reality. **Absorbs the Phase-138 stale-docs worklist** — the operator's "go over all `/docs` files and check they are correct" is this phase, now evidence-driven from the inventory rather than ad-hoc.*
-
-**Grounding.** Read first: all ADRs in `docs/arc42/09_architecture_decisions.md`, CLAUDE.md, the extending guides, the Operations Playbook, `mkdocs.yml`. Preserve: the MkDocs strict-build constraint (cross-references resolve), the English-only documentation rule. Verify-first: which ADRs actually landed vs. planned before writing the coherence pass.
-
-* [ ] **Arc42 sweep** — three surfaces, pillar identity, per-source-class backbone, metadata analysis, relational/multivariate cells, silent-edit stratum, access-control layer; all cross-references resolve.
-* [ ] **ADR coherence** — ADR-023 amendment (+ duplicate fix), ADR-030, ADR-032 (re-scoped), ADR-033 amendment, ADR-035 (pillar identity), ADR-036 (access control). Review deferred-ADR triggers (ADR-025/026). Delete `docs/design/reframing-note.md` if served.
-* [ ] **CLAUDE.md sweep** — three surfaces, pillar identity, backbone strategy, metadata analysis, composition cells, auth layer, new endpoints/tables/extractors.
-* [ ] **Working-Paper cross-link audit**; **Operations Playbook** end-to-end; **extending guides** review; auto-generated `add-a-language.md` cutover.
-* [ ] **RSS-crawler retirement** — delete archived `crawlers/_archived/rss-crawler/`.
-* [ ] **Terminology reconciliation** — the "Probe/Source" rename question (Path A vs B), now more concrete with the user/auth layer; opens as a review PR, does not land here.
-
-### Validation
-* [ ] `mkdocs build --strict` passes; all cross-references resolve; terminology PR opened; Completed-Phases index current.
 
 ---
 

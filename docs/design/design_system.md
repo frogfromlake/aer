@@ -200,10 +200,10 @@ The push-mode / overlay-mode threshold is **900 px viewport width** — enforced
 |---|---|---|
 | Top | ◉ planet glyph | Link to `/`. Return-to-Atmosphere affordance. Accent-colored. |
 | Divider | 1 px separator | |
-| Middle | Three surface anchors (●/≡/¶) | `aria-current="page"` on active surface. Links to `/`, `/lanes`, `/reflection`. |
+| Middle | Three surface anchors (●/≡/¶) | `aria-current="page"` on active surface. Links to `/`, `/workbench`, `/reflection` (ADR-033). |
 | Scope | Active probe ID (7 chars max) | Dimmed when no probe selected. |
 | Divider | 1 px separator | |
-| Bottom | Pillar toggle (A / E / R) | `role="radiogroup"` + `role="radio"` per button. Reads/writes `?viewingMode=` URL param. |
+| Bottom | Pillar toggle (A / E / R) | `role="radiogroup"` + `role="radio"` per button. Reads/writes `?activePillar=` URL param. |
 
 All interactive elements are native `<a>` or `<button>` — no custom focus management.
 
@@ -216,7 +216,7 @@ Slot-based component. Surface pages render their own content between the tags. `
 | Surface | Default ScopeBar content |
 |---|---|
 | I — Atmosphere | Time window label (monospace) + resolution `<select>` + Negative Space toggle |
-| II — Function Lanes | Lane switcher (Phase 106) |
+| II — Workbench | Per-panel scope chips (`PanelMetaStrip`) — the global scope bar was retired in Phase 122k/123 |
 | III — Reflection | Section anchor / reading progress indicator (Phase 109) |
 
 Requires `label` prop (default: `"Surface navigation"`) for the `aria-label` on the `nav` element.

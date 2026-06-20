@@ -229,50 +229,52 @@ OpenAPI/JSON fields (`probeId`/`sourceId`/`scopeId`/`comparedTo`/`viewerLanguage
 
 *Two clusters dominate: (A) RSS-crawler → web-crawler rename; (B) Function-Lane/`/lanes/`/`viewMode=` → Workbench/base64url-grammar. Plus one structural defect (duplicate §8.12/8.13/8.14 numbering).*
 
+> **Phase 129 closure (2026-06-20).** All definitely-stale arc42/design/operations/extending items below are **fixed**; the structural duplicate-numbering defect was resolved by renumbering the second `08_concepts.md` block to §8.25–8.34 (monotonic, no inbound-ref breakage). The four **README** items are **deferred to Phase 152** (operator decision 2026-06-20 — Phase 152 rewrites the README in full against the final designed surface; fixing the lines twice is wasted work). All three to-verify items are resolved. `mkdocs build --strict` (both sites) passes.
+
 ### Definitely-stale (23)
 **arc42:**
-- [ ] `05_building_block_view.md:155,157` — RSS Crawler described as live primary source → web-crawler (ADR-028) · definitely-stale
-- [ ] `08_concepts.md:758-877` — §8.12/8.13 "Surface II Architecture" + view-mode matrix in present tense (`/lanes/[probeId]/...`, `ViewModeSwitcher`) → three-surface Workbench grammar (no supersession banner present) · definitely-stale
-- [ ] `08_concepts.md:855` — `?viewMode=` + `/lanes/` grammar → base64url-json pillar grammar · definitely-stale
-- [ ] `08_concepts.md:822,947,949` — SideRail "Function Lanes → `/lanes/.../dossier`" → Dossier global overlay (`?dossier=open`) · definitely-stale
-- [ ] `08_concepts.md:553,555` — SideRail second anchor "Function Lanes"; `?viewingMode=`; lane switcher → Workbench · definitely-stale
-- [ ] `08_concepts.md:517,539,545` — "Function Lanes (four discourse functions as horizontal lanes)"; `view=analysis`/`?viewMode=` · definitely-stale
-- [ ] `08_concepts.md:420/436/452 vs 758/826/881` — **duplicate `## 8.12/8.13/8.14` section numbers** (structural) → renumber · definitely-stale
-- [ ] `03_system_scope_and_context.md:17,58` — `wikipedia-scraper` as example crawler (dir removed) → web-crawler · definitely-stale
-- [ ] `12_glossary.md:18` — Dashboard "three surfaces (Atmosphere, Function Lanes, Reflection)" → Workbench · definitely-stale
-- [ ] `12_glossary.md:56` — Surface entry "Function Lanes" → Workbench · definitely-stale
-- [ ] `12_glossary.md:59` — RSS Crawler glossary entry in present tense → mark retired / web-crawler · definitely-stale
-- [ ] `12_glossary.md:32` — Go Workspace lists `crawlers/wikipedia-scraper/` (removed) · definitely-stale
-- [ ] `13_scientific_foundations.md:463` — "RSS crawler remains operational" → web-crawler · definitely-stale
+- [x] `05_building_block_view.md:155,157` — RSS Crawler described as live primary source → web-crawler (ADR-028) · **DONE**
+- [x] `08_concepts.md` — §8.25/§8.26 "Surface II Architecture" + view-mode matrix → **supersession banners** added pointing to ADR-033/034/035 + Workbench State Tree / Configurable Cells · **DONE**
+- [x] `08_concepts.md` — `?viewMode=` + `/lanes/` grammar now inside bannered historical sections (§8.25/§8.26) · **DONE**
+- [x] `08_concepts.md` — SideRail "Function Lanes → `/lanes/.../dossier`" covered by §8.25/§8.28 banners (Dossier global overlay) · **DONE**
+- [x] `08_concepts.md` — §8.17 second anchor "Function Lanes" / `?viewingMode=` → up-front historical banner + summary line fixed to Workbench/`activePillar` · **DONE**
+- [x] `08_concepts.md` — §8.17 "Function Lanes" summary + descent narrative → bannered + summary fixed · **DONE**
+- [x] `08_concepts.md` — **duplicate `## 8.12/8.13/8.14`** (and the whole second block 8.12–8.22) → **renumbered to §8.25–8.34**, monotonic; one renumber-induced internal ref (§8.13→§8.26) fixed · **DONE**
+- [x] `03_system_scope_and_context.md:17,58` — `wikipedia-scraper` example crawler → web-crawler (both mermaid diagrams + edges) · **DONE**
+- [x] `12_glossary.md` — Dashboard "three surfaces (… Function Lanes …)" → Workbench (ADR-033) · **DONE**
+- [x] `12_glossary.md` — Surface entry "Function Lanes" → Workbench + Pillars (ADR-033/034/035) · **DONE**
+- [x] `12_glossary.md` — RSS Crawler entry → marked retired + new **Web Crawler** entry added · **DONE**
+- [x] `12_glossary.md` — Go Workspace `crawlers/wikipedia-scraper/` → corrected to `pkg`/`bff-api`/`ingestion-api` · **DONE**
+- [x] `13_scientific_foundations.md:463` — "RSS crawler remains operational" → web crawler; §13.10 Limitations + source table also reconciled · **DONE**
 
 **design:**
-- [ ] `design_system.md:203` — chrome anchors "Links to `/`, `/lanes`, `/reflection`" → `/workbench` (no banner on this file) · definitely-stale
-- [ ] `design_system.md:219` — "II — Function Lanes | Lane switcher (Phase 106)" → Workbench · definitely-stale
+- [x] `design_system.md:203` — chrome anchors `/`,`/lanes`,`/reflection` → `/workbench` (ADR-033) · **DONE**
+- [x] `design_system.md:219` — "II — Function Lanes | Lane switcher" → Workbench (per-panel scope) · **DONE**
 
 **operations:**
-- [ ] `developer_quickstart.md:54` — `make crawl # runs rss-crawler` → web crawler (`crawl-probe0`) · definitely-stale
-- [ ] `developer_quickstart.md:55` — references non-existent `make crawl-reset` target · definitely-stale
-- [ ] `operations_playbook.md:1832` — "`make crawl` | Run the RSS crawler" → web crawler · definitely-stale
+- [x] `developer_quickstart.md:54` — `make crawl # runs rss-crawler` → web crawler (probe0+probe1) · **DONE**
+- [x] `developer_quickstart.md:55` — non-existent `make crawl-reset` → removed; dedup state is Postgres `crawler_state`, wiped by `make reset` · **DONE**
+- [x] `operations_playbook.md` — command table "`make crawl` | Run the RSS crawler", `crawl-reset` row, `aer_rss_crawler_state` volume row, network + e2e + archived-section prose, TOC entry → all reconciled to web crawler · **DONE**
 
 **extending:**
-- [ ] `add-a-source-type.md:140` — "new standalone Go binary analogous to the RSS crawler" contradicts line 31 (Python-preferred, ADR-028) → rewrite against web-crawler · definitely-stale (internally inconsistent)
+- [x] `add-a-source-type.md:138-140` — "new standalone Go binary analogous to the RSS crawler" → Python crawler analogous to the web crawler (ADR-028) · **DONE**
 
-**README (top-level):**
-- [ ] `README.md:7` — "ingesting German institutional RSS feeds" → web crawler (raw HTML, `source_type:"web"`) · definitely-stale
-- [ ] `README.md:35` — "Currently includes the RSS crawler" → web-crawler · definitely-stale
-- [ ] `README.md:198` — "`make crawl` | Build and run the RSS crawler" → web crawler · definitely-stale
-- [ ] `README.md:360-382` — entire "### RSS Crawler" section (`go build -o bin/rss-crawler`, `feeds.yaml`) → document Python web-crawler + `make crawl-probe0` · definitely-stale
+**README (top-level) — deferred to Phase 152:**
+- [~] `README.md:7` — "ingesting German institutional RSS feeds" → **Phase 152** (full README rewrite)
+- [~] `README.md:35` — "Currently includes the RSS crawler" → **Phase 152**
+- [~] `README.md:198` — "`make crawl` | Build and run the RSS crawler" → **Phase 152**
+- [~] `README.md:360-382` — entire "### RSS Crawler" section → **Phase 152** (documents the Python web-crawler + `make crawl-probe0`)
 
-### To-verify (3)
-- [ ] `05_building_block_view.md:159` — Wikipedia Scraper co-text (historical framing OK; flag only live-crawler context) · verify
-- [ ] `operations_playbook.md:1402,1427` — e2e prose "runs the RSS crawler against fixtures" → check `scripts/build/e2e_smoke_test.sh` (likely stale) · verify
-- [ ] `add-a-source-type.md:140` — confirm Go-vs-Python internal inconsistency (cross-listed above) · verify
+### To-verify (3) — resolved
+- [x] `05_building_block_view.md:159` — Wikipedia Scraper co-text → folded into §5.1.7 rewrite; both legacy crawlers framed as retired/archived · **DONE**
+- [x] `operations_playbook.md` e2e prose — confirmed the e2e **synthesises** `rss`-shaped Bronze fixtures (exercises the still-registered `RssAdapter`), it does **not** run the retired crawler binary; prose tightened · **DONE**
+- [x] `add-a-source-type.md:140` — Go-vs-Python inconsistency confirmed + fixed (cross-listed above) · **DONE**
 
 ### Legitimate historical — NOT stale (Phase 129 must NOT "correct")
 - `09_architecture_decisions.md` — ADR-020/033/034 records of four-surface / `/lanes/` / ProbeFilterModal / WorkbenchScopeBar→PanelControls / CellControls / flyout / flat-form URLs are **explicitly marked superseded with Phase addenda** (lines 536, 2346, 2364, …).
-- `design_brief.md` + `reframing-note.md` — Function-Lanes/four-surface prose protected by **up-front supersession banners** → ADR-033.
+- `design_brief.md` — Function-Lanes/four-surface prose protected by **up-front supersession banners** → ADR-033. (`reframing-note.md` was **deleted in Phase 129**; its provenance row in `design_brief.md` updated.)
 - `extending/README.md:47` + `operations_playbook.md:1193-1195,1443` — RSS crawler / `/lanes/*` described as retired/archived/quarantined.
-- `_archived/rss-crawler/` references (as archived) + `compose.go`/`get_compose_image()` SSoT mentions.
+- `compose.go`/`get_compose_image()` SSoT mentions. (The `crawlers/_archived/rss-crawler/` directory was **removed in Phase 129**; references to it as archived were updated to point at git history.)
 
 **Count: 23 definitely-stale + 3 verify; 5 legitimate-historical groups preserved.**
 
