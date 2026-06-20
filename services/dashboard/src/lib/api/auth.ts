@@ -28,6 +28,9 @@ export interface ActionLink {
   email: string;
   kind: string;
   link: string;
+  /** Phase 153: true when the link was dispatched via the email relay; false →
+   * deliver `link` manually (relay unconfigured or send failed). */
+  delivered?: boolean;
 }
 
 export interface UserDataExport {

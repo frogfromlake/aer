@@ -52,6 +52,8 @@
   "account_admin_invite_email_exists": "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.",
   "account_admin_invite_link_label": "Einmal-Link (an den Benutzer übergeben):",
   "account_admin_invite_copy": "Kopieren",
+  "account_admin_link_delivered": "Per E-Mail gesendet. Der Link unten ist eine Reserve.",
+  "account_admin_link_manual": "Nicht per E-Mail gesendet — den Link unten manuell übergeben.",
 
   "account_admin_users_heading": "Benutzer",
   "account_admin_users_table_label": "Benutzer",

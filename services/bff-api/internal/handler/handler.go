@@ -179,6 +179,10 @@ type Server struct {
 	authBackend AuthBackend
 	authConfig  AuthConfig
 	mailer      notify.LinkSender
+	// emailEnabled is true when mailer is a real transactional-email relay
+	// (Phase 153). It drives the `delivered` flag on admin action-link responses
+	// so the LogSender fallback is never reported as a real send.
+	emailEnabled bool
 	// WebAuthn / passkeys (Phase 134 / ADR-040). Nil when WebAuthn is not wired.
 	webAuthn        *webauthn.WebAuthn
 	webAuthnBackend WebAuthnBackend
@@ -254,9 +258,12 @@ type ServerOptions struct {
 	Auth       AuthBackend
 	AuthConfig AuthConfig
 	Mailer     notify.LinkSender
-	WebAuthn   *webauthn.WebAuthn
-	WebAuthnBE WebAuthnBackend
-	Analyses   AnalysesBackend
+	// EmailEnabled marks Mailer as a real relay (Phase 153). Leave false for the
+	// LogSender so admin responses report delivered=false (manual delivery).
+	EmailEnabled bool
+	WebAuthn     *webauthn.WebAuthn
+	WebAuthnBE   WebAuthnBackend
+	Analyses     AnalysesBackend
 }
 
 // NewServer creates a new API server instance with only the legacy
@@ -287,6 +294,7 @@ func NewServerWithOptions(db Store, provenance config.MetricProvenanceMap, sourc
 	s.authBackend = opts.Auth
 	s.authConfig = opts.AuthConfig
 	s.mailer = opts.Mailer
+	s.emailEnabled = opts.EmailEnabled
 	s.webAuthn = opts.WebAuthn
 	s.webAuthnBackend = opts.WebAuthnBE
 	s.analysesBackend = opts.Analyses

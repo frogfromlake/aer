@@ -52,6 +52,8 @@
   "account_admin_invite_email_exists": "A user with this email already exists.",
   "account_admin_invite_link_label": "One-time link (deliver to the user):",
   "account_admin_invite_copy": "Copy",
+  "account_admin_link_delivered": "Sent by email. The link below is a backup.",
+  "account_admin_link_manual": "Not emailed — deliver the link below manually.",
 
   "account_admin_users_heading": "Users",
   "account_admin_users_table_label": "Users",

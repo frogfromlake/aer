@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -159,4 +160,76 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown user, got %d", rec.Code)
 	}
+}
+
+// failingMailer simulates a relay outage (Phase 153 graceful-failure path).
+type failingMailer struct{}
+
+func (failingMailer) SendInvite(context.Context, string, string) error {
+	return errors.New("relay unreachable")
+}
+func (failingMailer) SendPasswordReset(context.Context, string, string) error {
+	return errors.New("relay unreachable")
+}
+
+// TestAdminCreateUserDeliveredFlag covers the Phase 153 `delivered` signal:
+// a real relay that accepts the message reports delivered=true; a relay outage
+// reports delivered=false but STILL returns the one-time link (break-glass), so
+// the invite is never silently dropped.
+func TestAdminCreateUserDeliveredFlag(t *testing.T) {
+	t.Run("real relay succeeds → delivered true", func(t *testing.T) {
+		s := authTestServer(newMockAuth())
+		s.emailEnabled = true // stubMailer returns nil
+
+		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("ok@example.org"), Role: "researcher"},
+		})
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		r, ok := resp.(PostAdminUsers201JSONResponse)
+		if !ok {
+			t.Fatalf("expected 201 response, got %T", resp)
+		}
+		if r.Delivered == nil || !*r.Delivered {
+			t.Errorf("Delivered = %v, want true", r.Delivered)
+		}
+	})
+
+	t.Run("relay outage → delivered false, link still returned", func(t *testing.T) {
+		s := authTestServer(newMockAuth())
+		s.mailer = failingMailer{}
+		s.emailEnabled = true
+
+		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("down@example.org"), Role: "researcher"},
+		})
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		r, ok := resp.(PostAdminUsers201JSONResponse)
+		if !ok {
+			t.Fatalf("expected 201 response, got %T", resp)
+		}
+		if r.Delivered == nil || *r.Delivered {
+			t.Errorf("Delivered = %v, want false on send failure", r.Delivered)
+		}
+		if !strings.Contains(r.Link, "/accept-invite?token=") {
+			t.Errorf("break-glass link missing on send failure: %q", r.Link)
+		}
+	})
+
+	t.Run("LogSender fallback → delivered false", func(t *testing.T) {
+		s := authTestServer(newMockAuth()) // emailEnabled stays false
+		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("log@example.org"), Role: "researcher"},
+		})
+		if err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		r := resp.(PostAdminUsers201JSONResponse)
+		if r.Delivered == nil || *r.Delivered {
+			t.Errorf("Delivered = %v, want false for LogSender fallback", r.Delivered)
+		}
+	})
 }

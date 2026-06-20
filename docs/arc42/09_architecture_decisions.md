@@ -2919,3 +2919,35 @@ The dashboard was English-only at the UI-shell level (an `APP_CONTENT_LANGUAGE =
 
 * **Positive:** One coherent system, not a mixture — every already-bilingual layer (content catalog, Working Papers) now flows through a single locale signal, and the UI shell gains German via the idiomatic SSG-safe mechanism. Switching is reactive (no reload; all surface state is URL-backed). The privacy stance is preserved (no cookie, no analysis-of-what-the-user-reads). Parity gates (Paraglide message parity + BFF content parity + WP sync drift) make a localization gap a CI failure. The per-feature message layout keeps the ~600 strings maintainable and lets translation work fan out by surface.
 * **Negative:** A new build prerequisite (`pnpm run messages`) must run before check/lint/test/build — wired into the scripts, but a contributor running raw `vitest`/`svelte-check` without it sees missing `$lib/paraglide` types. The messageFormat plugin writes all messages back to the *last* `pathPattern` file on IDE export (Sherlock), so message authoring is by hand / per-file, not via the inlang editor (documented). Reactivity requires message calls to be read in a reactive scope (`{m.x()}` inline or `$derived`), not captured in a top-level `const`. Conceptual-vocabulary SoTs that are pure node-tested modules (`registry.ts` presentation/pillar labels, `discourse-function.ts`, `negative-space.ts`, `methodology-copy.ts`) need a `loc`-parameter threading rather than the rune and are localized as a separate slice.
+
+---
+
+## ADR-043: Transactional Email — Provider-Agnostic SMTP Relay Behind a Stable Seam (Phase 153)
+
+**Date:** 2026-06-20
+**Status:** Accepted
+
+### Context
+
+The deployment target is **invited** researchers (LICENSE §4c, ADR-040): no open self-registration, accounts created by admin invitation, password reset self-served. The auth flows — invite, accept-invite, forgot-password, reset-password — shipped as endpoints in Phase 134 with a deliberate delivery seam (`notify.LinkSender`) whose only implementation was `LogSender` (the one-time link is logged at WARN and, for admin-initiated actions, also returned in the API response for manual copy). That is workable for bootstrapping the first admin (`make create-admin`) but **inoperable for the invite-only model at deployment**: the self-service `forgot-password` flow returns 202 with no link in the body (no user enumeration), so for an end user email is the *only* channel. Phase 153 was pulled ahead of the Iteration-12 security/infra reviews precisely so this surface (a new internet-reachable delivery path, a new external dependency, a new secret) is reviewed complete rather than half-wired.
+
+Constraints (operator, 2026-06-14/20): permanently as-free-as-possible, no fragile dependency, DSGVO-appropriate (the provider processes user email addresses → EU residency / DPA matters), and a solo operator who cannot babysit deliverability. Self-hosted SMTP is explicitly rejected (spam/deliverability/maintenance burden).
+
+### Decision
+
+**A provider-agnostic SMTP submission relay behind the existing `LinkSender` seam, with a graceful LogSender fallback.**
+
+**1. Transport: standard-library `net/smtp` + STARTTLS — no third-party SMTP client.** `notify.SMTPSender` dials the relay, requires STARTTLS (TLS 1.2 floor) before `AUTH PLAIN` so credentials never cross plaintext, and writes one RFC 5322 `text/plain; charset=UTF-8` message. No new Go dependency (Occam's Razor; the "no fragile dependency" constraint). The actual transport is an injected function (`send`) so tests exercise message framing without a live relay.
+
+**2. The provider is pure configuration, not code.** Any relay that speaks SMTP submission with STARTTLS works. The documented default is **Brevo** (EU/France, DSGVO + DPA, 300 mails/day free tier) — chosen over Mailjet/Scaleway TEM on free-tier headroom and EU residency — but swapping it is an `.env` change (`SMTP_HOST/PORT/USERNAME/PASSWORD/FROM_ADDRESS/FROM_NAME`), never a code change. This keeps AĒR off any vendor's API shape (the alternative — a provider's HTTP API — was rejected for vendor lock-in and, for several providers, US residency).
+
+**3. Optional, all-or-nothing config with a safe fallback.** Empty `SMTP_HOST` → `LogSender` (links logged), so local/dev and the `make create-admin` break-glass path keep working with no relay. A *set* `SMTP_HOST` with any missing credential in the group is a **boot error** (config validator) — an internet-facing deployment never silently half-sends. The break-glass admin bootstrap is preserved as the documented fallback.
+
+**4. Bilingual, tracking-free templates.** Each mail carries both an English and a German block in one body (the deployment serves DE+EN researchers and no per-recipient locale is stored — privacy-minimal, Phase 55 — so a locale cannot be guessed). Plain text only: no HTML, no tracking pixels, `Auto-Submitted: auto-generated` to suppress vacation replies. Link expiry is phrased softly ("a limited time") to stay decoupled from the configurable TTLs. The emailed link carries no bearer access beyond the single-use token already in the URL (ADR-040 "no tokens in the client" posture unchanged).
+
+**5. Graceful failure is observable.** A send error is logged at ERROR (operator visibility; a provider outage is never silent), never a panic and never a dropped invite. Admin action-link responses gain an optional `delivered` boolean (OpenAPI `AdminActionLink`): true only when a *real* relay accepted the message — the LogSender reports `delivered=false`, and the admin UI then surfaces the one-time link for manual delivery (the link is always returned as the break-glass channel). The forgot-password path stays 202 regardless, so a send failure never reveals whether an account exists.
+
+### Consequences
+
+* **Positive:** The invite-only model becomes operable with zero new Go dependencies and no vendor lock-in; the provider is a deployment decision, deferrable to Iteration 13. The fallback keeps dev and bootstrap frictionless. Credentials flow through the same boot-time secret validator + `.env.example` discipline as every other secret. The `delivered` signal makes delivery state explicit to the admin without weakening enumeration-safety on the self-service path.
+* **Negative:** STARTTLS-on-submission only — an implicit-TLS (465) relay is not supported (587 is the documented Brevo path; adding 465 is a small, deferred transport variant). Bilingual single-body mails are slightly longer than a locale-targeted mail would be; acceptable until a locale is ever captured at invite time. Deliverability now depends on an external free tier — its limits, SPF/DKIM setup, and the abuse/outage story live in the Operations Playbook, revisited on `make deps-refresh`.

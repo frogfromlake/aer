@@ -247,7 +247,12 @@ func (s *Server) PostAuthForgotPassword(ctx context.Context, request PostAuthFor
 				if cErr := s.authBackend.CreateToken(ctx, user.ID, "password_reset", hash, exp); cErr == nil {
 					link := s.authConfig.PublicBaseURL + "/reset-password?token=" + raw
 					if s.mailer != nil {
-						_ = s.mailer.SendPasswordReset(ctx, user.Email, link)
+						// Log a send failure for operator visibility (a provider
+						// outage must not be silent). The response stays 202
+						// regardless, so the email identity is never revealed.
+						if mErr := s.mailer.SendPasswordReset(ctx, user.Email, link); mErr != nil {
+							slog.Error("forgot-password: deliver reset email", "error", mErr)
+						}
 					}
 				} else {
 					slog.Error("forgot-password: create token", "error", cErr)

@@ -83,14 +83,22 @@ func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersReque
 		slog.Error("admin: issue invite", "error", err)
 		return PostAdminUsers500JSONResponse{Message: genericInternalError}, nil
 	}
+	delivered := false
 	if s.mailer != nil {
-		_ = s.mailer.SendInvite(ctx, email, link)
+		if err := s.mailer.SendInvite(ctx, email, link); err != nil {
+			// Never a silent drop: log for operator visibility. The link is
+			// still returned below so the admin can deliver it manually.
+			slog.Error("admin: deliver invite email", "email", email, "error", err)
+		} else {
+			delivered = s.emailEnabled
+		}
 	}
 	return PostAdminUsers201JSONResponse{
-		UserID: userID,
-		Email:  openapi_types.Email(email),
-		Kind:   "invite",
-		Link:   link,
+		UserID:    userID,
+		Email:     openapi_types.Email(email),
+		Kind:      "invite",
+		Link:      link,
+		Delivered: &delivered,
 	}, nil
 }
 
@@ -138,13 +146,19 @@ func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdm
 		slog.Error("admin: issue reset", "error", err)
 		return PostAdminUserResetPassword500JSONResponse{Message: genericInternalError}, nil
 	}
+	delivered := false
 	if s.mailer != nil {
-		_ = s.mailer.SendPasswordReset(ctx, user.Email, link)
+		if err := s.mailer.SendPasswordReset(ctx, user.Email, link); err != nil {
+			slog.Error("admin: deliver reset email", "email", user.Email, "error", err)
+		} else {
+			delivered = s.emailEnabled
+		}
 	}
 	return PostAdminUserResetPassword200JSONResponse{
-		UserID: user.ID,
-		Email:  openapi_types.Email(user.Email),
-		Kind:   "password_reset",
-		Link:   link,
+		UserID:    user.ID,
+		Email:     openapi_types.Email(user.Email),
+		Kind:      "password_reset",
+		Link:      link,
+		Delivered: &delivered,
 	}, nil
 }

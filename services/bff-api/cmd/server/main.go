@@ -221,6 +221,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Transactional email (Phase 153 / ADR-043). A configured SMTP relay
+	// delivers invite/reset links; otherwise the LogSender keeps the
+	// `make create-admin` break-glass path working by logging the links.
+	var mailer notify.LinkSender = notify.LogSender{}
+	if cfg.EmailEnabled() {
+		mailer = notify.NewSMTPSender(notify.SMTPConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     cfg.SMTPFromAddress,
+			FromName: cfg.SMTPFromName,
+		})
+		slog.Info("auth: transactional email configured", "relay", cfg.SMTPHost, "from", cfg.SMTPFromAddress)
+	} else {
+		slog.Warn("auth: no SMTP relay configured — invite/reset links are logged, not emailed (LogSender)")
+	}
+
 	// 7. Setup Handlers and Router
 	serverLogic := handler.NewServerWithOptions(chStore, provenance, sourceStore, catalog, probes, handler.ServerOptions{
 		Dossier:             dossierStore,
@@ -230,7 +248,8 @@ func main() {
 		LanguageManifest:    languageManifest,
 		Auth:                authStore,
 		AuthConfig:          authConfig,
-		Mailer:              notify.LogSender{},
+		Mailer:              mailer,
+		EmailEnabled:        cfg.EmailEnabled(),
 		WebAuthn:            webAuthn,
 		WebAuthnBE:          webAuthnStore,
 		Analyses:            analysesStore,

@@ -24,6 +24,9 @@
   let inviteBusy = $state(false);
   let inviteMsg = $state<{ kind: 'error' | 'success'; text: string } | null>(null);
   let lastLink = $state<string | null>(null);
+  // Phase 153: whether the last action's link was emailed (true), not emailed
+  // (false), or unknown (null, pre-response). Drives the delivery note.
+  let lastDelivered = $state<boolean | null>(null);
 
   async function loadUsers() {
     const res = await authApi.adminListUsers();
@@ -48,6 +51,7 @@
         text: m.account_admin_invite_success({ email: res.data.email })
       };
       lastLink = res.data.link;
+      lastDelivered = res.data.delivered ?? null;
       inviteEmail = '';
       await loadUsers();
     } else {
@@ -66,7 +70,10 @@
   }
   async function resetFor(id: string) {
     const res = await authApi.adminResetPassword(id);
-    if (res.ok) lastLink = res.data.link;
+    if (res.ok) {
+      lastLink = res.data.link;
+      lastDelivered = res.data.delivered ?? null;
+    }
   }
 
   // Load the user list on mount (admins only). This component mounts only when
@@ -115,6 +122,11 @@
         >
       </div>
     </form>
+    {#if lastDelivered !== null}
+      <p class="delivery {lastDelivered ? 'ok' : 'manual'}">
+        {lastDelivered ? m.account_admin_link_delivered() : m.account_admin_link_manual()}
+      </p>
+    {/if}
     {#if lastLink}
       <div class="link-box">
         <span class="link-label">{m.account_admin_invite_link_label()}</span>
@@ -241,6 +253,16 @@
   .link-label {
     font-size: var(--font-size-xs);
     color: var(--color-fg-subtle);
+  }
+  .delivery {
+    margin: 0;
+    font-size: var(--font-size-sm);
+  }
+  .delivery.ok {
+    color: var(--color-status-validated);
+  }
+  .delivery.manual {
+    color: var(--color-fg-muted);
   }
   .link-value {
     font-family: var(--font-mono);

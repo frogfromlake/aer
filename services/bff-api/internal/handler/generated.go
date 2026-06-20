@@ -7460,7 +7460,9 @@ type PostAdminUsersResponseObject interface {
 }
 
 type PostAdminUsers201JSONResponse struct {
-	Email openapi_types.Email `json:"email"`
+	// Delivered Whether the link was dispatched through a real transactional-email relay (Phase 153). False when the relay is not configured (LogSender fallback) or the send failed — the admin must then deliver `link` manually.
+	Delivered *bool               `json:"delivered,omitempty"`
+	Email     openapi_types.Email `json:"email"`
 
 	// Kind One of `invite`, `password_reset`.
 	Kind string `json:"kind"`
@@ -7619,7 +7621,9 @@ type PostAdminUserResetPasswordResponseObject interface {
 }
 
 type PostAdminUserResetPassword200JSONResponse struct {
-	Email openapi_types.Email `json:"email"`
+	// Delivered Whether the link was dispatched through a real transactional-email relay (Phase 153). False when the relay is not configured (LogSender fallback) or the send failed — the admin must then deliver `link` manually.
+	Delivered *bool               `json:"delivered,omitempty"`
+	Email     openapi_types.Email `json:"email"`
 
 	// Kind One of `invite`, `password_reset`.
 	Kind string `json:"kind"`

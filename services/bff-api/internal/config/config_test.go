@@ -161,6 +161,63 @@ func TestLoad_MissingRequiredSecret(t *testing.T) {
 	}
 }
 
+// TestLoad_EmailDisabledByDefault confirms an unset SMTP_HOST loads cleanly and
+// EmailEnabled reports false (the LogSender fallback path, Phase 153).
+func TestLoad_EmailDisabledByDefault(t *testing.T) {
+	chdirEmpty(t)
+	setRequiredEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.EmailEnabled() {
+		t.Error("EmailEnabled() = true with no SMTP_HOST, want false")
+	}
+	if cfg.SMTPPort != "587" {
+		t.Errorf("SMTPPort default = %q, want 587", cfg.SMTPPort)
+	}
+}
+
+// TestLoad_SMTPGroupAllOrNothing exercises the Phase 153 grouped validation: a
+// set SMTP_HOST requires the rest of the credential group, and a complete group
+// flips EmailEnabled to true.
+func TestLoad_SMTPGroupAllOrNothing(t *testing.T) {
+	t.Run("host set but credential missing fails", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("SMTP_HOST", "smtp-relay.brevo.com")
+		t.Setenv("SMTP_USERNAME", "relay-user")
+		t.Setenv("SMTP_PASSWORD", "relay-key")
+		// SMTP_FROM_ADDRESS deliberately left empty.
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("expected error when SMTP_HOST set but SMTP_FROM_ADDRESS empty")
+		}
+		if !strings.Contains(err.Error(), "SMTP_FROM_ADDRESS") {
+			t.Errorf("error = %q, want it to name SMTP_FROM_ADDRESS", err.Error())
+		}
+	})
+
+	t.Run("complete group enables email", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("SMTP_HOST", "smtp-relay.brevo.com")
+		t.Setenv("SMTP_USERNAME", "relay-user")
+		t.Setenv("SMTP_PASSWORD", "relay-key")
+		t.Setenv("SMTP_FROM_ADDRESS", "noreply@aer.example")
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.EmailEnabled() {
+			t.Error("EmailEnabled() = false with a complete SMTP group, want true")
+		}
+	})
+}
+
 // TestLoad_ReadsDotEnvFile confirms the best-effort .env read path is wired:
 // a value present only in a .env file (not in the environment) reaches the
 // struct.

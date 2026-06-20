@@ -4956,6 +4956,47 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 152: Public README & Project Entry Point [P-Docs] - [x] DONE
+
+*The README is the front door for external people who discover the project — researchers, collaborators, the curious. This phase produces a current, well-presented README as the entry point. Supplemented with the real deployment/install section after Iteration 13 (Phase 149).*
+
+*Done 2026-06-20. **Drift correction (operator, 2026-06-20):** the original note pegged this phase to a "post-design (Phase 151) surface" — there is **no Phase 151**; the dashboard surface is already final, so screenshots were captured from the current live surface. The README is a concise dual-audience front-door (researchers + developers) with deep developer reference linked out to the existing docs rather than embedded (DRY).*
+
+**Grounding.** Read first: the current `README.md`, CLAUDE.md (project identity + architecture), the Arc42 manifesto + scientific-foundations chapter, the provisional-metrics + Negative-Space sections (the honesty surfaces), the Working Papers (for the POC caveats), the design brief (for visual consistency of any diagram). Preserve: the English-only rule, the manifesto framing (atmospheric sensor, not surveillance instrument), the provisional/POC honesty. Verify-first: every claim in the README is checked against shipped reality — no aspirational features.
+
+* [x] **Rewrite the README** — manifesto framing, the medallion architecture, the three surfaces + Pillars, how to run it locally (Makefile), where the docs live. Concise, dual-audience (**For Researchers** / **For Developers**), well-structured; verified against shipped reality (three surfaces, auth-gate, Probe 0 + Probe 1, provisional metrics).
+* [x] **Architecture diagram** — a committed **Mermaid** flowchart of the medallion data flow (web-crawler → Ingestion → Bronze → NATS → Worker → Silver/Gold → BFF → Dashboard) + Postgres metadata/auth. Renders natively on GitHub; source-controlled so it stays maintainable.
+* [x] **Dashboard screenshots** — captured from the **current live surface** (no Phase 151): `docs/assets/readme/{atmosphere,workbench-aleph,workbench-episteme,reflection}.png` — Atmosphère globe, Workbench Aleph (distribution histogram, 583 articles), Workbench Episteme (time series), Reflexion (WP-001). Reproducible capture recipe in `docs/assets/readme/README.md`.
+* [x] **POC honesty banner (non-negotiable).** Up-front GitHub `[!IMPORTANT]` banner: engineering proof-of-concept, **provisional** metrics, scientific validity **limited / not yet peer-validated**.
+* [x] **Deployment placeholder** — a "Deployment" section stub pointing to Iteration 13 (Phase 149) for the real install / run-in-prod instructions.
+
+### Validation
+* [x] README renders cleanly on the git host (standard markdown + Mermaid + GitHub admonition); every feature claim checked against shipped reality; the Mermaid diagram + four current screenshots are in place; the POC / limited-validity statement is prominent at the top; all doc/file links verified to resolve.
+
+
+---
+
+## Phase 153: Transactional Email for Invites & Password Reset [P0] - [x] ENGINEERING-COMPLETE (pending operator: Brevo account + live end-to-end validation)
+
+*Engineering done 2026-06-20 (pending operator commit). Provider-agnostic SMTP relay (`net/smtp` + STARTTLS, no new Go dependency) behind the existing `notify.LinkSender` seam; default provider **Brevo** (EU/DSGVO). Bilingual EN+DE plain-text templates (no tracking pixels). Optional all-or-nothing SMTP config (empty `SMTP_HOST` → LogSender fallback, keeps `make create-admin` break-glass; partial group → boot error). Graceful failure: send errors logged at ERROR, admin responses carry `delivered` (OpenAPI `AdminActionLink`) and the UI shows the one-time link for manual delivery when not delivered; forgot-password stays 202 (no enumeration). Decision recorded in **ADR-043** + Operations Playbook §"Transactional Email". The Validation box stays open until the operator creates the Brevo account, sets the secrets, and runs the live end-to-end test (a relay is required and cannot be unit-tested).*
+
+*Pulled forward (execution order) ahead of the Phase 145–147 reviews: 153 introduces the only new internet-reachable auth surface in this iteration (the email-delivery path), a new external provider dependency, and a new secret — building it first means Stage A scrutinises the **complete** auth / secret / dependency surface (incl. the now-live `forgot-password` mail-bombing/abuse vector) instead of a half-wired flow, and 146's secret inventory + notification-channel decision cover it from the start. The phase number is unchanged per this file's "numbers are insertion-order ids, not execution order" convention.*
+
+*The deployment target is **invited** researchers, but auth today is bound to `make create-admin` and has **no real email channel** — invite / accept-invite / forgot-password / reset-password flows exist as endpoints (ADR-040) but cannot actually reach a human. Without email delivery the invite-only model is inoperable, so this is a launch prerequisite, not a nice-to-have. The phase first determines the best free, low-dependency, stable solution, then wires it.*
+
+**Grounding.** Read first: the BFF auth flows (`internal/auth/`, the `/auth/*` endpoints — accept-invite, forgot/reset-password), ADR-040, the boot-time secret validator + `.env.example`, the privacy-minimal posture (Phase 55 — only email + hash stored), the EU-residency requirement. Preserve: the no-token-in-link sharing posture (a notification email carries no bearer access — ADR-040), the secret-validation discipline, DSGVO minimalism. Verify-first: confirm exactly which flows need outbound email and what each message must (and must not) contain.
+
+### Assess (free · stable · low-dependency · EU/DSGVO)
+* [x] **Evaluate transactional-email options** against the constraints — must work permanently, be as free as possible, add no fragile dependency, and be DSGVO-appropriate (the provider processes user email addresses → EU residency / DPA matters). Compare hosted free-tier transactional-email providers vs. an SMTP relay; **explicitly reject self-hosted SMTP** as the default (deliverability / spam / maintenance burden is hostile to a solo dev). Record the decision (short ADR or playbook note) with the free-tier limits + the failure/abuse story. → **Decision: provider-agnostic SMTP relay (stdlib `net/smtp`), default Brevo (EU, 300 mails/day free, DPA). ADR-043 + Playbook §"Transactional Email" (free-tier limits + abuse/outage story).**
+
+### Implement
+* [x] **Email delivery wired** for invite, accept-invite, and forgot/reset-password — minimal templates, English (+ DE per Phase 144), no tracking pixels (anti-surveillance posture). Provider credentials go through the boot-time secret validator + `.env.example` (REPLACE-ME placeholder). → `notify.SMTPSender` (STARTTLS) + bilingual `templates.go`; `SMTP_*` config with grouped boot validation; wired in `cmd/server/main.go`. (accept-invite needs no outbound mail — it consumes the invite link.)
+* [x] **Graceful failure** — a send failure is logged + surfaced to the admin, never a silent drop of an invite; the `make create-admin` path stays as the break-glass admin bootstrap (documented fallback). → send errors logged at ERROR; admin `delivered` flag + UI manual-delivery note; LogSender fallback when SMTP unset.
+
+### Validation
+* [x] Unit/integration-verifiable parts: grouped config validation (host-set-but-credential-missing → boot error; complete group → `EmailEnabled`), SMTP message framing (bilingual body, CRLF, RFC 2047 subject, header-injection guard), `delivered` true/false/fallback paths. lint + Go suites + `svelte-check` + i18n-parity green.
+* [x] **Live end-to-end (operator) — deferred to deployment (Phase 149).** An admin invites a researcher by email; the invitee receives a working accept-invite mail and activates (consent captured); forgot/reset-password delivers; a provider outage degrades gracefully with operator visibility; credentials validated at boot. *Requires a live Brevo account + a sending domain + secrets — cannot be unit-tested.* **No spend / no action needed until deployment:** until then the stack runs on the `LogSender` fallback (empty `SMTP_HOST`) — invites/resets still work, the admin delivers the one-time link manually. The Brevo account + sender-domain authentication + `SMTP_*` secrets are wired in **Phase 149** (the email sender lives on the deployment domain decided in Phase 148), so this box is ticked there, not here.
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4989,36 +5030,6 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Closure block (Phases 127–129 + 152 README) — run last, against the consolidated surface
-
-*The three original Iteration-11 closure phases keep their scope but move **after** the consolidation pass (136–144): coherence, accessibility/performance, and documentation are verified against the cleaned, localized, green-CI surface — so the audit is not invalidated by a later refactor. They are also the bridge into Iteration 12: a coherent, documented, accessible app is the baseline the security/deployment reviews assume.*
-
----
-
-## Phase 152: Public README & Project Entry Point [P-Docs] - [x] DONE
-
-*The README is the front door for external people who discover the project — researchers, collaborators, the curious. This phase produces a current, well-presented README as the entry point. Supplemented with the real deployment/install section after Iteration 13 (Phase 149).*
-
-*Done 2026-06-20. **Drift correction (operator, 2026-06-20):** the original note pegged this phase to a "post-design (Phase 151) surface" — there is **no Phase 151**; the dashboard surface is already final, so screenshots were captured from the current live surface. The README is a concise dual-audience front-door (researchers + developers) with deep developer reference linked out to the existing docs rather than embedded (DRY).*
-
-**Grounding.** Read first: the current `README.md`, CLAUDE.md (project identity + architecture), the Arc42 manifesto + scientific-foundations chapter, the provisional-metrics + Negative-Space sections (the honesty surfaces), the Working Papers (for the POC caveats), the design brief (for visual consistency of any diagram). Preserve: the English-only rule, the manifesto framing (atmospheric sensor, not surveillance instrument), the provisional/POC honesty. Verify-first: every claim in the README is checked against shipped reality — no aspirational features.
-
-* [x] **Rewrite the README** — manifesto framing, the medallion architecture, the three surfaces + Pillars, how to run it locally (Makefile), where the docs live. Concise, dual-audience (**For Researchers** / **For Developers**), well-structured; verified against shipped reality (three surfaces, auth-gate, Probe 0 + Probe 1, provisional metrics).
-* [x] **Architecture diagram** — a committed **Mermaid** flowchart of the medallion data flow (web-crawler → Ingestion → Bronze → NATS → Worker → Silver/Gold → BFF → Dashboard) + Postgres metadata/auth. Renders natively on GitHub; source-controlled so it stays maintainable.
-* [x] **Dashboard screenshots** — captured from the **current live surface** (no Phase 151): `docs/assets/readme/{atmosphere,workbench-aleph,workbench-episteme,reflection}.png` — Atmosphère globe, Workbench Aleph (distribution histogram, 583 articles), Workbench Episteme (time series), Reflexion (WP-001). Reproducible capture recipe in `docs/assets/readme/README.md`.
-* [x] **POC honesty banner (non-negotiable).** Up-front GitHub `[!IMPORTANT]` banner: engineering proof-of-concept, **provisional** metrics, scientific validity **limited / not yet peer-validated**.
-* [x] **Deployment placeholder** — a "Deployment" section stub pointing to Iteration 13 (Phase 149) for the real install / run-in-prod instructions.
-
-### Validation
-* [x] README renders cleanly on the git host (standard markdown + Mermaid + GitHub admonition); every feature claim checked against shipped reality; the Mermaid diagram + four current screenshots are in place; the POC / limited-validity statement is prominent at the top; all doc/file links verified to resolve.
-
-
----
-###
-
-
-
-
 # Iteration 12 — Production Readiness & Deployment Hardening
 
 *The deployment gate for the first invited researchers. **Target (binding, 2026-06-14):** invited, authenticated researchers on a controlled domain — internet-exposed, no open self-registration. Runs AFTER Iteration 11: the reviews assume a clean, green, localized, documented baseline, so "some findings are already closed" by the time they start. Two stages, the professional assess → triage → remediate pattern: **Stage A** produces a single findings register (the reviews fix nothing); a **triage gate** classifies every finding BLOCKER / SHOULD / LATER against the invite-researcher Definition-of-Done; **Stage B** remediation phases are derived from the register and numbered post-triage (their content is not knowable until the audit runs — this is deliberate, not under-specified). Ends with a Go/No-Go launch checklist.*
@@ -5027,20 +5038,34 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 145: Security Review, Threat Model & Pentest [P0] - [ ] TODO
+## Phase 145: Security Review, Threat Model & Pentest [P0] - [x] STAGE-A REVIEW DONE 2026-06-21 (live-repro confirm-subset pending; remediation = Stage B)
 
 *Stage A. The internet-facing surface under adversarial review. Produces findings, fixes nothing.*
 
+> **Privacy of findings (load-bearing).** This repo is **public** and `docs/` is the MkDocs source. The detailed findings register — severities, exploit scenarios, `file:line` — is therefore held **privately and gitignored** at `.security/phase145_security_findings_register.md`, **never committed**. Only the *method* and *triage counts* live in this public ROADMAP; the Stage-B remediation phases (below) are likewise worded to describe fixes generically, not to publish the unfixed weakness. A committed unredacted register would be an attack roadmap for the very deploy this iteration is gating.
+
+**Method (executed).** Adversarial multi-agent sweep: **10 independent finders**, one per trust-boundary / OWASP class, blind to each other → **refute-by-default verification** of every finding (a skeptic tries to disprove each; only code-grounded findings survive) → synthesis into a triaged register. 41 raw findings → 4 refuted → **29 after cross-domain dedup**. This is a structured *self-review* and is recorded as **necessary-but-not-sufficient**: a live external pentest remains advised before scaling beyond the first vetted invite cohort (the solo-operator budget makes the self-review the launch gate, not a substitute for eventual independent testing).
+
 **Grounding.** Read first: the BFF auth middleware (`internal/auth/`), the ingestion-api `pkg/middleware/apikey.go`, the Traefik config (TLS, headers, sole-ingress posture), the Security Defaults section of CLAUDE.md, Phase 75 (BFF security hardening), ADR-040 (session model). Preserve: every existing security default — this is a review, not a rewrite. Verify-first: enumerate the actual internet-reachable surface (Traefik routes, BFF endpoints, MkDocs) before testing.
 
-* [ ] **Threat model (STRIDE)** of the auth / session / BFF / Traefik surface; documented.
-* [ ] **Auth/session pentest** — session fixation/rotation, CSRF (`Sec-Fetch-Site` + SameSite), cookie flags (`__Host-`/httpOnly/Secure), invite/accept/reset flows, RBAC boundary (researcher→admin escalation), brute-force/rate-limiting on login.
-* [ ] **Web surface** — OWASP-class checks on every BFF endpoint (authz on every data route, input validation, body caps, error leakage, injection on the ClickHouse/Postgres query paths), security headers (HSTS, CSP, frame/`nosniff`), TLS config.
-* [ ] **Secrets posture** — boot-time validation coverage; no secret reachable from client JS or logs; `.env.example` completeness; **GitHub Actions secrets audit** (which secrets CI needs vs. which are set — the operator's open question).
-* [ ] **Findings → register** with severity (CVSS-ish) + repro + fix sketch. No fixes here.
+### Trust-boundary map (the review spine)
+Six boundaries enumerated and STRIDE'd (detail in the private register): **Internet→Traefik**, **Traefik→BFF** (incl. the X-Forwarded-For trust question), **Internet→MkDocs**, **Browser→BFF**, **Crawler→Ingestion**, **BFF→Postgres/ClickHouse**.
+
+### Review coverage (done)
+* [x] **Threat model (STRIDE)** of the auth / session / BFF / Traefik surface, per trust boundary — documented (private register).
+* [x] **Auth/session pentest** — session fixation/rotation, CSRF (`Sec-Fetch-Site` + SameSite), cookie flags (`__Host-`/httpOnly/Secure), invite/accept/reset flows, RBAC boundary (researcher→admin escalation), brute-force/throttle. **Result: the application-layer auth model is confirmed sound;** the operator's "deep-link / URL-swap → suddenly logged-in" concern is **refuted by code** (the client route-gate is advisory, the BFF is authoritative, no gated data ships in the static bundle, `safeRedirect` holds).
+* [x] **Web surface** — OWASP-class checks on every BFF endpoint (authz on every data route, input validation, body caps, error leakage, injection on the ClickHouse/Postgres query paths), security headers (HSTS, CSP, frame/`nosniff`), TLS config. **SQL-injection refuted** (all values bound; interpolated fragments allowlisted).
+* [x] **Secrets posture** — boot-time validation coverage; no secret reachable from client JS or logs; `.env.example` completeness; **GitHub Actions secrets audit** (the operator's open question).
+* [x] **Findings → private register** with severity (CVSS-ish) + repro + fix sketch. No fixes here.
+
+### Triage gate (against the invite-researcher Definition-of-Done)
+- **BLOCKER ×2 · SHOULD ×16 · LATER ×11** (detail private).
+- **The two BLOCKERs are ingress / deployment-posture defects (the prod compose overlay), not application-logic flaws** — they gate any internet-facing deploy and are closed in Stage B before launch.
+- Confirmed-SAFE controls (advisory client gate, `safeRedirect`, CSRF fallback, no SQLi) are recorded explicitly so the invariants are auditable, not assumed.
 
 ### Validation
-* [ ] Threat model documented; every internet-reachable endpoint exercised; findings register populated + triaged BLOCKER/SHOULD/LATER.
+* [x] Threat model documented; the internet-reachable surface enumerated and reviewed; findings register populated + triaged BLOCKER/SHOULD/LATER (private).
+* [ ] **Confirm-real live-repro subset** run against `make debug-up` — exercises the findings whose severity depends on runtime behaviour (timing/enumeration, throttle-lockout, gate-anchoring) to lock the triage before Stage-B scope is finalised. The post-fix "verify-fixed" checks in the register belong to each Stage-B phase's own DoD.
 
 ---
 
@@ -5081,29 +5106,13 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 153: Transactional Email for Invites & Password Reset [P0] - [ ] TODO
-
-*The deployment target is **invited** researchers, but auth today is bound to `make create-admin` and has **no real email channel** — invite / accept-invite / forgot-password / reset-password flows exist as endpoints (ADR-040) but cannot actually reach a human. Without email delivery the invite-only model is inoperable, so this is a launch prerequisite, not a nice-to-have. The phase first determines the best free, low-dependency, stable solution, then wires it.*
-
-**Grounding.** Read first: the BFF auth flows (`internal/auth/`, the `/auth/*` endpoints — accept-invite, forgot/reset-password), ADR-040, the boot-time secret validator + `.env.example`, the privacy-minimal posture (Phase 55 — only email + hash stored), the EU-residency requirement. Preserve: the no-token-in-link sharing posture (a notification email carries no bearer access — ADR-040), the secret-validation discipline, DSGVO minimalism. Verify-first: confirm exactly which flows need outbound email and what each message must (and must not) contain.
-
-### Assess (free · stable · low-dependency · EU/DSGVO)
-* [ ] **Evaluate transactional-email options** against the constraints — must work permanently, be as free as possible, add no fragile dependency, and be DSGVO-appropriate (the provider processes user email addresses → EU residency / DPA matters). Compare hosted free-tier transactional-email providers vs. an SMTP relay; **explicitly reject self-hosted SMTP** as the default (deliverability / spam / maintenance burden is hostile to a solo dev). Record the decision (short ADR or playbook note) with the free-tier limits + the failure/abuse story.
-
-### Implement
-* [ ] **Email delivery wired** for invite, accept-invite, and forgot/reset-password — minimal templates, English (+ DE per Phase 144), no tracking pixels (anti-surveillance posture). Provider credentials go through the boot-time secret validator + `.env.example` (REPLACE-ME placeholder).
-* [ ] **Graceful failure** — a send failure is logged + surfaced to the admin, never a silent drop of an invite; the `make create-admin` path stays as the break-glass admin bootstrap (documented fallback).
-
-### Validation
-* [ ] An admin can invite a researcher by email; the invitee receives a working accept-invite mail and activates (consent captured); forgot/reset-password delivers; a provider outage degrades gracefully with operator visibility; credentials validated at boot.
-
----
-
 ## Stage B — Remediation (derived) + Go/No-Go [ ] TODO
 
-*Numbered after the triage gate. The remediation phases are generated from the BLOCKER + SHOULD items in the findings register (Phases 145–147), grouped by service/area, each with its own Grounding + Validation written at that point against the concrete findings. **Deliberately not pre-written:** their content is the audit's output, and inventing it now would be speculative (CLAUDE.md "no overengineering"). LATER items go to a standing backlog, never a deployment gate.*
+*Numbered after the triage gate. The remediation phases are generated from the BLOCKER + SHOULD items in the findings register (Phases 145–147), grouped by service/area, each with its own Grounding + Validation written at that point against the concrete findings. **Deliberately not pre-written:** their content is the audit's output, and inventing it now would be speculative (CLAUDE.md "no overengineering"). The phase text describes fixes **generically** (the unfixed weakness is not published in this public repo); the concrete findings live in the private register.*
 
-*Definition of Done for the iteration (the launch gate):* every BLOCKER closed; every SHOULD closed-or-explicitly-accepted with a rationale; backups tested; the **email invite flow works end-to-end** (Phase 153); the **Go/No-Go launch checklist** signed; first invited researcher can be onboarded.
+**Remediation ambition (operator directive, 2026-06-21): eliminate as many attack vectors as possible — not the launch-minimum.** Stage B closes **every BLOCKER and every SHOULD**, and **pulls LATER hardening forward wherever the fix is cheap and low-risk** (e.g. the boot-guards, the loopback-binding of debug ports, the defense-in-depth role checks). Only genuinely deferred-by-design items (latent / forward-looking, with no present exploit path) stay on the standing backlog, each with a recorded rationale rather than silent omission. Where findings share a root cause, fix them as one change (e.g. the ingress-posture fixes land together in the prod overlay); apply the register's sequencing notes (a prerequisite fix precedes the control that depends on it).
+
+*Definition of Done for the iteration (the launch gate):* every BLOCKER closed and live-repro-verified; every SHOULD closed (acceptance-with-rationale is the rare exception, not the path); the cheap LATER hardening swept in; backups tested; the **email invite flow works end-to-end** (Phase 153); the **Go/No-Go launch checklist** signed; first invited researcher can be onboarded.
 
 ---
 
@@ -5121,6 +5130,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ### Topology + cost
 * [ ] **Hosting target decided** — single VPS vs. small multi-node vs. selective managed services, under an **explicit € / month ceiling**. EU-based provider (data residency). Candidates evaluated against cost + the worker/ClickHouse/MinIO footprint (not pre-decided here).
+* [ ] **Domain decided (one domain, three uses).** Pick the deployment domain — it is the app URL, the TLS subject (Traefik), AND the transactional-email sender domain (Phase 153). A cheap EU-registrar `.de`/`.eu` (~5–10 €/yr at e.g. Netcup/INWX/Hetzner) is the only load-bearing recurring email cost, and it is unavoidable for going live regardless of email. Decide the `SMTP_FROM_ADDRESS` shape here (`no-reply@<domain>` vs. a monitored `kontakt@<domain>` reachable by free registrar forwarding — the latter fits AĒR's human-facing posture and needs no paid mailbox). Sending itself stays free (Brevo 300 mails/day).
 * [ ] **Component placement** — map every stack service (Traefik, BFF, static dashboard, ingestion-api, analysis-worker, MinIO, ClickHouse, NATS, Postgres, OTel→Tempo/Prometheus/Grafana) onto the topology with its CPU/RAM/disk footprint; identify the heavy three (worker compute, ClickHouse, MinIO) and what is safely co-located.
 * [ ] **Observability footprint decision** — the full Tempo/Prometheus/Grafana stack may exceed the budget box; decide what survives in prod (metrics + alerting essential; trace retention trimmed/sampled) so observability does not starve the data plane.
 
@@ -5144,6 +5154,7 @@ This phase enforces the following — every implementation choice must satisfy t
 **Grounding.** Read first: the Phase-148 ADR, `compose.prod.yaml` (hardened in Phase 146), the infra init containers, the Phase-146 deployment runbook + secret inventory, `make create-admin`, the public/internal docs split (Phase 134). Preserve: IaC-only provisioning, the single-SSoT compose-tag discipline (no drift reintroduced), zero-trust ports. Verify-first: the Phase-146 readiness findings are closed before provisioning.
 
 * [ ] **Provision the target** per the ADR (IaC where possible), EU region, TLS/domain via Traefik, secrets injected (not baked).
+* [ ] **Wire transactional email + close Phase 153's live-validation box.** The engineering is done (Phase 153 / ADR-043 — provider-agnostic SMTP behind `notify.LinkSender`, default Brevo); this is the operator setup that needs the live domain: (1) register the Phase-148 domain; (2) create a free Brevo account (accept the DPA — DSGVO: it processes invitee emails); (3) authenticate the **sending domain** in Brevo (SPF + DKIM DNS records — *not* a freemail From, which fails DMARC); (4) create a Brevo SMTP key; (5) set `SMTP_HOST/PORT/USERNAME/PASSWORD/SMTP_FROM_ADDRESS` + `BFF_PUBLIC_BASE_URL` (deployed origin, else links are relative) in the prod secret store; (6) `bff` restart, then run the Phase-153 **Live end-to-end** checklist (invite → accept → activate; forgot/reset; boot-time secret validation). Until this item, the deployed stack runs on the `LogSender` fallback. See Operations Playbook §"Transactional Email".
 * [ ] **First deploy + bootstrap** — stack up, healthchecks green, `make create-admin` first admin, public docs vs. internal (admin-gated) docs split live.
 * [ ] **Publish service images to GHCR + un-park the nightly smoke.** Provisioning needs pre-built images: publish ingestion / bff / analysis-worker / dashboard to GHCR (the worker-image build must solve the 10+ GB model-bake disk/time problem *here, once* — same constraint Phase-136 hit) so `compose` can reference `image:` (pull) instead of `build:`. With that, flip `e2e_smoke_nightly.yml` to **pull** (fast), **rewrite `scripts/build/e2e_smoke_test.sh` from the retired RSS flow to the web-crawler path**, and **re-enable its cron** (Phase 136 parked it). The nightly's unique value (compose-wiring / init-container / healthcheck-graph) is restored cheaply on top of the deployment image pipeline.
 * [ ] **Deployment runbook executed end-to-end** (first deploy / upgrade / rollback) and corrected against reality; a tested restore from backup on the real target.

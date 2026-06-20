@@ -2916,7 +2916,7 @@ export interface components {
             /** @description One of `admin`, `researcher`. Validated server-side. */
             role: string;
         };
-        /** @description The one-time link produced by an admin action (invite or admin-initiated password reset). Returned to the admin so it can be delivered manually while the email seam runs the LogSender; the same link is also dispatched through the configured sender. Once SMTP is wired, the UI can stop surfacing it. */
+        /** @description The one-time link produced by an admin action (invite or admin-initiated password reset). The same link is dispatched through the configured transactional-email relay (Phase 153) and ALSO returned here as the break-glass channel: when `delivered` is false the admin delivers `link` manually (relay unconfigured or send failed). */
         AdminActionLink: {
             userId: string;
             /** Format: email */
@@ -2925,6 +2925,8 @@ export interface components {
             kind: string;
             /** @description The accept-invite / reset-password link carrying the single-use token. */
             link: string;
+            /** @description Whether the link was dispatched through a real transactional-email relay (Phase 153). False when the relay is not configured (LogSender fallback) or the send failed — the admin must then deliver `link` manually. */
+            delivered?: boolean;
         };
         /** @description Everything AĒR stores about a user (DSGVO Art. 15 / 20 — right of access + portability). Privacy-minimal by design (ADR-040 / Manifesto §VI / WP-006 §7): identity + consent + session metadata only. AĒR keeps NO record of what a user analyses beyond explicitly saved analyses (Phase 135) — the sparseness of this export is the point. */
         UserDataExport: {

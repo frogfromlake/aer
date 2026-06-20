@@ -97,7 +97,26 @@ type Config struct {
 	WebAuthnRPID          string `mapstructure:"BFF_WEBAUTHN_RP_ID"`
 	WebAuthnRPDisplayName string `mapstructure:"BFF_WEBAUTHN_RP_DISPLAY_NAME"`
 	WebAuthnRPOrigins     string `mapstructure:"BFF_WEBAUTHN_RP_ORIGINS"`
+
+	// --- Transactional email (Phase 153 / ADR-043) ---
+	//
+	// Provider-agnostic SMTP submission relay (the documented default is Brevo,
+	// EU/DSGVO). An empty SMTPHost falls back to notify.LogSender (links are
+	// logged, not emailed) so local/dev and the `make create-admin` break-glass
+	// path keep working without a relay. When SMTPHost is set, the rest of the
+	// group is required (validated in Load) — a half-configured relay is a boot
+	// error, never a silent half-send on an internet-facing deployment.
+	SMTPHost        string `mapstructure:"SMTP_HOST"`
+	SMTPPort        string `mapstructure:"SMTP_PORT"`
+	SMTPUsername    string `mapstructure:"SMTP_USERNAME"`
+	SMTPPassword    string `mapstructure:"SMTP_PASSWORD"`
+	SMTPFromAddress string `mapstructure:"SMTP_FROM_ADDRESS"`
+	SMTPFromName    string `mapstructure:"SMTP_FROM_NAME"`
 }
+
+// EmailEnabled reports whether a real transactional-email relay is configured.
+// False means the BFF falls back to notify.LogSender (links logged only).
+func (c *Config) EmailEnabled() bool { return c.SMTPHost != "" }
 
 // Load reads configuration from environment variables and the local .env file.
 func Load() (*Config, error) {
@@ -147,6 +166,13 @@ func Load() (*Config, error) {
 	v.SetDefault("BFF_WEBAUTHN_RP_ID", "localhost")
 	v.SetDefault("BFF_WEBAUTHN_RP_DISPLAY_NAME", "AĒR")
 	v.SetDefault("BFF_WEBAUTHN_RP_ORIGINS", "https://localhost")
+	// Transactional email (Phase 153 / ADR-043). Empty host → LogSender fallback.
+	v.SetDefault("SMTP_HOST", "")
+	v.SetDefault("SMTP_PORT", "587")
+	v.SetDefault("SMTP_USERNAME", "")
+	v.SetDefault("SMTP_PASSWORD", "")
+	v.SetDefault("SMTP_FROM_ADDRESS", "")
+	v.SetDefault("SMTP_FROM_NAME", "AĒR")
 
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -185,6 +211,27 @@ func Load() (*Config, error) {
 	}
 	if cfg.BFFAuthDBPassword == "" {
 		return nil, fmt.Errorf("BFF_AUTH_DB_PASSWORD must be set")
+	}
+	// Transactional email (Phase 153 / ADR-043): optional, but all-or-nothing.
+	// A set host with a missing credential is a misconfiguration, not a reason
+	// to silently fall back to logging links on an internet-facing deployment.
+	if cfg.SMTPHost != "" {
+		var missing []string
+		if cfg.SMTPPort == "" {
+			missing = append(missing, "SMTP_PORT")
+		}
+		if cfg.SMTPUsername == "" {
+			missing = append(missing, "SMTP_USERNAME")
+		}
+		if cfg.SMTPPassword == "" {
+			missing = append(missing, "SMTP_PASSWORD")
+		}
+		if cfg.SMTPFromAddress == "" {
+			missing = append(missing, "SMTP_FROM_ADDRESS")
+		}
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("SMTP_HOST is set but %s missing", strings.Join(missing, ", "))
+		}
 	}
 
 	return &cfg, nil

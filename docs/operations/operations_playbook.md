@@ -118,6 +118,52 @@ make test-e2e            # Run Docker Compose end-to-end smoke test
 > accept-invite link for `ADMIN_BOOTSTRAP_EMAIL`); self-registration is closed
 > (LICENSE §3.2).
 
+### Transactional Email (Phase 153 / ADR-043)
+
+Invite / accept-invite / forgot-password / reset-password links are delivered
+through a **provider-agnostic SMTP submission relay** (`net/smtp` + STARTTLS, no
+third-party client). The provider is pure `.env` config; the documented default
+is **Brevo** (EU/France, DSGVO + DPA, 300 mails/day free). Any relay that speaks
+SMTP submission with STARTTLS works.
+
+**Config group (`.env`, mirror placeholders in `.env.example`):**
+
+| Variable | Notes |
+|---|---|
+| `SMTP_HOST` | Relay host, e.g. `smtp-relay.brevo.com`. **Empty → LogSender fallback** (links logged at WARN, not emailed). |
+| `SMTP_PORT` | Submission port, `587` (STARTTLS). Implicit-TLS `465` is not supported. |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | Relay SMTP login + key. |
+| `SMTP_FROM_ADDRESS` | Must be a **verified sender** at the provider, or mail is rejected/spam-filed. |
+| `SMTP_FROM_NAME` | Display name; defaults to `AĒR`. |
+
+**All-or-nothing.** Empty `SMTP_HOST` boots fine on the LogSender (dev + the
+`make create-admin` break-glass path). A *set* `SMTP_HOST` with any missing
+credential in the group is a **boot error** — the internet-facing service never
+silently half-sends.
+
+**Provider setup (Brevo).** Create a free account → verify a sender address (or
+authenticate the sending domain with SPF + DKIM for deliverability) → create an
+SMTP key (Brevo dashboard → SMTP & API → SMTP) → put host/port/login/key/from
+in `.env`. Free-tier limit is 300 mails/day; an invite + reset workload is far
+below that. The DPA is accepted in the Brevo account settings (DSGVO: the
+provider processes invitee email addresses — EU residency required).
+
+**Failure & abuse story.**
+
+* A send failure is **logged at ERROR** (`"deliver invite email"` /
+  `"deliver reset email"` / `"forgot-password: deliver reset email"`) — a relay
+  outage is visible in logs/traces, never a silent drop. Admin-initiated invite
+  and reset responses also carry `delivered:false` and the admin UI then shows
+  the one-time link for **manual delivery** (the link is always returned as the
+  break-glass channel).
+* `forgot-password` always returns 202 regardless of send outcome (no user
+  enumeration), so its only failure signal is the ERROR log.
+* **Rate-limiting** of `forgot-password` (the live mail-bombing vector once a
+  real relay is wired) is a Phase 145 security-review finding — track it there.
+* Templates are plain text, **bilingual EN+DE**, with **no tracking pixels**
+  (anti-surveillance posture). Revisit the free-tier limits + SPF/DKIM on
+  `make deps-refresh`.
+
 ### Build Cache Headroom
 
 All AĒR image builds (`make ingestion-restart`, `make worker-restart`, `make bff-restart`, `make crawl-probe0`, etc.) use Docker Desktop's default buildx builder. A dedicated `aer` builder with raised cache retention was tried and retired in 2026-05-12 — the separate cache duplicated R2 traffic, the bind-mount-backed buildkit container did not survive Docker Desktop restarts, and the gain over the default GC policy was marginal at AĒR's actual scale.
