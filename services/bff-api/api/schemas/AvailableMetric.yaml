@@ -7,6 +7,17 @@ properties:
     type: string
     description: The name of the metric.
     example: word_count
+  displayLabel:
+    type: string
+    nullable: true
+    description: >
+      Human-friendly label for the metric in the requested `locale` (Task B),
+      e.g. "Sentiment Score · BERT Multilingual" for
+      `sentiment_score_bert_multilingual`. Resolved from the per-locale content
+      catalogue; null when the metric has no catalogue entry yet — the client
+      then falls back to `metricName` so a newly-added extractor never renders
+      a blank label.
+    example: Word Count
   validationStatus:
     $ref: './ValidationStatus.yaml'
   eticConstruct:

@@ -1,6 +1,7 @@
 entityId: publication_weekday
 entityType: metric
 locale: en
+displayLabel: "Publication Weekday"
 registers:
   semantic:
     short: "The ISO weekday (1 = Monday, 7 = Sunday) on which an article was published. Reveals weekly editorial cycles, weekday-vs-weekend patterns, and institutional work rhythms."

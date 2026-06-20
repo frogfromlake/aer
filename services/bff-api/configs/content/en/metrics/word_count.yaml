@@ -1,6 +1,7 @@
 entityId: word_count
 entityType: metric
 locale: en
+displayLabel: "Word Count"
 registers:
   semantic:
     short: "The number of words in an article, counted as whitespace-separated tokens. A proxy for article length and editorial scope."

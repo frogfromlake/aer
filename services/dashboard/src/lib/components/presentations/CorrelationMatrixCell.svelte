@@ -19,6 +19,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -124,7 +125,11 @@
             strokeOpacity: 0.3,
             strokeDasharray: '2,2',
             inset: 0.5,
-            title: (d: CorrCell) => m.cells_corr_tooltip_blank({ rowName: d.row, colName: d.col })
+            title: (d: CorrCell) =>
+              m.cells_corr_tooltip_blank({
+                rowName: metricLabel(d.row),
+                colName: metricLabel(d.col)
+              })
           }),
           Plot.cell(drawable, {
             x: 'col',
@@ -134,8 +139,8 @@
             // Phase 125 (ISSUE 4) — hover tooltip naming the metric pair + r.
             title: (d: CorrCell) =>
               m.cells_corr_tooltip_value({
-                rowName: d.row,
-                colName: d.col,
+                rowName: metricLabel(d.row),
+                colName: metricLabel(d.col),
                 r: (d.r ?? 0).toFixed(2)
               })
           }),

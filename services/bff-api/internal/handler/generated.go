@@ -740,6 +740,24 @@ func (e GetMetricsParamsResolution) Valid() bool {
 	}
 }
 
+// Defines values for GetMetricsAvailableParamsLocale.
+const (
+	De GetMetricsAvailableParamsLocale = "de"
+	En GetMetricsAvailableParamsLocale = "en"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricsAvailableParamsLocale enum.
+func (e GetMetricsAvailableParamsLocale) Valid() bool {
+	switch e {
+	case De:
+		return true
+	case En:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetMetricCorrelationParamsScope.
 const (
 	GetMetricCorrelationParamsScopeProbe  GetMetricCorrelationParamsScope = "probe"
@@ -1360,6 +1378,9 @@ type ArticlesPage struct {
 
 // AvailableMetric defines model for AvailableMetric.
 type AvailableMetric struct {
+	// DisplayLabel Human-friendly label for the metric in the requested `locale` (Task B), e.g. "Sentiment Score · BERT Multilingual" for `sentiment_score_bert_multilingual`. Resolved from the per-locale content catalogue; null when the metric has no catalogue entry yet — the client then falls back to `metricName` so a newly-added extractor never renders a blank label.
+	DisplayLabel *string `json:"displayLabel,omitempty"`
+
 	// EquivalenceLevel DEPRECATED (Phase 115): superseded by `equivalenceStatus.level`. Retained for one release cycle so existing dashboard URL state and tests do not break in the same commit. Mirrors `equivalenceStatus.level`.
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	EquivalenceLevel *AvailableMetricEquivalenceLevel `json:"equivalenceLevel,omitempty"`
@@ -1504,6 +1525,12 @@ type MetadataCoverageResponse struct {
 		Fields []struct {
 			// ByMethod Per-extraction-method article counts. Keys are the method values from `web_meta.ALLOWED_EXTRACTION_METHODS` plus the literal string `"null"` for unfilled fields. The literal-string `"null"` is the Negative-Space sentinel — structural absence as a queryable value, not a SQL NULL.
 			ByMethod map[string]int `json:"byMethod"`
+
+			// Constant Task A — true when the field is PRESENT but carries exactly one distinct value across this source's corpus (zero variance). Such a field is dropped from the Workbench picker (a distribution / grouping over a constant is meaningless), so the dossier marks it here to explain why a 100 %-populated field is not offered for analysis — "present but constant → no signal", never silently hidden (ADR-039). Computed BFF-side over `aer_gold.article_metadata` (categorical) / `aer_gold.metrics` (scalar metadata), not from the coverage MV, so no worker change is needed. Self-maintaining: real future variance clears the flag automatically.
+			Constant *bool `json:"constant,omitempty"`
+
+			// ConstantValue The single constant value, present only when `constant` is true. A categorical field carries its string value; a scalar-metadata field carries its numeric value rendered as a string (e.g. "1", "0").
+			ConstantValue *string `json:"constantValue,omitempty"`
 
 			// Field Tier-B / Tier-C field name as recorded by the WebAdapter's `extraction_methods` provenance dict (e.g. `published_date`, `author`, `articleSection`).
 			Field string `json:"field"`
@@ -2280,7 +2307,13 @@ type GetMetricsAvailableParams struct {
 
 	// EndDate End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected.
 	EndDate *time.Time `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// Locale Language for the per-metric `displayLabel` (Task B). Defaults to "en". A metric with no catalogue entry in the locale yields a null displayLabel — the client then falls back to the machine name.
+	Locale *GetMetricsAvailableParamsLocale `form:"locale,omitempty" json:"locale,omitempty"`
 }
+
+// GetMetricsAvailableParamsLocale defines parameters for GetMetricsAvailable.
+type GetMetricsAvailableParamsLocale string
 
 // GetMetricCorrelationParams defines parameters for GetMetricCorrelation.
 type GetMetricCorrelationParams struct {
@@ -2918,6 +2951,9 @@ type ServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams)
+	// Corpus-wide extraction status for the Tier-B / Tier-C metadata fields
+	// (GET /metadata-fields)
+	GetMetadataFields(w http.ResponseWriter, r *http.Request)
 	// Alluvial flow across an ordered chain of categorical metadata fields
 	// (GET /metadata/sankey)
 	GetMetadataSankey(w http.ResponseWriter, r *http.Request, params GetMetadataSankeyParams)
@@ -3245,6 +3281,12 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 // Retrieve aggregated language detections
 // (GET /languages)
 func (_ Unimplemented) GetLanguages(w http.ResponseWriter, r *http.Request, params GetLanguagesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Corpus-wide extraction status for the Tier-B / Tier-C metadata fields
+// (GET /metadata-fields)
+func (_ Unimplemented) GetMetadataFields(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4696,6 +4738,26 @@ func (siw *ServerInterfaceWrapper) GetLanguages(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetMetadataFields operation middleware
+func (siw *ServerInterfaceWrapper) GetMetadataFields(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMetadataFields(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMetadataSankey operation middleware
 func (siw *ServerInterfaceWrapper) GetMetadataSankey(w http.ResponseWriter, r *http.Request) {
 
@@ -5129,6 +5191,14 @@ func (siw *ServerInterfaceWrapper) GetMetricsAvailable(w http.ResponseWriter, r 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "locale" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locale", r.URL.Query(), &params.Locale, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locale", Err: err})
 		return
 	}
 
@@ -7211,6 +7281,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/languages", wrapper.GetLanguages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metadata-fields", wrapper.GetMetadataFields)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/metadata/sankey", wrapper.GetMetadataSankey)
@@ -10131,6 +10204,73 @@ func (response GetLanguages500JSONResponse) VisitGetLanguagesResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetMetadataFieldsRequestObject struct {
+}
+
+type GetMetadataFieldsResponseObject interface {
+	VisitGetMetadataFieldsResponse(w http.ResponseWriter) error
+}
+
+type GetMetadataFields200JSONResponse struct {
+	// Fields One entry per observed Tier-B / Tier-C field, ordered by field name.
+	Fields []struct {
+		// Constant True when the field is populated but carries exactly one distinct value across the entire corpus (distinctValues == 1) — present but signal-free.
+		Constant bool `json:"constant"`
+
+		// ConstantValue The single constant value, present only when `constant` is true.
+		ConstantValue *string `json:"constantValue,omitempty"`
+
+		// DistinctValues Distinct values observed for this field across the whole corpus (0 when never populated). 1 means the field is constant everywhere — present but signal-free (the Task-A "no signal" condition at corpus scale).
+		DistinctValues int `json:"distinctValues"`
+
+		// Field The Tier-B / Tier-C field name (matches the coverage matrix).
+		Field string `json:"field"`
+
+		// PopulatedArticles Distinct articles where the field was filled by a real (non-null) extraction method. The complement is structural absence — the publisher did not declare the field, NOT an AĒR extraction defect.
+		PopulatedArticles int `json:"populatedArticles"`
+
+		// PopulationRate populatedArticles / totalArticles (0 when never observed).
+		PopulationRate float64 `json:"populationRate"`
+
+		// SourcesObserved Number of sources that emitted any article carrying this field column.
+		SourcesObserved int `json:"sourcesObserved"`
+
+		// SourcesPopulated Number of sources where the field is populated for at least one article.
+		SourcesPopulated int `json:"sourcesPopulated"`
+
+		// TotalArticles Distinct articles for which this field was observed across all sources.
+		TotalArticles int `json:"totalArticles"`
+	} `json:"fields"`
+}
+
+func (response GetMetadataFields200JSONResponse) VisitGetMetadataFieldsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMetadataFields500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetMetadataFields500JSONResponse) VisitGetMetadataFieldsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetMetadataSankeyRequestObject struct {
 	Params GetMetadataSankeyParams
 }
@@ -12006,6 +12146,27 @@ type GetScopeAvailableMetadata200JSONResponse struct {
 	// Available Categorical metadata fields that have data for EVERY scoped source in the window. The only fields safe to bind on a panel spanning the whole scope.
 	Available []string `json:"available"`
 
+	// Degenerate Categorical fields whose value is CONSTANT across the whole scope (exactly one distinct value) — present, but carrying no signal: grouping/cross-tab by a constant field is meaningless. The dashboard drops these from the dimension picker, but they are disclosed here with the constant value so the omission is never silent (ADR-039 DISCLOSE-NEVER-COERCE). Self- maintaining: a future source that introduces real variance removes the field from this list automatically.
+	Degenerate *[]struct {
+		Field string `json:"field"`
+
+		// Value The single constant value observed across the scope.
+		Value string `json:"value"`
+	} `json:"degenerate,omitempty"`
+
+	// LowSignal Available fields with ≥2 distinct values but a strongly DOMINANT value (near-constant: dominantShare ≥ the disclosed display threshold). Unlike `degenerate` these are NOT dropped — a rare-but-real minority category must stay reachable — only DISCLOSED so a cell/picker can flag "effectively constant — NN% <value>". This carries the raw concentration measurement; the backend only measures, it does not drop. The threshold that decides membership is an engineering-default *display* cutoff (provisional), not a methodological constant.
+	LowSignal *[]struct {
+		// DistinctValues Number of distinct values for the field across the scope.
+		DistinctValues int `json:"distinctValues"`
+
+		// DominantShare Fraction of in-scope articles carrying the single most common value (0..1). A value near 1 means the field is effectively constant.
+		DominantShare float32 `json:"dominantShare"`
+
+		// DominantValue The single most common value for the field across the scope.
+		DominantValue string `json:"dominantValue"`
+		Field         string `json:"field"`
+	} `json:"lowSignal,omitempty"`
+
 	// Partial Fields present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding (unless the user opts in).
 	Partial []struct {
 		Field string `json:"field"`
@@ -12101,6 +12262,27 @@ type GetScopeAvailableMetricsResponseObject interface {
 type GetScopeAvailableMetrics200JSONResponse struct {
 	// Available Metric names that have at least one Gold row for EVERY scoped source in the window. These are the only metrics safe to bind on a panel spanning the whole scope.
 	Available []string `json:"available"`
+
+	// Degenerate Metrics present in the window whose value is CONSTANT across the whole scope (exactly one distinct value) — present, but carrying no signal: a distribution / scatter / time-series over a constant is meaningless. The dashboard drops these from the metric picker, but they are disclosed here with the constant value so the omission is never silent (ADR-039 DISCLOSE-NEVER-COERCE — "present but constant → no signal", not absence). Self-maintaining: a future source that introduces real variance removes the metric from this list automatically, with no code change. Computed over the scope union, so a metric may appear here even while present in `available`/`partial` (those lists keep their pure "has data" semantics).
+	Degenerate *[]struct {
+		MetricName string `json:"metricName"`
+
+		// Value The single constant value observed across the scope.
+		Value float32 `json:"value"`
+	} `json:"degenerate,omitempty"`
+
+	// LowSignal Available metrics with ≥2 distinct values but a strongly DOMINANT value (near-constant in this scope: dominantShare ≥ the disclosed threshold) — e.g. a publisher that emits 3 structured images on 99.8 % of articles. Unlike `degenerate` these are NOT dropped (the rare minority is still real signal) — only DISCLOSED so the picker can flag "effectively constant in this scope". Scope-relative: a different source set with real variance clears the flag, so it reads as "this scope's sources carry little signal here", not a property of the metric. The metric analogue of ScopeAvailableMetadata.lowSignal.
+	LowSignal *[]struct {
+		// DistinctValues Number of distinct values for the metric across the scope.
+		DistinctValues int `json:"distinctValues"`
+
+		// DominantShare Fraction of in-scope rows carrying the single most common value (0..1). A value near 1 means the metric is effectively constant.
+		DominantShare float32 `json:"dominantShare"`
+
+		// DominantValue The single most common value for the metric across the scope.
+		DominantValue float32 `json:"dominantValue"`
+		MetricName    string  `json:"metricName"`
+	} `json:"lowSignal,omitempty"`
 
 	// Partial Metrics present for SOME but not all scoped sources, with the subset of sources that carry them. Surfaced as an explanatory hint, never offered for binding.
 	Partial []struct {
@@ -13056,6 +13238,9 @@ type StrictServerInterface interface {
 	// Retrieve aggregated language detections
 	// (GET /languages)
 	GetLanguages(ctx context.Context, request GetLanguagesRequestObject) (GetLanguagesResponseObject, error)
+	// Corpus-wide extraction status for the Tier-B / Tier-C metadata fields
+	// (GET /metadata-fields)
+	GetMetadataFields(ctx context.Context, request GetMetadataFieldsRequestObject) (GetMetadataFieldsResponseObject, error)
 	// Alluvial flow across an ordered chain of categorical metadata fields
 	// (GET /metadata/sankey)
 	GetMetadataSankey(ctx context.Context, request GetMetadataSankeyRequestObject) (GetMetadataSankeyResponseObject, error)
@@ -14213,6 +14398,30 @@ func (sh *strictHandler) GetLanguages(w http.ResponseWriter, r *http.Request, pa
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetLanguagesResponseObject); ok {
 		if err := validResponse.VisitGetLanguagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMetadataFields operation middleware
+func (sh *strictHandler) GetMetadataFields(w http.ResponseWriter, r *http.Request) {
+	var request GetMetadataFieldsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMetadataFields(ctx, request.(GetMetadataFieldsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMetadataFields")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMetadataFieldsResponseObject); ok {
+		if err := validResponse.VisitGetMetadataFieldsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

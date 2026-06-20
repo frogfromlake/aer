@@ -8,6 +8,7 @@
   // threaded in as props; this component is otherwise self-contained.
   import type { Component } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel } from '$lib/state/labels.svelte';
   import type { PresentationDefinition, PresentationCellProps } from '$lib/presentations';
   import type {
     FetchContext,
@@ -190,9 +191,9 @@
          than the panel, so it is deliberately off-comparison. A loud banner makes
          that unmistakable (cf. the soft `custom` badge for shape-only overrides). -->
     <p class="cell-peek-banner" role="note">
-      {m.workbench_cell_peek_banner_pre()} <code>{cfg.metric}</code>
+      {m.workbench_cell_peek_banner_pre()} <code>{metricLabel(cfg.metric)}</code>
       {m.workbench_cell_peek_banner_mid()}
-      <code>{panel.metric}</code>{m.workbench_cell_peek_banner_post()}
+      <code>{metricLabel(panel.metric)}</code>{m.workbench_cell_peek_banner_post()}
     </p>
   {/if}
   <Cell

@@ -109,9 +109,17 @@
     color: var(--color-fg);
     padding: 3px var(--space-2);
     font-size: var(--font-size-xs);
-    font-family: var(--font-mono);
+    /* Task B — friendly display labels (e.g. "Sentiment Score · BERT
+       Multilingual"), so a proportional font reads better and fits more than the
+       old monospace. Widen the closed select to show long labels in full; the
+       native open list auto-sizes to the option text regardless. Ellipsis is a
+       graceful last resort so an extreme label can never break the strip. */
+    font-family: inherit;
     cursor: pointer;
-    max-width: 14rem;
+    max-width: 22rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   :global(.ctrl-row .config-select:hover),
   :global(.ctrl-row .config-select:focus-visible) {

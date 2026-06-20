@@ -1,6 +1,7 @@
 entityId: paywall_status
 entityType: metric
 locale: en
+displayLabel: "Paywall Status"
 registers:
   semantic:
     short: "Whether an article sits behind a paywall (1) or is freely accessible (0). Aggregated over a scope it reads as the share of paywalled articles."

@@ -1,6 +1,7 @@
 entityId: sentiment_score_sentiws
 entityType: metric
 locale: en
+displayLabel: "Sentiment Score · SentiWS"
 registers:
   semantic:
     short: "A score from −1 to +1 measuring the emotional polarity of an article's vocabulary. Positive values suggest positive language; negative values suggest critical language."

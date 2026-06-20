@@ -1,6 +1,7 @@
 entityId: paywall_status
 entityType: metric
 locale: de
+displayLabel: "Bezahlschranken-Status"
 registers:
   semantic:
     short: "Ob ein Artikel hinter einer Bezahlschranke liegt (1) oder frei zugänglich ist (0). Über einen Bereich aggregiert ergibt sich der Anteil der Artikel mit Bezahlschranke."

@@ -28,9 +28,14 @@ func (s *Server) GetProbeMetadataCoverage(ctx context.Context, request GetProbeM
 		slog.Error("handler failure", "op", "GetProbeMetadataCoverage", "error", err)
 		return GetProbeMetadataCoverage500JSONResponse{Message: genericInternalError}, nil
 	}
+	cardinality, err := s.db.GetFieldCardinality(ctx, probe.Sources)
+	if err != nil {
+		slog.Error("handler failure", "op", "GetProbeMetadataCoverage.cardinality", "error", err)
+		return GetProbeMetadataCoverage500JSONResponse{Message: genericInternalError}, nil
+	}
 
 	resp := GetProbeMetadataCoverage200JSONResponse{Scope: probe.ProbeID}
-	resp.Sources = renderCoverageSources(probe.Sources, cells)
+	resp.Sources = renderCoverageSources(probe.Sources, cells, cardinality)
 	return resp, nil
 }
 
@@ -56,9 +61,14 @@ func (s *Server) GetSourceMetadataCoverage(ctx context.Context, request GetSourc
 		slog.Error("handler failure", "op", "GetSourceMetadataCoverage", "error", err)
 		return GetSourceMetadataCoverage500JSONResponse{Message: genericInternalError}, nil
 	}
+	cardinality, err := s.db.GetFieldCardinality(ctx, []string{name})
+	if err != nil {
+		slog.Error("handler failure", "op", "GetSourceMetadataCoverage.cardinality", "error", err)
+		return GetSourceMetadataCoverage500JSONResponse{Message: genericInternalError}, nil
+	}
 
 	resp := GetSourceMetadataCoverage200JSONResponse{Scope: name}
-	resp.Sources = renderCoverageSources([]string{name}, cells)
+	resp.Sources = renderCoverageSources([]string{name}, cells, cardinality)
 	return resp, nil
 }
 
@@ -66,9 +76,15 @@ func (s *Server) GetSourceMetadataCoverage(ctx context.Context, request GetSourc
 // generated response shape. A scope source with no cells still appears
 // in the response with an empty `fields` array — the dashboard wants the
 // scope membership to be unambiguous regardless of observation status.
-func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell) []struct {
+func renderCoverageSources(
+	scope []string,
+	cells []storage.MetadataCoverageCell,
+	cardinality map[storage.FieldKey]storage.FieldCardinality,
+) []struct {
 	Fields []struct {
 		ByMethod           map[string]int `json:"byMethod"`
+		Constant           *bool          `json:"constant,omitempty"`
+		ConstantValue      *string        `json:"constantValue,omitempty"`
 		Field              string         `json:"field"`
 		PopulationRate     float64        `json:"populationRate"`
 		StructurallyAbsent bool           `json:"structurallyAbsent"`
@@ -84,6 +100,8 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 	out := make([]struct {
 		Fields []struct {
 			ByMethod           map[string]int `json:"byMethod"`
+			Constant           *bool          `json:"constant,omitempty"`
+			ConstantValue      *string        `json:"constantValue,omitempty"`
 			Field              string         `json:"field"`
 			PopulationRate     float64        `json:"populationRate"`
 			StructurallyAbsent bool           `json:"structurallyAbsent"`
@@ -95,6 +113,8 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 		summary := byName[name]
 		fields := make([]struct {
 			ByMethod           map[string]int `json:"byMethod"`
+			Constant           *bool          `json:"constant,omitempty"`
+			ConstantValue      *string        `json:"constantValue,omitempty"`
 			Field              string         `json:"field"`
 			PopulationRate     float64        `json:"populationRate"`
 			StructurallyAbsent bool           `json:"structurallyAbsent"`
@@ -105,14 +125,30 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 			for k, v := range f.ByMethod {
 				bm[k] = int(v) //nolint:gosec // bounded by 30-day raw-table horizon
 			}
+			// Task A — mark a present-but-constant field so the dossier
+			// explains why a populated field is not offered in the Workbench.
+			// A structurally-absent field is never "constant" (it has no value).
+			var constant *bool
+			var constantValue *string
+			if card, ok := cardinality[storage.FieldKey{Source: name, Field: f.Field}]; ok &&
+				card.Distinct == 1 && !f.StructurallyAbsent {
+				yes := true
+				v := card.Value
+				constant = &yes
+				constantValue = &v
+			}
 			fields = append(fields, struct {
 				ByMethod           map[string]int `json:"byMethod"`
+				Constant           *bool          `json:"constant,omitempty"`
+				ConstantValue      *string        `json:"constantValue,omitempty"`
 				Field              string         `json:"field"`
 				PopulationRate     float64        `json:"populationRate"`
 				StructurallyAbsent bool           `json:"structurallyAbsent"`
 				TotalArticles      int            `json:"totalArticles"`
 			}{
 				ByMethod:           bm,
+				Constant:           constant,
+				ConstantValue:      constantValue,
 				Field:              f.Field,
 				PopulationRate:     f.PopulationRate,
 				StructurallyAbsent: f.StructurallyAbsent,
@@ -122,6 +158,8 @@ func renderCoverageSources(scope []string, cells []storage.MetadataCoverageCell)
 		out = append(out, struct {
 			Fields []struct {
 				ByMethod           map[string]int `json:"byMethod"`
+				Constant           *bool          `json:"constant,omitempty"`
+				ConstantValue      *string        `json:"constantValue,omitempty"`
 				Field              string         `json:"field"`
 				PopulationRate     float64        `json:"populationRate"`
 				StructurallyAbsent bool           `json:"structurallyAbsent"`

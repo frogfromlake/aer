@@ -1,6 +1,7 @@
 entityId: sentiment_score_bert_multilingual
 entityType: metric
 locale: en
+displayLabel: "Sentiment Score · BERT Multilingual"
 registers:
   semantic:
     short: "A score from −1 to +1 measuring an article's emotional polarity using a multilingual BERT model. Available across many languages, not only German."

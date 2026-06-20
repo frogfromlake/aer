@@ -5,6 +5,55 @@ import (
 	"time"
 )
 
+func TestAggregateGlobalFieldStats(t *testing.T) {
+	now := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	cells := []MetadataCoverageCell{
+		// article_type: populated on both sources, constant everywhere.
+		{Source: "tagesschau", Field: "article_type", Method: "json_ld", Articles: 200, LastSeen: now},
+		{Source: "elysee", Field: "article_type", Method: "json_ld", Articles: 100, LastSeen: now},
+		// author: populated on tagesschau, structurally absent on elysee.
+		{Source: "tagesschau", Field: "author", Method: "json_ld", Articles: 200, LastSeen: now},
+		{Source: "elysee", Field: "author", Method: "null", Articles: 100, LastSeen: now},
+	}
+	cardinality := map[string]FieldCardinality{
+		"article_type": {Distinct: 1, Value: "NewsArticle"},
+		"author":       {Distinct: 50, Value: "X"},
+	}
+
+	stats := aggregateGlobalFieldStats(AssembleCoverage(cells), cardinality)
+
+	byField := map[string]GlobalFieldStat{}
+	for _, s := range stats {
+		byField[s.Field] = s
+	}
+
+	at := byField["article_type"]
+	if at.TotalArticles != 300 || at.PopulatedArticles != 300 {
+		t.Errorf("article_type totals: want 300/300, got %d/%d", at.TotalArticles, at.PopulatedArticles)
+	}
+	if at.SourcesObserved != 2 || at.SourcesPopulated != 2 {
+		t.Errorf("article_type sources: want 2/2, got %d/%d", at.SourcesObserved, at.SourcesPopulated)
+	}
+	if !at.Constant || at.ConstantValue != "NewsArticle" {
+		t.Errorf("article_type must be constant=NewsArticle, got %v/%q", at.Constant, at.ConstantValue)
+	}
+
+	au := byField["author"]
+	if au.TotalArticles != 300 || au.PopulatedArticles != 200 {
+		t.Errorf("author totals: want 300/200, got %d/%d", au.TotalArticles, au.PopulatedArticles)
+	}
+	// 2 sources observed (carry the column), only 1 populated.
+	if au.SourcesObserved != 2 || au.SourcesPopulated != 1 {
+		t.Errorf("author sources: want 2/1, got %d/%d", au.SourcesObserved, au.SourcesPopulated)
+	}
+	if au.PopulationRate < 0.66 || au.PopulationRate > 0.67 {
+		t.Errorf("author rate: want ~0.667, got %v", au.PopulationRate)
+	}
+	if au.Constant {
+		t.Errorf("author (50 distinct) must not be constant")
+	}
+}
+
 func TestAssembleCoverage_PopulationRateAndAbsence(t *testing.T) {
 	now := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
 

@@ -8,6 +8,7 @@
   //   - cross-panel brushing discoverability hint (Phase 125b).
   // Purely presentational — every condition is computed by PanelCellGrid.
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
 
   interface Props {
@@ -52,7 +53,7 @@
     {m.workbench_disclosure_dropped_prefix()}
     <strong>{droppedSources.join(', ')}</strong>
     {m.workbench_disclosure_dropped_suffix()}
-    <code>{metric}</code>
+    <code>{metricLabel(metric)}</code>
     {m.workbench_disclosure_dropped_not_emitted()}
   </p>
 {/if}
@@ -69,7 +70,7 @@
   >
     <strong>{m.workbench_disclosure_facet_unavailable_strong()}</strong>
     {m.workbench_disclosure_facet_unavailable_body_pre()}
-    <code>{facetField}</code>
+    <code>{fieldLabel(facetField)}</code>
     {m.workbench_disclosure_facet_unavailable_body_post()}
     <strong>{m.workbench_disclosure_facet_unavailable_merged()}</strong>
     {m.workbench_disclosure_facet_unavailable_body_end()}

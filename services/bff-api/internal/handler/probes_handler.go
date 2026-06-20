@@ -135,6 +135,15 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 		return GetMetricsAvailable500JSONResponse{Message: genericInternalError}, nil
 	}
 
+	// Task B — per-metric display label in the requested locale (default en).
+	// Resolved from the in-memory content catalogue post-cache (the cache holds
+	// only the locale-independent Gold rows), so adding the label costs nothing
+	// per request beyond a map lookup.
+	locale := "en"
+	if request.Params.Locale != nil {
+		locale = string(*request.Params.Locale)
+	}
+
 	var response GetMetricsAvailable200JSONResponse
 	for _, r := range rows {
 		// Phase 121b: forward-looking alias guard. Any metric name registered
@@ -150,6 +159,9 @@ func (s *Server) GetMetricsAvailable(ctx context.Context, request GetMetricsAvai
 		m := AvailableMetric{
 			MetricName:       r.MetricName,
 			ValidationStatus: AvailableMetricValidationStatus(r.ValidationStatus),
+		}
+		if label := s.catalog.DisplayLabel(locale, "metric", r.MetricName); label != "" {
+			m.DisplayLabel = &label
 		}
 		if r.EticConstruct != nil {
 			m.EticConstruct = r.EticConstruct

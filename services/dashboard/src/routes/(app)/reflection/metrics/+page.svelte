@@ -9,6 +9,7 @@
   import ReflectionToc from '$lib/components/reflection/ReflectionToc.svelte';
   import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import MetricProvenanceSection from '$lib/components/reflection/MetricProvenanceSection.svelte';
+  import MetadataFieldsSection from '$lib/components/reflection/MetadataFieldsSection.svelte';
   import {
     metricsAvailableQuery,
     type AvailableMetricDto,
@@ -16,6 +17,8 @@
     type FetchContext
   } from '$lib/api/queries';
   import { m } from '$lib/paraglide/messages.js';
+  import { locale } from '$lib/state/locale.svelte';
+  import { registerMetricLabels, metricLabel } from '$lib/state/labels.svelte';
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
 
@@ -24,17 +27,24 @@
     Error,
     QueryOutcome<AvailableMetricDto[]>
   >(() => {
-    const o = metricsAvailableQuery(ctx, {});
+    const o = metricsAvailableQuery(ctx, { locale: locale() });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
   const metrics = $derived<AvailableMetricDto[]>(
     metricsQ.data?.kind === 'success' ? metricsQ.data.data : []
   );
+  // Task B — seed the label registry so metric titles/TOC render friendly labels.
+  $effect(() => {
+    if (metricsQ.data?.kind === 'success') registerMetricLabels(metricsQ.data.data);
+  });
   const failed = $derived(!metricsQ.isPending && metricsQ.data?.kind !== 'success');
 
-  const tocItems = $derived(
-    metrics.map((md) => ({ id: `metric-${md.metricName}`, label: md.metricName }))
-  );
+  const tocItems = $derived([
+    // Task B — TOC shows the friendly label; the anchor id stays the machine name.
+    ...metrics.map((md) => ({ id: `metric-${md.metricName}`, label: metricLabel(md.metricName) })),
+    // Task C — the metadata-fields section always anchors at the end of the TOC.
+    { id: 'metadata-fields', label: m.metadata_fields_toc_label() }
+  ]);
 </script>
 
 <svelte:head>
@@ -76,6 +86,10 @@
           {/each}
         </div>
       {/if}
+
+      <!-- Task C — corpus-wide metadata-field extraction status. Self-fetches,
+           so it renders regardless of the metric list's load state. -->
+      <MetadataFieldsSection />
     </div>
   </div>
 </div>

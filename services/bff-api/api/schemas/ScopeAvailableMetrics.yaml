@@ -36,6 +36,63 @@ properties:
           description: The scoped sources that have data for this metric.
           items:
             type: string
+  degenerate:
+    type: array
+    description: >
+      Metrics present in the window whose value is CONSTANT across the whole
+      scope (exactly one distinct value) — present, but carrying no signal: a
+      distribution / scatter / time-series over a constant is meaningless. The
+      dashboard drops these from the metric picker, but they are disclosed here
+      with the constant value so the omission is never silent (ADR-039
+      DISCLOSE-NEVER-COERCE — "present but constant → no signal", not absence).
+      Self-maintaining: a future source that introduces real variance removes
+      the metric from this list automatically, with no code change. Computed
+      over the scope union, so a metric may appear here even while present in
+      `available`/`partial` (those lists keep their pure "has data" semantics).
+    items:
+      type: object
+      required:
+        - metricName
+        - value
+      properties:
+        metricName:
+          type: string
+        value:
+          type: number
+          description: The single constant value observed across the scope.
+  lowSignal:
+    type: array
+    description: >
+      Available metrics with ≥2 distinct values but a strongly DOMINANT value
+      (near-constant in this scope: dominantShare ≥ the disclosed threshold) —
+      e.g. a publisher that emits 3 structured images on 99.8 % of articles.
+      Unlike `degenerate` these are NOT dropped (the rare minority is still real
+      signal) — only DISCLOSED so the picker can flag "effectively constant in
+      this scope". Scope-relative: a different source set with real variance
+      clears the flag, so it reads as "this scope's sources carry little signal
+      here", not a property of the metric. The metric analogue of
+      ScopeAvailableMetadata.lowSignal.
+    items:
+      type: object
+      required:
+        - metricName
+        - distinctValues
+        - dominantShare
+        - dominantValue
+      properties:
+        metricName:
+          type: string
+        distinctValues:
+          type: integer
+          description: Number of distinct values for the metric across the scope.
+        dominantShare:
+          type: number
+          description: >
+            Fraction of in-scope rows carrying the single most common value
+            (0..1). A value near 1 means the metric is effectively constant.
+        dominantValue:
+          type: number
+          description: The single most common value for the metric across the scope.
   windowStart:
     type: string
     format: date-time

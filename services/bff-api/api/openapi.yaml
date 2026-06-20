@@ -110,6 +110,8 @@ paths:
     $ref: './paths/metadata_crosstab.yaml'
   /metadata/sankey:
     $ref: './paths/metadata_sankey.yaml'
+  /metadata-fields:
+    $ref: './paths/metadata_fields.yaml'
   /entities:
     $ref: './paths/entities.yaml'
   /entities/cooccurrence:
@@ -263,6 +265,10 @@ components:
       $ref: './schemas/MetadataCoverageSource.yaml'
     MetadataCoverageResponse:
       $ref: './schemas/MetadataCoverageResponse.yaml'
+    MetadataFieldStat:
+      $ref: './schemas/MetadataFieldStat.yaml'
+    MetadataFieldsResponse:
+      $ref: './schemas/MetadataFieldsResponse.yaml'
     DiscoveryCoveragePerChannel:
       $ref: './schemas/DiscoveryCoveragePerChannel.yaml'
     DiscoveryCoverageResponse:

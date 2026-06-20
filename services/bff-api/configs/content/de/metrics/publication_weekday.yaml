@@ -1,6 +1,7 @@
 entityId: publication_weekday
 entityType: metric
 locale: de
+displayLabel: "Veröffentlichungswochentag"
 registers:
   semantic:
     short: "Der ISO-Wochentag (1 = Montag, 7 = Sonntag) der Artikelveröffentlichung. Zeigt wöchentliche Redaktionszyklen, Werktag-vs-Wochenend-Muster und institutionelle Arbeitsrhythmen."

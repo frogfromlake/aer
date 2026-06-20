@@ -29,6 +29,15 @@
   "levers_withheld_showing_metrics": "✓ Showing withheld (only sources with data render)",
   "levers_withheld_show_anyway": "Show anyway",
 
+  "levers_degenerate_eyebrow": "No signal",
+  "levers_degenerate_lead_one": "{count} dimension is constant across this scope — present but signal-free, so dropped from the picker (disclosed, not silently filtered — ADR-039):",
+  "levers_degenerate_lead_other": "{count} dimensions are constant across this scope — present but signal-free, so dropped from the picker (disclosed, not silently filtered — ADR-039):",
+  "levers_degenerate_value": "= {value} (constant)",
+  "levers_lowsignal_eyebrow": "Effectively constant",
+  "levers_lowsignal_lead_one": "{count} dimension is near-constant in this scope — still selectable, but it carries little signal:",
+  "levers_lowsignal_lead_other": "{count} dimensions are near-constant in this scope — still selectable, but they carry little signal:",
+  "levers_lowsignal_detail": "{share}% {value} · {distinct} values",
+
   "levers_composition_eyebrow": "Composition",
   "levers_composition_aria": "Composition",
   "levers_composition_split": "Split",

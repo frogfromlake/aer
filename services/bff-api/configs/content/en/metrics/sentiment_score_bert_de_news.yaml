@@ -1,6 +1,7 @@
 entityId: sentiment_score_bert_de_news
 entityType: metric
 locale: en
+displayLabel: "Sentiment Score · BERT German News"
 registers:
   semantic:
     short: "A score from −1 to +1 measuring an article's emotional polarity using a German news-domain BERT model. German-language documents only."

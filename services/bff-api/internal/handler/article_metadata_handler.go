@@ -272,5 +272,40 @@ func (s *Server) GetScopeAvailableMetadata(ctx context.Context, request GetScope
 			Sources []string `json:"sources"`
 		}{Field: p.Field, Sources: p.Sources}
 	}
+	if len(avail.Degenerate) > 0 {
+		degen := make([]struct {
+			Field string `json:"field"`
+			Value string `json:"value"`
+		}, len(avail.Degenerate))
+		for i, d := range avail.Degenerate {
+			degen[i] = struct {
+				Field string `json:"field"`
+				Value string `json:"value"`
+			}{Field: d.Field, Value: d.Value}
+		}
+		resp.Degenerate = &degen
+	}
+	if len(avail.LowSignal) > 0 {
+		low := make([]struct {
+			DistinctValues int     `json:"distinctValues"`
+			DominantShare  float32 `json:"dominantShare"`
+			DominantValue  string  `json:"dominantValue"`
+			Field          string  `json:"field"`
+		}, len(avail.LowSignal))
+		for i, l := range avail.LowSignal {
+			low[i] = struct {
+				DistinctValues int     `json:"distinctValues"`
+				DominantShare  float32 `json:"dominantShare"`
+				DominantValue  string  `json:"dominantValue"`
+				Field          string  `json:"field"`
+			}{
+				DistinctValues: l.DistinctValues,
+				DominantShare:  float32(l.DominantShare),
+				DominantValue:  l.DominantValue,
+				Field:          l.Field,
+			}
+		}
+		resp.LowSignal = &low
+	}
 	return resp, nil
 }

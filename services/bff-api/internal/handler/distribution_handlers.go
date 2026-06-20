@@ -397,5 +397,40 @@ func (s *Server) GetScopeAvailableMetrics(ctx context.Context, request GetScopeA
 			Sources    []string `json:"sources"`
 		}{MetricName: p.MetricName, Sources: p.Sources}
 	}
+	if len(avail.Degenerate) > 0 {
+		degen := make([]struct {
+			MetricName string  `json:"metricName"`
+			Value      float32 `json:"value"`
+		}, len(avail.Degenerate))
+		for i, d := range avail.Degenerate {
+			degen[i] = struct {
+				MetricName string  `json:"metricName"`
+				Value      float32 `json:"value"`
+			}{MetricName: d.MetricName, Value: float32(d.Value)}
+		}
+		resp.Degenerate = &degen
+	}
+	if len(avail.LowSignal) > 0 {
+		low := make([]struct {
+			DistinctValues int     `json:"distinctValues"`
+			DominantShare  float32 `json:"dominantShare"`
+			DominantValue  float32 `json:"dominantValue"`
+			MetricName     string  `json:"metricName"`
+		}, len(avail.LowSignal))
+		for i, l := range avail.LowSignal {
+			low[i] = struct {
+				DistinctValues int     `json:"distinctValues"`
+				DominantShare  float32 `json:"dominantShare"`
+				DominantValue  float32 `json:"dominantValue"`
+				MetricName     string  `json:"metricName"`
+			}{
+				DistinctValues: l.DistinctValues,
+				DominantShare:  float32(l.DominantShare),
+				DominantValue:  float32(l.DominantValue),
+				MetricName:     l.MetricName,
+			}
+		}
+		resp.LowSignal = &low
+	}
 	return resp, nil
 }

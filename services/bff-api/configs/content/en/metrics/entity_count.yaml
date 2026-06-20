@@ -1,6 +1,7 @@
 entityId: entity_count
 entityType: metric
 locale: en
+displayLabel: "Entity Count"
 registers:
   semantic:
     short: "The number of named entities (persons, organizations, locations) identified in an article. A proxy for the density of actor references in the text."

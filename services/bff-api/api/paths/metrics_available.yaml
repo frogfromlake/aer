@@ -6,6 +6,17 @@ get:
   parameters:
     - $ref: '../parameters/startDate.yaml'
     - $ref: '../parameters/endDate.yaml'
+    - name: locale
+      in: query
+      required: false
+      description: >
+        Language for the per-metric `displayLabel` (Task B). Defaults to "en".
+        A metric with no catalogue entry in the locale yields a null
+        displayLabel — the client then falls back to the machine name.
+      schema:
+        type: string
+        enum: [en, de]
+        default: en
   responses:
     '200':
       description: A list of available metrics with validation status.

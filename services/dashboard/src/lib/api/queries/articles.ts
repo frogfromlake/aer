@@ -91,6 +91,7 @@ export function metricsAvailableQuery(
   const qs = new URLSearchParams();
   if (params.startDate) qs.set('startDate', params.startDate);
   if (params.endDate) qs.set('endDate', params.endDate);
+  if (params.locale) qs.set('locale', params.locale);
   return {
     queryKey: ['aer', 'metrics-available', params] as const,
     queryFn: () =>

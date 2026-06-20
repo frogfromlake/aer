@@ -1,0 +1,27 @@
+get:
+  tags: [Metrics]
+  summary: Corpus-wide extraction status for the Tier-B / Tier-C metadata fields
+  description: >
+    Returns, for every observed Tier-B / Tier-C metadata field, its corpus-wide
+    fill rate (how often AĒR actually populated it), how many sources carry it,
+    and whether it is constant across the whole corpus. Backs the Reflection
+    "metadata fields" surface (Task C), which explains the tier system and why
+    most fields stay empty — structural absence (a publisher choice), not an
+    AĒR extraction defect (WP-003 §3.2). The tier and the prose description are
+    curated client-side; only the live measurements are served here so the page
+    never drifts from the real corpus.
+
+    Aggregated over `aer_gold.metadata_coverage` (per-method counts) plus a
+    distinct-value pass over `aer_gold.article_metadata` / `aer_gold.metrics`
+    for the constant flag. Whole-corpus, unscoped — the complementary per-probe
+    view is `GET /probes/{probeId}/metadata-coverage`.
+  operationId: getMetadataFields
+  responses:
+    '200':
+      description: Per-field corpus-wide extraction status.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/MetadataFieldsResponse.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

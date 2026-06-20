@@ -79,6 +79,9 @@ export type TopicDistributionResponseDto = components['schemas']['TopicDistribut
 export type MetadataCoverageResponseDto = components['schemas']['MetadataCoverageResponse'];
 export type MetadataCoverageSourceDto = components['schemas']['MetadataCoverageSource'];
 export type MetadataCoverageFieldDto = components['schemas']['MetadataCoverageField'];
+// Task C — corpus-wide per-field extraction status (Reflection metadata-fields surface).
+export type MetadataFieldsResponseDto = components['schemas']['MetadataFieldsResponse'];
+export type MetadataFieldStatDto = components['schemas']['MetadataFieldStat'];
 // Phase 122g — per-channel discovery telemetry (ADR-031).
 export type DiscoveryCoverageResponseDto = components['schemas']['DiscoveryCoverageResponse'];
 export type DiscoveryCoveragePerChannelDto = components['schemas']['DiscoveryCoveragePerChannel'];
@@ -346,4 +349,6 @@ export function appendMetadataFilter(
 export interface MetricsAvailableParams {
   startDate?: string | undefined;
   endDate?: string | undefined;
+  // Task B — locale for the per-metric displayLabel ('en' | 'de').
+  locale?: string | undefined;
 }

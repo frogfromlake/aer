@@ -1,6 +1,7 @@
 entityId: language_confidence
 entityType: metric
 locale: de
+displayLabel: "Sprach-Konfidenz"
 registers:
   semantic:
     short: "Die Wahrscheinlichkeit (0–1), dass die Sprache des Artikels korrekt erkannt wurde. Hohe Werte zeigen zuverlässige Erkennung; niedrige Werte signalisieren Mehrdeutigkeit."

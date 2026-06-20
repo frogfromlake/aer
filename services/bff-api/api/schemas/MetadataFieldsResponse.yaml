@@ -1,0 +1,17 @@
+type: object
+description: >
+  Corpus-wide extraction status for AĒR's Tier-B / Tier-C metadata fields
+  (Task C — the Reflection "metadata fields" surface). Unlike the per-probe
+  metadata-coverage matrix, this aggregates over EVERY observed source so the
+  Reflection page can answer, honestly and live, "which structured-metadata
+  fields does AĒR actually fill, and which stay empty?". The tier and the prose
+  description are curated client-side; only the live measurements live here, so
+  the page can never drift from what the corpus really contains.
+required:
+  - fields
+properties:
+  fields:
+    type: array
+    description: One entry per observed Tier-B / Tier-C field, ordered by field name.
+    items:
+      $ref: './MetadataFieldStat.yaml'

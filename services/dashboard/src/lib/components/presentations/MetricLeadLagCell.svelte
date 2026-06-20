@@ -22,6 +22,7 @@
   import CellReadout from './CellReadout.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -84,8 +85,18 @@
     if (peakLagHours === 0) return m.cells_mll_sentence_in_step({ r });
     const h = Math.abs(peakLagHours);
     return peakLagHours > 0
-      ? m.cells_mll_sentence_follows({ y: yMetric, x: xMetric, hours: h, r })
-      : m.cells_mll_sentence_leads({ y: yMetric, x: xMetric, hours: h, r });
+      ? m.cells_mll_sentence_follows({
+          y: metricLabel(yMetric),
+          x: metricLabel(xMetric),
+          hours: h,
+          r
+        })
+      : m.cells_mll_sentence_leads({
+          y: metricLabel(yMetric),
+          x: metricLabel(xMetric),
+          hours: h,
+          r
+        });
   });
 
   let host: HTMLDivElement | undefined = $state();
@@ -136,7 +147,11 @@
         height: 240,
         marginLeft: 52,
         marginBottom: 40,
-        x: { label: m.cells_mll_axis_lag({ y: yMetric, x: xMetric }), grid: true, nice: true },
+        x: {
+          label: m.cells_mll_axis_lag({ y: metricLabel(yMetric), x: metricLabel(xMetric) }),
+          grid: true,
+          nice: true
+        },
         y: { label: m.cells_mll_axis_correlation(), domain: [yMin, yMax], grid: true },
         marks
       });
@@ -176,9 +191,9 @@
       rows: [{ label: m.cells_mll_readout_correlation(), value: fmtValue(best.correlation) }],
       hint:
         best.lagHours > 0
-          ? m.cells_mll_hint_follows({ y: yMetric })
+          ? m.cells_mll_hint_follows({ y: metricLabel(yMetric) })
           : best.lagHours < 0
-            ? m.cells_mll_hint_leads({ y: yMetric })
+            ? m.cells_mll_hint_leads({ y: metricLabel(yMetric) })
             : m.cells_mll_hint_in_step()
     };
   }
@@ -227,7 +242,7 @@
     <h3 id="metric-leadlag-title" class="cell-title">
       <span>{m.cells_leadlag_title()}</span>
       <span class="muted">
-        — <code>{xMetric}</code> → <code>{yMetric}</code> ·
+        — <code>{metricLabel(xMetric)}</code> → <code>{metricLabel(yMetric)}</code> ·
         <strong class="scope-name">{scopeId}</strong>
       </span>
     </h3>
@@ -252,7 +267,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label={m.cells_mll_plot_aria({ x: xMetric, y: yMetric })}
+      aria-label={m.cells_mll_plot_aria({ x: metricLabel(xMetric), y: metricLabel(yMetric) })}
       onmousemove={onHostMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>

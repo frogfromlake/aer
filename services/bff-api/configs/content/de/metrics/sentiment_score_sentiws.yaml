@@ -1,6 +1,7 @@
 entityId: sentiment_score_sentiws
 entityType: metric
 locale: de
+displayLabel: "Stimmungswert · SentiWS"
 registers:
   semantic:
     short: "Ein Wert von −1 bis +1, der die emotionale Polarität des Artikelvokabulars misst. Positive Werte deuten auf positiv besetzte Sprache hin, negative auf kritische."

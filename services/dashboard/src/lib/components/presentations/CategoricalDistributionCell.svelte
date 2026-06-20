@@ -27,6 +27,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { fieldLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -93,7 +94,7 @@
         marginLeft: 56,
         marginBottom: 84,
         x: {
-          label: field,
+          label: fieldLabel(field),
           // Preserve the BFF rank order (articles desc).
           domain: rows.map((r) => r.value),
           tickRotate: -40
@@ -136,7 +137,7 @@
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
-      title: field,
+      title: fieldLabel(field),
       rows: [
         { label: m.cells_cat_readout_value(), value: r.value },
         { label: m.cells_cat_readout_articles(), value: fmtValue(r.articles) }
@@ -188,7 +189,7 @@
 <section class="cat-cell" aria-labelledby="cat-title-{field}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="cat-title-{field}" class="cell-title">
-      <code>{field}</code>
+      <code>{fieldLabel(field)}</code>
       <span class="muted"
         >— {m.cells_cat_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
@@ -205,13 +206,13 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_cat_error()}</p>
   {:else if isEmpty}
-    <CellEmptyState label={field} />
+    <CellEmptyState label={fieldLabel(field)} />
   {:else if data}
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label={m.cells_cat_plot_aria({ field })}
+      aria-label={m.cells_cat_plot_aria({ field: fieldLabel(field) })}
       onmousemove={onPlotMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>

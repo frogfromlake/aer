@@ -11,10 +11,13 @@
   import type { Panel, Presentation } from '$lib/state/url-internals';
   import {
     missingSourcesFor as missingSourcesForOf,
-    resetMetricForScope as resetMetricForScopeOf
+    resetMetricForScope as resetMetricForScopeOf,
+    formatConstantValue,
+    dominantSharePct
   } from '$lib/workbench/panel-controls-derive';
   import type { ScopeAvailableMetricsDto, ScopeAvailableMetadataDto } from '$lib/api/queries';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { metricLabel, fieldLabel, dimensionLabel } from '$lib/state/labels.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import LeverButton from './LeverButton.svelte';
 
@@ -27,6 +30,12 @@
     availableMetricNames: string[];
     partialMetrics: ScopeAvailableMetricsDto['partial'];
     partialMetadataFields: ScopeAvailableMetadataDto['partial'];
+    /** Task A — metrics/fields constant across the scope (dropped, disclosed). */
+    degenerateMetrics?: ScopeAvailableMetricsDto['degenerate'];
+    degenerateMetadata?: ScopeAvailableMetadataDto['degenerate'];
+    /** Task A — near-constant metrics + fields (kept offerable, disclosed). */
+    lowSignalMetrics?: ScopeAvailableMetricsDto['lowSignal'];
+    lowSignalMetadata?: ScopeAvailableMetadataDto['lowSignal'];
     scopedSourceNames: readonly string[];
     scopedSourceCount: number;
     scopeAvailableSet: Set<string> | null;
@@ -43,11 +52,56 @@
     availableMetricNames,
     partialMetrics,
     partialMetadataFields,
+    degenerateMetrics,
+    degenerateMetadata,
+    lowSignalMetrics,
+    lowSignalMetadata,
     scopedSourceNames,
     scopedSourceCount,
     scopeAvailableSet,
     configParams
   }: Props = $props();
+
+  // Task A — disclosure rows for constant ("no signal") dimensions. Metric
+  // degeneracy is relevant only where the view binds metrics; metadata
+  // degeneracy only where it groups by a field — so each is gated at the source.
+  const metricBinds = $derived(viewUsesMetric || configParams.includes('scatterAxes'));
+  const degenerateRows = $derived<{ name: string; value: string }[]>([
+    ...(metricBinds
+      ? (degenerateMetrics ?? []).map((d) => ({
+          name: d.metricName,
+          value: formatConstantValue(d.value)
+        }))
+      : []),
+    ...(viewUsesMetadataField
+      ? (degenerateMetadata ?? []).map((d) => ({ name: d.field, value: d.value }))
+      : [])
+  ]);
+  // Task A — near-constant ("effectively constant") rows: metrics where the view
+  // binds metrics, fields where it groups by a field. Pre-resolved to a label +
+  // formatted dominant value so the template stays metric/field-agnostic.
+  const lowSignalRows = $derived<
+    { key: string; label: string; share: number; valueText: string; distinct: number }[]
+  >([
+    ...(metricBinds
+      ? (lowSignalMetrics ?? []).map((mm) => ({
+          key: `m:${mm.metricName}`,
+          label: metricLabel(mm.metricName),
+          share: mm.dominantShare,
+          valueText: formatConstantValue(mm.dominantValue),
+          distinct: mm.distinctValues
+        }))
+      : []),
+    ...(viewUsesMetadataField
+      ? (lowSignalMetadata ?? []).map((f) => ({
+          key: `f:${f.field}`,
+          label: fieldLabel(f.field),
+          share: f.dominantShare,
+          valueText: f.dominantValue,
+          distinct: f.distinctValues
+        }))
+      : [])
+  ]);
 
   const activeShowWithheld = $derived(boundPanel.showWithheld === true);
 
@@ -107,7 +161,7 @@
         {#each partialMetadataFields as pf (pf.field)}
           {@const missing = missingSourcesFor(pf.sources)}
           <li class="partial-metric-row">
-            <code class="partial-metric">{pf.field}</code>
+            <code class="partial-metric">{fieldLabel(pf.field)}</code>
             <span class="partial-metric-detail">
               {m.levers_withheld_has({
                 present: pf.sources.length,
@@ -160,7 +214,7 @@
         {#each partialMetrics as pm (pm.metricName)}
           {@const missing = missingSourcesFor(pm.sources)}
           <li class="partial-metric-row">
-            <code class="partial-metric">{pm.metricName}</code>
+            <code class="partial-metric">{metricLabel(pm.metricName)}</code>
             <span class="partial-metric-detail">
               {m.levers_withheld_has({
                 present: pm.sources.length,
@@ -180,6 +234,63 @@
       >
         {activeShowWithheld ? m.levers_withheld_showing_metrics() : m.levers_withheld_show_anyway()}
       </LeverButton>
+    </div>
+  </div>
+{/if}
+
+<!-- Task A — degenerate (constant, "no signal") dimensions. Present but
+     signal-free, so dropped from the picker; disclosed here with the constant
+     value (ADR-039 DISCLOSE-NEVER-COERCE). Neutral hue — methodological, not a
+     warning (METHODOLOGICAL-NOT-WARNING). -->
+{#if degenerateRows.length > 0}
+  <div class="ctrl-row partial-hint signal-note" role="note">
+    <span class="ctrl-eyebrow">{m.levers_degenerate_eyebrow()}</span>
+    <div class="partial-hint-body">
+      <p class="partial-hint-lead">
+        {degenerateRows.length === 1
+          ? m.levers_degenerate_lead_one({ count: degenerateRows.length })
+          : m.levers_degenerate_lead_other({ count: degenerateRows.length })}
+      </p>
+      <ul class="partial-hint-list" role="list">
+        {#each degenerateRows as row (row.name)}
+          <li class="partial-metric-row">
+            <code class="partial-metric signal-chip">{dimensionLabel(row.name)}</code>
+            <span class="partial-metric-detail">
+              {m.levers_degenerate_value({ value: row.value })}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  </div>
+{/if}
+
+<!-- Task A — low-signal (near-constant) metrics + fields. NOT dropped (a
+     rare-but-real minority is still real signal); disclosed so the reader knows
+     the dimension is effectively constant in THIS scope before binding it. -->
+{#if lowSignalRows.length > 0}
+  <div class="ctrl-row partial-hint signal-note" role="note">
+    <span class="ctrl-eyebrow">{m.levers_lowsignal_eyebrow()}</span>
+    <div class="partial-hint-body">
+      <p class="partial-hint-lead">
+        {lowSignalRows.length === 1
+          ? m.levers_lowsignal_lead_one({ count: lowSignalRows.length })
+          : m.levers_lowsignal_lead_other({ count: lowSignalRows.length })}
+      </p>
+      <ul class="partial-hint-list" role="list">
+        {#each lowSignalRows as row (row.key)}
+          <li class="partial-metric-row">
+            <code class="partial-metric signal-chip">{row.label}</code>
+            <span class="partial-metric-detail">
+              {m.levers_lowsignal_detail({
+                share: dominantSharePct(row.share),
+                value: row.valueText,
+                distinct: row.distinct
+              })}
+            </span>
+          </li>
+        {/each}
+      </ul>
     </div>
   </div>
 {/if}
@@ -235,5 +346,15 @@
   .partial-metric-detail strong {
     color: var(--color-fg-muted);
     font-weight: var(--font-weight-semibold);
+  }
+
+  /* Task A — degenerate / low-signal disclosure. A constant dimension is a
+     methodological observation, never a defect, so this note uses a
+     perceptually-neutral dim accent — never the warning hue (ADR-039
+     METHODOLOGICAL-NOT-WARNING). */
+  .signal-note .signal-chip {
+    color: var(--color-fg-muted);
+    background: color-mix(in srgb, var(--color-fg-subtle) 8%, transparent);
+    border-color: color-mix(in srgb, var(--color-fg-subtle) 24%, var(--color-border));
   }
 </style>

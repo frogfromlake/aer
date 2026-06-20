@@ -751,6 +751,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metadata-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Corpus-wide extraction status for the Tier-B / Tier-C metadata fields
+         * @description Returns, for every observed Tier-B / Tier-C metadata field, its corpus-wide fill rate (how often AĒR actually populated it), how many sources carry it, and whether it is constant across the whole corpus. Backs the Reflection "metadata fields" surface (Task C), which explains the tier system and why most fields stay empty — structural absence (a publisher choice), not an AĒR extraction defect (WP-003 §3.2). The tier and the prose description are curated client-side; only the live measurements are served here so the page never drifts from the real corpus.
+         *     Aggregated over `aer_gold.metadata_coverage` (per-method counts) plus a distinct-value pass over `aer_gold.article_metadata` / `aer_gold.metrics` for the constant flag. Whole-corpus, unscoped — the complementary per-probe view is `GET /probes/{probeId}/metadata-coverage`.
+         */
+        get: operations["getMetadataFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entities": {
         parameters: {
             query?: never;
@@ -1383,6 +1404,11 @@ export interface components {
              * @example word_count
              */
             metricName: string;
+            /**
+             * @description Human-friendly label for the metric in the requested `locale` (Task B), e.g. "Sentiment Score · BERT Multilingual" for `sentiment_score_bert_multilingual`. Resolved from the per-locale content catalogue; null when the metric has no catalogue entry yet — the client then falls back to `metricName` so a newly-added extractor never renders a blank label.
+             * @example Word Count
+             */
+            displayLabel?: string | null;
             validationStatus: components["schemas"]["ValidationStatus"];
             /**
              * @description The etic construct this metric maps to in the equivalence registry (e.g., "evaluative_polarity"). Null if no equivalence entry exists.
@@ -1944,6 +1970,22 @@ export interface components {
                 /** @description The scoped sources that have data for this field. */
                 sources: string[];
             }[];
+            /** @description Categorical fields whose value is CONSTANT across the whole scope (exactly one distinct value) — present, but carrying no signal: grouping/cross-tab by a constant field is meaningless. The dashboard drops these from the dimension picker, but they are disclosed here with the constant value so the omission is never silent (ADR-039 DISCLOSE-NEVER-COERCE). Self- maintaining: a future source that introduces real variance removes the field from this list automatically. */
+            degenerate?: {
+                field: string;
+                /** @description The single constant value observed across the scope. */
+                value: string;
+            }[];
+            /** @description Available fields with ≥2 distinct values but a strongly DOMINANT value (near-constant: dominantShare ≥ the disclosed display threshold). Unlike `degenerate` these are NOT dropped — a rare-but-real minority category must stay reachable — only DISCLOSED so a cell/picker can flag "effectively constant — NN% <value>". This carries the raw concentration measurement; the backend only measures, it does not drop. The threshold that decides membership is an engineering-default *display* cutoff (provisional), not a methodological constant. */
+            lowSignal?: {
+                field: string;
+                /** @description Number of distinct values for the field across the scope. */
+                distinctValues: number;
+                /** @description Fraction of in-scope articles carrying the single most common value (0..1). A value near 1 means the field is effectively constant. */
+                dominantShare: number;
+                /** @description The single most common value for the field across the scope. */
+                dominantValue: string;
+            }[];
             /** Format: date-time */
             windowStart?: string;
             /** Format: date-time */
@@ -2311,6 +2353,16 @@ export interface components {
              * @example true
              */
             structurallyAbsent: boolean;
+            /**
+             * @description Task A — true when the field is PRESENT but carries exactly one distinct value across this source's corpus (zero variance). Such a field is dropped from the Workbench picker (a distribution / grouping over a constant is meaningless), so the dossier marks it here to explain why a 100 %-populated field is not offered for analysis — "present but constant → no signal", never silently hidden (ADR-039). Computed BFF-side over `aer_gold.article_metadata` (categorical) / `aer_gold.metrics` (scalar metadata), not from the coverage MV, so no worker change is needed. Self-maintaining: real future variance clears the flag automatically.
+             * @example true
+             */
+            constant?: boolean;
+            /**
+             * @description The single constant value, present only when `constant` is true. A categorical field carries its string value; a scalar-metadata field carries its numeric value rendered as a string (e.g. "1", "0").
+             * @example NewsArticle
+             */
+            constantValue?: string;
         };
         /** @description Per-source metadata coverage record carrying the per-field matrix for one source. Sources with no observed articles in the metadata-coverage horizon return an empty `fields` array — same shape, semantically "no observations yet". */
         MetadataCoverageSource: {
@@ -2334,6 +2386,60 @@ export interface components {
             scope: string;
             /** @description One entry per source in the requested scope, ordered by source name. Empty when the scope resolves to no sources. */
             sources: components["schemas"]["MetadataCoverageSource"][];
+        };
+        /** @description Corpus-wide extraction + variance status for one metadata field (Task C). Every figure is measured over the WHOLE observed corpus (all sources), so the Reflection page states the real fill rate rather than a per-probe slice. */
+        MetadataFieldStat: {
+            /**
+             * @description The Tier-B / Tier-C field name (matches the coverage matrix).
+             * @example article_type
+             */
+            field: string;
+            /**
+             * @description Distinct articles for which this field was observed across all sources.
+             * @example 4200
+             */
+            totalArticles: number;
+            /**
+             * @description Distinct articles where the field was filled by a real (non-null) extraction method. The complement is structural absence — the publisher did not declare the field, NOT an AĒR extraction defect.
+             * @example 4200
+             */
+            populatedArticles: number;
+            /**
+             * Format: double
+             * @description populatedArticles / totalArticles (0 when never observed).
+             * @example 1
+             */
+            populationRate: number;
+            /**
+             * @description Number of sources that emitted any article carrying this field column.
+             * @example 4
+             */
+            sourcesObserved: number;
+            /**
+             * @description Number of sources where the field is populated for at least one article.
+             * @example 2
+             */
+            sourcesPopulated: number;
+            /**
+             * @description Distinct values observed for this field across the whole corpus (0 when never populated). 1 means the field is constant everywhere — present but signal-free (the Task-A "no signal" condition at corpus scale).
+             * @example 1
+             */
+            distinctValues: number;
+            /**
+             * @description True when the field is populated but carries exactly one distinct value across the entire corpus (distinctValues == 1) — present but signal-free.
+             * @example true
+             */
+            constant: boolean;
+            /**
+             * @description The single constant value, present only when `constant` is true.
+             * @example NewsArticle
+             */
+            constantValue?: string;
+        };
+        /** @description Corpus-wide extraction status for AĒR's Tier-B / Tier-C metadata fields (Task C — the Reflection "metadata fields" surface). Unlike the per-probe metadata-coverage matrix, this aggregates over EVERY observed source so the Reflection page can answer, honestly and live, "which structured-metadata fields does AĒR actually fill, and which stay empty?". The tier and the prose description are curated client-side; only the live measurements live here, so the page can never drift from what the corpus really contains. */
+        MetadataFieldsResponse: {
+            /** @description One entry per observed Tier-B / Tier-C field, ordered by field name. */
+            fields: components["schemas"]["MetadataFieldStat"][];
         };
         /** @description Per-channel discovery telemetry for one source (Phase 122g / ADR-031). One entry per declared channel — sitemap, rss, html_sitemap, archive_index, or any future platform-class channel (timeline, subreddit, hashtag_stream, etc.). The shape is platform-agnostic by design so cross-platform comparability of coverage requires no schema work per new crawler binary. */
         DiscoveryCoveragePerChannel: {
@@ -4601,6 +4707,8 @@ export interface operations {
                 startDate?: string;
                 /** @description End date for the metrics time range (ISO 8601). Optional — omit BOTH start and end for the whole dataset (no time filter); supplying one without the other is rejected. */
                 endDate?: string;
+                /** @description Language for the per-metric `displayLabel` (Task B). Defaults to "en". A metric with no catalogue entry in the locale yields a null displayLabel — the client then falls back to the machine name. */
+                locale?: "en" | "de";
             };
             header?: never;
             path?: never;
@@ -5432,6 +5540,22 @@ export interface operations {
                             /** @description The scoped sources that have data for this metric. */
                             sources: string[];
                         }[];
+                        /** @description Metrics present in the window whose value is CONSTANT across the whole scope (exactly one distinct value) — present, but carrying no signal: a distribution / scatter / time-series over a constant is meaningless. The dashboard drops these from the metric picker, but they are disclosed here with the constant value so the omission is never silent (ADR-039 DISCLOSE-NEVER-COERCE — "present but constant → no signal", not absence). Self-maintaining: a future source that introduces real variance removes the metric from this list automatically, with no code change. Computed over the scope union, so a metric may appear here even while present in `available`/`partial` (those lists keep their pure "has data" semantics). */
+                        degenerate?: {
+                            metricName: string;
+                            /** @description The single constant value observed across the scope. */
+                            value: number;
+                        }[];
+                        /** @description Available metrics with ≥2 distinct values but a strongly DOMINANT value (near-constant in this scope: dominantShare ≥ the disclosed threshold) — e.g. a publisher that emits 3 structured images on 99.8 % of articles. Unlike `degenerate` these are NOT dropped (the rare minority is still real signal) — only DISCLOSED so the picker can flag "effectively constant in this scope". Scope-relative: a different source set with real variance clears the flag, so it reads as "this scope's sources carry little signal here", not a property of the metric. The metric analogue of ScopeAvailableMetadata.lowSignal. */
+                        lowSignal?: {
+                            metricName: string;
+                            /** @description Number of distinct values for the metric across the scope. */
+                            distinctValues: number;
+                            /** @description Fraction of in-scope rows carrying the single most common value (0..1). A value near 1 means the metric is effectively constant. */
+                            dominantShare: number;
+                            /** @description The single most common value for the metric across the scope. */
+                            dominantValue: number;
+                        }[];
                         /** Format: date-time */
                         windowStart?: string;
                         /** Format: date-time */
@@ -5904,6 +6028,44 @@ export interface operations {
                         /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
                         alternatives?: string[] | null;
                     };
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    getMetadataFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-field corpus-wide extraction status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataFieldsResponse"];
                 };
             };
             /** @description Internal server error. */

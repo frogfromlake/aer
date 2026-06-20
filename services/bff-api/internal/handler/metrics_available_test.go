@@ -13,8 +13,54 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frogfromlake/aer/services/bff-api/internal/config"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
+
+func TestGetMetricsAvailable_DisplayLabel(t *testing.T) {
+	store := &mockStore{availableMetrics: []storage.AvailableMetricRow{
+		{MetricName: "word_count", ValidationStatus: "unvalidated"},
+		{MetricName: "uncatalogued_metric", ValidationStatus: "unvalidated"},
+	}}
+	catalog := config.ContentCatalog{
+		config.CatalogKey("en", "metric", "word_count"): {
+			EntityID: "word_count", EntityType: "metric", Locale: "en", DisplayLabel: "Word Count",
+		},
+		config.CatalogKey("de", "metric", "word_count"): {
+			EntityID: "word_count", EntityType: "metric", Locale: "de", DisplayLabel: "Wortanzahl",
+		},
+	}
+	s := NewServer(store, nil, nil, catalog, nil)
+
+	de := GetMetricsAvailableParamsLocale("de")
+	resp, err := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{
+		Params: GetMetricsAvailableParams{Locale: &de},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := resp.(GetMetricsAvailable200JSONResponse)
+
+	byName := map[string]*string{}
+	for _, m := range got {
+		byName[m.MetricName] = m.DisplayLabel
+	}
+	if lbl := byName["word_count"]; lbl == nil || *lbl != "Wortanzahl" {
+		t.Errorf("word_count displayLabel (de): want Wortanzahl, got %v", lbl)
+	}
+	// A metric with no catalogue entry carries a nil label (client falls back).
+	if lbl := byName["uncatalogued_metric"]; lbl != nil {
+		t.Errorf("uncatalogued metric must have nil displayLabel, got %v", *lbl)
+	}
+
+	// No locale → defaults to en.
+	respEn, _ := s.GetMetricsAvailable(context.Background(), GetMetricsAvailableRequestObject{})
+	for _, m := range respEn.(GetMetricsAvailable200JSONResponse) {
+		if m.MetricName == "word_count" && (m.DisplayLabel == nil || *m.DisplayLabel != "Word Count") {
+			t.Errorf("word_count displayLabel (default en): want Word Count, got %v", m.DisplayLabel)
+		}
+	}
+}
 
 func TestGetMetricsAvailable_WindowOptional(t *testing.T) {
 	router := newTestRouter(NewServer(&mockStore{}, nil, nil, nil, nil))

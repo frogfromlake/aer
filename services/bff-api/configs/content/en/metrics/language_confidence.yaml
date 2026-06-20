@@ -1,6 +1,7 @@
 entityId: language_confidence
 entityType: metric
 locale: en
+displayLabel: "Language Confidence"
 registers:
   semantic:
     short: "The probability (0–1) that the article's language was correctly identified. High values indicate reliable detection; low values signal ambiguity."

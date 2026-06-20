@@ -185,12 +185,23 @@
                     class="mc-field"
                     class:absent={f.structurallyAbsent}
                     class:absent-revealed={f.structurallyAbsent}
+                    class:constant={f.constant}
                   >
                     <div class="mc-field-head">
                       <span class="mc-field-name" title={f.field}>{f.field}</span>
                       {#if f.structurallyAbsent}
                         <span class="mc-tag" aria-label={m.source_coverage_field_absent_aria()}
                           >{m.source_coverage_field_absent_tag()}</span
+                        >
+                      {:else if f.constant}
+                        <span
+                          class="mc-tag mc-tag-constant"
+                          title={m.source_coverage_field_constant_title({
+                            value: f.constantValue ?? ''
+                          })}
+                          aria-label={m.source_coverage_field_constant_aria({
+                            value: f.constantValue ?? ''
+                          })}>{m.source_coverage_field_constant_tag()}</span
                         >
                       {:else if f.totalArticles === 0}
                         <span
@@ -239,6 +250,11 @@
                       <span class="mc-meta"
                         >{m.source_coverage_field_articles({ count: f.totalArticles })}</span
                       >
+                      {#if f.constant}
+                        <p class="mc-prose mc-prose-constant">
+                          {m.source_coverage_field_constant_prose({ value: f.constantValue ?? '' })}
+                        </p>
+                      {/if}
                     {/if}
                   </li>
                 {/each}
@@ -441,6 +457,19 @@
 
   .mc-tag.muted {
     border-color: var(--color-border);
+    color: var(--color-fg-muted);
+  }
+
+  /* Task A — "constant → no signal" marker. Methodological, never a warning:
+     a perceptually-neutral dim accent (ADR-039 METHODOLOGICAL-NOT-WARNING). */
+  .mc-tag-constant {
+    border-color: color-mix(in srgb, var(--color-fg-subtle) 45%, var(--color-border));
+    color: var(--color-fg-muted);
+    background: color-mix(in srgb, var(--color-fg-subtle) 8%, transparent);
+  }
+
+  .mc-prose-constant {
+    font-style: normal;
     color: var(--color-fg-muted);
   }
 

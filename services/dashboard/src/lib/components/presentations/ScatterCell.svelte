@@ -23,6 +23,7 @@
   import CellExport from './CellExport.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -164,18 +165,24 @@
         marginBottom: 44,
         grid: true,
         x: {
-          label: m.cells_scatter_axis_x({ metric: xMetric }),
+          label: m.cells_scatter_axis_x({ metric: metricLabel(xMetric) }),
           labelAnchor: 'center',
           ...(sharedX ? { domain: [...sharedX] } : {})
         },
         y: {
-          label: m.cells_scatter_axis_y({ metric: yMetric }),
+          label: m.cells_scatter_axis_y({ metric: metricLabel(yMetric) }),
           labelAnchor: 'center',
           ...(sharedY ? { domain: [...sharedY] } : {})
         },
         ...(hasSize ? { r: { range: [2, 16] } } : {}),
         ...(hasColor
-          ? { color: { scheme: 'viridis', legend: true, label: colorMetric ?? null } }
+          ? {
+              color: {
+                scheme: 'viridis',
+                legend: true,
+                label: colorMetric ? metricLabel(colorMetric) : null
+              }
+            }
           : {}),
         marks: [
           Plot.dot(rows, {
@@ -318,7 +325,7 @@
     <h3 id="scatter-title" class="cell-title">
       {m.cells_scatter_title()}
       <span class="muted"
-        >— <code>{xMetric}</code> × <code>{yMetric}</code> ·
+        >— <code>{metricLabel(xMetric)}</code> × <code>{metricLabel(yMetric)}</code> ·
         <strong class="scope-name">{scopeId}</strong>{#if rLabel}
           · <span class="r-badge" title={m.cells_scatter_r_badge_title()}
             >{m.cells_scatter_r_badge({ r: rLabel })}</span
@@ -339,7 +346,9 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_scatter_error()}</p>
   {:else if points.length === 0}
-    <p class="muted">{m.cells_scatter_empty({ x: xMetric, y: yMetric })}</p>
+    <p class="muted">
+      {m.cells_scatter_empty({ x: metricLabel(xMetric), y: metricLabel(yMetric) })}
+    </p>
   {:else}
     {#if data?.truncated}
       <p class="truncation-note" role="note">
@@ -350,7 +359,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label={m.cells_scatter_plot_aria({ x: xMetric, y: yMetric })}
+      aria-label={m.cells_scatter_plot_aria({ x: metricLabel(xMetric), y: metricLabel(yMetric) })}
     ></div>
     <HowToRead presentation="metric_scatter" facts={howToReadFacts} />
   {/if}

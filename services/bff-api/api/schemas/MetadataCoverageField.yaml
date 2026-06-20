@@ -58,3 +58,24 @@ properties:
       not sampling variance" — drives the dashboard's field-level
       Negative-Space rendering (Brief §7.7).
     example: true
+  constant:
+    type: boolean
+    description: >
+      Task A — true when the field is PRESENT but carries exactly one
+      distinct value across this source's corpus (zero variance). Such a
+      field is dropped from the Workbench picker (a distribution / grouping
+      over a constant is meaningless), so the dossier marks it here to
+      explain why a 100 %-populated field is not offered for analysis —
+      "present but constant → no signal", never silently hidden (ADR-039).
+      Computed BFF-side over `aer_gold.article_metadata` (categorical) /
+      `aer_gold.metrics` (scalar metadata), not from the coverage MV, so no
+      worker change is needed. Self-maintaining: real future variance clears
+      the flag automatically.
+    example: true
+  constantValue:
+    type: string
+    description: >
+      The single constant value, present only when `constant` is true.
+      A categorical field carries its string value; a scalar-metadata field
+      carries its numeric value rendered as a string (e.g. "1", "0").
+    example: NewsArticle

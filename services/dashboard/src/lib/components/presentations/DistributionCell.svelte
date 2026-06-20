@@ -40,6 +40,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -62,6 +63,7 @@
   // Phase 131 — configurable histogram bin count (default 30, BFF-clamped to
   // [1, 200]). Threaded from PanelControls via the Panel state.
   const activeBins = $derived(bins ?? 30);
+  const metricDisplay = $derived(metricLabel(metricName)); // friendly display label
 
   // Phase 122i revision (C6). Soft methodology note when the
   // distribution cell aggregates over multiple sources.
@@ -217,7 +219,7 @@
         marginLeft: 56,
         marginBottom: 36,
         x: {
-          label: metricName,
+          label: metricDisplay,
           grid: false,
           ...(integerValued ? { tickFormat: 'd' } : {}),
           ...(sharedX ? { domain: [...sharedX] } : plotDomain ? { domain: plotDomain } : {})
@@ -284,7 +286,7 @@
       visible: true,
       x: ev.clientX,
       y: ev.clientY,
-      title: exportMetricName,
+      title: metricLabel(exportMetricName),
       rows: [
         {
           label: m.cells_dist_readout_range(),
@@ -352,7 +354,7 @@
 <section class="dist-cell" aria-labelledby="dist-title-{metricName}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="dist-title-{metricName}" class="cell-title">
-      <code>{dataLayer === 'silver' ? silverAggType : metricName}</code>
+      <code>{metricLabel(dataLayer === 'silver' ? silverAggType : metricName)}</code>
       <span class="muted"
         >— {m.cells_dist_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
@@ -376,7 +378,7 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_dist_error()}</p>
   {:else if activeDist && activeDist.summary.count === 0}
-    <CellEmptyState label={metricName} />
+    <CellEmptyState label={metricDisplay} />
   {:else if activeDist}
     {@const s = activeDist.summary}
     {#if showMergedNote}
@@ -389,7 +391,7 @@
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label={m.cells_dist_plot_aria({ metric: metricName })}
+      aria-label={m.cells_dist_plot_aria({ metric: metricDisplay })}
       onmousemove={onPlotMove}
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
@@ -397,7 +399,7 @@
     {#if degenerate && degenerateValue != null}
       {@const degen = s.count === 1 ? m.cells_dist_degenerate_one : m.cells_dist_degenerate_other}
       <p class="overflow-note">
-        {degen({ count: fmtValue(s.count), metric: metricName, value: fmt(degenerateValue) })}
+        {degen({ count: fmtValue(s.count), metric: metricDisplay, value: fmt(degenerateValue) })}
       </p>
     {/if}
     {#if activeDist.overflowCount > 0 && activeDist.clampedUpper != null}

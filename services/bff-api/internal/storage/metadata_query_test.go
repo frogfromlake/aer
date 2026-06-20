@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -130,6 +131,66 @@ func TestGetScopeAvailableMetadata_IntersectionVsPartial(t *testing.T) {
 	}
 	if len(res.Partial[0].Sources) != 1 || res.Partial[0].Sources[0] != "tagesschau" {
 		t.Errorf("author partial sources: want [tagesschau], got %v", res.Partial[0].Sources)
+	}
+}
+
+func TestGetScopeAvailableMetadata_DegenerateAndLowSignal(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	createArticleMetadataTable(t, ctx, s)
+
+	rows := []metadataValueRow{
+		// article_type constant across the whole scope → Degenerate (still in
+		// Available — the lists keep their pure "has data" semantics).
+		{mdTS, "tagesschau", "a1", "article_type", []string{"NewsArticle"}, ""},
+		{mdTS, "tagesschau", "a2", "article_type", []string{"NewsArticle"}, ""},
+		{mdTS, "elysee", "e1", "article_type", []string{"NewsArticle"}, ""},
+		// section: two balanced values → neither degenerate nor low-signal.
+		{mdTS, "tagesschau", "a1", "section", []string{"Politik"}, ""},
+		{mdTS, "elysee", "e1", "section", []string{"Sport"}, ""},
+	}
+	// kicker: present on both sources, 20 "Politik" vs 1 "Spezial" across scope
+	// → distinct=2, dominantShare=20/21≈0.952 ≥ 0.95 → LowSignal (NOT dropped).
+	for i := 0; i < 19; i++ {
+		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("k%d", i), "kicker", []string{"Politik"}, ""})
+	}
+	rows = append(rows,
+		metadataValueRow{mdTS, "elysee", "ek1", "kicker", []string{"Politik"}, ""},
+		metadataValueRow{mdTS, "elysee", "ek2", "kicker", []string{"Spezial"}, ""},
+	)
+	seedArticleMetadata(t, ctx, s, rows)
+
+	res, err := s.GetScopeAvailableMetadata(ctx, mdStart, mdEnd, []string{"tagesschau", "elysee"})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	// Degenerate: exactly article_type, disclosed with its constant value.
+	if len(res.Degenerate) != 1 || res.Degenerate[0].Field != "article_type" {
+		t.Fatalf("Degenerate: want [article_type], got %+v", res.Degenerate)
+	}
+	if res.Degenerate[0].Value != "NewsArticle" {
+		t.Errorf("Degenerate value: want NewsArticle, got %q", res.Degenerate[0].Value)
+	}
+	// LowSignal: exactly kicker, with its concentration disclosed and not dropped.
+	if len(res.LowSignal) != 1 || res.LowSignal[0].Field != "kicker" {
+		t.Fatalf("LowSignal: want [kicker], got %+v", res.LowSignal)
+	}
+	if res.LowSignal[0].DistinctValues != 2 || res.LowSignal[0].DominantValue != "Politik" {
+		t.Errorf("LowSignal kicker: want 2 distinct / Politik, got %+v", res.LowSignal[0])
+	}
+	if res.LowSignal[0].DominantShare < 0.95 {
+		t.Errorf("LowSignal kicker dominantShare: want ≥0.95, got %v", res.LowSignal[0].DominantShare)
+	}
+	// section is balanced → flagged by neither list.
+	for _, d := range res.Degenerate {
+		if d.Field == "section" {
+			t.Errorf("section must not be degenerate")
+		}
+	}
+	for _, l := range res.LowSignal {
+		if l.Field == "section" {
+			t.Errorf("section must not be low-signal")
+		}
 	}
 }
 

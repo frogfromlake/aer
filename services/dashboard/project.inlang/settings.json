@@ -18,6 +18,7 @@
       "./messages/{locale}/auth.json",
       "./messages/{locale}/account.json",
       "./messages/{locale}/reflection.json",
+      "./messages/{locale}/metadata.json",
       "./messages/{locale}/errors.json",
       "./messages/{locale}/domain.json"
     ]

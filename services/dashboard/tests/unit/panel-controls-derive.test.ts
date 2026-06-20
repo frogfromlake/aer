@@ -14,6 +14,8 @@ import {
   buildScalarMetricOptions,
   computeTopNMax,
   reconcilePanelForView,
+  formatConstantValue,
+  dominantSharePct,
   type ScopeGate
 } from '../../src/lib/workbench/panel-controls-derive';
 import { CROSS_PROBE_DEFAULT_METRIC, DEFAULT_METRIC_NAME } from '../../src/lib/presentations';
@@ -137,6 +139,15 @@ describe('isScopeAvailable', () => {
     expect(isScopeAvailable('p', gate({ showWithheld: false }))).toBe(false);
     expect(isScopeAvailable('p', gate({ showWithheld: true }))).toBe(true);
   });
+
+  it('never offers a degenerate (constant) metric — even an intersection one, even under show-anyway (Task A)', () => {
+    expect(isScopeAvailable('a', gate({ degenerateSet: new Set(['a']) }))).toBe(false);
+    expect(isScopeAvailable('p', gate({ showWithheld: true, degenerateSet: new Set(['p']) }))).toBe(
+      false
+    );
+    // A non-degenerate intersection metric is unaffected.
+    expect(isScopeAvailable('b', gate({ degenerateSet: new Set(['a']) }))).toBe(true);
+  });
 });
 
 describe('missingSourcesFor', () => {
@@ -182,6 +193,37 @@ describe('offerableMetadataFields / buildMetadataFields / firstMetadataField', (
   it('firstMetadataField is the sorted-first field, else empty string', () => {
     expect(firstMetadataField(['section', 'author'])).toBe('author');
     expect(firstMetadataField([])).toBe('');
+  });
+
+  it('excludes degenerate (constant) fields from the offer, even in the intersection (Task A)', () => {
+    expect(
+      offerableMetadataFields({
+        availableMetadataFields: ['section', 'article_type', 'author'],
+        partialMetadataFields: [],
+        showWithheld: false,
+        degenerateFields: ['article_type']
+      })
+    ).toEqual(['author', 'section']);
+  });
+});
+
+describe('formatConstantValue / dominantSharePct (Task A disclosure)', () => {
+  it('renders integers without decimals and trims fractional values to 2 dp', () => {
+    expect(formatConstantValue(1)).toBe('1');
+    expect(formatConstantValue(0)).toBe('0');
+    expect(formatConstantValue(3.14159)).toBe('3.14');
+    expect(formatConstantValue(2.5)).toBe('2.5');
+  });
+
+  it('does not fabricate booleans — a constant 0 stays "0", never "false"', () => {
+    expect(formatConstantValue(0)).toBe('0');
+    expect(formatConstantValue(1)).toBe('1');
+  });
+
+  it('dominantSharePct rounds a 0..1 share to an integer percentage', () => {
+    expect(dominantSharePct(0.9998)).toBe(100);
+    expect(dominantSharePct(0.951)).toBe(95);
+    expect(dominantSharePct(0.5)).toBe(50);
   });
 });
 

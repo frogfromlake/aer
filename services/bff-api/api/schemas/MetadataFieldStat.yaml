@@ -1,0 +1,67 @@
+type: object
+description: >
+  Corpus-wide extraction + variance status for one metadata field (Task C).
+  Every figure is measured over the WHOLE observed corpus (all sources), so the
+  Reflection page states the real fill rate rather than a per-probe slice.
+required:
+  - field
+  - totalArticles
+  - populatedArticles
+  - populationRate
+  - sourcesObserved
+  - sourcesPopulated
+  - distinctValues
+  - constant
+properties:
+  field:
+    type: string
+    description: The Tier-B / Tier-C field name (matches the coverage matrix).
+    example: article_type
+  totalArticles:
+    type: integer
+    minimum: 0
+    description: Distinct articles for which this field was observed across all sources.
+    example: 4200
+  populatedArticles:
+    type: integer
+    minimum: 0
+    description: >
+      Distinct articles where the field was filled by a real (non-null)
+      extraction method. The complement is structural absence — the publisher
+      did not declare the field, NOT an AĒR extraction defect.
+    example: 4200
+  populationRate:
+    type: number
+    format: double
+    minimum: 0
+    maximum: 1
+    description: populatedArticles / totalArticles (0 when never observed).
+    example: 1.0
+  sourcesObserved:
+    type: integer
+    minimum: 0
+    description: Number of sources that emitted any article carrying this field column.
+    example: 4
+  sourcesPopulated:
+    type: integer
+    minimum: 0
+    description: Number of sources where the field is populated for at least one article.
+    example: 2
+  distinctValues:
+    type: integer
+    minimum: 0
+    description: >
+      Distinct values observed for this field across the whole corpus (0 when
+      never populated). 1 means the field is constant everywhere — present but
+      signal-free (the Task-A "no signal" condition at corpus scale).
+    example: 1
+  constant:
+    type: boolean
+    description: >
+      True when the field is populated but carries exactly one distinct value
+      across the entire corpus (distinctValues == 1) — present but signal-free.
+    example: true
+  constantValue:
+    type: string
+    description: The single constant value, present only when `constant` is true.
+    example: NewsArticle

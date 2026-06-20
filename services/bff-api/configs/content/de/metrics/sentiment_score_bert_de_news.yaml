@@ -1,6 +1,7 @@
 entityId: sentiment_score_bert_de_news
 entityType: metric
 locale: de
+displayLabel: "Stimmungswert · BERT Deutsche News"
 registers:
   semantic:
     short: "Ein Wert von −1 bis +1, der die emotionale Polarität eines Artikels mit einem auf deutsche Nachrichten spezialisierten BERT-Modell misst. Nur für deutschsprachige Dokumente."

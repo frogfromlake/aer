@@ -1,6 +1,7 @@
 entityId: image_count
 entityType: metric
 locale: en
+displayLabel: "Image Count"
 registers:
   semantic:
     short: "How many images a publisher declares for an article in its structured metadata. A proxy for visual richness, not a count of every picture on the page."

@@ -87,15 +87,45 @@ type PartialMetric struct {
 	Sources    []string
 }
 
+// DegenerateMetric is a metric present in the scope window whose value is
+// CONSTANT across the whole scope (exactly one distinct value) — present, but
+// carrying no signal. Disclosed (with the constant value) rather than silently
+// dropped (ADR-039 DISCLOSE-NEVER-COERCE). Self-maintaining: a future source
+// that introduces real variance removes the metric from this list automatically.
+type DegenerateMetric struct {
+	MetricName string
+	Value      float64
+}
+
+// LowSignalMetric is an available metric with ≥2 distinct values but a strongly
+// dominant one (near-constant in this scope, e.g. image_count = 3 on 99.8 % of
+// articles). The metric analogue of LowSignalField: NOT dropped (the rare
+// minority is real signal), only disclosed so the picker can flag it. The flag
+// is scope-relative — a source set with real variance clears it.
+type LowSignalMetric struct {
+	MetricName     string
+	DistinctValues int
+	DominantShare  float64
+	DominantValue  float64
+}
+
 // ScopeMetricAvailability splits the metrics observed in a scope's window into
 // those present for every scoped source (Available) and those present for only
 // some (Partial). Powers the Phase-123c cross-probe metric guard so a panel
 // spanning probes with asymmetric capability never binds a metric that would
 // silently yield empty cells.
+//
+// Degenerate (constant) and LowSignal (near-constant) are ADDITIVE advisory
+// lists (Task A): Available/Partial keep their pure "has data" semantics, while
+// Degenerate is dropped from the picker and LowSignal is flagged-but-offerable.
+// Both are computed over the scope union; LowSignal is restricted to Available
+// metrics (a partial metric is already withheld by the intersection gate).
 type ScopeMetricAvailability struct {
 	ScopedSources []string
 	Available     []string
 	Partial       []PartialMetric
+	Degenerate    []DegenerateMetric
+	LowSignal     []LowSignalMetric
 }
 
 // GetScopeAvailableMetrics returns, for the given sources and window, which
@@ -156,6 +186,68 @@ func (s *ClickHouseStorage) GetScopeAvailableMetrics(ctx context.Context, start,
 			}
 		}
 		out.Partial = append(out.Partial, PartialMetric{MetricName: metric, Sources: present})
+	}
+
+	// Task A: per-metric value concentration over the scope union — yields BOTH
+	// degenerate (distinct == 1, dropped) and low-signal (distinct ≥ 2 but a
+	// single value dominates ≥ threshold, e.g. image_count = 3 on 99.8 % of
+	// articles — kept but flagged). The nested (metric, value) rollup is bounded
+	// by each metric's distinct-value cardinality, so a continuous metric like
+	// sentiment_score has a near-uniform distribution (dominantShare ≈ 1/N) and
+	// is never flagged — only genuinely discrete, near-constant metrics surface.
+	availableSet := map[string]bool{}
+	for _, mn := range out.Available {
+		availableSet[mn] = true
+	}
+	concQuery := `
+		SELECT
+			Metric,
+			uniqExact(Value)  AS Distinct,
+			max(Cnt)          AS Dominant,
+			sum(Cnt)          AS Total,
+			argMax(Value, Cnt) AS DominantValue
+		FROM (
+			SELECT metric_name AS Metric, value AS Value, count() AS Cnt
+			FROM aer_gold.metrics
+			WHERE timestamp >= $1 AND timestamp <= $2
+	`
+	concQuery += " AND source IN (" + strings.Join(placeholders, ", ") + ")"
+	concQuery += `
+			GROUP BY Metric, Value
+		)
+		GROUP BY Metric
+		ORDER BY Metric
+	`
+	var concRows []struct {
+		Metric        string  `ch:"Metric"`
+		Distinct      uint64  `ch:"Distinct"`
+		Dominant      uint64  `ch:"Dominant"`
+		Total         uint64  `ch:"Total"`
+		DominantValue float64 `ch:"DominantValue"`
+	}
+	if err := s.conn.Select(ctx, &concRows, concQuery, args...); err != nil {
+		slog.Error("Failed to query scope metric concentration", "error", err)
+		return out, err
+	}
+	for _, r := range concRows {
+		if r.Distinct <= 1 {
+			out.Degenerate = append(out.Degenerate, DegenerateMetric{MetricName: r.Metric, Value: r.DominantValue})
+			continue
+		}
+		// Low-signal is a disclosure for offerable (available) metrics only — a
+		// partial metric is already withheld by the intersection gate.
+		if !availableSet[r.Metric] || r.Total == 0 {
+			continue
+		}
+		share := float64(r.Dominant) / float64(r.Total)
+		if share >= lowSignalDominanceThreshold {
+			out.LowSignal = append(out.LowSignal, LowSignalMetric{
+				MetricName:     r.Metric,
+				DistinctValues: int(r.Distinct), //nolint:gosec // bounded by metric value cardinality
+				DominantShare:  share,
+				DominantValue:  r.DominantValue,
+			})
+		}
 	}
 	return out, nil
 }

@@ -9,6 +9,7 @@
   // once by PanelHost (the queries must live there) and threaded in as props.
   import type { Component } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { fieldLabel } from '$lib/state/labels.svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import type { PresentationDefinition, PresentationCellProps } from '$lib/presentations';
   import {
@@ -436,11 +437,11 @@
     </p>
   {:else if facetPending}
     <p class="muted" aria-busy="true">
-      {m.workbench_grid_loading_facet_values()} <code>{facetField}</code>…
+      {m.workbench_grid_loading_facet_values()} <code>{fieldLabel(facetField)}</code>…
     </p>
   {:else if facetEmpty}
     <p class="muted">
-      {m.workbench_grid_facet_empty_pre()} <code>{facetField}</code>
+      {m.workbench_grid_facet_empty_pre()} <code>{fieldLabel(facetField)}</code>
       {m.workbench_grid_facet_empty_post()}
     </p>
   {:else if expandedUnits.length === 0}
@@ -457,7 +458,8 @@
         : ''}
       <p class="facet-disclosure" role="note">
         {m.workbench_grid_facet_disclosure_pre()}
-        <code>{facetFanout.field}</code>{showing}{cap}{m.workbench_grid_facet_disclosure_post()}
+        <code>{fieldLabel(facetFanout.field)}</code
+        >{showing}{cap}{m.workbench_grid_facet_disclosure_post()}
       </p>
     {/if}
     {#each expandedUnits as unit (unit.key)}

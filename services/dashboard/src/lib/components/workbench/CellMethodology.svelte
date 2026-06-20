@@ -35,6 +35,7 @@
   import type { Presentation } from '$lib/state/url-internals';
   import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
+  import { metricLabel } from '$lib/state/labels.svelte';
   import { locale } from '$lib/state/locale.svelte';
 
   interface Props {
@@ -133,7 +134,7 @@
 
 <section
   class="cell-methodology epistemic-weight"
-  aria-label={m.workbench_meth_aria_label({ metric: metricName, view: viewLabel })}
+  aria-label={m.workbench_meth_aria_label({ metric: metricLabel(metricName), view: viewLabel })}
 >
   <button
     type="button"
@@ -145,7 +146,7 @@
     <span class="meth-chevron" aria-hidden="true" class:expanded>›</span>
     <span class="meth-title">{m.workbench_meth_title()}</span>
     <span class="meth-cell-id">
-      <code class="meth-metric">{metricName}</code>
+      <code class="meth-metric">{metricLabel(metricName)}</code>
       <span class="meth-sep" aria-hidden="true">·</span>
       <span class="meth-view">{viewLabel}</span>
     </span>
@@ -208,7 +209,7 @@
             <summary class="meth-block-summary"
               >{m.workbench_meth_cell_method_heading({
                 view: viewLabel,
-                metric: metricName
+                metric: metricLabel(metricName)
               })}</summary
             >
             <p class="cell-method-text">{viewModeContent.registers.methodological.long}</p>

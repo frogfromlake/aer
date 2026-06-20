@@ -29,6 +29,15 @@
   "levers_withheld_showing_metrics": "✓ Zurückgehaltene werden angezeigt (nur Quellen mit Daten werden dargestellt)",
   "levers_withheld_show_anyway": "Trotzdem anzeigen",
 
+  "levers_degenerate_eyebrow": "Kein Signal",
+  "levers_degenerate_lead_one": "{count} Dimension ist im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt (offengelegt, nicht still gefiltert — ADR-039):",
+  "levers_degenerate_lead_other": "{count} Dimensionen sind im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt (offengelegt, nicht still gefiltert — ADR-039):",
+  "levers_degenerate_value": "= {value} (konstant)",
+  "levers_lowsignal_eyebrow": "Effektiv konstant",
+  "levers_lowsignal_lead_one": "{count} Dimension ist im Scope nahezu konstant — weiter wählbar, trägt aber kaum Signal:",
+  "levers_lowsignal_lead_other": "{count} Dimensionen sind im Scope nahezu konstant — weiter wählbar, tragen aber kaum Signal:",
+  "levers_lowsignal_detail": "{share}% {value} · {distinct} Werte",
+
   "levers_composition_eyebrow": "Komposition",
   "levers_composition_aria": "Komposition",
   "levers_composition_split": "Geteilt",

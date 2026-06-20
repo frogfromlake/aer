@@ -26,6 +26,7 @@
     type PresentationCellProps
   } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
+  import { metricLabel } from '$lib/state/labels.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
@@ -167,7 +168,7 @@
           <span class="stratum-eyebrow">{m.workbench_episteme_stratum_eyebrow()}</span>
           <span class="stratum-presentation">{presentation.label}</span>
           <span class="stratum-sep" aria-hidden="true">·</span>
-          <code class="stratum-metric">{metricName}</code>
+          <code class="stratum-metric">{metricLabel(metricName)}</code>
         </header>
         <div class="stratum-body">
           {#if loadError}

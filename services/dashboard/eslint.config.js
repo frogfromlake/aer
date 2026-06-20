@@ -47,7 +47,7 @@ const FILE_LENGTH_ALLOWLIST = [
   ['**/CoOccurrenceNetworkAtScale.svelte', 755], // logic in cooccurrence-network-shared.ts (tested); residual = sigma/FA2/WebGL glue (+24 Phase 144 cell-chrome locale wiring — sentence→building-block split of the merged/sparse notes)
   ['**/AtmosphereSurface.svelte', 657], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers (+15 Phase 144 banner/tooltip plurals)
   ['**/SideRail.svelte', 539], // markup-dominated; Phase 144 LocaleSwitch mount + message-call wrapping — within the ±20-30 tolerance band
-  ['**/PanelCellGrid.svelte', 531], // markup-dominated; Phase 144 EN/DE pluralisation of the facet-disclosure note (1 LOC over 530) — within the ±20-30 tolerance band
+  ['**/PanelCellGrid.svelte', 533], // markup-dominated; Phase 144 facet-disclosure note + Task-B fieldLabel relabels (3 LOC over 530) — within the ±20-30 tolerance band
   ['**/SourceCard.svelte', 537] // markup-dominated; Phase 144 message-call wrapping of the card stats/registers/footer (+7 over 530) — within the ±20-30 tolerance band
 ];
 

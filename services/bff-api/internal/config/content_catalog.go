@@ -25,9 +25,14 @@ type ContentRegisters struct {
 // ContentRecord is the canonical in-memory representation of one content
 // YAML file. All fields are required except WorkingPaperAnchors.
 type ContentRecord struct {
-	EntityID            string           `yaml:"entityId"`
-	EntityType          string           `yaml:"entityType"`
-	Locale              string           `yaml:"locale"`
+	EntityID   string `yaml:"entityId"`
+	EntityType string `yaml:"entityType"`
+	Locale     string `yaml:"locale"`
+	// DisplayLabel is the human-friendly UI label for the entity in this locale
+	// (Task B), e.g. "Sentiment Score · BERT Multilingual". Optional — entities
+	// authored before Task B carry none, and consumers fall back to the machine
+	// id so nothing renders blank.
+	DisplayLabel        string           `yaml:"displayLabel"`
 	Registers           ContentRegisters `yaml:"registers"`
 	ContentVersion      string           `yaml:"contentVersion"`
 	LastReviewedBy      string           `yaml:"lastReviewedBy"`
@@ -37,6 +42,21 @@ type ContentRecord struct {
 
 // ContentCatalog is the in-memory catalog, keyed by "locale:entityType:entityId".
 type ContentCatalog map[string]ContentRecord
+
+// DisplayLabel returns the catalogue display label for (entityType, entityID) in
+// the given locale, falling back to the English entry, then to "" (so callers
+// fall back to the machine id). Task B.
+func (c ContentCatalog) DisplayLabel(locale, entityType, entityID string) string {
+	if rec, ok := c[CatalogKey(locale, entityType, entityID)]; ok && rec.DisplayLabel != "" {
+		return rec.DisplayLabel
+	}
+	if locale != "en" {
+		if rec, ok := c[CatalogKey("en", entityType, entityID)]; ok {
+			return rec.DisplayLabel
+		}
+	}
+	return ""
+}
 
 var validEntityTypes = map[string]bool{
 	"metric":                 true,

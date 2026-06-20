@@ -87,11 +87,18 @@ export interface ScopeGate {
   partialMetricSet: Set<string>;
   // "show anyway" — when on, partials are also offerable.
   showWithheld: boolean;
+  // Task A: metrics that are CONSTANT across the scope (one distinct value) —
+  // present but signal-free. Never offerable (a constant carries no signal even
+  // under "show anyway"); disclosed separately. Optional for back-compat.
+  degenerateSet?: Set<string>;
 }
 
 // A metric is offerable when there is no scope constraint yet, OR it is in the
 // all-source intersection, OR it is a partial metric the user opted to show.
+// A degenerate (constant) metric is NEVER offerable — its constant value is
+// disclosed elsewhere instead of being silently dropped (ADR-039).
 export function isScopeAvailable(name: string, gate: ScopeGate): boolean {
+  if (gate.degenerateSet?.has(name)) return false;
   if (gate.scopeAvailableSet === null) return true;
   if (gate.scopeAvailableSet.has(name)) return true;
   if (gate.partialMetricSet.has(name) && gate.showWithheld) return true;
@@ -114,15 +121,21 @@ export interface MetadataFieldsInput {
   availableMetadataFields: readonly string[];
   partialMetadataFields: readonly { field: string }[];
   showWithheld: boolean;
+  // Task A: fields that are CONSTANT across the scope (one distinct value) —
+  // excluded from the picker (grouping by a constant is meaningless), disclosed
+  // separately. Optional for back-compat.
+  degenerateFields?: readonly string[];
 }
 
 // The offerable categorical fields: the INTERSECTION by default (Tier 1);
-// partials only under "show anyway" (Tier 2). Deduped + sorted.
+// partials only under "show anyway" (Tier 2). Degenerate (constant) fields are
+// always excluded. Deduped + sorted.
 export function offerableMetadataFields(i: MetadataFieldsInput): string[] {
+  const degenerate = new Set(i.degenerateFields ?? []);
   const seen: Record<string, true> = {};
   const out: string[] = [];
   const add = (f: string) => {
-    if (f && !seen[f]) {
+    if (f && !seen[f] && !degenerate.has(f)) {
       seen[f] = true;
       out.push(f);
     }
@@ -187,6 +200,22 @@ export function buildMetricList(i: MetricListInput): string[] {
     merged.push(i.activeMetric);
   }
   return merged;
+}
+
+// ── Degenerate / low-signal disclosure (Task A) ──────────────────────────────
+
+// Format a constant scalar value for disclosure: integers without decimals,
+// otherwise trimmed to 2 dp. Deliberately honest — it renders the raw number;
+// the frontend has no per-metric boolean knowledge, so paywall_status reads as
+// "0", never a fabricated "false".
+export function formatConstantValue(v: number): string {
+  if (Number.isInteger(v)) return String(v);
+  return String(Math.round(v * 100) / 100);
+}
+
+// Integer percentage (0..100) for a 0..1 dominant share.
+export function dominantSharePct(share: number): number {
+  return Math.round(share * 100);
 }
 
 // The first metric the target view can render, preferring the canonical default.

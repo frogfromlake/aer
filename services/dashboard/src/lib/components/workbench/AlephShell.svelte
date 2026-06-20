@@ -30,6 +30,7 @@
     type PresentationCellProps
   } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
+  import { metricLabel } from '$lib/state/labels.svelte';
   import PanelControls from './PanelControls.svelte';
   import CellMethodology from './CellMethodology.svelte';
   import WindowHost from './WindowHost.svelte';
@@ -243,7 +244,7 @@
           <span class="cell-eyebrow">{m.workbench_aleph_cell_eyebrow()}</span>
           <span class="cell-presentation">{presentation.label}</span>
           <span class="cell-sep" aria-hidden="true">·</span>
-          <code class="cell-metric">{metricName}</code>
+          <code class="cell-metric">{metricLabel(metricName)}</code>
         </header>
 
         <div class="cell-body">

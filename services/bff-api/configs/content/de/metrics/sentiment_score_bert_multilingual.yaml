@@ -1,6 +1,7 @@
 entityId: sentiment_score_bert_multilingual
 entityType: metric
 locale: de
+displayLabel: "Stimmungswert · BERT Multilingual"
 registers:
   semantic:
     short: "Ein Wert von −1 bis +1, der die emotionale Polarität eines Artikels mit einem mehrsprachigen BERT-Modell misst. Funktioniert über viele Sprachen, nicht nur Deutsch."

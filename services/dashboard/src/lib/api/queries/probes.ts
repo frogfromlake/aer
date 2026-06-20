@@ -7,6 +7,7 @@ import type {
   DiscoveryCoverageResponseDto,
   FetchContext,
   MetadataCoverageResponseDto,
+  MetadataFieldsResponseDto,
   MetricProvenanceDto,
   MetricsParams,
   MetricsResponseDto,
@@ -232,6 +233,17 @@ export function probeMetadataCoverageQuery(
     // Coverage is a structural property of the source's emission posture —
     // it changes only as the publisher's website does, on a much slower
     // cadence than the time-series metrics. 5 min keeps it fresh enough.
+    staleTime: FIVE_MINUTES
+  };
+}
+
+// Task C — corpus-wide per-field extraction status feeding the Reflection
+// "metadata fields" surface. Unscoped (whole corpus); slow cadence like the
+// per-source coverage above.
+export function metadataFieldsQuery(ctx: FetchContext): QueryOptions<MetadataFieldsResponseDto> {
+  return {
+    queryKey: ['aer', 'metadata-fields'] as const,
+    queryFn: () => fetchJson<MetadataFieldsResponseDto>(ctx, '/metadata-fields', 'unspecified'),
     staleTime: FIVE_MINUTES
   };
 }

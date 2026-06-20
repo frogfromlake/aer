@@ -120,6 +120,12 @@ type Store interface {
 	GetSilverCorrelation(ctx context.Context, source string, start, end time.Time) (storage.SilverCorrelationResult, error)
 	// Phase 122f: metadata-coverage matrix over aer_gold.metadata_coverage.
 	GetMetadataCoverage(ctx context.Context, sources []string) ([]storage.MetadataCoverageCell, error)
+	// Task A: per-(source, coverage-field) distinct-value count for the dossier
+	// "constant → no signal" marker (over article_metadata + metrics).
+	GetFieldCardinality(ctx context.Context, sources []string) (map[storage.FieldKey]storage.FieldCardinality, error)
+	// Task C: corpus-wide per-field extraction status for the Reflection
+	// "metadata fields" surface (aggregated over all sources).
+	GetGlobalFieldStats(ctx context.Context) ([]storage.GlobalFieldStat, error)
 	// Phase 133: categorical metadata distribution + per-scope availability gate
 	// over aer_gold.article_metadata.
 	GetCategoricalDistribution(ctx context.Context, field string, sources []string, start, end time.Time, topN int, metadataFilter *storage.MetadataFilter) (storage.CategoricalDistributionResult, error)

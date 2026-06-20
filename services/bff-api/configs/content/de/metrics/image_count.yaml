@@ -1,6 +1,7 @@
 entityId: image_count
 entityType: metric
 locale: de
+displayLabel: "Bild-Anzahl"
 registers:
   semantic:
     short: "Wie viele Bilder ein Herausgeber für einen Artikel in seinen strukturierten Metadaten deklariert. Ein Näherungswert für visuelle Dichte, keine Zählung jedes Bildes auf der Seite."

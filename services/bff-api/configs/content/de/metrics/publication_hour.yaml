@@ -1,6 +1,7 @@
 entityId: publication_hour
 entityType: metric
 locale: de
+displayLabel: "Veröffentlichungsstunde"
 registers:
   semantic:
     short: "Die UTC-Stunde (0–23) der Artikelveröffentlichung. Zeigt redaktionelle Planungsrhythmen, institutionelle Zeitkonventionen und Muster zwischen Rund-um-die-Uhr- und Bürozeiten-Publikation."

@@ -19,6 +19,7 @@
     type ScopeGate
   } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
+  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -127,14 +128,15 @@
       onchange={(e) => pickMetric((e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
       aria-label={m.levers_metric_aria()}
+      title={metricLabel(activeMetric)}
     >
       {#each analyticalMetrics as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
       {#if metadataMetrics.length > 0}
         <optgroup label={m.levers_metric_group_metadata()}>
           {#each metadataMetrics as mn (mn)}
-            <option value={mn}>{mn}</option>
+            <option value={mn}>{metricLabel(mn)}</option>
           {/each}
         </optgroup>
       {/if}
@@ -150,9 +152,10 @@
         onchange={(e) => pickMetric((e.currentTarget as HTMLSelectElement).value)}
         onclick={(e) => e.stopPropagation()}
         aria-label={m.levers_groupby_select_aria()}
+        title={fieldLabel(activeMetric)}
       >
         {#each metadataFields as f (f)}
-          <option value={f}>{f}</option>
+          <option value={f}>{fieldLabel(f)}</option>
         {/each}
       </select>
     {:else}

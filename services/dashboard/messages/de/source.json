@@ -61,6 +61,10 @@
   "source_coverage_field_bar_aria": "Verteilung der Extraktionsmethoden: {methods}; null {nullCount}",
   "source_coverage_field_articles": "{count} Artikel",
   "source_coverage_prose_fallback": "{source} diese Quelle emittiert `{field}` nicht — Analysen, die dieses Feld erfordern, schließen es für diese Quelle aus.",
+  "source_coverage_field_constant_tag": "= konstant",
+  "source_coverage_field_constant_aria": "vorhanden, aber im Korpus konstant, Wert {value}",
+  "source_coverage_field_constant_title": "Vorhanden, aber im gesamten Korpus dieser Quelle konstant (Wert: {value}) — trägt kein Signal, daher bietet die Workbench es nicht zur Analyse an.",
+  "source_coverage_field_constant_prose": "Vorhanden, aber im Korpus konstant (Wert: {value}) — kein Signal, daher bietet die Workbench es nicht zur Analyse an. Kein Defekt; sobald eine künftige Quelle dieses Feld variiert, erscheint es automatisch wieder.",
 
   "source_discovery_heading": "Erkennungsabdeckung",
   "source_discovery_lede": "Bei jedem Crawl-Durchlauf wird jeder Herausgeberkanal (XML-Sitemap, RSS-Feed, HTML-Sitemap-Seiten, datumsindizierter Archiv-Walker) gefragt, welche Artikel im jüngsten Zeitfenster existieren. Dieses Panel zeigt, was der jüngste Durchlauf tatsächlich pro Kanal zurückgegeben hat.",

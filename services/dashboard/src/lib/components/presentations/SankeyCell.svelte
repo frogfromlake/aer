@@ -14,6 +14,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { fieldLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -133,7 +134,10 @@
         rect.setAttribute('height', String(Math.max(1, y1 - y0)));
         rect.setAttribute('fill', LAYER_COLORS[(node.layer ?? 0) % LAYER_COLORS.length]!);
         const title = document.createElementNS(NS, 'title');
-        title.textContent = m.cells_sankey_node_tooltip({ field: node.field, value: node.label });
+        title.textContent = m.cells_sankey_node_tooltip({
+          field: fieldLabel(node.field),
+          value: node.label
+        });
         rect.appendChild(title);
         nodeG.appendChild(rect);
 

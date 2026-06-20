@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,6 +30,38 @@ const nullCoverageMethod = "null"
 // ClickHouseStorage.
 type MetadataCoverageQuerier interface {
 	GetMetadataCoverage(ctx context.Context, sources []string) ([]MetadataCoverageCell, error)
+	GetFieldCardinality(ctx context.Context, sources []string) (map[FieldKey]FieldCardinality, error)
+}
+
+// FieldKey identifies a (source, coverage-field) pair. The field name is the
+// COVERAGE field name (e.g. "images"), not the Gold metric name (e.g.
+// "image_count") — the scalar query below remaps so the dossier can mark by the
+// same field names it already renders.
+type FieldKey struct {
+	Source string
+	Field  string
+}
+
+// FieldCardinality is the distinct-value count for one (source, field) over the
+// source's whole corpus, plus a sample value (well-defined as THE value only
+// when Distinct == 1). Backs the Task-A "constant → no signal" dossier marker.
+type FieldCardinality struct {
+	Distinct uint64
+	Value    string
+}
+
+// scalarMetadataMetricToCoverageField mirrors the worker's
+// `_SCALAR_METADATA_FIELDS` (analysis-worker/internal/metadata_metrics.py):
+// metric_name → the coverage `field` name. Two names differ (the count metrics);
+// the rest are identical. Kept in sync by hand — a tiny, rarely-changing config
+// mirror, like the language manifest copied into the BFF image. If the worker
+// adds a scalar-metadata metric, add the pair here so the dossier can mark it.
+var scalarMetadataMetricToCoverageField = map[string]string{
+	"paywall_status":          "paywall_status",
+	"reading_time_minutes":    "reading_time_minutes",
+	"comment_count":           "comment_count",
+	"image_count":             "images",
+	"external_citation_count": "external_citations",
 }
 
 // GetMetadataCoverage returns the per-source-per-field-per-method
@@ -65,6 +98,264 @@ func (s *ClickHouseStorage) GetMetadataCoverage(ctx context.Context, sources []s
 		return nil, fmt.Errorf("metadata coverage query: %w", err)
 	}
 	return rows, nil
+}
+
+// GetFieldCardinality returns the distinct-value count + a sample value per
+// (source, coverage-field) over each source's whole corpus, for both categorical
+// fields (aer_gold.article_metadata) and scalar-metadata fields (aer_gold.metrics,
+// remapped to coverage field names). Task A: the dossier marks fields with
+// Distinct == 1 as "constant → no signal" so a 100 %-populated-but-suppressed
+// field is explained rather than confusing. Windowless to match the coverage MV's
+// whole-corpus posture. An empty source set returns an empty map.
+func (s *ClickHouseStorage) GetFieldCardinality(ctx context.Context, sources []string) (map[FieldKey]FieldCardinality, error) {
+	out := map[FieldKey]FieldCardinality{}
+	if len(sources) == 0 {
+		return out, nil
+	}
+	placeholders := make([]string, len(sources))
+	srcArgs := make([]any, len(sources))
+	for i, src := range sources {
+		placeholders[i] = "?"
+		srcArgs[i] = src
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	// Categorical fields (one row per (article, field) with an Array(String)
+	// `value`). FINAL mirrors the sibling distribution read so a transient
+	// cross-version row never inflates the distinct count.
+	catQuery := fmt.Sprintf(`
+		SELECT Source, Field, uniqExact(v) AS Distinct, any(v) AS Value
+		FROM (
+			SELECT source AS Source, field AS Field, arrayJoin(value) AS v
+			FROM aer_gold.article_metadata FINAL
+			WHERE source IN (%s)
+		)
+		GROUP BY Source, Field
+	`, inClause)
+	var catRows []struct {
+		Source   string `ch:"Source"`
+		Field    string `ch:"Field"`
+		Distinct uint64 `ch:"Distinct"`
+		Value    string `ch:"Value"`
+	}
+	if err := s.conn.Select(ctx, &catRows, catQuery, srcArgs...); err != nil {
+		return nil, fmt.Errorf("field cardinality (categorical): %w", err)
+	}
+	for _, r := range catRows {
+		out[FieldKey{Source: r.Source, Field: r.Field}] = FieldCardinality{Distinct: r.Distinct, Value: r.Value}
+	}
+
+	// Scalar-metadata fields ride aer_gold.metrics under their metric_name;
+	// remap to the coverage field name so the dossier marks by what it renders.
+	metricNames := make([]string, 0, len(scalarMetadataMetricToCoverageField))
+	for m := range scalarMetadataMetricToCoverageField {
+		metricNames = append(metricNames, m)
+	}
+	metricPlaceholders := make([]string, len(metricNames))
+	scalarArgs := make([]any, 0, len(sources)+len(metricNames))
+	scalarArgs = append(scalarArgs, srcArgs...)
+	for i, mn := range metricNames {
+		metricPlaceholders[i] = "?"
+		scalarArgs = append(scalarArgs, mn)
+	}
+	scalarQuery := fmt.Sprintf(`
+		SELECT source AS Source, metric_name AS Metric, uniqExact(value) AS Distinct, any(value) AS Value
+		FROM aer_gold.metrics
+		WHERE source IN (%s) AND metric_name IN (%s)
+		GROUP BY Source, Metric
+	`, inClause, strings.Join(metricPlaceholders, ", "))
+	var scalarRows []struct {
+		Source   string  `ch:"Source"`
+		Metric   string  `ch:"Metric"`
+		Distinct uint64  `ch:"Distinct"`
+		Value    float64 `ch:"Value"`
+	}
+	if err := s.conn.Select(ctx, &scalarRows, scalarQuery, scalarArgs...); err != nil {
+		return nil, fmt.Errorf("field cardinality (scalar): %w", err)
+	}
+	for _, r := range scalarRows {
+		field, ok := scalarMetadataMetricToCoverageField[r.Metric]
+		if !ok {
+			continue
+		}
+		out[FieldKey{Source: r.Source, Field: field}] = FieldCardinality{
+			Distinct: r.Distinct,
+			Value:    formatScalarConstant(r.Value),
+		}
+	}
+	return out, nil
+}
+
+// formatScalarConstant renders a constant scalar value for disclosure: integers
+// without decimals, otherwise trimmed. Honest — a constant 0 stays "0", never a
+// fabricated "false" (the BFF has no per-metric boolean knowledge).
+func formatScalarConstant(f float64) string {
+	return strconv.FormatFloat(f, 'f', -1, 64)
+}
+
+// GlobalFieldStat is the corpus-wide (all-source) extraction + variance status
+// for one Tier-B / Tier-C metadata field. Backs the Task-C Reflection surface.
+type GlobalFieldStat struct {
+	Field             string
+	TotalArticles     int64
+	PopulatedArticles int64
+	PopulationRate    float64
+	SourcesObserved   int
+	SourcesPopulated  int
+	DistinctValues    int64
+	Constant          bool
+	ConstantValue     string
+}
+
+// GetGlobalFieldStats aggregates the metadata-coverage matrix over EVERY source
+// (no scope filter) into per-field corpus-wide fill statistics, plus a global
+// distinct-value pass for the constant flag. Task C — the Reflection "metadata
+// fields" page reports the real fill rate so its "most fields are empty by
+// publisher choice, not by AĒR defect" claim is live, never a stale assertion.
+func (s *ClickHouseStorage) GetGlobalFieldStats(ctx context.Context) ([]GlobalFieldStat, error) {
+	var cells []MetadataCoverageCell
+	if err := s.conn.Select(ctx, &cells, `
+		SELECT
+			source,
+			field,
+			method,
+			uniqExactMerge(articles_state) AS articles,
+			maxMerge(last_seen_state)      AS last_seen
+		  FROM aer_gold.metadata_coverage
+		 GROUP BY source, field, method
+	`); err != nil {
+		return nil, fmt.Errorf("global field coverage: %w", err)
+	}
+
+	cardinality, err := s.globalFieldCardinality(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return aggregateGlobalFieldStats(AssembleCoverage(cells), cardinality), nil
+}
+
+// globalFieldCardinality returns the distinct-value count + sample value per
+// coverage-field name over the WHOLE corpus (categorical from article_metadata,
+// scalar metadata from metrics, remapped to coverage field names). Keyed by the
+// coverage field name so it joins the coverage aggregate directly.
+func (s *ClickHouseStorage) globalFieldCardinality(ctx context.Context) (map[string]FieldCardinality, error) {
+	out := map[string]FieldCardinality{}
+
+	var catRows []struct {
+		Field    string `ch:"Field"`
+		Distinct uint64 `ch:"Distinct"`
+		Value    string `ch:"Value"`
+	}
+	if err := s.conn.Select(ctx, &catRows, `
+		SELECT Field, uniqExact(v) AS Distinct, any(v) AS Value
+		FROM (
+			SELECT field AS Field, arrayJoin(value) AS v
+			FROM aer_gold.article_metadata FINAL
+		)
+		GROUP BY Field
+	`); err != nil {
+		return nil, fmt.Errorf("global field cardinality (categorical): %w", err)
+	}
+	for _, r := range catRows {
+		out[r.Field] = FieldCardinality{Distinct: r.Distinct, Value: r.Value}
+	}
+
+	metricNames := make([]string, 0, len(scalarMetadataMetricToCoverageField))
+	for m := range scalarMetadataMetricToCoverageField {
+		metricNames = append(metricNames, m)
+	}
+	placeholders := make([]string, len(metricNames))
+	args := make([]any, len(metricNames))
+	for i, mn := range metricNames {
+		placeholders[i] = "?"
+		args[i] = mn
+	}
+	scalarQuery := fmt.Sprintf(`
+		SELECT metric_name AS Metric, uniqExact(value) AS Distinct, any(value) AS Value
+		FROM aer_gold.metrics
+		WHERE metric_name IN (%s)
+		GROUP BY Metric
+	`, strings.Join(placeholders, ", "))
+	var scalarRows []struct {
+		Metric   string  `ch:"Metric"`
+		Distinct uint64  `ch:"Distinct"`
+		Value    float64 `ch:"Value"`
+	}
+	if err := s.conn.Select(ctx, &scalarRows, scalarQuery, args...); err != nil {
+		return nil, fmt.Errorf("global field cardinality (scalar): %w", err)
+	}
+	for _, r := range scalarRows {
+		if field, ok := scalarMetadataMetricToCoverageField[r.Metric]; ok {
+			out[field] = FieldCardinality{Distinct: r.Distinct, Value: formatScalarConstant(r.Value)}
+		}
+	}
+	return out, nil
+}
+
+// aggregateGlobalFieldStats folds the per-source coverage summaries into one
+// corpus-wide row per field and joins the global cardinality. Pure — exported
+// for tests. A field is `constant` only when it is actually populated AND
+// carries a single distinct value across the corpus.
+func aggregateGlobalFieldStats(summaries []CoverageSourceSummary, cardinality map[string]FieldCardinality) []GlobalFieldStat {
+	type acc struct {
+		total, populated       int64
+		observed, populatedSrc int
+	}
+	byField := map[string]*acc{}
+	for _, src := range summaries {
+		for _, f := range src.Fields {
+			a, ok := byField[f.Field]
+			if !ok {
+				a = &acc{}
+				byField[f.Field] = a
+			}
+			null := f.ByMethod[nullCoverageMethod]
+			populated := f.TotalArticles - null
+			if populated < 0 {
+				populated = 0
+			}
+			a.total += f.TotalArticles
+			a.populated += populated
+			if f.TotalArticles > 0 {
+				a.observed++
+			}
+			if populated > 0 {
+				a.populatedSrc++
+			}
+		}
+	}
+
+	fields := make([]string, 0, len(byField))
+	for f := range byField {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	out := make([]GlobalFieldStat, 0, len(fields))
+	for _, field := range fields {
+		a := byField[field]
+		var rate float64
+		if a.total > 0 {
+			rate = float64(a.populated) / float64(a.total)
+		}
+		stat := GlobalFieldStat{
+			Field:             field,
+			TotalArticles:     a.total,
+			PopulatedArticles: a.populated,
+			PopulationRate:    rate,
+			SourcesObserved:   a.observed,
+			SourcesPopulated:  a.populatedSrc,
+		}
+		if card, ok := cardinality[field]; ok {
+			stat.DistinctValues = int64(card.Distinct) //nolint:gosec // bounded by field cardinality
+			if card.Distinct == 1 && a.populated > 0 {
+				stat.Constant = true
+				stat.ConstantValue = card.Value
+			}
+		}
+		out = append(out, stat)
+	}
+	return out
 }
 
 // Compile-time check that ClickHouseStorage implements the interface.

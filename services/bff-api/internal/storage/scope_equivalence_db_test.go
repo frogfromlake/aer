@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -96,6 +97,93 @@ func TestGetScopeAvailableMetrics_IntersectionVsPartial(t *testing.T) {
 	if len(res.Partial[0].Sources) != 1 || res.Partial[0].Sources[0] != "tagesschau" {
 		t.Errorf("partial sources: want [tagesschau], got %v", res.Partial[0].Sources)
 	}
+}
+
+// TestGetScopeAvailableMetrics_Degenerate verifies the Task-A zero-variance
+// detection: a metric whose value is constant across the whole scope is
+// disclosed in Degenerate (with its constant value) while a varied metric is
+// not. Degenerate is additive — a constant metric still appears in Available.
+func TestGetScopeAvailableMetrics_Degenerate(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"},
+		[][]any{
+			// paywall_status constant (0) across both sources → Degenerate.
+			{eqTS, 0.0, "tagesschau", "paywall_status", "a1"},
+			{eqTS, 0.0, "franceinfo", "paywall_status", "f1"},
+			// word_count varies → NOT degenerate.
+			{eqTS, 100.0, "tagesschau", "word_count", "a1"},
+			{eqTS, 250.0, "franceinfo", "word_count", "f1"},
+		}); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	res, err := s.GetScopeAvailableMetrics(ctx, eqStart, eqEnd, []string{"tagesschau", "franceinfo"})
+	if err != nil {
+		t.Fatalf("GetScopeAvailableMetrics: %v", err)
+	}
+	if len(res.Degenerate) != 1 || res.Degenerate[0].MetricName != "paywall_status" {
+		t.Fatalf("Degenerate: want [paywall_status], got %+v", res.Degenerate)
+	}
+	if res.Degenerate[0].Value != 0.0 {
+		t.Errorf("Degenerate value: want 0, got %v", res.Degenerate[0].Value)
+	}
+	// paywall_status is constant but still present for every source → Available.
+	if !containsString(res.Available, "paywall_status") || !containsString(res.Available, "word_count") {
+		t.Errorf("Available must keep its pure has-data semantics, got %v", res.Available)
+	}
+}
+
+// TestGetScopeAvailableMetrics_LowSignal verifies the near-constant detection
+// (image_count = 3 on ~99 % of articles): distinct ≥ 2 but a dominant value
+// ≥ threshold → LowSignal (kept offerable), NOT Degenerate.
+func TestGetScopeAvailableMetrics_LowSignal(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	rows := [][]any{}
+	// image_count: 99× value 3, 1× value 1 → distinct=2, dominantShare=0.99.
+	for i := 0; i < 99; i++ {
+		rows = append(rows, []any{eqTS, 3.0, "tagesschau", "image_count", fmt.Sprintf("a%d", i)})
+	}
+	rows = append(rows, []any{eqTS, 1.0, "tagesschau", "image_count", "a99"})
+	// word_count varied → neither degenerate nor low-signal.
+	rows = append(rows,
+		[]any{eqTS, 100.0, "tagesschau", "word_count", "a0"},
+		[]any{eqTS, 250.0, "tagesschau", "word_count", "a1"},
+		[]any{eqTS, 600.0, "tagesschau", "word_count", "a2"},
+	)
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"}, rows); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	res, err := s.GetScopeAvailableMetrics(ctx, eqStart, eqEnd, []string{"tagesschau"})
+	if err != nil {
+		t.Fatalf("GetScopeAvailableMetrics: %v", err)
+	}
+	if len(res.Degenerate) != 0 {
+		t.Errorf("nothing should be degenerate (image_count has 2 distinct values), got %+v", res.Degenerate)
+	}
+	if len(res.LowSignal) != 1 || res.LowSignal[0].MetricName != "image_count" {
+		t.Fatalf("LowSignal: want [image_count], got %+v", res.LowSignal)
+	}
+	ls := res.LowSignal[0]
+	if ls.DistinctValues != 2 || ls.DominantValue != 3.0 {
+		t.Errorf("image_count low-signal: want 2 distinct / dominant 3, got %+v", ls)
+	}
+	if ls.DominantShare < 0.95 {
+		t.Errorf("image_count dominantShare: want ≥0.95, got %v", ls.DominantShare)
+	}
+}
+
+func containsString(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------

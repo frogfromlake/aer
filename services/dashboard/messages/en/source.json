@@ -61,6 +61,10 @@
   "source_coverage_field_bar_aria": "extraction-method distribution: {methods}; null {nullCount}",
   "source_coverage_field_articles": "{count} articles",
   "source_coverage_prose_fallback": "{source} this source does not emit `{field}` — analyses that require this field exclude it for this source.",
+  "source_coverage_field_constant_tag": "= constant",
+  "source_coverage_field_constant_aria": "present but constant across the corpus, value {value}",
+  "source_coverage_field_constant_title": "Present, but constant across this source's corpus (value: {value}) — carries no signal, so the Workbench does not offer it for analysis.",
+  "source_coverage_field_constant_prose": "Present, but constant across the corpus (value: {value}) — no signal, so the Workbench does not offer it for analysis. Not a defect; if a future source varies this field it reappears automatically.",
 
   "source_discovery_heading": "Discovery coverage",
   "source_discovery_lede": "Every crawl pass asks each publisher channel (XML sitemap, RSS feed, HTML sitemap pages, date-indexed archive walker) which articles exist in the recent window. This panel shows what the most recent pass actually returned, per channel.",

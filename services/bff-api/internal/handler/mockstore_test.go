@@ -93,6 +93,10 @@ type mockStore struct {
 	// Phase 122f metadata-coverage mocks.
 	metadataCoverage    []storage.MetadataCoverageCell
 	metadataCoverageErr error
+	fieldCardinality    map[storage.FieldKey]storage.FieldCardinality
+	fieldCardinalityErr error
+	globalFieldStats    []storage.GlobalFieldStat
+	globalFieldStatsErr error
 	// Phase 133: categorical metadata distribution + availability.
 	categoricalDistribution    storage.CategoricalDistributionResult
 	categoricalDistributionErr error
@@ -359,6 +363,15 @@ func (m *mockStore) GetSilverCorrelation(_ context.Context, source string, start
 func (m *mockStore) GetMetadataCoverage(_ context.Context, sources []string) ([]storage.MetadataCoverageCell, error) {
 	m.capturedSources = sources
 	return m.metadataCoverage, m.metadataCoverageErr
+}
+
+func (m *mockStore) GetFieldCardinality(_ context.Context, sources []string) (map[storage.FieldKey]storage.FieldCardinality, error) {
+	m.capturedSources = sources
+	return m.fieldCardinality, m.fieldCardinalityErr
+}
+
+func (m *mockStore) GetGlobalFieldStats(_ context.Context) ([]storage.GlobalFieldStat, error) {
+	return m.globalFieldStats, m.globalFieldStatsErr
 }
 
 func (m *mockStore) GetCategoricalDistribution(_ context.Context, _ string, sources []string, _, _ time.Time, _ int, _ *storage.MetadataFilter) (storage.CategoricalDistributionResult, error) {

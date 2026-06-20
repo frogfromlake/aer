@@ -17,6 +17,7 @@
     updatePanel,
     type PanelPath
   } from '$lib/workbench/panel-mutators';
+  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
@@ -166,7 +167,7 @@
       >
         <option value="" disabled>{m.levers_pick_metric_placeholder()}</option>
         {#each scalarMetricOptions as mn (mn)}
-          <option value={mn}>{mn}</option>
+          <option value={mn}>{metricLabel(mn)}</option>
         {/each}
       </select>
     </div>
@@ -187,7 +188,7 @@
       >
         <option value="" disabled>{m.levers_pick_metric_placeholder()}</option>
         {#each scalarMetricOptions as mn (mn)}
-          <option value={mn}>{mn}</option>
+          <option value={mn}>{metricLabel(mn)}</option>
         {/each}
       </select>
     </div>
@@ -225,7 +226,7 @@
       aria-label={m.levers_scatter_x_select_aria()}
     >
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
     <select
@@ -236,7 +237,7 @@
       aria-label={m.levers_scatter_y_select_aria()}
     >
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
   </div>
@@ -251,7 +252,7 @@
     >
       <option value="">{m.levers_none_placeholder()}</option>
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
     <span class="ctrl-eyebrow">{m.levers_scatter_colour_eyebrow()}</span>
@@ -264,7 +265,7 @@
     >
       <option value="">{m.levers_none_placeholder()}</option>
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
   </div>
@@ -286,7 +287,7 @@
             checked={activeMetricSet.includes(mn)}
             onchange={() => toggleMetricSetMember(mn)}
           />
-          <code>{mn}</code>
+          <code>{metricLabel(mn)}</code>
         </label>
       {/each}
     </div>
@@ -309,7 +310,7 @@
       aria-label={m.levers_crosstab_select_aria()}
     >
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
   </LeverRow>
@@ -331,7 +332,7 @@
             checked={activeFieldChain.includes(f)}
             onchange={() => toggleFieldChainMember(f)}
           />
-          <code>{f}</code>
+          <code>{fieldLabel(f)}</code>
         </label>
       {/each}
       {#if offerableFields.length === 0}
@@ -353,7 +354,7 @@
       aria-label={m.levers_leadlag_x_select_aria()}
     >
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
     <select
@@ -364,7 +365,7 @@
       aria-label={m.levers_leadlag_y_select_aria()}
     >
       {#each scalarMetricOptions as mn (mn)}
-        <option value={mn}>{mn}</option>
+        <option value={mn}>{metricLabel(mn)}</option>
       {/each}
     </select>
   </div>
@@ -387,7 +388,7 @@
     >
       <option value="">{m.levers_facet_none()}</option>
       {#each facetFieldOptions as f (f)}
-        <option value={f}>{f}</option>
+        <option value={f}>{fieldLabel(f)}</option>
       {/each}
     </select>
     {#if facetFieldOptions.length === 0}

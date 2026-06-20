@@ -24,6 +24,8 @@
     type ScopeAvailableMetadataDto
   } from '$lib/api/queries';
   import { urlState } from '$lib/state/url.svelte';
+  import { locale } from '$lib/state/locale.svelte';
+  import { registerMetricLabels } from '$lib/state/labels.svelte';
   import { presentationsForPillar, resolvePresentation } from '$lib/presentations';
   import { DEFAULT_LOOKBACK_MS, type PillarId } from '$lib/state/url-internals';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
@@ -107,12 +109,17 @@
     Error,
     QueryOutcome<AvailableMetricDto[]>
   >(() => {
-    const o = metricsAvailableQuery(ctx, dateWindow);
+    const o = metricsAvailableQuery(ctx, { ...dateWindow, locale: locale() });
     return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
   });
   const availableMetricNames = $derived<string[]>(
     availQ.data?.kind === 'success' ? availQ.data.data.map((md) => md.metricName) : []
   );
+  // Task B — seed the global metric-label registry so any deep cell can render
+  // the localized label via metricLabel() without prop threading.
+  $effect(() => {
+    if (availQ.data?.kind === 'success') registerMetricLabels(availQ.data.data);
+  });
 
   // ---- Scope metric availability (Phase 123c C1 / ADR-038) ---------------
   // The metric pickers offer only metrics present for EVERY scoped source (the
@@ -149,12 +156,27 @@
   const scopedSourceNames = $derived<readonly string[]>(scopeAvail?.scopedSources ?? []);
   const scopedSourceCount = $derived(scopedSourceNames.length);
   const activeShowWithheld = $derived(boundPanel?.showWithheld === true);
+  // Task A — metrics constant across the scope (present but signal-free): never
+  // offered, disclosed by MetricHints with their constant value.
+  const degenerateMetrics = $derived<ScopeAvailableMetricsDto['degenerate']>(
+    scopeAvail?.degenerate ?? []
+  );
+  // Task A (extended) — near-constant metrics (e.g. image_count = 3 on 99.8 % of
+  // articles in this scope): kept offerable, disclosed by MetricHints.
+  const lowSignalMetrics = $derived<ScopeAvailableMetricsDto['lowSignal']>(
+    scopeAvail?.lowSignal ?? []
+  );
+  const degenerateMetricSet = $derived<Set<string>>(
+    new Set((degenerateMetrics ?? []).map((d) => d.metricName))
+  );
   // The scope-availability gate (ADR-038): no scope yet → all; else the all-source
-  // intersection, plus partials only under "show anyway".
+  // intersection, plus partials only under "show anyway". Degenerate metrics are
+  // always excluded (Task A).
   const scopeGate = $derived<ScopeGate>({
     scopeAvailableSet,
     partialMetricSet,
-    showWithheld: activeShowWithheld
+    showWithheld: activeShowWithheld,
+    degenerateSet: degenerateMetricSet
   });
 
   // ---- Scope metadata-field availability (Phase 133) ---------------------
@@ -183,12 +205,22 @@
   const partialMetadataFields = $derived<ScopeAvailableMetadataDto['partial']>(
     metadataAvail?.partial ?? []
   );
+  // Task A — categorical fields constant across the scope (dropped from the
+  // picker, disclosed) and near-constant fields (kept offerable, disclosed).
+  const degenerateMetadata = $derived<ScopeAvailableMetadataDto['degenerate']>(
+    metadataAvail?.degenerate ?? []
+  );
+  const lowSignalMetadata = $derived<ScopeAvailableMetadataDto['lowSignal']>(
+    metadataAvail?.lowSignal ?? []
+  );
+  const degenerateFieldNames = $derived<string[]>((degenerateMetadata ?? []).map((d) => d.field));
   // Offerable categorical fields (shared across Metric / View / Config levers).
   const offerableFields = $derived<string[]>(
     offerableMetadataFieldsOf({
       availableMetadataFields,
       partialMetadataFields,
-      showWithheld: activeShowWithheld
+      showWithheld: activeShowWithheld,
+      degenerateFields: degenerateFieldNames
     })
   );
 
@@ -310,6 +342,10 @@
         {availableMetricNames}
         {partialMetrics}
         {partialMetadataFields}
+        {degenerateMetrics}
+        {degenerateMetadata}
+        {lowSignalMetrics}
+        {lowSignalMetadata}
         {scopedSourceNames}
         {scopedSourceCount}
         {scopeAvailableSet}

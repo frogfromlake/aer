@@ -83,6 +83,65 @@ func TestGetProbeMetadataCoverage_RoundTripWithFlags(t *testing.T) {
 	}
 }
 
+func TestGetProbeMetadataCoverage_ConstantMarker(t *testing.T) {
+	now := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	cells := []storage.MetadataCoverageCell{
+		// article_type fully populated for tagesschau.
+		{Source: "tagesschau", Field: "article_type", Method: "json_ld", Articles: 200, LastSeen: now},
+		// section also populated (varied → not constant).
+		{Source: "tagesschau", Field: "section", Method: "json_ld", Articles: 200, LastSeen: now},
+	}
+	store := &mockStore{
+		metadataCoverage: cells,
+		fieldCardinality: map[storage.FieldKey]storage.FieldCardinality{
+			{Source: "tagesschau", Field: "article_type"}: {Distinct: 1, Value: "NewsArticle"},
+			{Source: "tagesschau", Field: "section"}:      {Distinct: 7, Value: "Politik"},
+		},
+	}
+
+	srv := NewServerWithOptions(store, nil, nil, nil, testProbeRegistry(), ServerOptions{
+		Dossier: &fakeDossier{}, Articles: &fakeArticles{}, Silver: &fakeSilver{},
+	})
+	router := newTestRouter(srv)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/probes/probe-0-de-institutional-web/metadata-coverage", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got MetadataCoverageResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	var checkedConstant, checkedVaried bool
+	for _, src := range got.Sources {
+		if src.Name != "tagesschau" {
+			continue
+		}
+		for _, f := range src.Fields {
+			if f.Field == "article_type" {
+				checkedConstant = true
+				if f.Constant == nil || !*f.Constant {
+					t.Errorf("article_type must be marked constant")
+				}
+				if f.ConstantValue == nil || *f.ConstantValue != "NewsArticle" {
+					t.Errorf("article_type constantValue: want NewsArticle, got %v", f.ConstantValue)
+				}
+			}
+			if f.Field == "section" {
+				checkedVaried = true
+				if f.Constant != nil {
+					t.Errorf("section (7 distinct) must NOT be marked constant")
+				}
+			}
+		}
+	}
+	if !checkedConstant || !checkedVaried {
+		t.Errorf("expected both article_type and section in tagesschau result")
+	}
+}
+
 func TestGetProbeMetadataCoverage_404OnUnknownProbe(t *testing.T) {
 	srv := NewServerWithOptions(&mockStore{}, nil, nil, nil, testProbeRegistry(), ServerOptions{
 		Dossier:  &fakeDossier{},

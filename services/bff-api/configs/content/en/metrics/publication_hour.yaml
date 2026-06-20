@@ -1,6 +1,7 @@
 entityId: publication_hour
 entityType: metric
 locale: en
+displayLabel: "Publication Hour"
 registers:
   semantic:
     short: "The UTC hour (0–23) at which an article was published. Reveals editorial scheduling rhythms, institutional timing conventions, and round-the-clock vs. office-hours publication patterns."

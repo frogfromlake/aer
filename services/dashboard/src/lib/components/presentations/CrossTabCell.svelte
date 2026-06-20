@@ -15,6 +15,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import HowToRead from './HowToRead.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
 
   let {
     ctx,
@@ -74,12 +75,15 @@
         height: Math.max(160, r.length * 26 + 60),
         marginLeft: 140,
         marginRight: 16,
-        x: { label: m.cells_ct_axis_mean({ metric: metric ?? '' }), grid: true },
+        x: {
+          label: m.cells_ct_axis_mean({ metric: metric ? metricLabel(metric) : '' }),
+          grid: true
+        },
         y: { domain: r.map((d) => d.value), label: null },
         color: {
           scheme: 'rdbu',
           legend: true,
-          label: m.cells_ct_axis_mean({ metric: metric ?? '' })
+          label: m.cells_ct_axis_mean({ metric: metric ? metricLabel(metric) : '' })
         },
         marks: [
           Plot.barX(r, {
@@ -148,7 +152,7 @@
 <section class="ct-cell" aria-labelledby="ct-title-{field}" bind:this={cellEl}>
   <header class="cell-header">
     <h3 id="ct-title-{field}" class="cell-title">
-      <code>{field}</code> × <code>{metric ?? '—'}</code>
+      <code>{fieldLabel(field)}</code> × <code>{metric ? metricLabel(metric) : '—'}</code>
       <span class="muted"
         >— {m.cells_ct_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
       >
@@ -171,13 +175,16 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_ct_error()}</p>
   {:else if isEmpty}
-    <CellEmptyState label={field} />
+    <CellEmptyState label={fieldLabel(field)} />
   {:else if data}
     <div
       class="plot-host"
       bind:this={host}
       role="img"
-      aria-label={m.cells_ct_plot_aria({ metric: metric ?? '', field })}
+      aria-label={m.cells_ct_plot_aria({
+        metric: metric ? metricLabel(metric) : '',
+        field: fieldLabel(field)
+      })}
     ></div>
     <p class="ct-note">
       <strong>{data.distinctValues}</strong>

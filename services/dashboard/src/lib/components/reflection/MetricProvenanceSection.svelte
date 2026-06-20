@@ -15,6 +15,7 @@
   } from '$lib/api/queries';
   import MetricProvenanceView from './MetricProvenanceView.svelte';
   import { locale } from '$lib/state/locale.svelte';
+  import { metricLabel } from '$lib/state/labels.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -54,7 +55,8 @@
 <details class="agg-section" id="metric-{metric.metricName}" open>
   <summary class="agg-summary">
     <span class="agg-chevron" aria-hidden="true">▸</span>
-    <code class="agg-title">{metric.metricName}</code>
+    <span class="agg-title">{metricLabel(metric.metricName)}</span>
+    <code class="agg-machine" title={metric.metricName}>{metric.metricName}</code>
     <span class="agg-status status-{metric.validationStatus}">{metric.validationStatus}</span>
   </summary>
   <div class="agg-body">
@@ -111,17 +113,24 @@
   }
 
   .agg-title {
-    font-family: var(--font-mono);
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-medium);
     color: var(--color-fg);
-    flex: 1;
+  }
+
+  /* Task B — the machine name kept as a muted technical reference beside the
+     friendly title (this is a provenance/transparency surface). */
+  .agg-machine {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
   }
 
   .agg-status {
     font-size: var(--font-size-xs);
     font-style: italic;
     white-space: nowrap;
+    margin-left: auto;
   }
 
   .status-unvalidated {

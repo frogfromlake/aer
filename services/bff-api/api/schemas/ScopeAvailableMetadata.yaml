@@ -39,6 +39,59 @@ properties:
           description: The scoped sources that have data for this field.
           items:
             type: string
+  degenerate:
+    type: array
+    description: >
+      Categorical fields whose value is CONSTANT across the whole scope (exactly
+      one distinct value) — present, but carrying no signal: grouping/cross-tab
+      by a constant field is meaningless. The dashboard drops these from the
+      dimension picker, but they are disclosed here with the constant value so
+      the omission is never silent (ADR-039 DISCLOSE-NEVER-COERCE). Self-
+      maintaining: a future source that introduces real variance removes the
+      field from this list automatically.
+    items:
+      type: object
+      required:
+        - field
+        - value
+      properties:
+        field:
+          type: string
+        value:
+          type: string
+          description: The single constant value observed across the scope.
+  lowSignal:
+    type: array
+    description: >
+      Available fields with ≥2 distinct values but a strongly DOMINANT value
+      (near-constant: dominantShare ≥ the disclosed display threshold). Unlike
+      `degenerate` these are NOT dropped — a rare-but-real minority category must
+      stay reachable — only DISCLOSED so a cell/picker can flag "effectively
+      constant — NN% <value>". This carries the raw concentration measurement;
+      the backend only measures, it does not drop. The threshold that decides
+      membership is an engineering-default *display* cutoff (provisional), not a
+      methodological constant.
+    items:
+      type: object
+      required:
+        - field
+        - distinctValues
+        - dominantShare
+        - dominantValue
+      properties:
+        field:
+          type: string
+        distinctValues:
+          type: integer
+          description: Number of distinct values for the field across the scope.
+        dominantShare:
+          type: number
+          description: >
+            Fraction of in-scope articles carrying the single most common value
+            (0..1). A value near 1 means the field is effectively constant.
+        dominantValue:
+          type: string
+          description: The single most common value for the field across the scope.
   windowStart:
     type: string
     format: date-time

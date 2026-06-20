@@ -1,6 +1,7 @@
 entityId: word_count
 entityType: metric
 locale: de
+displayLabel: "Wortanzahl"
 registers:
   semantic:
     short: "Die Anzahl der Wörter in einem Artikel, gezählt als Leerzeichen-getrennte Tokens. Ein Näherungswert für Artikellänge und redaktionellen Umfang."
