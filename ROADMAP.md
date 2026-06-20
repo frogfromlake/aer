@@ -4995,20 +4995,22 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 152: Public README & Project Entry Point [P-Docs] - [ ] TODO
+## Phase 152: Public README & Project Entry Point [P-Docs] - [x] DONE
 
-*The README is the front door for external people who discover the project — researchers, collaborators, the curious. Today it is outdated. This phase produces a current, well-presented README as the entry point, positioned at the END of the closure block so it reflects the final coherent, localized, designed (Phase 151) surface. Supplemented with the real deployment/install section after Iteration 13 (Phase 149).*
+*The README is the front door for external people who discover the project — researchers, collaborators, the curious. This phase produces a current, well-presented README as the entry point. Supplemented with the real deployment/install section after Iteration 13 (Phase 149).*
+
+*Done 2026-06-20. **Drift correction (operator, 2026-06-20):** the original note pegged this phase to a "post-design (Phase 151) surface" — there is **no Phase 151**; the dashboard surface is already final, so screenshots were captured from the current live surface. The README is a concise dual-audience front-door (researchers + developers) with deep developer reference linked out to the existing docs rather than embedded (DRY).*
 
 **Grounding.** Read first: the current `README.md`, CLAUDE.md (project identity + architecture), the Arc42 manifesto + scientific-foundations chapter, the provisional-metrics + Negative-Space sections (the honesty surfaces), the Working Papers (for the POC caveats), the design brief (for visual consistency of any diagram). Preserve: the English-only rule, the manifesto framing (atmospheric sensor, not surveillance instrument), the provisional/POC honesty. Verify-first: every claim in the README is checked against shipped reality — no aspirational features.
 
-* [ ] **Rewrite the README** — what AĒR is (the manifesto framing in brief), the medallion architecture, the three surfaces + Pillars, how to run it locally (Makefile), where the docs live. Current, concise, well-structured.
-* [ ] **Architecture diagram** — a clean, precise, good-looking diagram of the medallion data flow (Crawler → Ingestion → Bronze → NATS → Worker → Silver/Gold → BFF → Dashboard) + infra. Source-controlled (committed SVG / Mermaid) so it stays maintainable.
-* [ ] **Dashboard screenshots** — a few representative, current screenshots (Atmosphäre globe, a Workbench Pillar, the Dossier overlay) captured from the post-design (Phase 151) surface.
-* [ ] **POC honesty banner (non-negotiable).** The README states clearly, up front, that this is an **engineering proof-of-concept** whose metrics are **provisional** and whose **scientific validity is limited / not yet peer-validated** (per the provisional-metrics discipline + the Working Papers). External readers must not mistake the POC for a validated instrument.
-* [ ] **Deployment placeholder** — a "Deployment" section stub that Iteration 13 (Phase 149) fills with the real install / run-in-prod instructions.
+* [x] **Rewrite the README** — manifesto framing, the medallion architecture, the three surfaces + Pillars, how to run it locally (Makefile), where the docs live. Concise, dual-audience (**For Researchers** / **For Developers**), well-structured; verified against shipped reality (three surfaces, auth-gate, Probe 0 + Probe 1, provisional metrics).
+* [x] **Architecture diagram** — a committed **Mermaid** flowchart of the medallion data flow (web-crawler → Ingestion → Bronze → NATS → Worker → Silver/Gold → BFF → Dashboard) + Postgres metadata/auth. Renders natively on GitHub; source-controlled so it stays maintainable.
+* [x] **Dashboard screenshots** — captured from the **current live surface** (no Phase 151): `docs/assets/readme/{atmosphere,workbench-aleph,workbench-episteme,reflection}.png` — Atmosphère globe, Workbench Aleph (distribution histogram, 583 articles), Workbench Episteme (time series), Reflexion (WP-001). Reproducible capture recipe in `docs/assets/readme/README.md`.
+* [x] **POC honesty banner (non-negotiable).** Up-front GitHub `[!IMPORTANT]` banner: engineering proof-of-concept, **provisional** metrics, scientific validity **limited / not yet peer-validated**.
+* [x] **Deployment placeholder** — a "Deployment" section stub pointing to Iteration 13 (Phase 149) for the real install / run-in-prod instructions.
 
 ### Validation
-* [ ] README renders cleanly on the git host; every feature claim matches shipped reality; the architecture diagram + screenshots are current; the POC / limited-validity statement is prominent; all links resolve.
+* [x] README renders cleanly on the git host (standard markdown + Mermaid + GitHub admonition); every feature claim checked against shipped reality; the Mermaid diagram + four current screenshots are in place; the POC / limited-validity statement is prominent at the top; all doc/file links verified to resolve.
 
 
 ---

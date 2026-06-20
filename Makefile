@@ -786,7 +786,11 @@ frontend-restart:
 # ==========================================
 
 setup:
-	@echo -e "$(SYMBOL_INFO) $(CYAN)Installing developer tooling (versions from .tool-versions)...$(RESET)"
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Preparing the AĒR developer environment (versions from .tool-versions)...$(RESET)"
+	@# git hooks (pre-commit lint + pre-push scoped tests) — CLAUDE.md "Git hooks are mandatory"
+	@git config core.hooksPath scripts/hooks
+	@chmod +x scripts/hooks/pre-commit scripts/hooks/pre-push 2>/dev/null || true
+	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)git hooks → scripts/hooks$(RESET)"
 	@# golangci-lint
 	@if command -v golangci-lint >/dev/null 2>&1 && golangci-lint --version 2>&1 | grep -q "$(GOLANGCI_LINT_VERSION)"; then \
 		echo -e "$(SYMBOL_SUCCESS) $(GREEN)golangci-lint $(GOLANGCI_LINT_VERSION) already installed$(RESET)"; \
@@ -808,6 +812,15 @@ setup:
 		echo -e "$(SYMBOL_INFO) Installing govulncheck@$(GOVULNCHECK_VERSION)..." && \
 		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
 	fi
+	@# analysis-worker venv — created here if missing so pip-audit (and, once the
+	@# heavy deps are installed, local ruff/pytest) have a home. Kept LIGHT:
+	@# `make setup` installs ONLY pip-audit. The multi-GB ML deps for the local
+	@# Python test suite are a separate, Docker-preferred step (see README).
+	@if [ ! -f services/analysis-worker/.venv/bin/python ]; then \
+		echo -e "$(SYMBOL_INFO) Creating analysis-worker venv (python3)..." && \
+		python3 -m venv services/analysis-worker/.venv && \
+		services/analysis-worker/.venv/bin/pip install --quiet --upgrade pip; \
+	fi
 	@# pip-audit
 	@if [ -f services/analysis-worker/.venv/bin/pip-audit ] && services/analysis-worker/.venv/bin/pip-audit --version 2>&1 | grep -q "$(PIP_AUDIT_VERSION)"; then \
 		echo -e "$(SYMBOL_SUCCESS) $(GREEN)pip-audit $(PIP_AUDIT_VERSION) already installed$(RESET)"; \
@@ -815,7 +828,18 @@ setup:
 		echo -e "$(SYMBOL_INFO) Installing pip-audit==$(PIP_AUDIT_VERSION) into worker venv..." && \
 		services/analysis-worker/.venv/bin/pip install pip-audit==$(PIP_AUDIT_VERSION); \
 	fi
-	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)All developer tools installed!$(RESET)"
+	@# dashboard deps — best-effort: needs Node $(NODE_VERSION) + pnpm via Corepack
+	@if command -v corepack >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then \
+		echo -e "$(SYMBOL_INFO) Installing dashboard deps (pnpm)..." && \
+		(corepack enable >/dev/null 2>&1 || true) && \
+		( cd $(FE_DIR) && pnpm install --frozen-lockfile ) || echo -e "$(SYMBOL_INFO) $(GOLD)dashboard deps skipped (pnpm install failed — check Node $(NODE_VERSION))$(RESET)"; \
+	else \
+		echo -e "$(SYMBOL_INFO) $(GOLD)Skipping dashboard deps: Node not found (install Node $(NODE_VERSION) for frontend dev)$(RESET)"; \
+	fi
+	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)Developer environment ready.$(RESET)"
+	@echo -e "$(GRAY)  For the local Python test suite, also install the worker's heavy ML deps into the venv:$(RESET)"
+	@echo -e "$(GRAY)    services/analysis-worker/.venv/bin/pip install -r services/analysis-worker/requirements-dev.txt$(RESET)"
+	@echo -e "$(GRAY)  (multi-GB — torch/transformers/spaCy; Docker/CI run these for you, so this is optional.)$(RESET)"
 
 # ==========================================
 # HELP MENU

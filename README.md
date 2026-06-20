@@ -1,510 +1,215 @@
 # AĒR — Societal Discourse Macroscope
 
-A modular system for the real-time analysis and long-term observation of societal discourses. AĒR aggregates global digital data streams and extracts meaningful patterns from the collective output of connected civilization — functioning as an atmospheric sensor for human discourse rather than a surveillance instrument for individuals.
+> *ἀήρ (aḗr)* — the lower atmosphere, the surrounding climate.
 
-The name derives from ancient Greek ἀήρ: the lower atmosphere, the surrounding climate.
+**AĒR is an atmospheric sensor for human discourse.** It observes large-scale
+patterns in the global digital conversation — the hopes, fears, conflicts, and
+aspirations of a connected civilization — the way an orbital sensor reads
+atmospheric currents rather than individual fates. It is an instrument of
+curiosity, built for understanding, **not** a surveillance tool for individuals.
 
-⚠️ Project Status: Under Construction & Research Phase > AĒR is in active development. The microservice backend is in its near-final state — secure, resilient, and horizontally scalable — ingesting German institutional RSS feeds and running a provisional NLP extractor pipeline (word count, SentiWS sentiment, language detection, temporal distribution, spaCy NER). These extractors are provisional pending the underlying methodological work. The static SvelteKit dashboard is now coming online with its design-system foundation and a 3D Atmosphere engine (vector landmasses, real-time day/night terminator, atmospheric scattering, WebGL2 fallback); live BFF data wiring follows. Comprehensive sociological metrics and additional data sources arrive once the scientific foundation matures.
-
----
-
-## Architecture Overview
-
-AĒR implements a polyglot microservice pipeline based on the Medallion Architecture (Bronze / Silver / Gold). Data flows strictly from left to right through deterministic, independently testable stages. No microservice communicates with another via direct HTTP — all inter-service coordination is mediated through shared object storage (MinIO) and the NATS JetStream message broker.
-
-```
-Crawler  →  Ingestion API (Go)  →  MinIO Bronze  →  NATS JetStream
-                                                          ↓
-                                                  Analysis Worker (Python)
-                                                    ↓           ↓
-                                             MinIO Silver   ClickHouse Gold
-                                                                  ↓
-                                                           BFF API (Go)
-                                                                  ↓
-                                                      Dashboard / Analyst
-```
-
-**Ingestion API (Go):** Source-agnostic HTTP receiver. Stores raw documents verbatim in MinIO (write-once, immutable). Logs metadata and trace IDs to PostgreSQL.
-
-**Analysis Worker (Python):** Validates documents against the Silver Contract (Pydantic), extracts deterministic metrics, inserts into ClickHouse. Malformed data is routed to a Dead Letter Queue without crashing the pipeline.
-
-**BFF API (Go):** Contract-first REST API generated from OpenAPI 3.0. Queries ClickHouse with server-side downsampling and hard row limits. The only service exposed to the internet, authenticated via API key, TLS-terminated by Traefik.
-
-**Dashboard (SvelteKit, static):** Browser-only static frontend built with SvelteKit's static adapter, Svelte 5 Runes, and strict TypeScript. Served behind Traefik with no Node runtime in production; consumes the BFF API exclusively and holds no credentials in-browser. Currently provides the 3D Atmosphere engine landing surface (self-contained `@aer/engine-3d` workspace package — three.js with custom GLSL, vector landmasses, real-time terminator, lazy-loaded behind a WebGL2 capability gate) on top of the design-system foundation (tokens, base components, story harness, axe + visual-regression gates). See [`services/dashboard/README.md`](services/dashboard/README.md) for developer setup and the `make fe-*` targets.
-
-**Crawlers:** Standalone external programs under `crawlers/`. Each crawler fetches from one upstream source and translates it into the generic AĒR ingestion contract. Crawlers are deliberately outside the system boundary — adding a new data source requires no changes to any AĒR service. Currently includes the RSS crawler (German institutional feeds for pipeline calibration).
-
-Full documentation is available at `http://localhost:8000` when the stack is running. The documentation portal has four pillars:
-
-- **Architecture (arc42)** — `docs/arc42/` — system blueprint, decisions, quality goals, risks.
-- **Scientific Methodology** — `docs/methodology/` — six interdisciplinary Working Papers (EN + DE).
-- **Operations Playbook** — [`docs/operations_playbook.md`](docs/operations_playbook.md) — *what to type*: commands, schemas, debug paths.
-- **Scientific Operations Guide** — [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) — *when and why*: the bridge document mapping every point at which scientific judgment enters the pipeline to the responsible role, the Working Paper, the Playbook command, and the resulting table or file. Each workflow includes a concrete Probe 0 walkthrough.
+> [!IMPORTANT]
+> **This is an engineering proof-of-concept, not a validated scientific instrument.**
+> AĒR's pipeline is production-grade — secure, resilient, observable — but its
+> **metrics are provisional**. The lexicons, models, and thresholds are engineering
+> defaults, **not** yet peer-validated. Numbers shown anywhere in the system carry a
+> visible *provisional / unvalidated* status until interdisciplinary validation work
+> (the [Working Papers](#for-researchers)) is done. Read every output as *"what the
+> current instrument measures"*, never as established social-scientific fact.
 
 ---
 
-## Technology Stack
+## What AĒR is
 
-| Layer | Technology | Rationale |
+AĒR watches **discourse**, not people. It samples a small number of deliberately
+chosen observation points — *probes* — and turns their public output into
+transparent, reproducible, auditable metrics. Three commitments shape everything:
+
+- **Collective anonymity by design.** The architecture enforces a one-way flow from
+  raw text to aggregate metrics. There is no reverse path from a metric back to an
+  individual. No behavioural profiles, no social graphs, no device fingerprints —
+  *by construction, not by policy* ([Manifesto §VI](docs/arc42/00_manifesto.md),
+  [WP-006](docs/methodology/en/)).
+- **Reflexive honesty.** What AĒR *cannot* see is a first-class surface, not a
+  footnote. Coverage gaps, structurally-absent metadata, and cross-cultural
+  incomparability are *disclosed*, never silently coerced into a zero.
+- **Ockham's Razor.** Deterministic, simple, fully traceable. No black boxes where a
+  transparent method will do.
+
+The name encodes the analytical frame (the three **Pillars**): **A**leph (the
+synchronic whole — *the weather now*), **E**pisteme (the diachronic record — *the
+climate over time*), **R**hizome (the relational currents *between* contexts).
+
+---
+
+## Screenshots
+
+Three surfaces ([ADR-033](docs/arc42/09_architecture_decisions.md)): **Atmosphère** (the globe), the **Workbench** (the analytical surface), and **Reflexion** (the methodology).
+
+| Atmosphère — the globe | Reflexion — the methodology |
+| :---: | :---: |
+| ![Atmosphère globe surface](docs/assets/readme/atmosphere.png) | ![Reflexion working paper](docs/assets/readme/reflection.png) |
+| Active probes on a live day/night globe. | Working Papers, primers, open questions. |
+
+The **Workbench** holds the three analytical Pillars ([ADR-035](docs/arc42/09_architecture_decisions.md)):
+
+| Aleph — *the weather now* | Episteme — *the climate over time* | Rhizome — *the currents between* |
+| :---: | :---: | :---: |
+| ![Workbench Aleph pillar](docs/assets/readme/workbench-aleph.png) | ![Workbench Episteme pillar](docs/assets/readme/workbench-episteme.png) | ![Workbench Rhizome pillar](docs/assets/readme/workbench-rhizome.png) |
+| Synchronic — distributions *now*. | Diachronic — metrics over time. | Relational — entity co-occurrence network. |
+
+---
+
+## Architecture
+
+A polyglot **Medallion** pipeline (Bronze → Silver → Gold). Data flows strictly
+left-to-right through deterministic, independently testable stages. **No service
+talks to another over direct HTTP** — all coordination is mediated by object
+storage (MinIO) and a message broker (NATS JetStream).
+
+```mermaid
+flowchart LR
+    WEB["Institutional web<br/>(news · government)"]
+    CRAWL["web-crawler<br/>Python · Scrapy"]
+    ING["Ingestion API<br/>Go"]
+    BRONZE[("MinIO Bronze<br/>raw HTML, verbatim")]
+    NATS{{"NATS JetStream"}}
+    WORKER["Analysis Worker<br/>Python · NLP pipeline"]
+    SILVER[("MinIO Silver<br/>harmonised")]
+    GOLD[("ClickHouse Gold<br/>metrics")]
+    PG[("PostgreSQL<br/>metadata · auth")]
+    BFF["BFF API<br/>Go · contract-first"]
+    DASH["Dashboard<br/>SvelteKit · 3 surfaces"]
+
+    WEB --> CRAWL --> ING --> BRONZE --> NATS --> WORKER
+    ING -.metadata.-> PG
+    WORKER --> SILVER
+    WORKER --> GOLD --> BFF --> DASH
+    BFF -.sessions.-> PG
+```
+
+| Stage | Tech | Role |
 | :--- | :--- | :--- |
-| Ingestion / BFF / Crawlers | Go 1.26.2+ | High-concurrency I/O, minimal memory footprint |
-| Analysis / Processing | Python 3.14+ | Deterministic data science ecosystem (spaCy, Pydantic) |
-| Dashboard (Frontend) | SvelteKit (static) + Svelte 5 + TypeScript 6 | Static assets behind Traefik — no Node runtime in production (ADR-020) |
-| Object Storage / Event Publisher | MinIO | S3-compatible data lake with native JetStream notification |
-| Event Broker | NATS JetStream | Durable, at-least-once delivery; replaces synchronous polling. Streams are declared in [`infra/nats/streams/`](infra/nats/streams/) and provisioned by the `nats-init` container (IaC-only, see ADR-019). |
-| Analytics Database | ClickHouse | Column-oriented OLAP; mandatory for sub-second time-series queries |
-| Metadata Index | PostgreSQL | Relational tracking of ingestion jobs, document lifecycle, trace IDs |
-| Reverse Proxy / TLS | Traefik | Self-signed TLS in dev; ACME/Let's Encrypt in production via `compose.prod.yaml` overlay |
-| Observability | OpenTelemetry + Grafana LGTM | End-to-end distributed tracing across the NATS boundary |
-| Containerization | Docker + Compose | `compose.yaml` is the Single Source of Truth for the entire stack |
+| **web-crawler** | Python (Scrapy) | One configurable binary; fetches article HTML, polite by default. New source = one YAML entry, no code. |
+| **Ingestion API** | Go | Source-agnostic receiver; writes raw HTML verbatim to Bronze; logs metadata to PostgreSQL. |
+| **Analysis Worker** | Python | Harmonises Bronze → Silver, runs the extractor pipeline → Gold; malformed input is quarantined, never crashes the pipeline. |
+| **BFF API** | Go | The only internet-facing backend. Contract-first REST (OpenAPI), ClickHouse-backed, session-authenticated. |
+| **Dashboard** | SvelteKit (static) | Three surfaces — **Atmosphère** (globe), **Workbench** (the Pillars), **Reflexion** (methodology) — plus a global **Dossier** probe catalogue. |
+
+Full architecture: **[Arc42 documentation](docs/arc42/)** (13 chapters + manifesto +
+[ADRs](docs/arc42/09_architecture_decisions.md)). The complete docs portal renders at
+`http://localhost:8000` when the stack is running.
 
 ---
 
-## Prerequisites
+## For Researchers
 
-The only required host installations are:
+AĒR is methodologically agnostic on purpose — the *lens configuration* is an
+open interdisciplinary question, not a settled one.
 
-- Docker with Compose plugin
-- Go 1.26.2 or higher
-- Python 3.14 or higher
-- GNU Make
+- **The Probe Principle.** Rather than total data aggregation, AĒR samples
+  *strategic probes* — observation points that proxy different societal realities.
+  Today: **Probe 0** (German institutional web — `bundesregierung.de`,
+  `tagesschau.de`) and **Probe 1** (French institutional web — `elysee.fr`,
+  `franceinfo`). Selection and interpretation are the core scientific challenge,
+  documented per probe under [`docs/probes/`](docs/probes/).
+- **The Working Papers (WP-001…006, EN + DE).** The methodological *why* — a
+  functional probe taxonomy, metric validity, platform bias, cross-cultural
+  comparability, temporal granularity, and the observer effect / research ethics.
+  See [`docs/methodology/`](docs/methodology/).
+- **Provisional metrics, disclosed as such.** Sentiment, NER, language detection,
+  topic modelling and the rest are *provisional* engineering defaults. Every metric
+  exposes its provenance (algorithm, tier, known limitations, validation status);
+  unvalidated metrics are visibly marked everywhere they appear.
+- **Negative space.** *What AĒR does not see* is a first-class surface (the digital
+  divide, structurally-absent metadata, silent edits, k-anonymity floors,
+  cross-cultural incomparability). Absence is disclosed, never rendered as zero.
+- **Ethics.** Observational and phenomenological only. Individual surveillance,
+  micro-targeting, profiling, and manipulation are prohibited uses, codified in the
+  [license](LICENSE.md) (§3, Responsible Use). See the
+  [Manifesto](docs/arc42/00_manifesto.md).
 
-No databases or runtimes are installed directly on the host. All services run in containers.
+**We are seeking interdisciplinary collaboration** (computational social science,
+digital anthropology, global studies) to validate and contextualise the instrument.
 
 ---
 
-## Getting Started
+## For Developers
 
-**1. Clone the repository and configure environment variables:**
+A Docker-Compose stack; the [Makefile](Makefile) is the primary interface. The
+services build and run in containers — `make up` compiles them on first run.
+
+**To run the stack you need:** Docker (with the Compose plugin), GNU Make, and
+**Go 1.26.4+** (the `make create-admin` helper runs on the host). Everything else
+runs in containers.
 
 ```bash
-git clone <repository-url>
-cd aer
-cp .env.example .env
-# Edit .env — all credentials and endpoints are configured here
+git clone <repository-url> && cd aer
+cp .env.example .env       # set every REPLACE-ME secret (API keys, DB passwords)
+make up                    # start the full stack (Docker: infra + services + dashboard)
+make create-admin          # bootstrap the first admin login (the app is auth-gated)
+make crawl                 # ingest data — crawls both probes (Probe 0 DE + Probe 1 FR)
 ```
 
-**2. Install developer tooling:**
+The dashboard is served behind Traefik at `https://localhost/` (self-signed TLS in
+dev); the docs portal is at `http://localhost:8000`.
+
+**Contributing?** One command prepares the whole dev environment:
 
 ```bash
 make setup
 ```
 
-This installs pinned versions of all required tools (golangci-lint, oapi-codegen, govulncheck, pip-audit). Versions are read from `.tool-versions` — the Single Source of Truth for developer tooling, shared between the Makefile and CI pipeline.
+`make setup` wires the git hooks (`core.hooksPath` → pre-commit lint + pre-push
+scoped tests), installs the pinned host tooling (golangci-lint, oapi-codegen,
+govulncheck, pip-audit), creates the `services/analysis-worker/.venv`, and installs
+the dashboard's pnpm deps. It needs **Go**, **Python 3** and (for the dashboard)
+**Node 22 + pnpm via Corepack** on the host — the frontend step is skipped if Node
+is absent. Running the **full Python test suite** locally additionally needs the
+worker's heavy ML deps (`services/analysis-worker/.venv/bin/pip install -r
+services/analysis-worker/requirements-dev.txt` — multi-GB torch/transformers/spaCy;
+Docker and CI run them for you, so this is optional). For frontend-only work see
+[`services/dashboard/README.md`](services/dashboard/README.md).
 
-**3. Install Git hooks:**
-
-```bash
-cp scripts/hooks/pre-commit .git/hooks/pre-commit
-cp scripts/hooks/pre-push   .git/hooks/pre-push
-chmod +x .git/hooks/pre-commit .git/hooks/pre-push
-```
-
-The pre-commit hook runs `make lint`. The pre-push hook runs `make lint`, `make audit`, and `make test`. All block on failure.
-
-**4. Start the full stack:**
-
-```bash
-make up
-```
-
-This starts infrastructure (databases, NATS, observability, documentation server), opens debug ports so local processes can reach the Docker network, and starts all three application services as background processes. The first run compiles Go binaries and creates the Python virtual environment for the analysis worker.
-
-**5. Verify the pipeline:**
-
-```bash
-# Run the end-to-end smoke test
-make test-e2e
-```
-
-The smoke test ingests a test document, waits for pipeline processing, and queries the BFF API to verify end-to-end data flow.
-
----
-
-## Make Targets
-
-### Global Stack
-
-| Target | Description |
+| Layer | Technology |
 | :--- | :--- |
-| `make up` | Start the entire stack (infrastructure + debug ports + all application services) |
-| `make down` | Stop everything (services + debug ports + infrastructure) |
-| `make restart` | Stop and restart the entire stack |
-| `make stop` | Alias for `make down` |
+| Ingestion / BFF API | Go 1.26.4 |
+| Analysis Worker · web-crawler | Python 3.14 |
+| Dashboard | TypeScript · Svelte 5 · SvelteKit (static adapter) |
+| Object storage · broker | MinIO · NATS JetStream |
+| Databases | PostgreSQL (metadata + auth) · ClickHouse (analytics) |
+| Proxy · observability | Traefik (TLS) · OpenTelemetry → Tempo / Prometheus / Grafana |
 
-### Infrastructure
+**Common targets:** `make up` · `down` · `logs` · `test` · `lint` · `audit` ·
+`codegen` · `crawl` · `docs-build`. Run `make` (or `make help`) for the full list.
 
-| Target | Description |
-| :--- | :--- |
-| `make infra-up` | Start infrastructure only (Traefik, databases, NATS, observability, docs) |
-| `make infra-down` | Stop infrastructure |
-| `make infra-restart` | Restart infrastructure |
-| `make infra-clean` | Wipe all persistent volumes (requires interactive confirmation) |
-| `make infra-clean-postgres` | Wipe PostgreSQL volume only |
-| `make infra-clean-minio` | Wipe MinIO volume only |
-| `make infra-clean-clickhouse` | Wipe ClickHouse volume only |
+**Where to look next:**
+- **[Operations Playbook](docs/operations/operations_playbook.md)** — *what to type*: commands, schemas, debugging for every component.
+- **[API contract](services/bff-api/api/openapi.yaml)** — the BFF OpenAPI SSoT (server stubs are generated, never hand-edited).
+- **[Extending guides](docs/extending/)** — add a [source](docs/extending/add-a-source.md), [probe](docs/extending/add-a-probe.md), [language](docs/extending/add-a-language.md), [source type](docs/extending/add-a-source-type.md), or [extractor](docs/extending/add-an-extractor.md).
+- **[Developer Quickstart](docs/operations/developer_quickstart.md)** — the two local dev loops.
+- **[ROADMAP](ROADMAP.md)** — implementation phases and open work.
 
-### Debug Port Access
-
-| Target | Description |
-| :--- | :--- |
-| `make debug-up` | Expose all backend ports to `localhost` for debugging |
-| `make debug-down` | Close debug port forwarding (backend services keep running) |
-
-By default, all backend ports (databases, NATS, OTel) are accessible only within the Docker network. `make up` automatically runs `debug-up` to forward them to localhost, since local service processes need these ports. `make debug-up` can also be used standalone after `make infra-up` for manual debugging. `debug-up` is blocked when `APP_ENV=production`. See [Network Segmentation](#network-segmentation) and [Exposed Ports](#exposed-ports).
-
-### Application Services
-
-| Target | Description |
-| :--- | :--- |
-| `make services-up` | Start all three application services in the background |
-| `make services-down` | Stop all application services |
-| `make services-restart` | Restart all application services |
-| `make services-clean` | Stop services and remove PID/log files |
-| `make logs` | Tail combined logs of all background services (Ctrl+C safe) |
-
-Individual services can be controlled independently:
-
-```bash
-make ingestion-up    make ingestion-down    make ingestion-restart
-make worker-up       make worker-down       make worker-restart
-make bff-up          make bff-down          make bff-restart
-```
-
-### Help
-
-```bash
-make        # or: make help — prints a formatted overview of all available targets
-```
-
-### Development & Utilities
-
-| Target | Description |
-| :--- | :--- |
-| `make test` | Run full test suite (Go integration tests + Go crawler tests + Python unit tests) |
-| `make test-go` | Run Go integration tests (Testcontainers — requires Docker) |
-| `make test-go-pkg` | Run Go tests for the shared `pkg/` module |
-| `make test-go-crawlers` | Run Go crawler tests (RSS parser, translator, dedup) |
-| `make test-e2e` | Run Docker Compose end-to-end smoke test |
-| `make lint` | Run `golangci-lint` (Go, all modules) and `ruff` (Python) |
-| `make lint-go-pkg` | Run `golangci-lint` for `pkg/` only |
-| `make audit` | Run dependency vulnerability scanners (`govulncheck` for Go, `pip-audit` for Python) |
-| `make deps-refresh` | One-shot rotation of the entire pinned supply-chain baseline: base image digests (all three Dockerfiles), analysis-worker `requirements.lock.txt`, and `SENTIWS_SHA256`. Idempotent on a clean baseline. See [operations playbook — Dependency Refresh](docs/operations_playbook.md#dependency-refresh-supply-chain-baseline) for the full runbook. |
-| `make codegen` | Regenerate Go types and server stubs from `openapi.yaml` |
-| `make openapi-bundle` | Bundle modular OpenAPI specs into single-file artifacts for Swagger UI |
-| `make openapi-lint` | Enforce the two-style `$ref` convention across all OpenAPI files |
-| `make swagger-up` | Bundle specs and start the Swagger UI dev container (`http://localhost:8089`) |
-| `make swagger-down` | Stop the Swagger UI dev container |
-| `make crawl` | Build and run the RSS crawler (requires stack + `make debug-up`) |
-| `make build-services` | Compile Go binaries into `./bin/` |
-| `make tidy` | Run `go mod tidy` across all modules |
+**Security posture (brief):** zero-trust networking (only Traefik, the BFF, and the
+docs server expose ports); the whole app is session-gated (invite-only, opaque
+server-side sessions — [ADR-040](docs/arc42/09_architecture_decisions.md)); every
+image is digest-pinned and non-root; secrets are validated at boot. CI runs lint,
+Testcontainers integration tests, and a Trivy / govulncheck / pip-audit security pass
+on every push.
 
 ---
 
-## Exposed Ports
-
-AĒR uses a Zero-Trust network posture. Only Traefik, the BFF API, and the documentation server expose ports to the host by default. All backend services communicate exclusively over the internal Docker network.
-
-### Default (always exposed)
-
-| Port | Service | Purpose |
-| :--- | :--- | :--- |
-| `80` | Traefik | HTTP — redirects to HTTPS |
-| `443` | Traefik | HTTPS — routes to BFF API, Grafana, MinIO Console |
-| `8000` | MkDocs | Arc42 architecture documentation |
-| `8080` | BFF API | `GET /api/v1/metrics`, `/api/v1/entities`, `/api/v1/languages`, `/api/v1/metrics/available`, `/api/v1/healthz`, `/api/v1/readyz` |
-
-### Dev Compose profile only (`make swagger-up`)
-
-| Port | Service | Purpose |
-| :--- | :--- | :--- |
-| `8089` | Swagger UI | Browsable OpenAPI reference — BFF and Ingestion API specs. Bound to `127.0.0.1` (loopback only, never through Traefik). Start with `make swagger-up`; stop with `make swagger-down`. |
-
-### Debug profile only (`make debug-up`)
-
-These ports are not exposed in the default stack. Run `make debug-up` to forward them to localhost for local debugging. They are closed again with `make debug-down`.
-
-| Port | Service | Purpose |
-| :--- | :--- | :--- |
-| `3000` | Grafana | Monitoring dashboards (also accessible via Traefik HTTPS) |
-| `4222` | NATS | Client connections |
-| `4317` | OTel Collector | OpenTelemetry gRPC receiver |
-| `4318` | OTel Collector | OpenTelemetry HTTP receiver |
-| `5432` | PostgreSQL | Direct database access |
-| `8081` | Ingestion API | `POST /api/v1/ingest`, `/api/v1/healthz`, `/api/v1/readyz` |
-| `8123` | ClickHouse | HTTP interface and query playground (`/play`) |
-| `8222` | NATS | Monitoring dashboard |
-| `9000` | MinIO | S3-compatible API |
-| `9001` | MinIO | Web console (also accessible via Traefik HTTPS) |
-| `9002` | ClickHouse | Native protocol |
-
-All credentials are sourced from `.env`. See `.env.example` for defaults. Both APIs require an API key — set `BFF_API_KEY` and `INGESTION_API_KEY` to strong secrets in production.
-
----
-
-## API Reference
-
-The BFF API contract is defined in `services/bff-api/api/openapi.yaml`. The OpenAPI spec is the Single Source of Truth — Go server stubs are generated from it via `oapi-codegen` and must never be edited manually.
-
-All endpoints except `/healthz` and `/readyz` require authentication:
-
-```
-X-API-Key: <your-key>
-# or
-Authorization: Bearer <your-key>
-```
-
-**Retrieve aggregated metrics:**
-
-```
-GET /api/v1/metrics?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
-```
-
-Optional filters: `source` (e.g., `tagesschau`) and `metricName` (e.g., `word_count`) narrow results by data source and metric dimension.
-
-Results are downsampled to 5-minute intervals. A hard row limit is applied server-side to prevent OOM on large time ranges.
-
-**Retrieve aggregated named entities:**
-
-```
-GET /api/v1/entities?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
-```
-
-Optional filters: `source`, `label` (spaCy NER label: `PER`, `ORG`, `LOC`, `MISC`), `limit` (default 100, max 1000). Returns entities aggregated by text and label with occurrence counts.
-
-**Retrieve aggregated language detections:**
-
-```
-GET /api/v1/languages?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
-```
-
-Optional filters: `source`, `language` (ISO 639-1 code, e.g., `de`), `limit` (default 100, max 1000). Returns language candidates ranked by detection confidence, aggregated across the requested time window.
-
-**Discover available metric names:**
-
-```
-GET /api/v1/metrics/available?startDate=2026-01-01T00:00:00Z&endDate=2026-04-01T00:00:00Z
-```
-
-Returns all distinct `metric_name` values present in the Gold layer within the specified time range (e.g., `word_count`, `sentiment_score`, `language_confidence`, `publication_hour`, `publication_weekday`, `entity_count`). Both `startDate` and `endDate` are required.
-
----
-
-## Ingestion Contract
-
-All endpoints except `/api/v1/healthz` and `/api/v1/readyz` require authentication:
-
-```
-X-API-Key: <your-ingestion-key>
-# or
-Authorization: Bearer <your-ingestion-key>
-```
-
-The key is configured via the `INGESTION_API_KEY` environment variable.
-
-Every crawler — regardless of upstream source — must submit data in this format:
-
-```json
-{
-  "source_id": 1,
-  "documents": [
-    {
-      "key": "wikipedia/article-slug/2026-03-28.json",
-      "data": {
-        "source": "wikipedia",
-        "title": "Example Article",
-        "raw_text": "The full unstructured text content...",
-        "url": "https://en.wikipedia.org/wiki/Example",
-        "timestamp": "2026-03-28T12:00:00Z"
-      }
-    }
-  ]
-}
-```
-
-The `key` determines the MinIO object path in the Bronze bucket. The `data` field is stored verbatim and never modified. `source_id` references a registered entry in the PostgreSQL `sources` table.
-
----
-
-## Developing a Crawler
-
-Crawlers are standalone programs under `crawlers/`. Each crawler fetches data from one upstream source and submits it to the Ingestion API using the contract above. Adding a new data source requires no changes to any AĒR service.
-
-**1. Dynamic Source Resolution**
-
-Every crawler must resolve its `source_id` at startup by querying the Ingestion API:
-
-```
-GET /api/v1/sources?name=tagesschau
-→ {"id": 2, "name": "tagesschau"}
-```
-
-The returned `id` is used as `source_id` in all subsequent ingest calls. Hard-coding source IDs is discouraged — the lookup ensures correctness across environments. Sources are registered via PostgreSQL seed migrations in `infra/postgres/migrations/`.
-
-**2. Ingestion Contract Format**
-
-Documents are submitted as JSON batches to `POST /api/v1/ingest`. See the [Ingestion Contract](#ingestion-contract) section above for the full schema. The `key` field determines the Bronze bucket object path and should follow the pattern `<source>/<identifier>/<date>.json`.
-
-**3. Source Type (Phase 39+)**
-
-Crawlers for new data sources should include a `source_type` field in the `data` payload (e.g., `"rss"`, `"forum"`, `"social"`). This field is used by the analysis worker to select the correct Source Adapter for harmonization. Documents without a `source_type` are handled by the legacy adapter. See ADR-015 in the architecture documentation.
-
-**4. Probe Dossier and Classification**
-
-Adding a new data source is not just an engineering task — every new probe requires a Probe Dossier under `docs/probes/<probe-id>/` (Arc42 §8.15) and a row in `source_classifications` produced by the WP-001 §4.4 Probe Classification Process. The dossier groups WP-001 classification, WP-003 bias assessment, WP-005 temporal profile, and WP-006 observer-effect assessment for the probe. See [`docs/scientific_operations_guide.md`](docs/scientific_operations_guide.md) (Workflow 1) for the end-to-end workflow and [`docs/operations_playbook.md`](docs/operations_playbook.md) (PostgreSQL → Source Classifications) for the SQL templates. For the existing reference probe, see [`docs/probes/probe-0-de-institutional-web/`](docs/probes/probe-0-de-institutional-web/) (renamed from `…-rss/` in Phase 122).
-
-**5. Authentication**
-
-All Ingestion API endpoints (except `/api/v1/healthz` and `/api/v1/readyz`) require the `X-API-Key` header (or `Authorization: Bearer <key>`). The key is configured via the `INGESTION_API_KEY` environment variable in `.env`.
-
-### RSS Crawler
-
-The RSS crawler (`crawlers/rss-crawler/`) is AĒR's first real data source. It fetches German institutional RSS feeds for pipeline calibration (see architecture documentation, Chapter 13, §13.10).
-
-**Usage:**
-
-```bash
-# Build
-go build -o bin/rss-crawler ./crawlers/rss-crawler
-
-# Run (requires the AĒR stack to be running)
-./bin/rss-crawler \
-  -config crawlers/rss-crawler/feeds.yaml \
-  -api-url http://localhost:8081/api/v1/ingest \
-  -sources-url http://localhost:8081/api/v1/sources \
-  -api-key <your-ingestion-key>
-```
-
-**Feed configuration** is defined in `feeds.yaml`. Adding a new RSS feed requires:
-1. A new entry in `feeds.yaml` (`name` + `url`).
-2. A PostgreSQL seed migration in `infra/postgres/migrations/` registering the source name.
-
-The crawler maintains a local state file (`.rss-crawler-state.json`) to prevent re-ingestion of previously submitted items across runs.
-
----
-
-## Testing
-
-```bash
-# Full test suite
-make test
-
-# Go integration tests only (uses Testcontainers — requires Docker)
-cd services/ingestion-api && go test ./...
-cd services/bff-api       && go test ./...
-
-# Python unit tests only
-cd services/analysis-worker && python -m pytest
-```
-
-**Testcontainers SSoT enforcement:** Both Go (`pkg/testutils/compose.go`) and Python (`get_compose_image()`) parse image tags dynamically from `compose.yaml` at test time. No image tag is hardcoded in any test file. Tests run against the exact same database versions as development and production.
-
-**OpenAPI contract check:**
-
-```bash
-make codegen
-git diff --exit-code services/bff-api/internal/handler/generated.go
-```
-
-This is enforced automatically in CI on every push to `main`.
-
----
-
-## CI/CD Pipeline
-
-The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs five parallel jobs on every push and pull request to `main`:
-
-| Job | Steps |
-| :--- | :--- |
-| `python-pipeline` | Ruff lint → pytest (unit + integration) |
-| `go-pipeline` | golangci-lint → OpenAPI contract check → Testcontainers integration tests |
-| `dependency-audit` | govulncheck (Go) → pip-audit (Python) |
-| `container-security-scan` | Docker build → Trivy scan (HIGH/CRITICAL CVEs, `exit-code: 1`) |
-| `e2e-smoke` | Docker Compose full-stack → end-to-end smoke test (`main` pushes only) |
-
-Testcontainers images are cached as tarballs via `actions/cache@v4` to avoid registry pulls on cache hits. Developer tool versions (golangci-lint, oapi-codegen, govulncheck, pip-audit) are pinned in `.tool-versions` and loaded into CI via `$GITHUB_ENV`.
-
----
-
-## Image Pinning Policy
-
-All Docker images in `compose.yaml` use hard-pinned, immutable patch-level version tags. The use of `latest`, release-candidate, or major/minor-only tags is prohibited. Upgrades are performed manually after changelog review and full local stack validation.
-
-`compose.yaml` is the Single Source of Truth for all image versions. Testcontainers in both Go and Python resolve their images from this file at test time.
-
----
-
-## Data Lifecycle
-
-| Layer | Storage | Retention | Mechanism |
-| :--- | :--- | :--- | :--- |
-| Bronze (raw) | MinIO `bronze` | 90 days | MinIO ILM |
-| Quarantine (DLQ) | MinIO `bronze-quarantine` | 30 days | MinIO ILM |
-| Silver (harmonized) | MinIO `silver` | 365 days | MinIO ILM |
-| Gold (metrics) | ClickHouse `aer_gold.metrics` | 365 days | ClickHouse TTL |
-| Gold (entities) | ClickHouse `aer_gold.entities` | 365 days | ClickHouse TTL |
-| Gold (language detections) | ClickHouse `aer_gold.language_detections` | 365 days | ClickHouse TTL |
-| Metadata | PostgreSQL (`documents`, `ingestion_jobs`) | 90 days | Ingestion API background goroutine |
-
-All retention policies are defined in infrastructure scripts (`infra/`). No application code manages data expiration.
-
----
-
-## TLS Configuration
-
-By default, `compose.yaml` configures Traefik with a **self-signed TLS certificate** — suitable for local development and CI where real domains are not available. No ACME provider is contacted, so there are no certificate errors for `*.example.com` hosts.
-
-For **production** deployments with real domains and automatic Let's Encrypt certificates, use the production overlay:
-
-```bash
-docker compose -f compose.yaml -f compose.prod.yaml up -d
-```
-
-`compose.prod.yaml` adds the ACME certificate resolver to Traefik and switches all routers from self-signed TLS to Let's Encrypt. Make sure to set real domain names for `GRAFANA_HOST` and `MINIO_CONSOLE_HOST` in `.env`, and provide a valid `ACME_EMAIL`.
-
----
-
-## Network Segmentation
-
-The stack is split into two isolated Docker bridge networks:
-
-- **`aer-frontend`:** Traefik, BFF API, Grafana — internet-facing services.
-- **`aer-backend`:** All databases, NATS, the analysis worker, init containers, and the observability stack — unreachable from the internet.
-
-Only the BFF API and Grafana bridge both networks. Databases and internal services are inaccessible from the `aer-frontend` network. A compromised Traefik instance cannot reach PostgreSQL, MinIO, or NATS.
-
----
-
-## Observability
-
-**Grafana** is available at `http://localhost:3000`. Pre-provisioned datasources (Tempo, Prometheus) and dashboards load automatically on startup — no manual configuration required.
-
-**Distributed Tracing:** Every document is traceable end-to-end from the crawler's HTTP POST through ingestion, NATS delivery, worker processing, and ClickHouse insertion. Trace context propagates across the NATS boundary via message headers.
-
-**Prometheus Alerting Rules:**
-
-| Alert | Condition | Severity |
-| :--- | :--- | :--- |
-| `WorkerDown` | Worker scrape target unreachable for > 1 minute | Critical |
-| `DLQOverflow` | DLQ size > 50 objects for > 5 minutes | Warning |
-| `HighEventProcessingLatency` | p95 processing duration > 5 seconds for > 5 minutes | Warning |
-
----
-
-## Philosophical Foundation
-
-AĒR's analytical framework rests on three structural pillars reflected in its name:
-
-**A — Aleph** (Borges): The single point containing all other points. AĒR aggregates fragmented global data streams into one coherent view of human interaction.
-
-**E — Episteme** (Foucault): The underlying rule-set of an epoch defining what can be thought and expressed. AĒR tracks discourse shifts to measure how the boundaries of the expressible form and change across cultures.
-
-**R — Rhizome** (Deleuze / Guattari): A decentralized, proliferating network. AĒR models how information and cultural patterns spread non-linearly through global networks.
-
-The system operates as a phenomenological instrument — observation and understanding, not surveillance or manipulation. Raw data is never altered. Algorithms are deterministic, simple, and fully traceable (Ockham's Razor).
+## Deployment
+
+> **Placeholder.** Production deployment (the `compose.prod.yaml` overlay, Traefik +
+> Let's Encrypt, secrets management, backup/restore, and the first-deploy runbook) is
+> hardened and documented in **Iteration 13** of the [ROADMAP](ROADMAP.md). This
+> section will carry the real install / run-in-prod instructions once that lands.
 
 ---
 
 ## License
 
-See `LICENSE` for terms.
+See [`LICENSE.md`](LICENSE.md). AĒR carries **Responsible Use Restrictions** (§3):
+it must never be used for individual surveillance, micro-targeting, political
+manipulation, or commercial profiling.
