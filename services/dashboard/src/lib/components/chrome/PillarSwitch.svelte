@@ -162,7 +162,10 @@
     font-family: var(--font-mono);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
-    color: var(--pillar-color);
+    /* Phase 128 — the raw pillar accent fails WCAG 1.4.3 as text (3.33:1 on the
+       tinted tile). Blending toward the theme foreground raises contrast in BOTH
+       themes (lighter on dark, darker on light) while preserving the hue. */
+    color: color-mix(in srgb, var(--pillar-color) 55%, var(--color-fg));
     letter-spacing: 0.02em;
   }
 

@@ -156,6 +156,12 @@ export interface AtmosphereEngine {
    */
   isCameraNear(latitude: number, longitude: number, toleranceDeg?: number): boolean;
   on<K extends keyof EngineEvents>(event: K, handler: EngineEvents[K]): () => void;
+  /**
+   * Host gate for the render loop (Phase 128). Pass `false` while a full-screen
+   * overlay covers the globe so the GPU loop pauses; `true` resumes. Composes
+   * with tab-visibility — the loop runs only when both allow it.
+   */
+  setActive(active: boolean): void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */
   dispose(): void;
 }

@@ -91,6 +91,8 @@
   :global(.ctrl-row .config-inline input[type='range']) {
     flex: 1 1 auto;
     max-width: 16rem;
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24px minimum target height for the slider. */
+    min-height: 24px;
     accent-color: var(--color-accent);
     cursor: pointer;
   }
@@ -108,6 +110,8 @@
     border-radius: var(--radius-sm);
     color: var(--color-fg);
     padding: 3px var(--space-2);
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24px minimum target height. */
+    min-height: 24px;
     font-size: var(--font-size-xs);
     /* Task B — friendly display labels (e.g. "Sentiment Score · BERT
        Multilingual"), so a proportional font reads better and fits more than the

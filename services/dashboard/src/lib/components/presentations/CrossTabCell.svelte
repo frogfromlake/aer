@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Phase 125 — cross-tab (Aleph): a categorical metadata FIELD × a numeric
   // METRIC → the metric's mean per category value. The field rides in
   // `metricName` (Panel.metric, usesMetadataField); the numeric metric binds to
@@ -101,7 +102,7 @@
       });
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

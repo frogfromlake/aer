@@ -146,6 +146,21 @@
     computeWindow(url.from, url.to, Date.now(), DEFAULT_LOOKBACK_MS)
   );
 
+  // Phase 128 — pause the GPU render loop while a full-screen overlay covers the
+  // globe (Dossier / account / admin / analyses). The globe is mounted
+  // persistently (Phase 135), so without this it would keep rendering hidden
+  // behind the overlay, burning frame budget for nothing (Brief §10). The
+  // engine also self-pauses on tab-blur via the Page Visibility API.
+  const overlayOpen = $derived(
+    url.dossier === 'open' ||
+      url.account === 'open' ||
+      url.admin === 'open' ||
+      url.analyses === 'open'
+  );
+  $effect(() => {
+    engineHandle?.setActive(!overlayOpen);
+  });
+
   // --- Metrics → per-probe activity -----------------------------------
   const metricsQ = createQuery<
     QueryOutcome<MetricsResponseDto>,

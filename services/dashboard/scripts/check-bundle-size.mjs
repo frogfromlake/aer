@@ -151,4 +151,31 @@ if (l3Chunk) {
   }
 }
 
+// Phase 128 — catch-all gate for every OTHER lazy chunk (3rd-largest and
+// beyond). The two named gates above track the known heavyweights (three.js,
+// Observable Plot); this guards against a NEW lazy feature chunk silently
+// landing over budget — e.g. the relational artefacts (sigma + graphology +
+// d3-force) the co-occurrence network ships, or a future viz library. Today
+// the largest such chunk is ~24 kB, so an 80 kB ceiling is generous headroom
+// while still failing CI if a new dependency balloons a feature chunk.
+const MISC_CHUNK_BUDGET_BYTES = 80 * 1024;
+const otherChunks = lazyChunks.slice(2);
+const overBudget = otherChunks.filter((c) => c.gzip > MISC_CHUNK_BUDGET_BYTES);
+if (otherChunks.length > 0) {
+  const largestOther = otherChunks[0];
+  console.log('');
+  console.log('Other lazy chunks (3rd-largest and beyond):');
+  console.log(`  ${fmt(largestOther.gzip).padStart(10)} gz  ${largestOther.ref}  (largest)`);
+  console.log(`  ${'-'.repeat(10)}`);
+  console.log(
+    `  ${fmt(largestOther.gzip).padStart(10)} gz  largest other lazy chunk  (budget: ${fmt(MISC_CHUNK_BUDGET_BYTES)})`
+  );
+  if (overBudget.length > 0) {
+    fail(
+      `${overBudget.length} lazy chunk(s) exceed the ${fmt(MISC_CHUNK_BUDGET_BYTES)} per-chunk budget:\n` +
+        overBudget.map((c) => `  ${fmt(c.gzip)} gz  ${c.ref}`).join('\n')
+    );
+  }
+}
+
 console.log('\x1b[32m✔ bundle-size gate passed.\x1b[0m');

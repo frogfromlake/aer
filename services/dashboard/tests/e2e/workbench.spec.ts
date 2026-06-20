@@ -460,6 +460,22 @@ test.describe('Phase 141 — Workbench CellConfigPopover characterization', () =
     await expect(dialog.getByRole('group', { name: 'Axis scale' })).toBeVisible();
   });
 
+  test('Phase 128 a11y — popover takes focus on open, Esc closes it, focus returns', async ({
+    page
+  }) => {
+    const trigger = page
+      .locator('article.panel-host .panel-cell')
+      .first()
+      .getByRole('button', { name: 'Configure this cell' });
+    const dialog = await openFirstCellPopover(page);
+    // Focus moved INTO the dialog so the Escape handler (and Tab) reach it.
+    await expect(dialog).toBeFocused();
+    // Escape closes the popover and focus returns to the trigger it came from.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
   test('toggling a lever overrides the cell, shows the dot, and Reset clears it', async ({
     page
   }) => {

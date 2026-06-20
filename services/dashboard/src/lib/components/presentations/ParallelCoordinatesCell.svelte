@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Phase 125 — parallel coordinates (Aleph, multivariate). One polyline per
   // article across N metric axes (`Panel.metricSet`); each axis is independently
   // min–max normalised so axes on different scales are comparable in shape.
@@ -144,7 +145,7 @@
         });
       }
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

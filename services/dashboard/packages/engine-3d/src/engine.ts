@@ -159,6 +159,12 @@ class Engine implements AtmosphereEngine {
   private resizeObserver: ResizeObserver | null = null;
   private mounted = false;
   private disposed = false;
+  // Phase 128 — render-loop gating. The rAF loop runs only while BOTH are true:
+  // `active` (host gate — paused while a full-screen overlay covers the globe)
+  // and `documentVisible` (tab/window foreground). Pausing a background GPU
+  // loop is a hard frame-budget win (Brief §10) and saves battery on hidden tabs.
+  private active = true;
+  private documentVisible = true;
   private lastInteractionMs = 0;
   private readonly emitter = new Emitter();
 
@@ -286,8 +292,50 @@ class Engine implements AtmosphereEngine {
       this.resizeObserver.observe(canvas);
     }
 
+    this.documentVisible = typeof document === 'undefined' || !document.hidden;
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+
     this.clock.start();
-    this.tick();
+    this.requestTick();
+  }
+
+  /**
+   * Host gate for the render loop. Pass `false` while a full-screen overlay
+   * (e.g. the Dossier) covers the globe so the GPU loop pauses; `true` resumes.
+   * Composes with tab-visibility — the loop runs only when both allow it.
+   */
+  setActive(active: boolean): void {
+    if (this.active === active) return;
+    this.active = active;
+    this.syncLoop();
+  }
+
+  private onVisibilityChange = (): void => {
+    this.documentVisible = !document.hidden;
+    this.syncLoop();
+  };
+
+  private shouldRun(): boolean {
+    return this.mounted && !this.disposed && this.active && this.documentVisible;
+  }
+
+  /** Start the loop if it should run and isn't already scheduled. */
+  private requestTick(): void {
+    if (this.rafId === null && this.shouldRun()) {
+      this.rafId = requestAnimationFrame(this.tick);
+    }
+  }
+
+  /** Reconcile the running loop with the current gates (start or stop). */
+  private syncLoop(): void {
+    if (this.shouldRun()) {
+      this.requestTick();
+    } else if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
   setProbes(probes: readonly ProbeMarker[]): void {
@@ -371,7 +419,9 @@ class Engine implements AtmosphereEngine {
       from: this.camera.position.clone(),
       to: dest,
       startedAt: performance.now(),
-      durationMs: target.durationMs ?? 1200
+      // Phase 128 — honour `prefers-reduced-motion`: a 0 ms tween snaps the
+      // camera to the target on the next frame (no fly-over animation).
+      durationMs: this.reducedMotion ? 0 : (target.durationMs ?? 1200)
     };
   }
 
@@ -397,6 +447,9 @@ class Engine implements AtmosphereEngine {
     this.disposed = true;
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.controls?.dispose();
@@ -582,12 +635,19 @@ class Engine implements AtmosphereEngine {
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
-    this.rafId = requestAnimationFrame(this.tick);
+    // Reschedule through requestTick so a pause (overlay/visibility) that landed
+    // mid-frame stops the loop instead of re-arming it.
+    this.rafId = null;
+    this.requestTick();
   };
 
   private applyFlyTween(): void {
     if (!this.flyTween || !this.camera || !this.controls) return;
-    const t = (performance.now() - this.flyTween.startedAt) / this.flyTween.durationMs;
+    // durationMs 0 (reduced-motion) → snap immediately; avoid a 0/0 = NaN ratio.
+    const t =
+      this.flyTween.durationMs <= 0
+        ? 1
+        : (performance.now() - this.flyTween.startedAt) / this.flyTween.durationMs;
     if (t >= 1) {
       this.camera.position.copy(this.flyTween.to);
       this.flyTween = null;

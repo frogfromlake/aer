@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Distill-style inline interactive chart for Working Paper prose.
   //
   // Embeds a live Observable Plot cell that fetches real Probe 0 data from
@@ -128,7 +129,7 @@
     // eslint-disable-next-line svelte/no-dom-manipulating
     chartEl.innerHTML = '';
     // eslint-disable-next-line svelte/no-dom-manipulating
-    chartEl.appendChild(plot);
+    chartEl.appendChild(sanitizePlotA11y(plot));
   });
 
   onMount(() => {

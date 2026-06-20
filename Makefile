@@ -7,7 +7,7 @@
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
 .PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
-.PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-codegen fe-check codegen-ts
+.PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-lighthouse fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
 SHELL := /bin/bash
@@ -712,6 +712,23 @@ fe-bundle-size: fe-build
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Enforcing initial-bundle size budget (80 kB gzipped)...$(RESET)"
 	@cd $(FE_DIR) && pnpm run bundle-size
 	@echo -e "$(SYMBOL_SUCCESS) $(GREEN)Bundle-size gate passed!$(RESET)"
+
+# Phase 128 — Lighthouse CI (perf / a11y / best-practices score gate). Runs
+# inside the pinned Playwright image so the Chromium that scores the build
+# matches CI byte-for-byte (same rationale as fe-test-e2e); CHROME_PATH points
+# Lighthouse at that bundled Chromium. lhci builds the static app, serves it via
+# `pnpm preview`, and asserts the budgets in lighthouserc.cjs against the public
+# routes (/login, /stories/button). The authenticated surfaces need a live BFF,
+# so they stay covered by fe-bundle-size + the axe e2e + the operator fps pass.
+fe-lighthouse:
+	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Lighthouse CI (perf/a11y/best-practices) inside $(PLAYWRIGHT_IMAGE)...$(RESET)"
+	@docker run --rm --ipc=host \
+		-v $(PWD):/repo -w /repo/$(FE_DIR) \
+		$(PLAYWRIGHT_IMAGE) \
+		bash -lc 'set +e; corepack enable >/dev/null 2>&1; \
+			export CHROME_PATH=$$(find /ms-playwright -name chrome -type f | head -1); \
+			pnpm build && CI=1 pnpm run lighthouse; status=$$?; \
+			chown -R $(shell id -u):$(shell id -g) .svelte-kit build lhci-report .lighthouseci 2>/dev/null; exit $$status'
 
 # TypeScript codegen from the BFF OpenAPI spec. Peer of `make codegen` (Go).
 # Requires the OpenAPI bundle to exist (see openapi-bundle target).

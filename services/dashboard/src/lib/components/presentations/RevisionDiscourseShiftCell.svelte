@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Episteme × Silent-Edit Discourse Shift — Phase 122d.3.
   //
   // Goes one level deeper than `RevisionTimelineCell` (which charts HOW
@@ -151,7 +152,7 @@
       });
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

@@ -162,6 +162,11 @@
 
   .export-btn {
     appearance: none;
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24×24px minimum target size. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);

@@ -300,6 +300,9 @@ jobs:
       - name: Playwright visual + axe a11y gate (Phase 98c)
         run: make fe-test-e2e
 
+      - name: Lighthouse CI gate (perf/a11y/best-practices, Phase 128)
+        run: make fe-lighthouse
+
       - name: Upload Playwright artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v6
@@ -308,6 +311,14 @@ jobs:
           path: |
             services/dashboard/playwright-report
             services/dashboard/test-results
+          retention-days: 14
+
+      - name: Upload Lighthouse report on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lighthouse-report
+          path: services/dashboard/lhci-report
           retention-days: 14
 
   dependency-audit:

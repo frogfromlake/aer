@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Metadata-mining × scatter cell (Phase 131).
   //
   // Each point is one article, positioned by two metrics; the size and colour
@@ -257,7 +258,7 @@
         });
       }
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

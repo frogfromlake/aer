@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // EDA × distribution cell (Phase 107).
   // Per-scope histogram + quantile summary backed by
   // `GET /api/v1/metrics/{name}/distribution` (Gold) or
@@ -246,11 +247,10 @@
           Plot.ruleY([0])
         ]
       });
-      // Observable Plot returns a detached SVG/figure node that we own; the
-      // host div is a stable empty container, so a direct mount is safe.
+      // Plot returns a detached node we own; the host div is a stable container.
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

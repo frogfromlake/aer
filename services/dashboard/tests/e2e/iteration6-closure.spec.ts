@@ -308,11 +308,16 @@ test.describe('Phase 127 — Wikidata link on cooccurrence node (Workbench Rhizo
     // a11y: the link announces "external".
     await expect(externalLinks.nth(0)).toHaveAttribute('aria-label', /external/i);
 
-    // Switch selection to the unlinked entity — clicking a different node
-    // replaces the current selection (no separate close needed). "Unknown
-    // Entity" has no wikidataQid, so its panel renders without any external
-    // links. toPass re-clicks until the selection panel reflects the new node.
+    // Switch selection to the unlinked entity. Selecting the first node opened
+    // its ArticleListModal, whose full-screen backdrop covers the graph by
+    // design — so we dismiss it (Esc) before picking another node. (Phase 128:
+    // the panel container is no longer role="button" — that incidental stacking
+    // is gone — so dismissing the modal to re-interact with the graph is the
+    // correct, accessible flow.) "Unknown Entity" has no wikidataQid, so its
+    // panel renders without external links. toPass re-runs dismiss+click until
+    // the selection panel reflects the new node.
     await expect(async () => {
+      await page.keyboard.press('Escape');
       await page
         .locator('svg.graph g.node')
         .filter({ hasText: 'Unknown Entity' })

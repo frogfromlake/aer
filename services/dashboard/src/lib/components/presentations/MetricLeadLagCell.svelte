@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Phase 125 — generalised metric lead-lag (Rhizome). The lagged cross-
   // correlation of two metrics' hourly mean series over one scope: "does xMetric
   // lead yMetric?". The two metrics bind to channels.x / channels.y (the
@@ -157,7 +158,7 @@
       });
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
       const xScale = (
         next as unknown as { scale: (n: string) => { invert?: (v: number) => number } | undefined }

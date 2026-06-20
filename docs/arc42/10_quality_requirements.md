@@ -117,3 +117,47 @@ Quality scenarios make the abstract goals measurable. Each scenario follows the 
 | QS-S3 | A new dependency in `requirements.txt` introduces a known HIGH-severity CVE. | The `dependency-audit` CI job runs `pip-audit` and fails the build, blocking the merge. | `ci.yml`: `pip-audit -r requirements.txt`. Trivy scans the built container image for `HIGH,CRITICAL`. |
 | QS-S4 | A consumer calls `GET /api/v1/metrics` without providing `startDate` or `endDate` query parameters. | The BFF API returns `400 Bad Request` immediately. No ClickHouse query is issued. The framework-generated routing code enforces both parameters as required before the handler is reached. | `generated.go`: `RequiredParamError` on missing `startDate`/`endDate`. OpenAPI spec `required: true` on both parameters (Phase 47). |
 | QS-S5 | A consumer calls `GET /api/v1/entities` with `limit=0` or `limit=5000`. | The BFF API returns `400 Bad Request` with the message `"limit must be between 1 and 1000"`. The `limit` validation is enforced in the handler layer, not the storage layer. The storage layer receives only pre-validated values. | `handler.go`: `GetEntities()` bounds check `limit < 1 \|\| limit > 1000 → 400`. Same pattern in `GetLanguages()` (Phase 47). |
+## 10.3 Accessibility & Performance Envelope (Frontend)
+
+Phase 128 codified the dashboard's accessibility and client-performance contract as a set of automated CI gates plus two operator-run manual passes. This section is the single reference for *what is guaranteed, by which gate, and where the boundary to manual verification lies*. The visual/perf design authority remains `docs/design/design_brief.md` (§10 frame budgets, §7.6 fidelity modes); this section records how that authority is *enforced*.
+
+### Accessibility contract (WCAG 2.2 AA)
+
+The target is **zero axe-core violations at WCAG 2.2 AA** across every reachable application state. Coverage is split across two Playwright specs:
+
+- `tests/e2e/a11y.spec.ts` — the static story routes + the Atmosphere WebGL fallback (light and dark themes, an open dialog).
+- `tests/e2e/a11y-app.spec.ts` — the authenticated surfaces: Workbench Aleph (distribution) and Rhizome (D3-force co-occurrence) cells, the negative-space disclosure overlay, the Dossier overlay, the Reflection surface, and all four auth pages (login / forgot-password / reset-password / accept-invite).
+
+Beyond the score, the modal a11y contract is asserted behaviourally: the Dossier overlay and the per-cell config popover are `role="dialog"` with `aria-modal`, take focus on open, trap Tab, close on `Esc`, and restore focus to their trigger (`DossierOverlay.svelte`, `CellConfigPopover.svelte`, base `Dialog.svelte`). Auth failures are announced via `role="alert"` + `aria-live` (`AuthNotice.svelte`). The shared `prefers-reduced-motion` contract turns the globe fly-to into an instant jump and routes weak/`reduce`-flagged clients to the static Low-Fidelity fallback (`engine.ts`, `capability.ts`).
+
+### Performance contract
+
+| Gate | Scope | Budget | Enforced by |
+| :--- | :--- | :--- | :--- |
+| Initial bundle (first-paint JS, gzipped) | shell + router + runtime | **80 kB** | `scripts/check-bundle-size.mjs` (`make fe-bundle-size`) |
+| Largest lazy chunk | three.js engine (WebGL2 path only) | **250 kB** | same |
+| Second-largest lazy chunk | Observable Plot (L3 charts) | **160 kB** | same |
+| Every other lazy chunk | per-feature chunks incl. relational network (sigma + graphology + d3-force) | **80 kB each** | same (Phase 128) |
+| Lighthouse — accessibility | public routes `/login`, `/stories/button` | **≥ 0.90** (error) | `lighthouserc.cjs` (`make fe-lighthouse`) |
+| Lighthouse — best-practices | same | **≥ 0.90** (error) | same |
+| Lighthouse — performance | same | **≥ 0.80** (warn) | same |
+
+The Lighthouse gate runs the static build under `pnpm preview` inside the pinned Playwright image (Chromium reused via `CHROME_PATH`) so the score is reproducible. It targets only the backend-free public routes; the authenticated surfaces need a live BFF + session, which CI does not stand up, so they are covered by the bundle budgets, the axe sweep, and the manual hardware pass below.
+
+### Render-loop discipline
+
+The Atmosphere globe is mounted **persistently** in the `(app)` layout (Phase 135), so it would otherwise keep painting while hidden. The engine therefore gates its `requestAnimationFrame` loop on two conditions and runs only when both hold:
+
+- **Host gate** — `engine.setActive(false)` is called by `AtmosphereSurface` whenever a full-screen overlay (Dossier / account / admin / analyses) covers the globe.
+- **Visibility gate** — the engine self-pauses on `document.hidden` via the Page Visibility API.
+
+The co-occurrence force layout (FA2 / d3-force) already auto-stops at its rest point with a Settle-lever safety cap, so it is not a perpetual loop after convergence.
+
+### Manual verification (operator-run, not CI)
+
+Two items in the Brief §10 envelope cannot be asserted in headless CI and are run by the operator, with results filed in the Operations Playbook:
+
+1. **Hardware frame budget** — 60 fps / < 16 ms frame on M1-class hardware (Brief §10 High-Fidelity target) for the Atmosphere globe, full-depth Workbench cells, and the Kriesel co-occurrence network. Verify the engine pauses while an overlay is open.
+2. **Screen-reader pass** — a manual NVDA / VoiceOver / Orca walkthrough of the three surfaces, the composed "how to read" notes, the refusal prose, and the auth flows, in both EN and DE UI locales.
+
+See the Operations Playbook → *Dashboard / Frontend Iteration* for the exact commands and the hardware/screen-reader checklist.

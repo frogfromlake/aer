@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Phase 125 — pairwise Pearson correlation matrix (Aleph, multivariate).
   // An N×N heatmap over the chosen metric set (`Panel.metricSet`), backed by
   // `GET /metrics/correlation` (per-bucket-mean correlation; stated in the
@@ -159,7 +160,7 @@
       });
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
     })();
   });

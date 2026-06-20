@@ -200,24 +200,28 @@
 
 <!--
   Phase 122i — the Panel-host is an `<article>` for semantic structure (each
-  Panel is a self-contained analytical unit). Click-anywhere-to-focus is
-  implemented on the article itself; the svelte-ignore is intentional —
-  switching to a `<div>`/wrapper `<button>` would lose the semantic, and the
-  keyboard handler satisfies the actual a11y requirement.
+  Panel is a self-contained analytical unit).
+
+  Phase 128 a11y — the article previously carried role="button" + tabindex=0 to
+  implement click/Enter "focus this panel". That made it an interactive element
+  WRAPPING interactive descendants (the toolbar, controls, cell exports), which
+  WCAG 4.1.2 prohibits (axe `nested-interactive` / `no-focusable-content`). The
+  affordance is now a plain mouse convenience: `onclick` anywhere on the panel
+  focuses it. Keyboard users reach a panel through its already-focusable inner
+  controls, so no roving tabstop on a non-interactive container is needed. A
+  `focusin` handler is deliberately NOT used: it would also fire when a child
+  modal (e.g. the cell's ArticleListModal) traps focus, re-entrantly
+  re-focusing the panel. The click handler is a pure enhancement over operable
+  inner controls, so the static-interaction lint is intentionally suppressed.
 -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_click_events_have_key_events -->
 <article
   class="panel-host"
   class:focused
   class:interactive={isInteractive}
   data-composition={panel.composition}
   data-view={panel.view}
-  onclick={onFocusClick}
-  onkeydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') onFocusClick();
-  }}
-  role={isInteractive ? 'button' : undefined}
-  tabindex={isInteractive ? 0 : undefined}
+  onclick={isInteractive ? onFocusClick : undefined}
 >
   <PanelToolbar
     {presentation}

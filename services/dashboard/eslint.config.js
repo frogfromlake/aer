@@ -42,7 +42,7 @@ const FILE_LENGTH_ALLOWLIST = [
   // is COMPLETE: every remaining entry below is an operator-approved exception
   // (render-glue / data table / within-tolerance), not pending decomposition.
   ['**/CoOccurrenceNetworkCell.svelte', 1250], // logic in cooccurrence-network-shared.ts (tested); residual = d3-force/SVG + pan/zoom glue (+25 Phase 144 cell-chrome locale wiring — sentence→building-block split of the pipeline-gap/merged notes)
-  ['**/packages/engine-3d/src/engine.ts', 937], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable
+  ['**/packages/engine-3d/src/engine.ts', 991], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable (+54 Phase 128 — render-loop gating: setActive/visibility pause + reduced-motion flyTo)
   ['**/open-questions.ts', 766], // DATA table (open research-question content); +23 Phase 144c — QuestionProse type + the locale-overlay accessors (DE prose lives in the sibling open-questions.de.ts)
   ['**/CoOccurrenceNetworkAtScale.svelte', 755], // logic in cooccurrence-network-shared.ts (tested); residual = sigma/FA2/WebGL glue (+24 Phase 144 cell-chrome locale wiring — sentence→building-block split of the merged/sparse notes)
   ['**/AtmosphereSurface.svelte', 657], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers (+15 Phase 144 banner/tooltip plurals)

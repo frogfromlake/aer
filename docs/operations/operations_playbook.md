@@ -1371,11 +1371,34 @@ make fe-test             # Vitest unit tests
 make fe-test-e2e         # Playwright (visual + a11y) inside pinned image from compose.yaml
 make fe-test-e2e-update  # Refresh visual baselines (commit the diff)
 make fe-build            # Static build → services/dashboard/build/
-make fe-bundle-size      # 80 kB gzipped initial-bundle budget (after fe-build)
+make fe-bundle-size      # bundle budgets: 80 kB shell + per-lazy-chunk caps (after fe-build)
+make fe-lighthouse       # Lighthouse CI (perf/a11y/best-practices) inside the pinned image
 make fe-check            # Composite: lint + typecheck + test + build + bundle-size
 ```
 
-`fe-test-e2e` and `fe-test-e2e-update` deliberately run inside the Playwright image pinned in `compose.yaml` — browser font rendering is OS-sensitive, so host-local snapshot runs are not byte-comparable to CI. Always update baselines via `fe-test-e2e-update`, never with a host-local Playwright.
+`fe-test-e2e`, `fe-test-e2e-update`, and `fe-lighthouse` deliberately run inside the Playwright image pinned in `compose.yaml` — browser font rendering is OS-sensitive, so host-local snapshot runs are not byte-comparable to CI, and Lighthouse reuses that image's Chromium (`CHROME_PATH`) for a reproducible score. Always update baselines via `fe-test-e2e-update`, never with a host-local Playwright.
+
+The accessibility + client-performance contract these gates enforce — the WCAG 2.2 AA scope, the Lighthouse thresholds, and the full bundle-budget table — is documented canonically in **Arc42 §10.3 (Accessibility & Performance Envelope)**. `make fe-lighthouse` asserts the budgets in `services/dashboard/lighthouserc.cjs` against the public routes (`/login`, `/stories/button`); the authenticated surfaces are covered by `fe-bundle-size` + the axe e2e sweep + the manual hardware pass below.
+
+> **Note (Lighthouse dependency):** `@lhci/cli` is a dev-only dependency (never shipped in the static bundle). It transitively needs `tslib >= 2`, so `services/dashboard/package.json` pins a `pnpm.overrides` entry `"tslib": "2.8.1"` — without it a transitive `tslib@1.x` wins resolution and the Lighthouse performance/best-practices audits crash with `tslib_1.__spreadArray is not a function`. Revisit this override on any dependency refresh.
+
+### Manual accessibility + hardware pass (not in CI)
+
+Two items in the Brief §10 / Arc42 §10.3 envelope cannot run in headless CI and must be verified by the operator on real hardware. File the results (date, hardware, browser, locale, observations) below this section when run.
+
+**Hardware frame budget** (Brief §10 High-Fidelity target — 60 fps / < 16 ms frame on M1-class hardware):
+
+1. `make fe-preview` (or `make frontend-up`), open the dashboard, and open DevTools → Performance / the FPS meter (Chromium: Rendering → "Frame Rendering Stats").
+2. Atmosphere globe (`/`): confirm ≥ 60 fps at rest and during drag/zoom/fly-to.
+3. Workbench: open a full-depth split panel (multiple cells) and the Rhizome co-occurrence network; confirm the force layout settles and the steady state holds the frame budget.
+4. **Engine-pause check:** open the Dossier overlay (`?dossier=open`) and confirm the globe's `requestAnimationFrame` loop stops (GPU/CPU drops in the Performance panel); background a tab and confirm the same via the Page Visibility pause.
+
+**Screen-reader pass** (NVDA / VoiceOver / Orca):
+
+1. Walk the three surfaces (Atmosphere, Workbench, Reflection), the Dossier overlay, and the auth flows.
+2. Confirm the composed "how to read" notes and the refusal prose read coherently.
+3. Confirm modal focus order (open → trap → `Esc` → focus restored) and that auth errors are announced (`role="alert"`).
+4. Repeat in **both EN and DE** UI locales (toggle via the locale switch).
 
 ### Container build
 

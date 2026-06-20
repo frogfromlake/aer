@@ -4822,7 +4822,7 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
-## Phase 144: UI Localization — German (DE) [P1] - [x] DONE 2026-06-18 (all 13 UI surfaces localized + mechanism + content/WP wiring; Phase 144b closed the conceptual-vocabulary SoT tranche; **Phase 144c closed the last two data surfaces** — the Reflection open-questions research-prose catalog AND the `how-to-read.ts` cell-note building blocks. DoD "no hardcoded English in any user-visible surface" is now **literally met**: the closing sweep found no remaining English-only TS data catalog rendered in the UI.)
+## Phase 144: UI Localization — German (DE) [P1] - [x] DONE
 
 *The app is English-only at the UI-shell level (`APP_CONTENT_LANGUAGE` clamp). This phase delivers a **complete EN/DE localization** of the dashboard — every user-visible string, aria-label, placeholder, date/number format, and long-form document — and it is achievable now because most German content **already exists**: the BFF content-catalog is at **97/97 `{en,de}` parity** (real, high-quality German — not stubs) and all six Working Papers are already translated under `docs/methodology/{en,de}/`. The **only large net-new translation is the ~600 hardcoded UI-shell strings**; everything else is wiring a single locale signal through layers that are already bilingual. It is the prerequisite that makes Phase 128's EN/DE-parity audit real.*
 
@@ -4886,6 +4886,10 @@ This phase enforces the following — every implementation choice must satisfy t
 * [x] Swept for other English-only TS data catalogs: `papers.ts` / `registry*` / `negative-space.ts` / `discourse-function.ts` are 144b structural fallbacks (rendered via `m.*()`), NOT raw. **One genuine finding — `how-to-read.ts` building blocks** — was localized in this phase (see above). Phase 144 header "one remaining gap" note flipped to closed; DoD literally met.
 
 ---
+
+## Closure block (Phases 127–129 + 152 README) — run last, against the consolidated surface
+
+*The three original Iteration-11 closure phases keep their scope but move **after** the consolidation pass (136–144): coherence, accessibility/performance, and documentation are verified against the cleaned, localized, green-CI surface — so the audit is not invalidated by a later refactor. They are also the bridge into Iteration 12: a coherent, documented, accessible app is the baseline the security/deployment reviews assume.*
 
 ## Phase 127: Dashboard Coherence & Progressive Descent [P2] - [x] DONE
 
@@ -4960,15 +4964,15 @@ This phase enforces the following — every implementation choice must satisfy t
 
 **Grounding.** Read first: existing Lighthouse/bundle-budget config + the a11y E2E setup, Brief §10 (performance budgets), the engine-3d reduced-motion path. Preserve: existing bundle budgets (shell), the reduced-motion contract. Verify-first: Phase 127 substantially in place (this audits the coherent surface).
 
-* [ ] **Axe audit** over every reachable state (three surfaces × Dossier overlay × configurable cells × Composition cells incl. D3-force × auth surfaces × overlays × single/multi-probe). Zero AA violations.
-* [ ] **Modal a11y** (Dossier overlay focus-trap/Esc/ARIA); keyboard-operable cell config; auth surfaces narrated.
-* [ ] **Lighthouse + bundle budgets** (new lazy chunks within budget; CI fails on regression).
-* [ ] **Performance** — Kriesel network (force budget), full-depth cells, engine pause while overlay open; 60 fps / <16 ms frame on M1-class hardware; filed in the Operations Playbook.
-* [ ] **Screen-reader pass** (incl. composed "how to read" + refusal prose). **Reduced-motion** (network→static, fly-to→instant). **EN/DE parity** across new surfaces.
-* [ ] Arc42 Accessibility & Performance Envelope; CI gate spec; bundle-budget table.
+* [x] **Axe audit** over every reachable state (three surfaces × Dossier overlay × configurable cells × Composition cells incl. D3-force × auth surfaces × overlays × single/multi-probe). Zero AA violations. — `tests/e2e/a11y-app.spec.ts` (+ existing `a11y.spec.ts`); fixed 4 AA violation classes: Plot `aria-prohibited-attr` (`plot-a11y.ts`), pillar/DF text contrast, panel-host `nested-interactive`, control-strip `target-size` (2.5.8).
+* [x] **Modal a11y** (Dossier overlay focus-trap/Esc/ARIA — already in place); keyboard-operable cell config (fixed `CellConfigPopover` focus-on-open + restore); auth surfaces narrated (`AuthNotice` `role="alert"`). Behaviour pinned by e2e.
+* [x] **Lighthouse + bundle budgets** — `@lhci/cli` + `lighthouserc.cjs` (`make fe-lighthouse`, CI step); bundle gate extended with a per-other-lazy-chunk cap so a new feature chunk (e.g. relational network) fails CI on regression.
+* [~] **Performance** — Kriesel network force budget (auto-stop + Settle cap, already present); **engine pause while overlay open** + tab-hidden pause (`engine.setActive` + Page Visibility, wired in `AtmosphereSurface`). **60 fps / <16 ms frame on M1-class hardware = operator manual pass** (procedure filed in the Operations Playbook).
+* [~] **Reduced-motion** (fly-to→instant via `engine.reducedMotion`; network→static fallback) ✅. **EN/DE parity** enforced by the Phase-144 i18n-parity gate ✅. **Screen-reader pass = operator manual pass** (checklist filed in the Operations Playbook).
+* [x] Arc42 Accessibility & Performance Envelope (§10.3); CI gate spec + bundle-budget table; Operations Playbook manual-pass checklist.
 
 ### Validation
-* [ ] All CI gates green; hardware-test + screen-reader logs filed.
+* [~] All CI gates green (axe / Lighthouse / bundle / lint / unit / e2e). **Hardware-test + screen-reader logs = operator-pending** (procedures documented in the Operations Playbook → *Manual accessibility + hardware pass*).
 
 ---
 

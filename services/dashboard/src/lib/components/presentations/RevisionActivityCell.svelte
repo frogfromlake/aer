@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sanitizePlotA11y } from '$lib/presentations/plot-a11y';
   // Aleph × Silent-Edit Observability — Phase 122d.0 (ADR-032).
   //
   // Synchronic per-source bar chart over `aer_gold.article_revisions`.
@@ -106,7 +107,7 @@
       });
       if (plotEl) plotEl.remove();
       // eslint-disable-next-line svelte/no-dom-manipulating
-      host.appendChild(next as unknown as HTMLElement);
+      host.appendChild(sanitizePlotA11y(next as unknown as HTMLElement));
       plotEl = next as unknown as HTMLElement;
 
       // ROOT-CAUSE FIX (Run-4): the listener is attached to the stable

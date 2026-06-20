@@ -152,6 +152,8 @@
     border-radius: var(--radius-sm);
     color: var(--color-fg);
     padding: 3px var(--space-2);
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24px minimum target height. */
+    min-height: 24px;
     font-size: var(--font-size-xs);
     font-family: var(--font-mono);
     cursor: text;

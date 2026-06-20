@@ -206,7 +206,10 @@
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
     font-weight: 700;
-    color: var(--fn-color, var(--color-fg));
+    /* Phase 128 — blend the discourse-function accent toward the theme
+       foreground so the abbr text clears WCAG 1.4.3 (the raw accent is 3.61:1
+       on its own 12% tint); hue is preserved, both themes gain contrast. */
+    color: color-mix(in srgb, var(--fn-color, var(--color-fg)) 55%, var(--color-fg));
     background: color-mix(in srgb, var(--fn-color, var(--color-surface)) 12%, var(--color-surface));
     padding: 1px 6px;
     border-radius: var(--radius-sm);

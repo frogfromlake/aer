@@ -18,6 +18,7 @@
   // (CellConfigValueLevers = dimension peek + sliders + Band/Scale switches;
   // CellConfigChannelLevers = network/scatter channel selects + label switch);
   // this file is now the popover shell + the inherit/custom note + Reset.
+  import { onMount, tick } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import { resetCellOverride } from '$lib/workbench/panel-mutators';
@@ -75,9 +76,21 @@
       onClose();
     }
   }
+
+  // Phase 128 a11y — keyboard operability. The Escape handler lives on the
+  // popover, so focus must move INTO it on open (otherwise the key never
+  // reaches the handler and Esc can't close it); on close, restore focus to
+  // the trigger the user came from. Mirrors the DossierOverlay focus contract.
+  let popoverEl: HTMLDivElement | undefined = $state();
+  onMount(() => {
+    const lastFocused = document.activeElement as HTMLElement | null;
+    void tick().then(() => popoverEl?.focus());
+    return () => lastFocused?.focus?.();
+  });
 </script>
 
 <div
+  bind:this={popoverEl}
   class="cell-config-popover"
   role="dialog"
   aria-label={m.workbench_ccp_aria_label({ label: cellLabel })}
@@ -172,6 +185,12 @@
   }
   .ccp-close {
     appearance: none;
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24×24px minimum target size. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
     background: transparent;
     border: none;
     color: var(--color-fg-subtle);
@@ -208,6 +227,10 @@
   }
   .ccp-reset {
     appearance: none;
+    /* Phase 128 — WCAG 2.2 (2.5.8) 24px minimum target height. */
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: transparent;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
