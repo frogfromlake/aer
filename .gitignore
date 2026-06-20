@@ -81,3 +81,6 @@ infra/wikidata-index/data/
 .aer-phase-decisions.md
 .aer-roadmap-backup.md
 .roadmap-*.tmp
+
+# Private security findings — NEVER commit (public repo). Stage-A register, threat models, repro notes.
+.security/
