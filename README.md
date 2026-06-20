@@ -75,8 +75,8 @@ flowchart LR
     BRONZE[("MinIO Bronze<br/>raw HTML, verbatim")]
     NATS{{"NATS JetStream"}}
     WORKER["Analysis Worker<br/>Python · NLP pipeline"]
-    SILVER[("MinIO Silver<br/>harmonised")]
-    GOLD[("ClickHouse Gold<br/>metrics")]
+    SILVER[("MinIO Silver<br/>full harmonised envelopes")]
+    GOLD[("ClickHouse<br/>Gold metrics + Silver projection")]
     PG[("PostgreSQL<br/>metadata · auth")]
     BFF["BFF API<br/>Go · contract-first"]
     DASH["Dashboard<br/>SvelteKit · 3 surfaces"]
@@ -85,8 +85,17 @@ flowchart LR
     ING -.metadata.-> PG
     WORKER --> SILVER
     WORKER --> GOLD --> BFF --> DASH
+    SILVER -.->|"article bodies · drill-down · L5"| BFF
     BFF -.sessions.-> PG
 ```
+
+**Why Silver has two readers.** Silver is not just provenance. The worker writes a
+**Silver metadata projection** into ClickHouse (`aer_silver.documents` — lengths,
+counts, language, source) that powers the article lists and the eligible
+**Silver-layer aggregations**, *and* it writes the **full harmonised envelopes**
+(cleaned + raw text) to MinIO Silver, which the BFF reads (GetObject-only) for
+article-level drill-down and L5 evidence. So the BFF reads metrics **and** the
+Silver projection from ClickHouse, plus full article bodies from MinIO Silver.
 
 | Stage | Tech | Role |
 | :--- | :--- | :--- |
