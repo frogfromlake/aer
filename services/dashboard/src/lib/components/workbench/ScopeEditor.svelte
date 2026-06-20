@@ -354,7 +354,11 @@
   /* ---------- Modal shell ---------- */
   .scope-editor-backdrop {
     position: fixed;
-    inset: 0;
+    /* Phase 127 — reserve the SideRail gutter (like `.workbench-main`) so the
+       centred panel never tucks under the rail (z-index 450 > 50) at narrow
+       viewports. Centring then happens within the content area, and the panel's
+       `100%` resolves to that area's width, not the full viewport. */
+    inset: 0 0 0 var(--rail-width);
     background: color-mix(in srgb, var(--color-bg) 78%, transparent);
     backdrop-filter: blur(3px);
     z-index: 50;

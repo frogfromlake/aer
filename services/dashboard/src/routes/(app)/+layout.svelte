@@ -42,7 +42,10 @@
     if (!authChecked()) await refreshMe();
     if (!user()) {
       const here = window.location.pathname + window.location.search;
-      await goto(`/login?redirect=${encodeURIComponent(here)}`);
+      // `replaceState` so the unauthenticated bounce to /login does not pile an
+      // auth entry onto the history stack; after sign-in the login page replaces
+      // itself with the redirect target, keeping auth pages out of back/forward.
+      await goto(`/login?redirect=${encodeURIComponent(here)}`, { replaceState: true });
       return;
     }
     ready = true;

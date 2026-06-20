@@ -15,6 +15,7 @@
   // tested `analyses-overlay-internals` module.
   import * as api from '$lib/api/analyses';
   import { urlState, setUrl } from '$lib/state/url.svelte';
+  import { setCleanBaseline } from '$lib/workbench/dirty.svelte';
   import Button from '$lib/components/base/Button.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import { m } from '$lib/paraglide/messages.js';
@@ -133,6 +134,8 @@
     const res = await api.updateAnalysis(loadedAnalysis.id, { state: currentDeepLink() });
     saving = false;
     if (res.ok) {
+      // Phase 127 — the saved state is now the clean leave-guard baseline.
+      setCleanBaseline(currentDeepLink());
       saveStep = 'closed';
       saveMsg = {
         kind: 'success',
@@ -156,6 +159,8 @@
     );
     saving = false;
     if (res.ok) {
+      // Phase 127 — the freshly-saved state is now the clean leave-guard baseline.
+      setCleanBaseline(currentDeepLink());
       saveName = saveDescription = '';
       saveStep = 'closed';
       saveMsg = { kind: 'success', text: m.account_analyses_saved_notice() };

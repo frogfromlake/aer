@@ -13,6 +13,12 @@
   import { pushUrl, urlState } from '$lib/state/url.svelte';
   import { defaultPresentationForPillar, getPillar } from '$lib/presentations';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
+  import { setCleanBaseline, isWorkbenchDirty } from '$lib/workbench/dirty.svelte';
+  import {
+    stripDeepLink,
+    NON_STATE_PARAMS
+  } from '$lib/components/account/analyses-overlay-internals';
+  import WorkbenchLeaveGuard from '$lib/components/workbench/WorkbenchLeaveGuard.svelte';
   import {
     probeDossierQuery,
     probesQuery,
@@ -56,6 +62,20 @@
   // the dismissed flag.
   let editorDismissed = $state(false);
   const showCreateEditor = $derived(!hasScope && !editorDismissed);
+
+  // Phase 127 — leave-guard baseline. The analysis is fully URL-encoded; the
+  // current deep-link (overlay params stripped) is compared against a clean
+  // baseline only when the user navigates away. The baseline is (re)set to
+  // "clean" whenever the loaded-analysis id changes — i.e. on entry, when a
+  // saved analysis is opened, and on Save-as-new. In-place updates reset it
+  // from the AnalysesOverlay. Keyed on the memoised `loadedAnalysisId`, so this
+  // effect runs only on those transitions, NEVER on a panel tweak.
+  const currentDeepLink = () => stripDeepLink(window.location.href, NON_STATE_PARAMS);
+  const loadedAnalysisId = $derived(url.savedAnalysis);
+  $effect(() => {
+    void loadedAnalysisId;
+    setCleanBaseline(currentDeepLink());
+  });
 
   // Load the default probe + dossier for the ScopeEditor's source list.
   // For Probe-0-only production this is deterministic; when Probe 1 lands
@@ -143,19 +163,42 @@
     editorDismissed = false;
   }
 
-  // Phase 122k §11 — leaving the Workbench (SideRail Atmosphere /
-  // Dossier / Reflection clicks, or any other route change) invalidates
-  // the draft. Same-pathname navigations (the back-from-Apply case
-  // which only changes the search string) are NOT cleared here — that's
-  // the explicit one-shot restore path.
+  // Phase 127 — leave-guard. Navigating away from the Workbench (SideRail
+  // surface clicks, browser back/forward, any route change) with a CHANGED,
+  // unsaved analysis pops a confirm modal: leave without saving · save as a new
+  // analysis · update the loaded saved analysis. A clean or unconfigured
+  // Workbench leaves immediately (and clears the scope-editor draft as before).
+  // Same-pathname navigations (the back-from-Apply search-only change) are not a
+  // leave. The compare runs only here, at navigation time — no standing effect.
+  let pendingTo = $state<URL | null>(null);
+  let confirmedLeave = false;
+
   beforeNavigate((nav) => {
+    if (confirmedLeave) return; // our own post-confirm navigation
     if (!nav.to) return;
     const from = nav.from?.url.pathname;
     const to = nav.to.url.pathname;
-    if (from !== to) {
+    if (from === to) return; // in-Workbench state change, not a leave
+    if (!hasScope || !isWorkbenchDirty(currentDeepLink())) {
       clearDraft();
+      return;
     }
+    nav.cancel();
+    pendingTo = nav.to.url;
   });
+
+  function leaveNow() {
+    const dest = pendingTo;
+    pendingTo = null;
+    if (!dest) return;
+    clearDraft();
+    confirmedLeave = true;
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- internal confirmed leave
+    void goto(`${dest.pathname}${dest.search}${dest.hash}`);
+  }
+  function stayHere() {
+    pendingTo = null;
+  }
 </script>
 
 <svelte:head>
@@ -208,6 +251,14 @@
     onCancel={dismissCreateEditor}
   />
 {/if}
+
+<WorkbenchLeaveGuard
+  open={pendingTo !== null}
+  loadedAnalysisId={url.savedAnalysis}
+  currentState={pendingTo !== null ? currentDeepLink() : ''}
+  onLeave={leaveNow}
+  onCancel={stayHere}
+/>
 
 <style>
   .workbench-main {

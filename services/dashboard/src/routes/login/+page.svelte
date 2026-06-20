@@ -21,9 +21,11 @@
   }
 
   onMount(async () => {
-    // Already signed in? Skip straight through.
+    // Already signed in? Skip straight through. `replaceState` so the auth page
+    // never lingers in the history back-stack — otherwise the SideRail
+    // back-arrow (Phase 127) would land on /login and bounce straight back here.
     const u = await refreshMe();
-    if (u) await goto(redirectTarget());
+    if (u) await goto(redirectTarget(), { replaceState: true });
   });
 
   async function submit(event: SubmitEvent) {
@@ -35,7 +37,9 @@
     submitting = false;
     if (res.ok) {
       setUser(res.data);
-      await goto(redirectTarget());
+      // `replaceState` — drop /login from history so back-navigation can't
+      // return to (and flash) the login screen after a successful sign-in.
+      await goto(redirectTarget(), { replaceState: true });
       return;
     }
     error = res.status === 429 ? m.auth_login_error_rate_limited() : m.auth_login_error_invalid();

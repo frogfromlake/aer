@@ -38,7 +38,10 @@
     submitting = false;
     if (res.ok) {
       setUser(res.data);
-      await goto('/');
+      // `replaceState` — the consumed invite page must not stay in the history
+      // back-stack (the token is now spent; the SideRail back-arrow would only
+      // hit a dead invite screen).
+      await goto('/', { replaceState: true });
       return;
     }
     error =

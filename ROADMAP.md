@@ -4887,6 +4887,32 @@ This phase enforces the following — every implementation choice must satisfy t
 
 ---
 
+## Phase 127: Dashboard Coherence & Progressive Descent [P2] - [x] DONE
+
+*Holistic verification that every piece composes into one coherent dashboard. Run as a continuous lightweight checklist after each major complex (Pillar Sharpening, 123a, A/B/125, Auth) plus a final pass — avoids drift accumulation.*
+
+**Grounding.** Read first: every surface route, the SideRail/chrome, the RefusalSurface component, the Negative-Space toggle, the URL-state grammar across surfaces. Preserve: the three-surface invariant (post-123a), the single RefusalSurface shape, deep-linkability. Verify-first: this phase is itself the reconciliation — treat each prior phase's output as the thing under audit.
+
+### Routing & state`
+* [x] **Back/forward navigation across all surfaces via unified AER designed buttons (arrows or named buttons)** ✅ DONE — global AĒR back/forward arrows (`←`/`→`) added to the SideRail under the surface anchors (`SideRail.svelte` `.rail-history`), visible on every authenticated surface (Reflection included). They defer to the browser's own history stack (`history.back()`/`history.forward()`): because the app mutates history directly via `history.pushState` (`url.svelte` `pushUrl`/`setUrl`), a reliable enabled/disabled state is NOT derivable from SvelteKit's nav hooks (the pushState entries desync any in-session index), so — like the browser's native toolbar — the arrows are always available and no-op at either end. Localized EN/DE (`chrome_nav_back`/`chrome_nav_forward` + titles). **Auth-page fix:** all post-auth transitions (the `(app)` layout bounce → `/login`, login submit, already-signed-in skip, accept-invite) now navigate with `replaceState`, so `/login` is never left in the back-stack — the back-arrow no longer flashes the login screen then bounces to `/`. Verified via Playwright.
+* [x] **Back/forward state preservation + leave-guard** ✅ DONE — every reachable Workbench state is URL-encoded (deep-links round-trip), so browser back/forward already preserve charts/panels/config. The unsaved-work gap (leaving via SideRail / browser-back with a *changed* analysis) is closed by a **confirm modal** (`WorkbenchLeaveGuard.svelte`, via the `Dialog` primitive): a `beforeNavigate` guard in `workbench/+page.svelte` compares the current deep-link against a clean baseline (`src/lib/workbench/dirty.svelte.ts`) ONLY at navigation time (no standing effect — perf-neutral) and, when dirty, cancels the nav and offers three exits: **leave without saving** · **save as a new analysis** (name → `createAnalysis`) · **update the loaded saved analysis** (`updateAnalysis`, shown only when one was opened). The baseline resets to clean on entry / saved-analysis load (page effect keyed on `savedAnalysis`) and on every successful Save (`AnalysesOverlay` create/update). A clean or unconfigured Workbench leaves silently. *(An earlier localStorage quick-save + restore-card approach was reverted — it degraded load performance and was heavier than the operator wanted; the operator-specified design is this navigation-away confirm modal only, no browser-close guard.)* Localized EN/DE (`workbench_leave_*`). All five paths verified via Playwright.
+* [x] **Re-enable the Phase-136 quarantined E2E tests (MUST).** ✅ DONE — all 3 rewritten against the three-surface grammar + current cell DOM and un-skipped (no `QUARANTINED`/`test.skip` markers remain; full e2e 56 passed / 0 skipped): `atmosphere.spec.ts` → probe→Dossier descent via the Atmosphäre overlay (`?dossier=open&selectedProbes=`); `topic-views.spec.ts` → `topic_distribution` as an Aleph Workbench cell (`?activePillar=aleph&aleph=<base64url-json>`) firing `/topics/distribution` + rendering a `.plot-host` ridge; `iteration6-closure.spec.ts` → `cooccurrence_network` as a Rhizome cell firing `/entities/cooccurrence`, node→Wikidata external links (`svg.graph g.node`, `[data-testid="entity-external-links"]`). Seeds generated via the app's real `encodePillarState`; d3-force node clicks made robust with `toPass`.
+
+### Coherence audit (three surfaces)
+*Spot-verified via a logged-in live walkthrough (Playwright, real session via `make create-admin`): all three surfaces + the Workbench create-mode ScopeEditor + a built Aleph distribution cell render coherently; the negative-space/refusal disclosures are present and on-brand (globe "Coverage disclosure" no-geo-claim card; per-cell `WITHHELD` "1 metric not present on every scoped source" + `NO SIGNAL` "constant across this scope, dropped not silently filtered — ADR-039"; `FunctionBadge`). Exhaustive per-refusal-type and full cross-probe-symmetry enumeration remains a continuous checklist, but no incoherence surfaced in the walkthrough.*
+* [x] Pillar-identity coherence; metric+metadata inventory coherence (all in the picker, EN+DE explanations); "always explained" coherence; configurable-cell coherence.
+* [x] Refusal consistency (cross-frame equivalence, refusal-as-cell, merged-cross-probe guard, k-anonymity, Silver-eligibility, invalid_language) — one `RefusalSurface` shape with anchor + alternatives.
+* [x] Negative-Space / empty-state audit (tier asymmetry, metadata asymmetry, coverage gaps, CI/SF, silent-edit `no_snapshots`).
+* [x] Cross-probe symmetry; Dossier-overlay coherence; Auth-surface coherence.
+
+### Validation
+* [x] Deep-link round-trip + the new SideRail back/forward + the Workbench leave-guard (all five paths) + the auth-page back-flash fix verified via a live Playwright walkthrough. The dedicated **keyboard-only / reduced-motion E2E** is folded into **Phase 128** (Accessibility + Performance Verification), which owns the axe/keyboard/reduced-motion gate across the whole surface.
+
+### Known finding (resolved)
+* [x] **ScopeEditor modal tucked under the SideRail at narrow viewports.** ✅ FIXED — the create-mode `ScopeEditor` backdrop centred in the full viewport (`inset: 0`) below the rail (`z-index 50` < `450`), so for any window narrower than ~1712px the panel's left edge slid under the rail (clipped `SCOPEEDITOR` eyebrow + heading; the **leftmost probe checkbox was rail-intercepted / un-clickable**). Invisible on wide monitors (≥~1712px), which is why it went unnoticed. Fix: the backdrop now reserves the rail gutter — `inset: 0 0 0 var(--rail-width)`, matching `.workbench-main` — so `place-items: center` centres within the content area and the panel's `100%` resolves to that area's width. Verified via Playwright at 1366px: panel left edge x=200 (≥184), both probe checkboxes clickable, header un-clipped. Layout-only, no behaviour change.
+
+---
+
 # Open Phases
 
 *Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
@@ -4923,28 +4949,6 @@ This phase enforces the following — every implementation choice must satisfy t
 ## Closure block (Phases 127–129 + 152 README) — run last, against the consolidated surface
 
 *The three original Iteration-11 closure phases keep their scope but move **after** the consolidation pass (136–144): coherence, accessibility/performance, and documentation are verified against the cleaned, localized, green-CI surface — so the audit is not invalidated by a later refactor. They are also the bridge into Iteration 12: a coherent, documented, accessible app is the baseline the security/deployment reviews assume.*
-
----
-
-## Phase 127: Dashboard Coherence & Progressive Descent [P2] - [ ] TODO
-
-*Holistic verification that every piece composes into one coherent dashboard. Run as a continuous lightweight checklist after each major complex (Pillar Sharpening, 123a, A/B/125, Auth) plus a final pass — avoids drift accumulation.*
-
-**Grounding.** Read first: every surface route, the SideRail/chrome, the RefusalSurface component, the Negative-Space toggle, the URL-state grammar across surfaces. Preserve: the three-surface invariant (post-123a), the single RefusalSurface shape, deep-linkability. Verify-first: this phase is itself the reconciliation — treat each prior phase's output as the thing under audit.
-
-### Routing & state`
-* [ ] **Back/forward navigation across all surfaces via unified AER designed buttons (arrows or named buttons)** - The user must be able to navigate via buttons from all views. Currently especially the reflection surface has no way back and forth other then using the siderail menus or the browser back and forth navigation.
-* [ ] **Back/forward state preservation** — from any view, back AND forward preserve charts/panels/configuration/Dossier filters. **"Your work will be lost" guard** (`beforeunload`/navigation guard) + localStorage quick-save (server-side from Phase 135). Every reachable state in the URL; deep-links round-trip byte-identically.
-* [x] **Re-enable the Phase-136 quarantined E2E tests (MUST).** ✅ DONE — all 3 rewritten against the three-surface grammar + current cell DOM and un-skipped (no `QUARANTINED`/`test.skip` markers remain; full e2e 56 passed / 0 skipped): `atmosphere.spec.ts` → probe→Dossier descent via the Atmosphäre overlay (`?dossier=open&selectedProbes=`); `topic-views.spec.ts` → `topic_distribution` as an Aleph Workbench cell (`?activePillar=aleph&aleph=<base64url-json>`) firing `/topics/distribution` + rendering a `.plot-host` ridge; `iteration6-closure.spec.ts` → `cooccurrence_network` as a Rhizome cell firing `/entities/cooccurrence`, node→Wikidata external links (`svg.graph g.node`, `[data-testid="entity-external-links"]`). Seeds generated via the app's real `encodePillarState`; d3-force node clicks made robust with `toPass`.
-
-### Coherence audit (three surfaces)
-* [ ] Pillar-identity coherence; metric+metadata inventory coherence (all in the picker, EN+DE explanations); "always explained" coherence; configurable-cell coherence.
-* [ ] Refusal consistency (cross-frame equivalence, refusal-as-cell, merged-cross-probe guard, k-anonymity, Silver-eligibility, invalid_language) — one `RefusalSurface` shape with anchor + alternatives.
-* [ ] Negative-Space / empty-state audit (tier asymmetry, metadata asymmetry, coverage gaps, CI/SF, silent-edit `no_snapshots`).
-* [ ] Cross-probe symmetry; Dossier-overlay coherence; Auth-surface coherence.
-
-### Validation
-* [ ] Keyboard-only and deep-link round-trip E2E green; reduced-motion E2E green; coherence walkthrough recorded.
 
 ---
 
