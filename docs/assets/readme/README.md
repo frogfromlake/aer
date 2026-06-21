@@ -1,6 +1,6 @@
 # README screenshots
 
-These four images are referenced by the top-level [`README.md`](../../../README.md)
+These four images are referenced by the top-level `README.md`
 "Screenshots" section. Keep the **exact** filenames — the README embeds them directly.
 
 | Filename | Surface | What it shows |

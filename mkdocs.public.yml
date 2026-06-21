@@ -60,6 +60,7 @@ nav:
       - "WP-004: Cross-Cultural Comparability": methodology/en/WP-004-en-cross-cultural_comparability_of_discourse_metrics.md
       - "WP-005: Temporal Granularity": methodology/en/WP-005-en-temporal_granularity_of_discourse_shifts.md
       - "WP-006: Observer Effect & Reflexivity": methodology/en/WP-006-en-observer_effect_reflexivity_and_the_ethics_of_discourse_measurement.md
+      - "WP-007: Collection Completeness & Cross-Source Fairness": methodology/en/WP-007-en-collection_completeness_and_cross-source_fairness.md
 
   - "Methodik (DE)":
       - "WP-001: Funktionale Sondentaxonomie": methodology/de/WP-001-de-auf_dem_weg_zu_einem_kulturell_agnostischen_sondenkatalog-eine_funktionale_taxonomie_fuer_die_globale_diskursbeobachtung.md

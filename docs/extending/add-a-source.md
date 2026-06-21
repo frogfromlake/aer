@@ -202,6 +202,16 @@ curl -H "X-API-Key: $BFF_API_KEY" \
 
 If the source is visible and `silverEligible=false`, run the WP-006 §5.2 review and grant eligibility out-of-band per the canonical procedure.
 
+### 6. Record the completeness contract (WP-007)
+
+A new source is only comparable to its peers if AĒR can show it is collected *as faithfully and under the same rules* as they are. This is the **completeness contract** — measurement and disclosure, never editorial selection (WP-006 §3 still governs). Per [WP-007](../methodology/en/WP-007-en-collection_completeness_and_cross-source_fairness.md), record three things for the new source:
+
+1. **Declared-inventory baseline (the denominator).** From the audit CLI's per-channel counts, record what the publisher *declares* it offered in the window (sitemap entries with `<lastmod>` in window, feed length, archive depth) — not just what we collected. This makes the per-source floor a *measured* starting point rather than a hand-typed `expected_floor_per_run` guess. `completeness = collected / declared` is the figure the coverage panel surfaces; the drift alarm (`crawler_discovery_alerts`) then watches a real number.
+2. **Collection-method asymmetry vs. peers (fairness, not equality).** Fairness is **symmetric rules, not equal corpus size** — a genuinely higher-throughput source *should* yield more. Document, in the probe dossier's "Discovery surface" section, how this source's channels differ from the probe's existing peers (e.g. "archive-walker like tagesschau" vs "news-sitemap only like franceinfo" vs "RSS-only like elysee") and the bias direction of that asymmetry. A recorded asymmetry is a structural-bias parameter (Probe-0 `bias_assessment.md` Structural Bias #8); a hidden one is a defect.
+3. **Over-collection guard (purity).** Confirm the new source's collected documents are genuinely articles — check the extraction-success / non-article rate in the spot-check (step 5). Thin or non-article content must be filtered *with a disclosed rule* or surfaced as Negative Space, never silently counted (DISCLOSE-NEVER-COERCE).
+
+The aim is the operator's standing guarantee: *a measured throughput difference between this source and its peers is the world, not the crawler.*
+
 ---
 
 ## Periodic re-audit (Phase 122g)
@@ -249,4 +259,5 @@ This is the architectural payoff documented in [add-a-source-type.md](add-a-sour
 - [add-a-source-type.md](add-a-source-type.md) — when the new source needs a *new platform-class crawler* (Twitter/Reddit/Mastodon/…).
 - WP-006 §3 — the "document, don't filter" principle that motivates the technical-only URL filtering.
 - WP-006 §5.2 — Silver-eligibility review.
+- [WP-007 — Collection Completeness & Cross-Source Fairness](../methodology/en/WP-007-en-collection_completeness_and_cross-source_fairness.md) — the "why" behind the completeness contract (step 6): measured completeness, symmetric-rules fairness, and the over-collection guard.
 - [Scientific Operations Guide → Workflow 1 (Classifying a New Probe)](../operations/scientific_operations_guide.md#workflow-1-classifying-a-new-probe) — the canonical procedure for the methodological side of source addition.

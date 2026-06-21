@@ -4997,38 +4997,6 @@ This phase enforces the following — every implementation choice must satisfy t
 * [x] Unit/integration-verifiable parts: grouped config validation (host-set-but-credential-missing → boot error; complete group → `EmailEnabled`), SMTP message framing (bilingual body, CRLF, RFC 2047 subject, header-injection guard), `delivered` true/false/fallback paths. lint + Go suites + `svelte-check` + i18n-parity green.
 * [x] **Live end-to-end (operator) — deferred to deployment (Phase 149).** An admin invites a researcher by email; the invitee receives a working accept-invite mail and activates (consent captured); forgot/reset-password delivers; a provider outage degrades gracefully with operator visibility; credentials validated at boot. *Requires a live Brevo account + a sending domain + secrets — cannot be unit-tested.* **No spend / no action needed until deployment:** until then the stack runs on the `LogSender` fallback (empty `SMTP_HOST`) — invites/resets still work, the admin delivers the one-time link manually. The Brevo account + sender-domain authentication + `SMTP_*` secrets are wired in **Phase 149** (the email sender lives on the deployment domain decided in Phase 148), so this box is ticked there, not here.
 
-# Open Phases
-
-*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
-
-*Cross-cutting decisions that shape every phase below:*
-
-- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
-- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
-- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
-- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
-- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
-- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
-- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
-
----
-
-## Implementation protocol (every phase)
-
-*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
-
-1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
-2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
-3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
-4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
-5. **Definition of Done (applies to every phase, on top of its specific Validation):**
-   - phase-specific **Validation** checks pass;
-   - run the **`code-review`** skill on the diff;
-   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
-   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
-   - **hand back to the operator to commit — never auto-commit.**
-
----
 
 # Iteration 12 — Production Readiness & Deployment Hardening
 
@@ -5161,7 +5129,7 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ---
 
-## Phase 148: Deployment Topology, Cost & Capacity Decision (ADR) [P0] - [x] DONE 2026-06-21
+## Phase 148: Deployment Topology, Cost & Capacity Decision (ADR) [P0] - [x] DONE
 
 *The load-bearing decision the rest of the epic derives from. No provisioning until this ADR is signed.*
 
@@ -5189,6 +5157,39 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ### Validation
 * [x] ADR-044 signed; cost within the ceiling (~€20/mo); capacity model grounded in measured per-layer growth and states the single-box scaling limit. (Literal domain string + the on-box verification steps execute in 149.)
+
+---
+
+# Open Phases
+
+*Rewritten 2026-05-21 after a full senior-architect review of the post-122k codebase. The previous Open-Phases plan was drafted between the 122h amendments and the 122k rebuild and had accumulated significant drift (four-surface vocabulary, `/compose` route, "Function Lane", "L5 Evidence pane", "methodology tray", card/edge composition canvas). This rewrite re-grounds every open phase in the actual code, splits several phases, adds foundational phases the old plan lacked (Pillar Identity, Configurable Cells, News-Backbone Evaluation, Metadata Analysis, Access Control), removes Phase 126, and defers the non-human-actor machinery. Phases are listed in **execution order** within each iteration; numeric phase ids are not monotonic with execution order (consistent with the rest of this file). Phase numbers are stable insertion-order ids, not a sequence — implement top-to-bottom through the Iteration-11 closure block, then Iteration 12 (production-readiness reviews), then Iteration 13 (the infra/deployment epic), then stop (the Deferred block is not sequential work).*
+
+*Cross-cutting decisions that shape every phase below:*
+
+- ***POC target: full-ambition Alpha.*** Quality of data- and insight-generation is the supreme maxime; maintenance is minimised but never at the cost of output quality.
+- ***Per-source-class analytical backbone.*** Cross-probe comparison runs only on the symmetric multilingual Tier-2 backbone, one backbone per source class (news now; social-media later). Within-frame analysis may use all tiers a probe has (Tier-1 lexicon, Tier-2 multilingual, Tier-2.5 fine-tuned). Recorded in the ADR-023 amendment.
+- ***Pillar identity (ADR-035).*** Aleph = "the weather now" (synchronic totality), Episteme = "the climate record" (diachronic), Rhizome = "currents between contexts" (relational). **The pillar is determined by the presentation, not the metric.** Metrics flow through presentations; each metric declares its compatible presentations and thereby auto-lands in the correct pillars.
+- ***No discovery bias.*** Search/filter/recommendation surfaces use only universal probe attributes (probe, source, language, country, discourse function) — never capability/metric richness, which would privilege data-rich Western probes (Brief §1.3, Manifesto §II).
+- ***Always explained.*** Every presentation — including dynamically composed ones — carries a "what you see / how to read it" explanation (extension of ADR-017 reflexive architecture; composed views get composed/template explanations).
+- ***Disclose, never coerce (interim guardrail until Phase 122d.2).*** The full Negative-Space surface is consolidated late (Phase 122d.2, repositioned behind Phase 125 — see its note). Until it lands, no phase may bake in "absent → 0" coercion: a cell aggregating over a structurally-absent field must reuse the existing refusal/methodology surface rather than emit a misleading zero. This avoids debt the consolidated NS phase would have to unwind (WP-003 §3.2 / WP-006 §6.2).
+- ***No silent permanent gaps — enrichment completeness & periodic re-attempt (ADR-036, landed in 123c hardening).*** Every per-article enrichment that can fail or be incomplete MUST (a) record a queryable completeness status that distinguishes "we know" (incl. a real negative) from "we do NOT know", and (b) register a `ReAttemptTask` with the general re-attempt framework (the periodic in-worker loop, `corpus.py` pattern — runs at boot + every interval, idempotent). A transient failure (e.g. Wayback/IA unreachable) or a later-improvable extraction must self-heal on a later tick, never depend on a manual re-crawl. **Any NEW external, degradable, or later-improvable enrichment added by any phase below MUST register a task + a status, or it silently reintroduces the gap this guardrail closes.** Wayback is the first registered task; Phase 133's `custom_extractors` is the next (a re-extract-from-Bronze task).
+
+---
+
+## Implementation protocol (every phase)
+
+*This project is brownfield with strong consistency requirements. A fresh session that implements a phase without grounding produces stale features and an inconsistent UI (observed on a first Phase-130 attempt). Therefore, before and after implementing ANY phase below:*
+
+1. **Ground first.** Read the phase's **Grounding** block + `CLAUDE.md` + the ADRs it names. Then inspect the **current state** of the features the phase touches — *the code is the source of truth; this spec is intent, not ground truth.*
+2. **Reconcile spec vs. reality.** If a named file/feature has moved, been renamed, or already does part of this, **STOP and surface it** before coding. Do not implement blindly against a stale description.
+3. **Determine context and relationships yourself.** These specs are deliberately not exhaustive. Work out how the phase fits the surrounding architecture (pillars, cell registry, URL grammar, the four medallion layers) so the result is coherent, not a bolted-on parallel mechanism.
+4. **Brownfield, not greenfield.** Preserve working features. Extend established patterns rather than inventing new ones beside them.
+5. **Definition of Done (applies to every phase, on top of its specific Validation):**
+   - phase-specific **Validation** checks pass;
+   - run the **`code-review`** skill on the diff;
+   - run the **`verify`** skill where there is observable behaviour (UI phases; for worker/backend-only phases verify the data flow instead);
+   - `make lint` · `make test` · `make audit` green (`lint`/`audit` are also git-hook-enforced; `test` is authoritative in CI — run locally at phase end regardless);
+   - **hand back to the operator to commit — never auto-commit.**
 
 ---
 
@@ -5227,6 +5228,23 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ### Validation
 * [ ] A full `make reset` + `make crawl` completes a topic tick with real topic rows; worker RSS stays bounded; new Silver objects no longer carry `raw_text` and the L5 Raw view resolves from Bronze (with the 90-day note); the word_count policy behaves as decided. `make lint` + touched-service tests + coverage floors green.
+
+---
+
+## Phase 148d: Collection Completeness & Fairness Instrumentation (WP-007) [P0] - [ ] TODO
+
+*Implements [WP-007](docs/methodology/en/WP-007-en-collection_completeness_and_cross-source_fairness.md): turn crawl completeness + cross-source fairness from a manual judgement into a **measured, disclosed, drift-alerted property** — so a measured throughput difference between sources (e.g. franceinfo ≈ 1.35× tagesschau) is provably the world, not the crawler. **Pre-deploy** because it is data-quality foundation AND it shapes how every future source is added: the onboarding contract must exist before the probe catalogue scales (it does not block the 0+1 launch — both are already audited — but it gates adding source #3+, so it lands before scaling).*
+
+**Grounding.** Read first: WP-007 (the four-layer model + the funnel); ADR-031 + `crawler_discovery_runs`/`crawler_discovery_alerts` + `internal/state/discovery_runs.py` (the existing per-channel telemetry — today `urls_discovered` is counted *after* the window filter, with a hand-set `expected_floor_per_run`, NO measured denominator); `main.py` `_add_channel` + `discover_sitemap`/`discover_rss` (where the declared count must be captured before filtering); `aer-audit-source`; the BFF `GET /sources/{id}/discovery-coverage` + `DiscoveryCoveragePanel.svelte`; `negative-space.ts` + `NegativeSpaceBadge.svelte` (the 6 existing classes). Preserve: technical-only filtering (WP-006 §3 — measurement, never editorial selection), polite-by-default (declared denominator measured only from already-exposed channels, never adversarial probing), DISCLOSE-NEVER-COERCE. Verify-first: confirm what `urls_discovered` actually counts before adding the denominator.
+
+* [ ] **Layer 1 — measured declared denominator + completeness ratio.** Capture the publisher-declared inventory per channel per run (sitemap entries with `<lastmod>` ∈ window, feed length, archive pagination depth) *before* AĒR's filters; persist it alongside `urls_discovered`/`urls_after_dedup` (extend `crawler_discovery_runs` + `DiscoveryRunRecord`). Compute `completeness = collected / declared`; convert the two-consecutive-underflow alarm to drift-against-the-measured-denominator. Where a true denominator is unobtainable, report completeness as *indeterminate* (Negative Space), never 100 %.
+* [ ] **Layer 1 — the funnel, attributable per stage.** Record the drop at each stage (declared → discovered → after_dedup → passed_filters → fetched → extracted → Gold) so an asymmetry like franceinfo `526→395` (75 %) vs tagesschau `284→282` (99 %) is explained channel-by-channel, not left as an unattributed conversion gap.
+* [ ] **Layer 3 — over-collection signal.** Per-source extraction-success + non-article rate exposed (the `word_count` body-floor finding from 148c feeds this); thin/non-article content disclosed or Negative-Space'd, never silently counted.
+* [ ] **Disclosure (extend, don't rebuild).** `DiscoveryCoveragePanel` gains the completeness ratio + funnel beside the existing observed-vs-floor; add a **7th Negative-Space class `collection-completeness`** to `negative-space.ts` surfaced by `NegativeSpaceBadge` ("this source's corpus is N % complete for the period") so completeness travels with the data into every cross-source view. BFF: a `completeness` field on the discovery-coverage response (ClickHouse/Postgres only).
+* [ ] **Onboarding contract (the extensibility payoff).** `aer-audit-source` records the declared-inventory baseline (so the floor is measured, not guessed). The `add-a-source.md` step 6 + `add-a-probe.md` Step-G hooks (added with WP-007) become executable against real telemetry. **Fairness audit:** a check that no source in a probe silently receives a stricter/looser rule than its peers; documented asymmetries (archive-walker vs news-sitemap vs RSS-only) carried as structural-bias parameters.
+
+### Validation
+* [ ] After a full crawl, each source reports a completeness ratio against a *measured* denominator (or a disclosed indeterminate); the funnel explains every per-stage drop; the dashboard shows the `collection-completeness` badge with the data; adding a new source via `add-a-source.md` produces a recorded completeness contract. `make lint` + touched-service tests + coverage floors green; i18n parity EN+DE for any new UI strings.
 
 ---
 

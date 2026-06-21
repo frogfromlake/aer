@@ -83,6 +83,7 @@ After everything is green:
 - [ ] **Provenance Inventory update.** Append rows to the table in [`docs/scientific_operations_guide.md` → Provenance Inventory](../operations/scientific_operations_guide.md#provenance-inventory) for every manually-set value: per-source `BiasContext` fields, `min_meaningful_resolution` heuristics, the Cultural Calendar entries (if you added one).
 - [ ] **Cross-link from Probe 0's `README.md`** to the new probe (so a reader landing on Probe 0's dossier discovers the second probe).
 - [ ] **ROADMAP update.** Mark Phase 123 as `[x] DONE` with the date, and note in the dossier README that Probe 1 is now operational. Do *not* mark Phase 124 — that is a separate phase that sequences the cross-probe operations.
+- [ ] **Completeness & fairness check (WP-007).** For every source in the probe, confirm the [completeness contract](add-a-source.md#6-record-the-completeness-contract-wp-007) is recorded: a measured declared-inventory baseline, a documented collection-method asymmetry vs. the probe's peer sources, and a clean over-collection (extraction-success) spot-check. Then ask the cross-source question directly: **are this probe's sources collected under symmetric rules, and is every asymmetry documented and bias-assessed?** Fairness is symmetric *rules*, not equal corpus size — a genuinely louder source should read as louder. The standing guarantee: a measured difference between this probe's sources is the world, not the crawler.
 
 ---
 
@@ -106,5 +107,6 @@ These items are deliberately out of scope for the solo developer. They are unblo
 - [Operations Playbook → Probe Dossier](../operations/operations_playbook.md#probe-dossier) — the dossier-creation procedure.
 - [Probe 0 reference dossier](../probes/probe-0-de-institutional-web/README.md) — the reference implementation. Copy this structure.
 - [Arc42 §8.15 Probe Dossier Pattern](../arc42/08_concepts.md) — the cross-cutting concept that this guide operationalises for the solo case.
+- [WP-007 — Collection Completeness & Cross-Source Fairness](../methodology/en/WP-007-en-collection_completeness_and_cross-source_fairness.md) — the methodology behind Step G's completeness/fairness check.
 - [Arc42 §13.10 Probe 0 Source Selection Rationale](../arc42/13_scientific_foundations.md) — the engineering-calibration justification, the precedent for solo-developer probe addition.
 - [ROADMAP Phase 123](https://github.com/frogfromlake/aer/blob/main/ROADMAP.md) — the canonical engineering checklist for Probe 1.

@@ -211,8 +211,16 @@ Appendix content here.
 // ---------------------------------------------------------------------------
 
 describe('papers catalog', () => {
-  it('getAllPapers returns exactly 6 papers', () => {
-    expect(getAllPapers()).toHaveLength(6);
+  it('getAllPapers returns exactly 7 papers', () => {
+    expect(getAllPapers()).toHaveLength(7);
+  });
+
+  it('getPaperMeta returns correct metadata for wp-007', () => {
+    const meta = getPaperMeta('wp-007');
+    expect(meta).not.toBeNull();
+    expect(meta?.id).toBe('wp-007');
+    expect(meta?.shortTitle).toBe('Collection Completeness');
+    expect(meta?.depends).toEqual(['wp-001', 'wp-004', 'wp-006']);
   });
 
   it('getPaperMeta returns correct metadata for wp-001', () => {

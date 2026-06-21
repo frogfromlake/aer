@@ -1,4 +1,4 @@
-// Paper catalog — metadata index for WP-001 through WP-006.
+// Paper catalog — metadata index for WP-001 through WP-007.
 //
 // The raw markdown content lives in /content/papers/{locale}/wp-NNN.md (served
 // as static assets by the SvelteKit static adapter; synced per-locale from
@@ -30,7 +30,7 @@ export const PAPERS: PaperMeta[] = [
     abstract:
       'Establishes the functional taxonomy for probe selection using discursive function rather than institutional form, introducing the Etic/Emic Dual Tagging System as the architectural mechanism for cross-cultural comparability without epistemological colonialism.',
     depends: [],
-    downstream: ['wp-002', 'wp-003', 'wp-004', 'wp-005', 'wp-006'],
+    downstream: ['wp-002', 'wp-003', 'wp-004', 'wp-005', 'wp-006', 'wp-007'],
     interactiveCells: []
   },
   {
@@ -63,7 +63,7 @@ export const PAPERS: PaperMeta[] = [
     abstract:
       'Examines the conditions under which discourse metrics can be meaningfully placed alongside each other across languages and cultural contexts, introducing the Comparison Level framework and the Equivalence Registry architecture.',
     depends: ['wp-001'],
-    downstream: [],
+    downstream: ['wp-007'],
     interactiveCells: []
   },
   {
@@ -85,6 +85,17 @@ export const PAPERS: PaperMeta[] = [
     abstract:
       'Addresses the observer effect in social measurement, proposes a reflexive architecture for AĒR as "the instrument that knows it is an instrument," and specifies the data-protection-by-design commitments including the k-anonymity gate at L5.',
     depends: ['wp-001'],
+    downstream: ['wp-007'],
+    interactiveCells: []
+  },
+  {
+    id: 'wp-007',
+    shortTitle: 'Collection Completeness',
+    status: 'Draft — open for interdisciplinary review',
+    date: '2026-06-22',
+    abstract:
+      'Defines collection completeness and cross-source fairness as a measurement-validity property: distinguishes a genuine throughput difference between sources from a crawl artifact via a measured declared-denominator, symmetric-rules (not equal-size) fairness, and an over-collection guard — all disclosed as Negative Space and carried into source/probe onboarding.',
+    depends: ['wp-001', 'wp-004', 'wp-006'],
     downstream: [],
     interactiveCells: []
   }
