@@ -14,6 +14,30 @@ const config = {
     }),
     prerender: {
       handleHttpError: 'warn'
+    },
+    // Content-Security-Policy (SEC-021). `mode: 'hash'` lets SvelteKit hash its
+    // own inline bootstrap/hydration scripts, so `script-src 'self'` (no
+    // 'unsafe-inline') does not break the app — the framework-blessed way to a
+    // strict script policy for a static SPA. All scripts are bundled (no
+    // third-party CDN). `style-src` keeps 'unsafe-inline' because Svelte/Plot
+    // emit inline `style=` attributes that cannot be hashed reliably.
+    // `frame-ancestors` is intentionally absent: it is ignored in the <meta>
+    // CSP that adapter-static emits, and clickjacking is already covered by the
+    // nginx `X-Frame-Options: DENY` header.
+    csp: {
+      mode: 'hash',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self'],
+        'style-src': ['self', 'unsafe-inline'],
+        'img-src': ['self', 'data:', 'blob:'],
+        'font-src': ['self'],
+        'connect-src': ['self'],
+        'worker-src': ['self', 'blob:'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
+        'form-action': ['self']
+      }
     }
   }
 };

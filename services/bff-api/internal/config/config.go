@@ -243,5 +243,14 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("BFF_SECURE_COOKIES must be true when APP_ENV=production")
 	}
 
+	// SEC-010 — `*` is acceptable only in development. A wildcard CORS origin in
+	// any other environment is a latent footgun (a future AllowCredentials flip
+	// would expose a logged-in researcher's responses cross-origin), and the
+	// knob was silently ignored before. Refuse to boot so production must set
+	// CORS_ALLOWED_ORIGINS to explicit origin(s) rather than run the wildcard.
+	if cfg.Environment != "development" && cfg.CORSOrigins == "*" {
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS must not be '*' when APP_ENV=%s; set explicit origin(s)", cfg.Environment)
+	}
+
 	return &cfg, nil
 }

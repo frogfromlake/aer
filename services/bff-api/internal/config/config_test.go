@@ -238,7 +238,9 @@ func TestLoad_SecureCookiesRequiredInProduction(t *testing.T) {
 		chdirEmpty(t)
 		setRequiredEnv(t)
 		t.Setenv("APP_ENV", "production")
-		// BFF_SECURE_COOKIES defaults to true.
+		// BFF_SECURE_COOKIES defaults to true. A non-wildcard CORS origin is
+		// required in production (SEC-010), so set one for this happy path.
+		t.Setenv("CORS_ALLOWED_ORIGINS", "https://aer.example")
 
 		cfg, err := Load()
 		if err != nil {
@@ -256,6 +258,43 @@ func TestLoad_SecureCookiesRequiredInProduction(t *testing.T) {
 
 		if _, err := Load(); err != nil {
 			t.Fatalf("development must tolerate insecure cookies: %v", err)
+		}
+	})
+}
+
+func TestLoad_CORSWildcardRefusedOutsideDevelopment(t *testing.T) {
+	t.Run("production + wildcard CORS refuses to boot", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("APP_ENV", "production")
+		// CORS_ALLOWED_ORIGINS defaults to "*".
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("expected Load to fail for wildcard CORS in production")
+		}
+		if !strings.Contains(err.Error(), "CORS_ALLOWED_ORIGINS") {
+			t.Errorf("error = %q, want it to name CORS_ALLOWED_ORIGINS", err.Error())
+		}
+	})
+
+	t.Run("production + explicit origin boots", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("APP_ENV", "production")
+		t.Setenv("CORS_ALLOWED_ORIGINS", "https://aer.example")
+
+		if _, err := Load(); err != nil {
+			t.Fatalf("explicit origin in production must boot: %v", err)
+		}
+	})
+
+	t.Run("development tolerates wildcard", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t) // APP_ENV defaults to development, CORS defaults to "*"
+
+		if _, err := Load(); err != nil {
+			t.Fatalf("development must tolerate the wildcard default: %v", err)
 		}
 	})
 }
