@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from internal.processor import DataProcessor
-from main import _handle_message
+from main import _handle_message, _is_infra_transient
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,6 @@ def test_quarantine_poison_message_recovers_bronze_payload(
     processor = DataProcessor(
         mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors=[]
     )
-    processor._update_document_status = MagicMock()
 
     original_bronze = {"source": "rss", "raw_text": "hello"}
     response = MagicMock()
@@ -148,7 +147,12 @@ def test_quarantine_poison_message_recovers_bronze_payload(
     mock_minio.get_object.return_value = response
 
     msg_bytes = json.dumps(VALID_EVENT_ENVELOPE).encode("utf-8")
-    processor.quarantine_poison_message(msg_bytes, "RuntimeError", "boom")
+    # SEC-065: the poison path writes status via the CAS helper, not the
+    # unconditional _update_document_status method.
+    with patch(
+        "internal.processor.quarantine_document_status", return_value=True
+    ) as mock_status:
+        processor.quarantine_poison_message(msg_bytes, "RuntimeError", "boom")
 
     mock_minio.put_object.assert_called_once()
     put_args, _ = mock_minio.put_object.call_args
@@ -158,8 +162,8 @@ def test_quarantine_poison_message_recovers_bronze_payload(
     body.seek(0)
     assert json.loads(body.read().decode("utf-8")) == original_bronze
 
-    processor._update_document_status.assert_called_once_with(
-        "rss/tagesschau/abc/2026-04-05.json", "quarantined"
+    mock_status.assert_called_once_with(
+        processor.pg, "rss/tagesschau/abc/2026-04-05.json"
     )
 
 
@@ -206,6 +210,68 @@ def test_quarantine_poison_message_handles_unparseable_event(
     put_args, _ = mock_minio.put_object.call_args
     assert put_args[0] == "bronze-quarantine"
     assert put_args[1].startswith("poison/unparseable/")
+
+
+def test_quarantine_poison_message_skips_clobbering_processed(
+    mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry
+):
+    """SEC-065: if a concurrent redelivery already processed the doc, the CAS
+    status write returns False and the poison path does not clobber it (the DLQ
+    evidence object is still written)."""
+    processor = DataProcessor(
+        mock_minio, mock_clickhouse, mock_pg_pool, adapter_registry, extractors=[]
+    )
+    response = MagicMock()
+    response.read.return_value = json.dumps({"raw_text": "x"}).encode("utf-8")
+    mock_minio.get_object.return_value = response
+
+    msg_bytes = json.dumps(VALID_EVENT_ENVELOPE).encode("utf-8")
+    with patch(
+        "internal.processor.quarantine_document_status", return_value=False
+    ) as mock_status:
+        processor.quarantine_poison_message(msg_bytes, "RuntimeError", "boom")
+
+    mock_minio.put_object.assert_called_once()  # evidence still captured
+    mock_status.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# SEC-079 — transient-infra vs poison classification
+# ---------------------------------------------------------------------------
+
+def test_is_infra_transient_matches_connectivity_classes():
+    assert _is_infra_transient(ConnectionError("reset")) is True
+    assert _is_infra_transient(TimeoutError("slow")) is True
+
+
+def test_is_infra_transient_matches_driver_error_by_name():
+    class OperationalError(Exception):
+        """Stand-in for psycopg2 / clickhouse_connect OperationalError."""
+
+    assert _is_infra_transient(OperationalError("db unreachable")) is True
+
+
+def test_is_infra_transient_false_for_deterministic_poison():
+    assert _is_infra_transient(ValueError("bad payload")) is False
+    assert _is_infra_transient(RuntimeError("adapter bug")) is False
+
+
+@pytest.mark.asyncio
+async def test_poison_tags_infra_transient_reason():
+    """A transient infra failure at max_deliver is quarantined with an
+    `infra_transient:<type>` reason so a replay sweep can tell it apart from
+    genuine poison and auto-requeue it once infra recovers."""
+    processor = MagicMock(spec=DataProcessor)
+    processor.process_event.side_effect = ConnectionError("clickhouse unreachable")
+    processor.quarantine_poison_message = MagicMock()
+
+    msg = _make_nats_msg(num_delivered=5)
+    await _handle_message(0, msg, processor, _DummyTracer(), max_deliver=5)
+
+    processor.quarantine_poison_message.assert_called_once()
+    args, _ = processor.quarantine_poison_message.call_args
+    assert args[1] == "infra_transient:ConnectionError"
+    msg.ack.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,8 @@ import json
 import os
 import signal
 import structlog
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from nats.aio.client import Client as NATS
 from nats.js import api as js_api
@@ -25,8 +26,15 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 # Internal application imports
 from prometheus_client import start_http_server
 from internal.logging import configure_logging
-from internal.metrics import nats_consumer_pending, nats_consumer_ack_pending
+from internal.metrics import (
+    nats_consumer_pending,
+    nats_consumer_ack_pending,
+    dlq_size,
+    documents_stale_processing,
+)
 from internal.storage import init_minio, init_clickhouse, init_postgres, PG_POOL_HEADROOM
+from internal.storage.postgres_client import reclaim_stale_processing
+from internal.quarantine import QUARANTINE_BUCKET
 from internal.processor import DataProcessor
 from internal.adapters import AdapterRegistry, LegacyAdapter, RssAdapter, WebAdapter
 from internal.wayback import WaybackCDXCache, WaybackCDXClient
@@ -110,9 +118,11 @@ DEFAULT_EXTRACTOR_CLASSES = [
 # when the pool was sized to worker_count only, a large backlog let the sweeps
 # starve the doc-workers of connections and wedge the per-document hot path. The
 # pools are therefore sized for workers + these loops + headroom, so the
-# real-time path always has its own connections. Keep in sync with the
-# create_task(...loop...) calls in main() — currently 5 background loops.
-BACKGROUND_LOOP_COUNT = 5
+# real-time path always has its own connections. Counts only the PG/CH-pool-
+# using loops (the consumer-lag poller uses the NATS subscription, not a DB
+# pool, so it is excluded): corpus, baseline, topic, revision-diff, reattempt,
+# and the Phase-148 stale-processing reaper.
+BACKGROUND_LOOP_COUNT = 6
 
 
 def _init_wayback_clients(pg_pool) -> tuple[WaybackCDXClient | None, WaybackCDXClient | None]:
@@ -361,6 +371,26 @@ class WorkerConfig:
     ack_wait_seconds: float = field(
         default_factory=lambda: float(os.getenv("NATS_ACK_WAIT_SECONDS", "300"))
     )
+    # SEC-083: bound the graceful-shutdown drain so a long in-flight sweep can
+    # never block past Docker's SIGKILL grace and skip the pool-close. The
+    # compose `stop_grace_period` (deferred to the compose-coordinated phase)
+    # MUST exceed this value.
+    shutdown_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("WORKER_SHUTDOWN_TIMEOUT_SECONDS", "65"))
+    )
+    # SEC-074: stale-processing reaper. Threshold defaults to 3x ack_wait so a
+    # merely-slow live worker (whose message NATS has already redelivered once)
+    # is never robbed of its claim; the interval is the scan cadence.
+    stale_processing_threshold_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("WORKER_STALE_PROCESSING_THRESHOLD_SECONDS", "900")
+        )
+    )
+    stale_processing_reaper_interval_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("WORKER_STALE_PROCESSING_REAPER_INTERVAL_SECONDS", "120")
+        )
+    )
 
 
 def init_telemetry(otel_endpoint: str, sample_rate: float = 1.0) -> trace.Tracer:
@@ -385,6 +415,36 @@ def _num_delivered(msg) -> int:
         return int(msg.metadata.num_delivered)
     except Exception:
         return 0
+
+
+# SEC-079 — exception types that signal a transient infrastructure outage rather
+# than a deterministic poison message. A ~30-min ClickHouse/MinIO/Postgres
+# outage can exhaust the max_deliver budget for a perfectly good message; we
+# cannot stop NATS from terminating it at max_deliver, but we CAN tag its
+# quarantine reason `infra_transient:<type>` so a future replay sweep auto-
+# requeues it once infra is healthy (instead of it reading as real poison).
+# Conservative by design: misclassification only changes a label (the message
+# is quarantined either way), so the set covers connectivity/transport classes
+# matched by base class or by name (third-party drivers are not imported here).
+_INFRA_TRANSIENT_EXC = (ConnectionError, TimeoutError)
+_INFRA_TRANSIENT_NAMES = frozenset(
+    {
+        "OperationalError",   # psycopg2 / clickhouse_connect — DB unreachable
+        "InterfaceError",     # psycopg2 — connection severed
+        "DatabaseError",      # clickhouse_connect driver
+        "PoolError",          # psycopg2 pool exhausted
+        "MaxRetryError",      # urllib3 (minio transport) — host unreachable
+        "NewConnectionError", # urllib3 — connect refused
+        "ProtocolError",      # urllib3 — connection aborted mid-stream
+    }
+)
+
+
+def _is_infra_transient(exc: BaseException) -> bool:
+    """True iff `exc` looks like a transient infra outage, not poison (SEC-079)."""
+    if isinstance(exc, _INFRA_TRANSIENT_EXC):
+        return True
+    return type(exc).__name__ in _INFRA_TRANSIENT_NAMES
 
 
 async def worker_task(
@@ -450,6 +510,13 @@ async def _handle_message(
         num_delivered = _num_delivered(msg)
         error_type = type(e).__name__
         if num_delivered >= max_deliver:
+            # SEC-079: a sustained infra outage can exhaust the delivery budget
+            # for a GOOD message. Tag the quarantine reason so a replay sweep
+            # can tell it apart from genuine poison and auto-requeue it.
+            infra_transient = _is_infra_transient(e)
+            quarantine_reason = (
+                f"infra_transient:{error_type}" if infra_transient else error_type
+            )
             logger.error(
                 "Poison pill — max_deliver exhausted. Routing to quarantine.",
                 worker_id=worker_id,
@@ -457,12 +524,13 @@ async def _handle_message(
                 max_deliver=max_deliver,
                 error=str(e),
                 error_type=error_type,
+                infra_transient=infra_transient,
             )
             try:
                 await asyncio.to_thread(
                     data_processor.quarantine_poison_message,
                     msg.data,
-                    error_type,
+                    quarantine_reason,
                     str(e),
                 )
                 await msg.ack()
@@ -500,6 +568,79 @@ async def consumer_lag_loop(subscription, stop_event: asyncio.Event, interval_se
             nats_consumer_ack_pending.set(info.num_ack_pending or 0)
         except Exception as e:  # noqa: BLE001 — observability poll is best-effort
             logger.debug("Consumer-lag poll failed", error=str(e))
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+        except asyncio.TimeoutError:
+            continue
+
+
+def _build_minio_event(obj_key: str, event_time_iso: str) -> bytes:
+    """Construct a minimal MinIO-notification envelope the worker can replay.
+
+    Mirrors the shape `_handle_message` parses (`Records[0].s3.object.key` +
+    `eventTime`). The key is URL-quoted because the handler `unquote`s it. No
+    `userMetadata` → no trace context, which is correct for a synthetic replay.
+    """
+    return json.dumps(
+        {
+            "Records": [
+                {
+                    "eventTime": event_time_iso,
+                    "s3": {"object": {"key": quote(obj_key), "userMetadata": {}}},
+                }
+            ]
+        }
+    ).encode("utf-8")
+
+
+def _count_quarantine_objects(minio_client) -> int:
+    """Count objects currently in the bronze-quarantine bucket (SEC-084)."""
+    return sum(1 for _ in minio_client.list_objects(QUARANTINE_BUCKET, recursive=True))
+
+
+async def stale_processing_reaper_loop(
+    pg_pool,
+    minio_client,
+    js,
+    subject: str,
+    stop_event: asyncio.Event,
+    threshold_seconds: float,
+    interval_seconds: float,
+):
+    """Recover documents stranded in `processing` by a hard worker kill (SEC-074).
+
+    A SIGKILL/OOM between `try_claim_document` and the terminal status write
+    skips the Python except-path claim release, leaving the row `processing`
+    forever; the next NATS redelivery sees `processing`, treats it as a
+    duplicate, and ACKs — silent permanent data loss. This loop periodically
+    resets such rows (claim older than `threshold_seconds`) to `uploaded` AND
+    re-publishes a synthetic MinIO event so a worker reprocesses them. Gold is
+    ReplacingMergeTree-idempotent, so a reprocess that races a late-finishing
+    original is safe. Also refreshes the authoritative `dlq_size` gauge (SEC-084)
+    from the bucket count. Fail-silent: a transient error logs and retries on the
+    next tick — the loop must never crash the worker.
+    """
+    while not stop_event.is_set():
+        try:
+            stale_keys = await asyncio.to_thread(
+                reclaim_stale_processing, pg_pool, int(threshold_seconds)
+            )
+            documents_stale_processing.set(len(stale_keys))
+            for obj_key in stale_keys:
+                logger.warning(
+                    "Reclaimed stale 'processing' document; re-publishing for reprocessing.",
+                    object=obj_key,
+                    threshold_seconds=threshold_seconds,
+                )
+                event_time_iso = datetime.now(timezone.utc).isoformat()
+                await js.publish(subject, _build_minio_event(obj_key, event_time_iso))
+        except Exception as e:  # noqa: BLE001 — background loop must never crash
+            logger.warning("Stale-processing reaper tick failed", error=str(e))
+        try:
+            count = await asyncio.to_thread(_count_quarantine_objects, minio_client)
+            dlq_size.set(count)
+        except Exception as e:  # noqa: BLE001 — gauge refresh is best-effort
+            logger.debug("dlq_size refresh failed", error=str(e))
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
         except asyncio.TimeoutError:
@@ -721,6 +862,21 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
         consumer_lag_loop(subscription, stop_event)
     )
 
+    # Phase 148 / SR-8 (SEC-074) — stale-processing reaper. Recovers documents
+    # stranded `processing` by a hard worker kill and re-publishes them; also
+    # refreshes the authoritative dlq_size gauge (SEC-084).
+    reaper_task = asyncio.create_task(
+        stale_processing_reaper_loop(
+            pg_pool,
+            minio_client,
+            js,
+            config.subject,
+            stop_event,
+            config.stale_processing_threshold_seconds,
+            config.stale_processing_reaper_interval_seconds,
+        )
+    )
+
     try:
         await stop_event.wait()
     except asyncio.CancelledError:
@@ -735,39 +891,54 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
         for _ in range(config.worker_count):
             await task_queue.put(None)
 
-        logger.info("Waiting for workers to complete current tasks...")
-        # Gracefully wait for all workers to finish instead of cancelling them
-        await asyncio.gather(*workers)
-
-        logger.info("Waiting for corpus-extraction loop to drain...")
-        await corpus_task
-
-        logger.info("Waiting for baseline-extraction loop to drain...")
-        await baseline_task
-
-        logger.info("Waiting for topic-extraction loop to drain...")
-        await topic_task
-
-        logger.info("Waiting for revision-diff loop to drain...")
-        await revision_diff_task
-
-        logger.info("Waiting for enrichment re-attempt loop to drain...")
-        await reattempt_task
-
-        logger.info("Waiting for consumer-lag poller to drain...")
-        await consumer_lag_task
-
-        await nc.close()
-
-        logger.info("Closing database connection pools...")
+        # SEC-083: bound the drain. A heavy sweep (corpus/baseline/revision-diff)
+        # runs in a thread that cannot be hard-cancelled, so awaiting it
+        # unbounded could block past Docker's SIGKILL grace and skip the
+        # pool-close entirely. Wait at most `shutdown_timeout_seconds` for every
+        # worker + loop to settle; on timeout, cancel the awaiting coroutines
+        # and proceed to close pools regardless (the OS reclaims any thread's
+        # sockets, and ReplacingMergeTree makes a re-run safe).
+        drain_tasks = [
+            *workers,
+            corpus_task,
+            baseline_task,
+            topic_task,
+            revision_diff_task,
+            reattempt_task,
+            consumer_lag_task,
+            reaper_task,
+        ]
         try:
-            ch_client.close_all()
-        except Exception as e:
-            logger.warning("Error closing ClickHouse pool", error=str(e))
-        try:
-            pg_pool.closeall()
-        except Exception as e:
-            logger.warning("Error closing PostgreSQL pool", error=str(e))
+            logger.info("Waiting for workers and background loops to drain...")
+            await asyncio.wait_for(
+                asyncio.gather(*drain_tasks, return_exceptions=True),
+                timeout=config.shutdown_timeout_seconds,
+            )
+            logger.info("All workers and background loops drained cleanly.")
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Shutdown drain exceeded timeout; cancelling stragglers and closing pools.",
+                timeout_seconds=config.shutdown_timeout_seconds,
+            )
+            for t in drain_tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*drain_tasks, return_exceptions=True)
+        finally:
+            # ALWAYS close NATS + the DB pools, even when the drain timed out.
+            try:
+                await nc.close()
+            except Exception as e:
+                logger.warning("Error closing NATS connection", error=str(e))
+            logger.info("Closing database connection pools...")
+            try:
+                ch_client.close_all()
+            except Exception as e:
+                logger.warning("Error closing ClickHouse pool", error=str(e))
+            try:
+                pg_pool.closeall()
+            except Exception as e:
+                logger.warning("Error closing PostgreSQL pool", error=str(e))
 
         logger.info("Analysis Worker shut down cleanly.")
 

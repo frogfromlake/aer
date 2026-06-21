@@ -22,6 +22,8 @@ from psycopg2.pool import ThreadedConnectionPool
 from testcontainers.core.container import DockerContainer
 
 from internal.storage.postgres_client import (
+    quarantine_document_status,
+    reclaim_stale_processing,
     release_document_claim,
     try_claim_document,
     update_document_status,
@@ -86,7 +88,8 @@ def pg_pool(pg_container):
                 CREATE TABLE documents (
                     id SERIAL PRIMARY KEY,
                     bronze_object_key VARCHAR(500) NOT NULL UNIQUE,
-                    status VARCHAR(50)
+                    status VARCHAR(50),
+                    claimed_at TIMESTAMP WITH TIME ZONE
                 )
                 """
             )
@@ -121,6 +124,35 @@ def _read_status(pool, obj_key: str) -> str | None:
             )
             row = cur.fetchone()
             return row[0] if row else None
+    finally:
+        pool.putconn(conn)
+
+
+def _read_claimed_at(pool, obj_key: str):
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT claimed_at FROM documents WHERE bronze_object_key = %s",
+                (obj_key,),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+    finally:
+        pool.putconn(conn)
+
+
+def _force_claimed_at(pool, obj_key: str, interval_sql: str) -> None:
+    """Set claimed_at to ``now() - <interval_sql>`` (raw SQL, test-only)."""
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE documents SET claimed_at = now() - interval '{interval_sql}' "
+                "WHERE bronze_object_key = %s",
+                (obj_key,),
+            )
+        conn.commit()
     finally:
         pool.putconn(conn)
 
@@ -221,3 +253,67 @@ def test_terminal_status_after_claim_is_preserved(pg_pool):
     # worker) must not regress 'processed' to 'uploaded'.
     assert release_document_claim(pg_pool, "k_term") is False
     assert _read_status(pg_pool, "k_term") == "processed"
+
+
+# --- SEC-074: claimed_at + stale-processing reaper ------------------------
+
+def test_claim_stamps_claimed_at(pg_pool):
+    """A winning claim records claimed_at so the reaper can age it (SEC-074)."""
+    _seed_doc(pg_pool, "c1", "uploaded")
+    assert _read_claimed_at(pg_pool, "c1") is None
+    assert try_claim_document(pg_pool, "c1") is True
+    assert _read_claimed_at(pg_pool, "c1") is not None
+
+
+def test_reaper_reclaims_stale_processing(pg_pool):
+    """A claim older than the threshold is reset to 'uploaded' and returned."""
+    _seed_doc(pg_pool, "stale1", "uploaded")
+    assert try_claim_document(pg_pool, "stale1") is True
+    _force_claimed_at(pg_pool, "stale1", "1 hour")
+    reclaimed = reclaim_stale_processing(pg_pool, threshold_seconds=900)
+    assert "stale1" in reclaimed
+    assert _read_status(pg_pool, "stale1") == "uploaded"
+    assert _read_claimed_at(pg_pool, "stale1") is None
+
+
+def test_reaper_leaves_fresh_claims_alone(pg_pool):
+    """A merely-slow live worker (fresh claim) is never robbed of its claim."""
+    _seed_doc(pg_pool, "fresh1", "uploaded")
+    assert try_claim_document(pg_pool, "fresh1") is True
+    reclaimed = reclaim_stale_processing(pg_pool, threshold_seconds=900)
+    assert "fresh1" not in reclaimed
+    assert _read_status(pg_pool, "fresh1") == "processing"
+
+
+def test_reaper_reclaims_null_claimed_at_strays(pg_pool):
+    """A pre-migration 'processing' row (claimed_at NULL) is reclaimable."""
+    _seed_doc(pg_pool, "stray1", "processing")  # no claim stamp
+    reclaimed = reclaim_stale_processing(pg_pool, threshold_seconds=900)
+    assert "stray1" in reclaimed
+    assert _read_status(pg_pool, "stray1") == "uploaded"
+
+
+def test_reaper_ignores_terminal_rows(pg_pool):
+    """Reaper only touches 'processing' — never processed/quarantined."""
+    _seed_doc(pg_pool, "done1", "processed")
+    _seed_doc(pg_pool, "dlq1", "quarantined")
+    reclaimed = reclaim_stale_processing(pg_pool, threshold_seconds=0)
+    assert "done1" not in reclaimed and "dlq1" not in reclaimed
+    assert _read_status(pg_pool, "done1") == "processed"
+    assert _read_status(pg_pool, "dlq1") == "quarantined"
+
+
+# --- SEC-065: CAS-guarded poison quarantine write -------------------------
+
+def test_quarantine_status_cas_skips_processed(pg_pool):
+    """The poison status write must never clobber a terminal 'processed'."""
+    _seed_doc(pg_pool, "p1", "processed")
+    assert quarantine_document_status(pg_pool, "p1") is False
+    assert _read_status(pg_pool, "p1") == "processed"
+
+
+def test_quarantine_status_cas_marks_non_terminal(pg_pool):
+    """A non-'processed' row is transitioned to 'quarantined'."""
+    _seed_doc(pg_pool, "p2", "processing")
+    assert quarantine_document_status(pg_pool, "p2") is True
+    assert _read_status(pg_pool, "p2") == "quarantined"

@@ -14,12 +14,12 @@ from internal.metrics import (
     events_processed_total,
     event_processing_duration_seconds,
     events_quarantined_total,
-    dlq_size,
     analysis_worker_poison_messages_total,
     analysis_worker_archived_only_total,
 )
 from internal.storage.postgres_client import (
     get_document_status,
+    quarantine_document_status,
     release_document_claim,
     try_claim_document,
     update_document_article_id,
@@ -655,7 +655,7 @@ class DataProcessor:
         MinIO key parsed from the NATS event envelope. If parsing or fetch
         fails, writes a synthetic poison-pill envelope so the raw NATS
         payload is never silently dropped. Emits both the legacy
-        `events_quarantined_total` / `dlq_size` signals and the Phase 83
+        `events_quarantined_total` signal and the Phase 83
         `analysis_worker_poison_messages_total` counter.
         """
         obj_key: str
@@ -685,7 +685,14 @@ class DataProcessor:
 
         _quarantine_module.move_to_quarantine(self.minio, obj_key, raw_content)
         try:
-            self._update_document_status(obj_key, "quarantined")
+            # SEC-065: CAS write — never clobber a doc a concurrent redelivery
+            # has already processed to 'processed' (with real Gold rows).
+            if not quarantine_document_status(self.pg, obj_key):
+                logger.info(
+                    "Poison status write skipped — document already terminal "
+                    "('processed'); a concurrent redelivery succeeded.",
+                    obj_key=obj_key,
+                )
         except Exception as status_err:
             logger.warning(
                 "Failed to update poison document status",
@@ -693,7 +700,6 @@ class DataProcessor:
                 error=str(status_err),
             )
         events_quarantined_total.inc()
-        dlq_size.inc()
         analysis_worker_poison_messages_total.labels(reason=error_type).inc()
         logger.error(
             "Poison message quarantined after max redeliveries",

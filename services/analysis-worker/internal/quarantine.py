@@ -2,7 +2,7 @@ import json
 import io
 import structlog
 from minio import Minio
-from internal.metrics import events_quarantined_total, dlq_size
+from internal.metrics import events_quarantined_total
 
 logger = structlog.get_logger()
 
@@ -30,6 +30,7 @@ def quarantine(minio_client: Minio, obj_key: str, raw_content: dict, reason: str
     move_to_quarantine(minio_client, obj_key, raw_content)
     update_status_fn(obj_key, "quarantined")
     events_quarantined_total.inc()
-    dlq_size.inc()
+    # SEC-084: dlq_size is no longer incremented here — it is set
+    # authoritatively from a periodic MinIO bucket count by the reaper loop.
     span.set_attribute("aer.status", "quarantined")
     span.set_attribute("aer.quarantine_reason", reason)

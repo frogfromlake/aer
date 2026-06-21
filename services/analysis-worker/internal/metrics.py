@@ -36,7 +36,21 @@ event_processing_duration_seconds = Histogram(
 
 dlq_size = Gauge(
     "dlq_size",
-    "Current number of objects accumulated in the bronze-quarantine bucket.",
+    "Current number of objects accumulated in the bronze-quarantine bucket. "
+    "Set authoritatively from a periodic MinIO bucket count (SEC-084), not "
+    "incremented in-process — so it reflects the real bucket size including "
+    "30-day DLQ TTL evictions and survives a worker restart.",
+)
+
+# Phase 148 / SR-8 — documents recovered from a stale 'processing' claim by the
+# reaper on the last tick (SEC-074). A hard worker kill between the atomic claim
+# and the terminal status strands a row in 'processing'; the reaper resets it to
+# 'uploaded' and re-publishes it. Non-zero means data-loss-in-the-making was
+# caught and recovered — an operator alert signal. Returns to 0 on a clean tick.
+documents_stale_processing = Gauge(
+    "documents_stale_processing",
+    "Documents reclaimed from a stale 'processing' claim by the reaper on its "
+    "last tick (a hard worker kill stranded them before the terminal status).",
 )
 
 # Phase 154 — NATS JetStream consumer lag. `num_pending` is the count of

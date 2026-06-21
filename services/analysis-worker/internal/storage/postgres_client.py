@@ -171,7 +171,7 @@ def try_claim_document(pg_pool: ThreadedConnectionPool, obj_key: str) -> bool:
             cur.execute(
                 """
                 UPDATE documents
-                SET status = 'processing'
+                SET status = 'processing', claimed_at = now()
                 WHERE bronze_object_key = %s
                   AND (status IS NULL OR status IN ('pending', 'uploaded'))
                 RETURNING id
@@ -181,6 +181,81 @@ def try_claim_document(pg_pool: ThreadedConnectionPool, obj_key: str) -> bool:
             won = cur.fetchone() is not None
         conn.commit()
         return won
+    finally:
+        pg_pool.putconn(conn)
+
+
+def reclaim_stale_processing(
+    pg_pool: ThreadedConnectionPool, threshold_seconds: int
+) -> list[str]:
+    """Reset documents stranded in `processing` past the threshold — SEC-074.
+
+    A hard worker kill (OOM/SIGKILL/native segfault) between
+    ``try_claim_document`` and the terminal status write never runs the Python
+    except-handler that calls ``release_document_claim``, so the row stays
+    `processing` forever and the next NATS redelivery is silently ACK'd as a
+    duplicate — permanent analytical data loss.
+
+    This CAS reset returns rows whose claim is older than ``threshold_seconds``
+    (set well above ``ack_wait`` so a merely-slow live worker is never robbed of
+    its claim) back to `uploaded` and clears ``claimed_at``, returning their
+    object keys so the caller can re-publish a synthetic MinIO event. Rows whose
+    ``claimed_at`` is NULL are pre-migration strays from a worker that is by
+    definition long gone, so they are reclaimable too. Re-processing is safe:
+    Gold is ReplacingMergeTree-idempotent.
+
+    Returns the list of reclaimed ``bronze_object_key`` values (empty on a
+    healthy tick).
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE documents
+                SET status = 'uploaded', claimed_at = NULL
+                WHERE status = 'processing'
+                  AND (claimed_at IS NULL
+                       OR claimed_at < now() - make_interval(secs => %s))
+                RETURNING bronze_object_key
+                """,
+                (threshold_seconds,),
+            )
+            keys = [row[0] for row in cur.fetchall()]
+        conn.commit()
+        return keys
+    finally:
+        pg_pool.putconn(conn)
+
+
+def quarantine_document_status(pg_pool: ThreadedConnectionPool, obj_key: str) -> bool:
+    """CAS-guarded `quarantined` write for the poison path — SEC-065.
+
+    The max-deliver poison handler (`quarantine_poison_message`) runs *after*
+    the exception handler already released the claim, so it holds no claim when
+    it marks the document `quarantined`. An unconditional UPDATE could therefore
+    clobber a row a concurrent redelivery has since processed to `processed`
+    (with real Gold rows) — the exact drift A27 exists to prevent. This refuses
+    to overwrite a terminal `processed`.
+
+    Returns True iff a non-`processed` row was transitioned to `quarantined`.
+    """
+    conn = pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE documents
+                SET status = 'quarantined'
+                WHERE bronze_object_key = %s
+                  AND status IS DISTINCT FROM 'processed'
+                RETURNING id
+                """,
+                (obj_key,),
+            )
+            updated = cur.fetchone() is not None
+        conn.commit()
+        return updated
     finally:
         pg_pool.putconn(conn)
 
