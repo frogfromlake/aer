@@ -220,15 +220,15 @@ func TestGetPercentileNormalizedMetrics_RanksWithinGroup(t *testing.T) {
 	if excluded != 1 {
 		t.Errorf("excluded: want 1 (no-lang row), got %d", excluded)
 	}
-	if len(rows) != 1 {
-		t.Fatalf("want 1 hourly bucket, got %d", len(rows))
+	if len(rows.Rows) != 1 {
+		t.Fatalf("want 1 hourly bucket, got %d", len(rows.Rows))
 	}
 	// Mean percentile of a uniformly ranked group is 0.5.
-	if rows[0].Value < 0.49 || rows[0].Value > 0.51 {
-		t.Errorf("mean percentile: want ~0.5, got %v", rows[0].Value)
+	if rows.Rows[0].Value < 0.49 || rows.Rows[0].Value > 0.51 {
+		t.Errorf("mean percentile: want ~0.5, got %v", rows.Rows[0].Value)
 	}
-	if rows[0].Count != 5 {
-		t.Errorf("count: want 5 (lang-bearing rows), got %d", rows[0].Count)
+	if rows.Rows[0].Count != 5 {
+		t.Errorf("count: want 5 (lang-bearing rows), got %d", rows.Rows[0].Count)
 	}
 }
 

@@ -101,11 +101,11 @@ func (s *ClickHouseStorage) GetEquivalenceStatus(ctx context.Context, metricName
 // The `SETTINGS join_use_nulls = 1` clause makes LEFT-JOIN misses produce true
 // NULLs instead of ClickHouse's default zero-values, so `IS NULL` / `IS NOT NULL`
 // discriminate correctly regardless of the detected_language string domain.
-func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) (MetricsResult, int64, error) {
 	cacheKey := hotQueryKey("normalized_metrics",
 		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(metricName), int(resolution))
 	if cached, ok := s.normalizedMetricsCache.get(cacheKey, s.metricsCacheTTL); ok {
-		return cached.rows, cached.excluded, nil
+		return MetricsResult{Rows: cached.rows, Truncated: cached.truncated}, cached.excluded, nil
 	}
 
 	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
@@ -137,13 +137,15 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 	var excludedResult []struct{ Cnt uint64 }
 	if err := s.conn.Select(ctx, &excludedResult, excludedQuery, args...); err != nil {
 		slog.Error("Failed to count excluded normalized metrics", "error", err)
-		return nil, 0, err
+		return MetricsResult{}, 0, err
 	}
 	var excluded int64
 	if len(excludedResult) > 0 {
 		excluded = int64(excludedResult[0].Cnt)
 	}
 
+	// SEC-077: over-fetch one row past the cap to detect (and disclose) truncation.
+	rowCap := s.rowLimit * resolution.rowLimitMultiplier()
 	query := fmt.Sprintf(`
 		SELECT
 			%s AS TS,
@@ -165,13 +167,15 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 		ORDER BY TS ASC
 		LIMIT %d
 		SETTINGS join_use_nulls = 1
-	`, resolution.bucketExpr("m.timestamp"), baseWhere, s.rowLimit*resolution.rowLimitMultiplier())
+	`, resolution.bucketExpr("m.timestamp"), baseWhere, rowCap+1)
 
 	var results []MetricRow
 	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
 		slog.Error("Failed to query normalized metrics from ClickHouse", "error", err)
-		return nil, 0, err
+		return MetricsResult{}, 0, err
 	}
+
+	rows, truncated := capMetricRows(results, rowCap)
 
 	if excluded > 0 {
 		slog.Warn("normalized metrics query excluded rows lacking language detection",
@@ -183,8 +187,8 @@ func (s *ClickHouseStorage) GetNormalizedMetrics(ctx context.Context, start, end
 		)
 	}
 
-	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: results, excluded: excluded})
-	return results, excluded, nil
+	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: rows, excluded: excluded, truncated: truncated})
+	return MetricsResult{Rows: rows, Truncated: truncated}, excluded, nil
 }
 
 // equivalenceEntry is the storage-layer view of one

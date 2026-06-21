@@ -108,25 +108,26 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	// percentile series has no raw spread to attach.
 	includeStddev := request.Params.IncludeStddev != nil && *request.Params.IncludeStddev && !useNormalization
 
-	var data []storage.MetricRow
+	var result storage.MetricsResult
 	var excludedCount int64
 	var err error
 	switch mode {
 	case Zscore:
-		data, excludedCount, err = s.db.GetNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
+		result, excludedCount, err = s.db.GetNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 	case Percentile:
-		data, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
+		result, excludedCount, err = s.db.GetPercentileNormalizedMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 	default:
 		if includeStddev {
-			data, err = s.db.GetMetricsWithSpread(ctx, start, end, sources, request.Params.MetricName, resolution)
+			result, err = s.db.GetMetricsWithSpread(ctx, start, end, sources, request.Params.MetricName, resolution)
 		} else {
-			data, err = s.db.GetMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
+			result, err = s.db.GetMetrics(ctx, start, end, sources, request.Params.MetricName, resolution)
 		}
 	}
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetrics", "error", err)
 		return GetMetrics500JSONResponse{Message: genericInternalError}, nil
 	}
+	data := result.Rows
 
 	points := make([]struct {
 		Count      *int64    `json:"count,omitempty"`
@@ -165,6 +166,7 @@ func (s *Server) GetMetrics(ctx context.Context, request GetMetricsRequestObject
 	return GetMetrics200JSONResponse{
 		Data:          points,
 		ExcludedCount: excludedCount,
+		Truncated:     result.Truncated,
 	}, nil
 }
 

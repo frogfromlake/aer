@@ -4656,6 +4656,8 @@ export interface operations {
                              */
                             stddev?: number;
                         }[];
+                        /** @description True when the time-series hit the server's row cap and the tail (the latest buckets) was dropped. The dashboard surfaces a "showing the earliest N buckets" note so a wide multi-source/no-metric-filter window is never silently presented as a complete series. Narrow the window, filter to a metric, or raise the resolution to clear it. */
+                        truncated: boolean;
                         /**
                          * Format: int64
                          * @description Number of source rows that were dropped from the aggregation because their article had no matching language detection. Always 0 for raw (non-normalized) queries; may be non-zero for `normalization=zscore`, where the language-scoped baseline join requires a detected language. A non-zero value surfaces data-quality gaps without altering the aggregated payload.

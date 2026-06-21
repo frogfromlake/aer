@@ -41,11 +41,13 @@ func (s *singleSlot[T]) put(key string, v T) {
 	s.filled = true
 }
 
-// normalizedMetricsCacheEntry bundles the two return values of
-// GetNormalizedMetrics so both can be served from a single cache slot.
+// normalizedMetricsCacheEntry bundles the return values of
+// GetNormalizedMetrics / GetPercentileNormalizedMetrics so all can be served
+// from a single cache slot (incl. the SEC-077 truncation flag).
 type normalizedMetricsCacheEntry struct {
-	rows     []MetricRow
-	excluded int64
+	rows      []MetricRow
+	excluded  int64
+	truncated bool
 }
 
 // hotQueryKey renders a deterministic cache key for a hot-path query.

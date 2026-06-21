@@ -27,6 +27,26 @@ type MetricRow struct {
 	Stddev float64
 }
 
+// MetricsResult bundles a metric time-series with a truncation flag, set when
+// the row set hit the resolution-scaled hard cap and the tail (latest buckets)
+// was dropped (SEC-077). Mirrors ScatterResult/ParallelResult so every capped
+// query surfaces the same honest "this is not the whole series" signal instead
+// of returning a silently-shortened chart.
+type MetricsResult struct {
+	Rows      []MetricRow
+	Truncated bool
+}
+
+// capMetricRows trims an over-fetched (cap+1) row set back to cap, reporting
+// whether the tail was truncated (SEC-077) — the same one-extra-row detection
+// the scatter/parallel paths use.
+func capMetricRows(rows []MetricRow, cap int) ([]MetricRow, bool) {
+	if len(rows) > cap {
+		return rows[:cap], true
+	}
+	return rows, false
+}
+
 // Resolution selects the temporal bucketing applied at query time.
 // The zero value (ResolutionFiveMinute) preserves backward-compatible behavior.
 type Resolution int
@@ -172,7 +192,7 @@ func (r Resolution) queryShape() metricsQueryShape {
 // MVs otherwise — see [Resolution.queryShape]). A hard LIMIT scaled by
 // the resolution keeps memory bounded. Optional source and metricName
 // filters narrow results to specific dimensions.
-func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, error) {
+func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) (MetricsResult, error) {
 	var results []MetricRow
 
 	shape := resolution.queryShape()
@@ -207,19 +227,22 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 	// The ClickHouse Go driver (clickhouse-go/v2) does not support parameterized
 	// LIMIT clauses via the $N positional syntax. rowLimit is validated at
 	// initialization (NewClickHouseStorage) and is never negative.
+	// SEC-077: over-fetch one row past the cap so truncation is detectable
+	// rather than a silently-shortened (earliest-buckets-only) series.
+	rowCap := s.rowLimit * resolution.rowLimitMultiplier()
 	query += fmt.Sprintf(`
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, s.rowLimit*resolution.rowLimitMultiplier())
+	`, rowCap+1)
 
-	err := s.conn.Select(ctx, &results, query, args...)
-	if err != nil {
+	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
 		slog.Error("Failed to query metrics from ClickHouse", "error", err)
-		return nil, err
+		return MetricsResult{}, err
 	}
 
-	return results, nil
+	rows, truncated := capMetricRows(results, rowCap)
+	return MetricsResult{Rows: rows, Truncated: truncated}, nil
 }
 
 // GetMetricsWithSpread retrieves aggregated time-series data together with the
@@ -233,7 +256,7 @@ func (s *ClickHouseStorage) GetMetrics(ctx context.Context, start, end time.Time
 //
 // stddevSamp is undefined for single-row buckets (n-1 == 0 → NaN, which would
 // break JSON encoding); the `if(count() > 1, …, 0)` guard collapses those to 0.
-func (s *ClickHouseStorage) GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, error) {
+func (s *ClickHouseStorage) GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) (MetricsResult, error) {
 	var results []MetricRow
 
 	bucket := resolution.bucketExpr("timestamp")
@@ -265,18 +288,21 @@ func (s *ClickHouseStorage) GetMetricsWithSpread(ctx context.Context, start, end
 		args = append(args, *metricName)
 	}
 
+	// SEC-077: over-fetch one row past the cap to detect (and disclose) truncation.
+	rowCap := s.rowLimit * resolution.rowLimitMultiplier()
 	query += fmt.Sprintf(`
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, s.rowLimit*resolution.rowLimitMultiplier())
+	`, rowCap+1)
 
 	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
 		slog.Error("Failed to query metrics with spread from ClickHouse", "error", err)
-		return nil, err
+		return MetricsResult{}, err
 	}
 
-	return results, nil
+	rows, truncated := capMetricRows(results, rowCap)
+	return MetricsResult{Rows: rows, Truncated: truncated}, nil
 }
 
 // AvailableMetricRow represents a metric name with its validation status and optional equivalence metadata.

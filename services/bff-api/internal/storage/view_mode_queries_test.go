@@ -430,13 +430,13 @@ func TestGetMetricsWithSpread_ComputesStddev(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("expected one hourly bucket, got %d", len(got))
+	if len(got.Rows) != 1 {
+		t.Fatalf("expected one hourly bucket, got %d", len(got.Rows))
 	}
-	if got[0].Count != 4 {
-		t.Fatalf("expected count 4, got %d", got[0].Count)
+	if got.Rows[0].Count != 4 {
+		t.Fatalf("expected count 4, got %d", got.Rows[0].Count)
 	}
-	if got[0].Stddev < 0.25 || got[0].Stddev > 0.27 {
-		t.Fatalf("sample stddev out of expected range (~0.258): %f", got[0].Stddev)
+	if got.Rows[0].Stddev < 0.25 || got.Rows[0].Stddev > 0.27 {
+		t.Fatalf("sample stddev out of expected range (~0.258): %f", got.Rows[0].Stddev)
 	}
 }

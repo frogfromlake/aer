@@ -77,12 +77,12 @@ func unionSourceParams(source, sourceIds *string) []string {
 // Store abstracts the data access layer for testability.
 type Store interface {
 	Ping(ctx context.Context) error
-	GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
+	GetMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, error)
 	// Phase 131: time-series with per-bucket sample stddev for the ±1σ band.
-	GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error)
-	GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
+	GetMetricsWithSpread(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, error)
+	GetNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, int64, error)
 	// Phase 115: percentile-rank normalization, deviation labelling, cross-frame gate.
-	GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error)
+	GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, int64, error)
 	CountLanguagesForSources(ctx context.Context, start, end time.Time, sources []string) (int, error)
 	// Phase 151: all-time distinct-document count per source (NOT window-scoped),
 	// for the Atmosphere dataset-overview readout (Probe.documentCount).

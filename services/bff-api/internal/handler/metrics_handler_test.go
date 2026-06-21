@@ -187,6 +187,38 @@ func TestGetMetrics_ReturnsEmptySliceOnNoData(t *testing.T) {
 	if got.ExcludedCount != 0 {
 		t.Errorf("expected excludedCount=0 for empty raw response, got %d", got.ExcludedCount)
 	}
+	if got.Truncated {
+		t.Error("expected truncated=false for an uncapped response (SEC-077)")
+	}
+}
+
+// TestGetMetrics_SurfacesTruncationFlag pins SEC-077: when the storage layer
+// reports the series hit the row cap, the handler surfaces truncated=true so the
+// dashboard can disclose the chart is not exhaustive (rather than silently
+// showing only the earliest buckets).
+func TestGetMetrics_SurfacesTruncationFlag(t *testing.T) {
+	ts := time.Date(2025, 3, 15, 12, 0, 0, 0, time.UTC)
+	store := &mockStore{
+		metrics:          []storage.MetricRow{{TS: ts, Value: 1, Source: "s", MetricName: "m"}},
+		metricsTruncated: true,
+	}
+	s := NewServer(store, nil, nil, nil, nil)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+	resp, err := s.GetMetrics(context.Background(), GetMetricsRequestObject{
+		Params: GetMetricsParams{StartDate: &start, EndDate: &end},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := resp.(GetMetrics200JSONResponse)
+	if !ok {
+		t.Fatalf("expected GetMetrics200JSONResponse, got %T", resp)
+	}
+	if !got.Truncated {
+		t.Error("expected truncated=true to propagate from storage to the response (SEC-077)")
+	}
 }
 
 func TestGetMetrics_MapsStorageRowsToResponse(t *testing.T) {

@@ -74,6 +74,25 @@ func newCacheStore(t *testing.T, ctx context.Context, ttl time.Duration) *ClickH
 // GetMetrics
 // ---------------------------------------------------------------------------
 
+// TestCapMetricRows pins the SEC-077 over-fetch trimming: queries fetch cap+1
+// rows, and this helper trims to cap while reporting whether the tail was cut.
+func TestCapMetricRows(t *testing.T) {
+	rows := []MetricRow{{Source: "a"}, {Source: "b"}, {Source: "c"}}
+
+	// Fewer than cap → not truncated, all rows kept.
+	if got, tr := capMetricRows(rows, 5); tr || len(got) != 3 {
+		t.Errorf("under cap: want (3, false), got (%d, %v)", len(got), tr)
+	}
+	// Exactly cap (the over-fetch returned no extra row) → not truncated.
+	if got, tr := capMetricRows(rows, 3); tr || len(got) != 3 {
+		t.Errorf("at cap: want (3, false), got (%d, %v)", len(got), tr)
+	}
+	// More than cap (the +1 over-fetch row present) → truncated, trimmed to cap.
+	if got, tr := capMetricRows(rows, 2); !tr || len(got) != 2 {
+		t.Errorf("over cap: want (2, true), got (%d, %v)", len(got), tr)
+	}
+}
+
 func TestGetMetrics(t *testing.T) {
 	store, ctx := setupTestStore(t)
 	now := time.Now().UTC().Truncate(time.Second)
@@ -89,27 +108,27 @@ func TestGetMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMetrics: %v", err)
 	}
-	if len(all) != 3 {
-		t.Fatalf("expected 3 results inside time range, got %d", len(all))
+	if len(all.Rows) != 3 {
+		t.Fatalf("expected 3 results inside time range, got %d", len(all.Rows))
 	}
 
 	bySource, err := store.GetMetrics(ctx, start, end, []string{"wikipedia"}, nil, ResolutionFiveMinute)
-	if err != nil || len(bySource) != 2 {
-		t.Fatalf("expected 2 wikipedia results, got %d (err %v)", len(bySource), err)
+	if err != nil || len(bySource.Rows) != 2 {
+		t.Fatalf("expected 2 wikipedia results, got %d (err %v)", len(bySource.Rows), err)
 	}
 
 	metricName := "word_count"
 	byMetric, err := store.GetMetrics(ctx, start, end, nil, &metricName, ResolutionFiveMinute)
-	if err != nil || len(byMetric) != 2 {
-		t.Fatalf("expected 2 word_count results, got %d (err %v)", len(byMetric), err)
+	if err != nil || len(byMetric.Rows) != 2 {
+		t.Fatalf("expected 2 word_count results, got %d (err %v)", len(byMetric.Rows), err)
 	}
 
 	both, err := store.GetMetrics(ctx, start, end, []string{"wikipedia"}, &metricName, ResolutionFiveMinute)
-	if err != nil || len(both) != 1 {
-		t.Fatalf("expected 1 wikipedia/word_count result, got %d (err %v)", len(both), err)
+	if err != nil || len(both.Rows) != 1 {
+		t.Fatalf("expected 1 wikipedia/word_count result, got %d (err %v)", len(both.Rows), err)
 	}
-	if both[0].Source != "wikipedia" || both[0].MetricName != "word_count" {
-		t.Errorf("projection mismatch: %+v", both[0])
+	if both.Rows[0].Source != "wikipedia" || both.Rows[0].MetricName != "word_count" {
+		t.Errorf("projection mismatch: %+v", both.Rows[0])
 	}
 }
 
@@ -274,17 +293,17 @@ func TestGetNormalizedMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
+	if len(results.Rows) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results.Rows))
 	}
 	if excluded != 0 {
 		t.Errorf("expected excluded=0, got %d", excluded)
 	}
-	if results[0].Value < 0.99 || results[0].Value > 1.01 { // (180-150)/30 = 1.0
-		t.Errorf("expected zscore ~1.0, got %v", results[0].Value)
+	if results.Rows[0].Value < 0.99 || results.Rows[0].Value > 1.01 { // (180-150)/30 = 1.0
+		t.Errorf("expected zscore ~1.0, got %v", results.Rows[0].Value)
 	}
-	if results[0].Source != "tagesschau" {
-		t.Errorf("expected source=tagesschau, got %q", results[0].Source)
+	if results.Rows[0].Source != "tagesschau" {
+		t.Errorf("expected source=tagesschau, got %q", results.Rows[0].Source)
 	}
 }
 
@@ -301,8 +320,8 @@ func TestGetNormalizedMetrics_NoBaselineMatchYieldsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("expected empty result, got %d rows", len(results))
+	if len(results.Rows) != 0 {
+		t.Fatalf("expected empty result, got %d rows", len(results.Rows))
 	}
 	if excluded != 0 {
 		t.Errorf("expected excluded=0 (only baseline missing), got %d", excluded)
@@ -322,8 +341,8 @@ func TestGetNormalizedMetrics_ZeroStdBaselineFiltered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("expected zero-std baselines filtered, got %d rows", len(results))
+	if len(results.Rows) != 0 {
+		t.Fatalf("expected zero-std baselines filtered, got %d rows", len(results.Rows))
 	}
 }
 
@@ -342,11 +361,11 @@ func TestGetNormalizedMetrics_MissingLanguageDetectionIsCounted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 aggregated bucket, got %d", len(results))
+	if len(results.Rows) != 1 {
+		t.Fatalf("expected 1 aggregated bucket, got %d", len(results.Rows))
 	}
-	if results[0].Value < 0.99 || results[0].Value > 1.01 {
-		t.Errorf("expected zscore ~1.0, got %v", results[0].Value)
+	if results.Rows[0].Value < 0.99 || results.Rows[0].Value > 1.01 {
+		t.Errorf("expected zscore ~1.0, got %v", results.Rows[0].Value)
 	}
 	if excluded != 1 {
 		t.Errorf("expected excluded=1, got %d", excluded)

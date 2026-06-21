@@ -340,11 +340,11 @@ func (s *ClickHouseStorage) CheckNormalizationEquivalenceForLanguages(ctx contex
 // Sharing the language-detection LEFT JOIN preserves the same
 // excludedCount semantics: rows whose article has no detected language
 // are dropped from the percentile computation and surfaced to the client.
-func (s *ClickHouseStorage) GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) ([]MetricRow, int64, error) {
+func (s *ClickHouseStorage) GetPercentileNormalizedMetrics(ctx context.Context, start, end time.Time, sources []string, metricName *string, resolution Resolution) (MetricsResult, int64, error) {
 	cacheKey := hotQueryKey("percentile_metrics",
 		start.UnixNano(), end.UnixNano(), strings.Join(sources, ","), derefString(metricName), int(resolution))
 	if cached, ok := s.normalizedMetricsCache.get(cacheKey, s.metricsCacheTTL); ok {
-		return cached.rows, cached.excluded, nil
+		return MetricsResult{Rows: cached.rows, Truncated: cached.truncated}, cached.excluded, nil
 	}
 
 	baseWhere := "m.timestamp >= $1 AND m.timestamp <= $2"
@@ -375,13 +375,15 @@ func (s *ClickHouseStorage) GetPercentileNormalizedMetrics(ctx context.Context, 
 	var excludedResult []struct{ Cnt uint64 }
 	if err := s.conn.Select(ctx, &excludedResult, excludedQuery, args...); err != nil {
 		slog.Error("Failed to count excluded percentile metrics", "error", err)
-		return nil, 0, err
+		return MetricsResult{}, 0, err
 	}
 	var excluded int64
 	if len(excludedResult) > 0 {
 		excluded = int64(excludedResult[0].Cnt)
 	}
 
+	// SEC-077: over-fetch one row past the cap to detect (and disclose) truncation.
+	rowCap := s.rowLimit * resolution.rowLimitMultiplier()
 	// Window function ranks each value within (metric_name, source,
 	// language) over the active query window. (rank-1)/(N-1) maps to
 	// [0, 1]; single-row groups collapse to 0 (denominator guard).
@@ -416,16 +418,17 @@ func (s *ClickHouseStorage) GetPercentileNormalizedMetrics(ctx context.Context, 
 		GROUP BY TS, Source, MetricName
 		ORDER BY TS ASC
 		LIMIT %d
-	`, baseWhere, resolution.bucketExpr("ts"), s.rowLimit*resolution.rowLimitMultiplier())
+	`, baseWhere, resolution.bucketExpr("ts"), rowCap+1)
 
 	var results []MetricRow
 	if err := s.conn.Select(ctx, &results, query, args...); err != nil {
 		slog.Error("Failed to query percentile metrics from ClickHouse", "error", err)
-		return nil, 0, err
+		return MetricsResult{}, 0, err
 	}
 
-	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: results, excluded: excluded})
-	return results, excluded, nil
+	rows, truncated := capMetricRows(results, rowCap)
+	s.normalizedMetricsCache.put(cacheKey, normalizedMetricsCacheEntry{rows: rows, excluded: excluded, truncated: truncated})
+	return MetricsResult{Rows: rows, Truncated: truncated}, excluded, nil
 }
 
 // GetProbeEquivalence returns per-metric Level-1 / Level-2 / Level-3

@@ -25,6 +25,7 @@ func timeAt(s string) time.Time {
 type mockStore struct {
 	pingErr                   error
 	metrics                   []storage.MetricRow
+	metricsTruncated          bool
 	metricsErr                error
 	normalizedMetrics         []storage.MetricRow
 	normalizedMetricsExcluded int64
@@ -154,22 +155,22 @@ func (m *mockStore) Ping(_ context.Context) error {
 	return m.pingErr
 }
 
-func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
+func (m *mockStore) GetMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
-	return m.metrics, m.metricsErr
+	return storage.MetricsResult{Rows: m.metrics, Truncated: m.metricsTruncated}, m.metricsErr
 }
 
-func (m *mockStore) GetMetricsWithSpread(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, error) {
+func (m *mockStore) GetMetricsWithSpread(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
-	return m.metricsSpread, m.metricsSpreadErr
+	return storage.MetricsResult{Rows: m.metricsSpread, Truncated: m.metricsTruncated}, m.metricsSpreadErr
 }
 
 func (m *mockStore) GetMetricScatter(_ context.Context, xMetric, yMetric string, _, _ *string, sources []string, start, end time.Time, _ int, _ *storage.MetadataFilter) (storage.ScatterResult, error) {
@@ -181,13 +182,13 @@ func (m *mockStore) GetMetricScatter(_ context.Context, xMetric, yMetric string,
 	return m.scatter, m.scatterErr
 }
 
-func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
+func (m *mockStore) GetNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, int64, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
-	return m.normalizedMetrics, m.normalizedMetricsExcluded, m.normalizedMetricsErr
+	return storage.MetricsResult{Rows: m.normalizedMetrics, Truncated: m.metricsTruncated}, m.normalizedMetricsExcluded, m.normalizedMetricsErr
 }
 
 func (m *mockStore) CheckBaselineExists(_ context.Context, _ string, _ *string) (bool, error) {
@@ -198,13 +199,13 @@ func (m *mockStore) CheckEquivalenceExists(_ context.Context, _ string) (bool, e
 	return m.equivalenceExists, m.equivalenceExistsErr
 }
 
-func (m *mockStore) GetPercentileNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) ([]storage.MetricRow, int64, error) {
+func (m *mockStore) GetPercentileNormalizedMetrics(_ context.Context, start, end time.Time, sources []string, metricName *string, resolution storage.Resolution) (storage.MetricsResult, int64, error) {
 	m.capturedStart = start
 	m.capturedEnd = end
 	m.capturedSources = sources
 	m.capturedMetricName = metricName
 	m.capturedResolution = resolution
-	return m.percentileMetrics, m.percentileMetricsExcluded, m.percentileMetricsErr
+	return storage.MetricsResult{Rows: m.percentileMetrics, Truncated: m.metricsTruncated}, m.percentileMetricsExcluded, m.percentileMetricsErr
 }
 
 func (m *mockStore) CountLanguagesForSources(_ context.Context, _, _ time.Time, _ []string) (int, error) {

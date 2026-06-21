@@ -67,24 +67,24 @@ func TestGetMetrics_ResolutionBucketing(t *testing.T) {
 	end := now.Add(time.Hour)
 
 	fiveMin, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionFiveMinute)
-	if err != nil || len(fiveMin) != 4 {
-		t.Fatalf("5min expected 4 buckets, got %d (err %v)", len(fiveMin), err)
+	if err != nil || len(fiveMin.Rows) != 4 {
+		t.Fatalf("5min expected 4 buckets, got %d (err %v)", len(fiveMin.Rows), err)
 	}
 	hourly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionHourly)
 	if err != nil {
 		t.Fatalf("hourly: %v", err)
 	}
-	if len(hourly) >= len(fiveMin) || len(hourly) == 0 {
-		t.Errorf("hourly should collapse 5-min buckets: hourly=%d fiveMin=%d", len(hourly), len(fiveMin))
+	if len(hourly.Rows) >= len(fiveMin.Rows) || len(hourly.Rows) == 0 {
+		t.Errorf("hourly should collapse 5-min buckets: hourly=%d fiveMin=%d", len(hourly.Rows), len(fiveMin.Rows))
 	}
-	if daily, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionDaily); err != nil || len(daily) > 2 {
-		t.Errorf("daily expected ≤2 buckets, got %d (err %v)", len(daily), err)
+	if daily, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionDaily); err != nil || len(daily.Rows) > 2 {
+		t.Errorf("daily expected ≤2 buckets, got %d (err %v)", len(daily.Rows), err)
 	}
 	monthly, err := store.GetMetrics(ctx, start, end, nil, nil, ResolutionMonthly)
-	if err != nil || len(monthly) < 1 || len(monthly) > 2 {
-		t.Errorf("monthly expected 1–2 buckets, got %d (err %v)", len(monthly), err)
+	if err != nil || len(monthly.Rows) < 1 || len(monthly.Rows) > 2 {
+		t.Errorf("monthly expected 1–2 buckets, got %d (err %v)", len(monthly.Rows), err)
 	}
-	for _, b := range monthly {
+	for _, b := range monthly.Rows {
 		if !b.TS.Equal(time.Date(b.TS.Year(), b.TS.Month(), 1, 0, 0, 0, 0, time.UTC)) {
 			t.Errorf("monthly bucket not month-aligned: %v", b.TS)
 		}
@@ -125,10 +125,10 @@ func TestGetMetrics_ResolutionRouting(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetMetrics(%s): %v", tc.name, err)
 			}
-			if len(rows) != 1 {
-				t.Fatalf("expected 1 row, got %d: %+v", len(rows), rows)
+			if len(rows.Rows) != 1 {
+				t.Fatalf("expected 1 row, got %d: %+v", len(rows.Rows), rows.Rows)
 			}
-			got := rows[0]
+			got := rows.Rows[0]
 			if got.Source != tc.source || got.MetricName != tc.metric {
 				t.Errorf("projection mismatch: %+v", got)
 			}
@@ -157,14 +157,14 @@ func TestGetMetrics_WeeklyRebucket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMetrics(weekly): %v", err)
 	}
-	if len(rows) != 1 {
-		t.Fatalf("expected 1 weekly bucket, got %d: %+v", len(rows), rows)
+	if len(rows.Rows) != 1 {
+		t.Fatalf("expected 1 weekly bucket, got %d: %+v", len(rows.Rows), rows.Rows)
 	}
-	if rows[0].Value != 5.0 { // avg of {4,6,4,6}
-		t.Errorf("weekly avg: want 5.0, got %v", rows[0].Value)
+	if rows.Rows[0].Value != 5.0 { // avg of {4,6,4,6}
+		t.Errorf("weekly avg: want 5.0, got %v", rows.Rows[0].Value)
 	}
-	if rows[0].Count != 4 {
-		t.Errorf("weekly count: want 4, got %d", rows[0].Count)
+	if rows.Rows[0].Count != 4 {
+		t.Errorf("weekly count: want 4, got %d", rows.Rows[0].Count)
 	}
 }
 

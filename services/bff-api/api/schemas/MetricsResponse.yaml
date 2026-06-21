@@ -2,12 +2,21 @@ type: object
 required:
   - data
   - excludedCount
+  - truncated
 properties:
   data:
     type: array
     description: The aggregated time-series data points for the requested window.
     items:
       $ref: './MetricDataPoint.yaml'
+  truncated:
+    type: boolean
+    description: >
+      True when the time-series hit the server's row cap and the tail (the
+      latest buckets) was dropped. The dashboard surfaces a "showing the
+      earliest N buckets" note so a wide multi-source/no-metric-filter window
+      is never silently presented as a complete series. Narrow the window,
+      filter to a metric, or raise the resolution to clear it.
   excludedCount:
     type: integer
     format: int64
