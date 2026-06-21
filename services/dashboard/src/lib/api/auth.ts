@@ -6,7 +6,21 @@
 // is sent automatically; `credentials: 'same-origin'` is explicit for clarity.
 // CSRF is covered server-side by Sec-Fetch-Site + SameSite=Strict.
 
+import { notifyUnauthenticated } from './queries/shared';
+
 const BASE = '/api/v1';
+
+// SEC-086: pre-auth endpoints legitimately 401 (bad credentials / expired
+// token), so their 401 must NOT trip the global unauthenticated handler. The
+// session probe `/auth/me` is also excluded — it resolves its own state via
+// `me()` (SEC-081) and the (app) gate owns the bounce (with a redirect param).
+const PRE_AUTH_PATHS = new Set([
+  '/auth/login',
+  '/auth/accept-invite',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/me'
+]);
 
 export interface AuthUser {
   id: string;
@@ -90,6 +104,9 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Au
   if (res.ok) {
     return { ok: true, data: payload as T };
   }
+  // SEC-086: a 401 on a post-auth action means the session expired mid-action;
+  // route it through the same global handler the analytics layer uses.
+  if (res.status === 401 && !PRE_AUTH_PATHS.has(path)) notifyUnauthenticated();
   const err = (payload ?? {}) as { code?: string; message?: string };
   return {
     ok: false,
@@ -106,10 +123,26 @@ export const login = (email: string, password: string) =>
 
 export const logout = () => send<void>('POST', '/auth/logout');
 
-/** Returns the current user, or null when there is no valid session. */
-export async function me(): Promise<AuthUser | null> {
+/**
+ * Result of a session probe (SEC-081). A non-ok `/auth/me` must NOT collapse to
+ * "logged out": only a definitive 401 is `unauthenticated` (clear identity,
+ * bounce). A transient failure — transport error (status 0) or a 5xx — is
+ * `unknown`: the caller should keep the user in place and retry rather than
+ * evicting a valid `__Host-` session on a passing BFF blip.
+ */
+export type MeResult =
+  | { state: 'authenticated'; user: AuthUser }
+  | { state: 'unauthenticated' }
+  | { state: 'unknown' };
+
+/** Probes the current session. See {@link MeResult} for the three outcomes. */
+export async function me(): Promise<MeResult> {
   const r = await send<AuthUser>('GET', '/auth/me');
-  return r.ok ? r.data : null;
+  if (r.ok) return { state: 'authenticated', user: r.data };
+  // Only a real 401 is a logged-out signal; anything else (status 0 transport
+  // failure, 5xx) is transient and must not bounce the user.
+  if (r.status === 401) return { state: 'unauthenticated' };
+  return { state: 'unknown' };
 }
 
 export const acceptInvite = (token: string, password: string, acceptResponsibleUse: boolean) =>

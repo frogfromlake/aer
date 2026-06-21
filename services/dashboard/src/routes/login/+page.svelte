@@ -24,8 +24,8 @@
     // Already signed in? Skip straight through. `replaceState` so the auth page
     // never lingers in the history back-stack — otherwise the SideRail
     // back-arrow (Phase 127) would land on /login and bounce straight back here.
-    const u = await refreshMe();
-    if (u) await goto(redirectTarget(), { replaceState: true });
+    const r = await refreshMe();
+    if (r.state === 'authenticated') await goto(redirectTarget(), { replaceState: true });
   });
 
   async function submit(event: SubmitEvent) {

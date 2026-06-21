@@ -2,6 +2,7 @@
 // as auth.ts: same-origin requests, no token in JS.
 
 import type { AuthResult } from './auth';
+import { notifyUnauthenticated } from './queries/shared';
 
 const BASE = '/api/v1';
 
@@ -56,6 +57,10 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Au
     /* empty body */
   }
   if (res.ok) return { ok: true, data: payload as T };
+  // SEC-086: a saved-analysis action that 401s means the session expired
+  // mid-action — route it through the same global handler (all analyses paths
+  // are post-auth, so none legitimately 401).
+  if (res.status === 401) notifyUnauthenticated();
   const e = (payload ?? {}) as { code?: string; message?: string };
   return {
     ok: false,

@@ -31,12 +31,23 @@ export function setUser(u: authApi.AuthUser | null): void {
   checked = true;
 }
 
-/** Hydrate the current user from the server. Safe to call repeatedly. */
-export async function refreshMe(): Promise<authApi.AuthUser | null> {
-  const u = await authApi.me();
-  currentUser = u;
-  checked = true;
-  return u;
+/**
+ * Hydrate the current user from the server. Safe to call repeatedly. Returns the
+ * three-state probe result (SEC-081): the cached identity + `checked` flag are
+ * updated only on a definitive outcome (authenticated / 401). A transient
+ * `unknown` leaves both untouched so a valid session survives a BFF blip and the
+ * caller can retry.
+ */
+export async function refreshMe(): Promise<authApi.MeResult> {
+  const r = await authApi.me();
+  if (r.state === 'authenticated') {
+    currentUser = r.user;
+    checked = true;
+  } else if (r.state === 'unauthenticated') {
+    currentUser = null;
+    checked = true;
+  }
+  return r;
 }
 
 /** Log out server-side, clear local state, bounce to /login. */

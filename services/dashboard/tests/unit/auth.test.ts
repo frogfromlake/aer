@@ -85,15 +85,27 @@ describe('login', () => {
   });
 });
 
-describe('me', () => {
-  it('returns the user on 200', async () => {
+describe('me (three-state session probe — SEC-081)', () => {
+  it('returns authenticated + user on 200', async () => {
     resolveWith(200, { id: 'u1', email: 'a@b.de', role: 'admin', status: 'active' });
-    expect(await me()).toMatchObject({ email: 'a@b.de' });
+    const r = await me();
+    expect(r.state).toBe('authenticated');
+    if (r.state === 'authenticated') expect(r.user.email).toBe('a@b.de');
   });
 
-  it('returns null when there is no valid session', async () => {
+  it('returns unauthenticated only on a definitive 401', async () => {
     resolveWith(401, { code: 'unauthorized', message: 'no session' });
-    expect(await me()).toBeNull();
+    expect((await me()).state).toBe('unauthenticated');
+  });
+
+  it('returns unknown (not logged-out) on a transient 5xx', async () => {
+    resolveWith(503, { message: 'unavailable' });
+    expect((await me()).state).toBe('unknown');
+  });
+
+  it('returns unknown (not logged-out) on a transport failure', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    expect((await me()).state).toBe('unknown');
   });
 });
 

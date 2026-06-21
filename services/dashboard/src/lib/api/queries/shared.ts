@@ -24,6 +24,16 @@ export function setUnauthenticatedHandler(fn: () => void): void {
   onUnauthenticated = fn;
 }
 
+// SEC-086: the auth/analyses clients (auth.ts, analyses.ts) route their own
+// 401s through this same registered handler so a session expiry mid-action
+// clears the cached identity and bounces, instead of surfacing as a per-
+// component error while the gated UI keeps rendering. Exposed as an invoker
+// (not the raw ref) to preserve the data layer's decoupling from the
+// auth/navigation modules.
+export function notifyUnauthenticated(): void {
+  onUnauthenticated?.();
+}
+
 export type ProbeDto = components['schemas']['Probe'];
 export type EmissionPointDto = components['schemas']['EmissionPoint'];
 export type ContentResponseDto = components['schemas']['ContentResponse'];

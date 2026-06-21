@@ -29,6 +29,9 @@
   import AnalysesOverlay from '$lib/components/account/AnalysesOverlay.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
   import { user, authChecked, refreshMe } from '$lib/state/auth.svelte';
+  import type { MeResult } from '$lib/api/auth';
+  import Button from '$lib/components/base/Button.svelte';
+  import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
     children?: Snippet;
@@ -37,10 +40,35 @@
   let { children }: Props = $props();
 
   let ready = $state(false);
+  let unreachable = $state(false);
 
-  onMount(async () => {
-    if (!authChecked()) await refreshMe();
-    if (!user()) {
+  // SEC-081: a transient BFF failure (offline / 5xx) must NOT be read as
+  // logged-out. resolveSession bounces to /login ONLY on a definitive 401; an
+  // inconclusive ('unknown') probe is retried in place with backoff, and if the
+  // BFF stays unreachable the user is held on a manual-retry affordance rather
+  // than evicted from a valid __Host- session.
+  const MAX_RETRIES = 4;
+  const RETRY_BASE_MS = 800;
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function resolveSession(): Promise<void> {
+    unreachable = false;
+    let state: MeResult['state'] = authChecked()
+      ? user()
+        ? 'authenticated'
+        : 'unauthenticated'
+      : (await refreshMe()).state;
+
+    for (let attempt = 0; state === 'unknown' && attempt < MAX_RETRIES; attempt++) {
+      await delay(RETRY_BASE_MS * 2 ** attempt);
+      state = (await refreshMe()).state;
+    }
+
+    if (state === 'authenticated') {
+      ready = true;
+      return;
+    }
+    if (state === 'unauthenticated') {
       const here = window.location.pathname + window.location.search;
       // `replaceState` so the unauthenticated bounce to /login does not pile an
       // auth entry onto the history stack; after sign-in the login page replaces
@@ -48,8 +76,12 @@
       await goto(`/login?redirect=${encodeURIComponent(here)}`, { replaceState: true });
       return;
     }
-    ready = true;
-  });
+    // Still inconclusive after the retries — keep the user in place (do not
+    // bounce a possibly-valid session) and offer a manual retry.
+    unreachable = true;
+  }
+
+  onMount(resolveSession);
 
   afterNavigate(() => {
     rehydrateUrlState();
@@ -67,4 +99,22 @@
   <DossierOverlay />
   <AccountOverlay />
   <AnalysesOverlay />
+{:else if unreachable}
+  <div class="session-retry" role="alert">
+    <p>{m.auth_session_unreachable()}</p>
+    <Button onclick={resolveSession}>{m.common_retry()}</Button>
+  </div>
 {/if}
+
+<style>
+  .session-retry {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    text-align: center;
+    color: var(--color-fg-muted);
+  }
+</style>
