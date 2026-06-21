@@ -166,7 +166,7 @@ def _truncate_documents(probe_sources: list[str]) -> None:
         f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@"
         f"{os.environ.get('POSTGRES_HOST', 'postgres')}:"
         f"{os.environ.get('POSTGRES_PORT', '5432')}/"
-        f"{os.environ.get('POSTGRES_DB', 'aer')}"
+        f"{os.environ.get('POSTGRES_DB', 'aer_metadata')}"
     )
     with psycopg2.connect(dsn) as conn:
         with conn.cursor() as cur:
@@ -174,7 +174,7 @@ def _truncate_documents(probe_sources: list[str]) -> None:
                 cur.execute(
                     """
                     DELETE FROM documents
-                     WHERE object_key LIKE %s
+                     WHERE bronze_object_key LIKE %s
                     """,
                     (f"web/{source}/%",),
                 )
