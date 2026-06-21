@@ -40,6 +40,23 @@ The name encodes the analytical frame (the three **Pillars**): **A**leph (the
 synchronic whole — *the weather now*), **E**pisteme (the diachronic record — *the
 climate over time*), **R**hizome (the relational currents *between* contexts).
 
+**Why it is built this way.** Most computational measurement of public discourse
+drifts toward surveillance or persuasion — tools optimised to profile, predict, or
+nudge. AĒR is a deliberate counter-example: an instrument whose epistemic humility is
+enforced by its *architecture*, not promised in a mission statement. It discloses what
+it cannot see, refuses comparisons it cannot justify, and marks the validation status
+of every number it shows. It reads discourse the way a sensor reads weather — at the
+level of climate, never the individual.
+
+**The decisive work is validation, not engineering — and it is interdisciplinary.**
+The pipeline is production-grade, but the metrics stay *provisional* until they are
+validated across languages and cultures, and that cannot be done solo. AĒR is built to
+invite that work: every [Working Paper](docs/methodology/) closes with open research
+questions, every metric carries its provenance and validation status, and the whole
+instrument is open source. If you work in computational social science, digital
+anthropology, STS, or area studies, the open questions are real — see
+**[For Researchers](#for-researchers)**.
+
 ---
 
 ## Screenshots
@@ -208,9 +225,10 @@ open interdisciplinary question, not a settled one.
   `tagesschau.de`) and **Probe 1** (French institutional web — `elysee.fr`,
   `franceinfo`). Selection and interpretation are the core scientific challenge,
   documented per probe under [`docs/probes/`](docs/probes/).
-- **The Working Papers (WP-001…006, EN + DE).** The methodological *why* — a
+- **The Working Papers (WP-001…007; EN, several also in DE).** The methodological *why* — a
   functional probe taxonomy, metric validity, platform bias, cross-cultural
-  comparability, temporal granularity, and the observer effect / research ethics.
+  comparability, temporal granularity, the observer effect / research ethics, and
+  collection completeness & cross-source fairness.
   See [`docs/methodology/`](docs/methodology/).
 - **Provisional metrics, disclosed as such.** Sentiment, NER, language detection,
   topic modelling and the rest are *provisional* engineering defaults. Every metric
