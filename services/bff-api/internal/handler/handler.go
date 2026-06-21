@@ -189,12 +189,24 @@ type Server struct {
 	// loginThrottle is the brute-force backoff for /auth/login (security review
 	// M-3). Always non-nil (initialised in NewServer).
 	loginThrottle *auth.LoginThrottle
+	// resetThrottle rate-limits forgot-password token+email issuance per
+	// account+IP (SEC-006/SEC-022). Always non-nil (initialised in NewServer).
+	resetThrottle *auth.LoginThrottle
+	// dispatchReset runs the off-request-path forgot-password token-mint + send
+	// (SEC-019). Production wires it to a detached, timeout-bounded goroutine so
+	// the response time is constant (no SMTP timing oracle); tests replace it to
+	// run synchronously for deterministic assertions.
+	dispatchReset func(ctx context.Context, email string)
 	// Saved analyses (Phase 135). Nil in legacy test constructors.
 	analysesBackend AnalysesBackend
 }
 
 // LoginThrottle exposes the throttle so main can sweep it on the cleanup tick.
 func (s *Server) LoginThrottle() *auth.LoginThrottle { return s.loginThrottle }
+
+// ResetThrottle exposes the forgot-password throttle so main can sweep it on
+// the same cleanup tick as the login throttle.
+func (s *Server) ResetThrottle() *auth.LoginThrottle { return s.resetThrottle }
 
 // WebAuthnBackend is the passkey persistence surface, satisfied by
 // *storage.WebAuthnStore.
@@ -223,6 +235,9 @@ type AuthBackend interface {
 	// view (log-out-everywhere reuses RevokeAllUserSessions).
 	ListUserSessions(ctx context.Context, userID string) ([]storage.SessionInfo, error)
 	CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error
+	// InvalidateUserTokens consumes a user's prior unconsumed tokens of a
+	// purpose so a new issue is the only outstanding one (SEC-022).
+	InvalidateUserTokens(ctx context.Context, userID, purpose string) error
 	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
 	// Transactional token flows (SEC-078): consume + apply co-commit so a
 	// partial failure cannot burn the single-use token.
@@ -277,12 +292,22 @@ type ServerOptions struct {
 // dependencies. Tests that do not exercise the Phase 101 endpoints use
 // this constructor unchanged.
 func NewServer(db Store, provenance config.MetricProvenanceMap, sources SourceLister, catalog config.ContentCatalog, probes config.ProbeRegistry) *Server {
-	return &Server{
+	s := &Server{
 		db: db, provenance: provenance, sources: sources, catalog: catalog, probes: probes,
 		// Brute-force throttle: 5 free attempts, then 1s→…→5m exponential
 		// backoff, auto-resetting after 15m idle (security review M-3).
 		loginThrottle: auth.NewLoginThrottle(5, time.Second, 5*time.Minute, 15*time.Minute),
+		// Forgot-password throttle: 3 issuances per account+IP, then backoff to
+		// 15m, auto-resetting after 15m idle — bounds email-bombing / token churn
+		// while staying invisible behind the uniform 202 (SEC-006/SEC-022).
+		resetThrottle: auth.NewLoginThrottle(3, time.Second, 15*time.Minute, 15*time.Minute),
 	}
+	// Default forgot-password dispatch: detached + timeout-bounded so the
+	// request returns 202 immediately regardless of relay latency (SEC-019).
+	s.dispatchReset = func(ctx context.Context, email string) {
+		go s.dispatchPasswordReset(context.WithoutCancel(ctx), email)
+	}
+	return s
 }
 
 // NewServerWithOptions wires the Phase 101 endpoints alongside the

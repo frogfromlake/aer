@@ -98,8 +98,8 @@ test.describe('Phase 128 — Auth surface a11y', () => {
   for (const route of [
     '/login',
     '/forgot-password',
-    '/reset-password?token=test',
-    '/accept-invite?token=test'
+    '/reset-password#token=test',
+    '/accept-invite#token=test'
   ]) {
     test(`a11y: ${route}`, async ({ page }) => {
       await page.goto(route);

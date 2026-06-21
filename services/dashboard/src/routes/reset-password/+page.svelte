@@ -6,6 +6,7 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { tokenFromHash } from '$lib/auth/token-from-hash';
   import { m } from '$lib/paraglide/messages.js';
 
   const MIN_LEN = 12;
@@ -18,7 +19,8 @@
   let done = $state(false);
 
   onMount(() => {
-    token = new URLSearchParams(window.location.search).get('token') ?? '';
+    // SEC-009 — the token rides in the URL fragment, not the query string.
+    token = tokenFromHash(window.location.hash);
   });
 
   const mismatch = $derived(confirm.length > 0 && password !== confirm);

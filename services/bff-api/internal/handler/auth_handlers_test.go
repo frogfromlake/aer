@@ -82,6 +82,14 @@ func (m *mockAuth) CreateToken(_ context.Context, userID, purpose, tokenHash str
 	m.tokens[tokenHash] = &mockToken{userID: userID, purpose: purpose}
 	return nil
 }
+func (m *mockAuth) InvalidateUserTokens(_ context.Context, userID, purpose string) error {
+	for _, tok := range m.tokens {
+		if tok.userID == userID && tok.purpose == purpose {
+			tok.consumed = true
+		}
+	}
+	return nil
+}
 func (m *mockAuth) ConsumeToken(_ context.Context, tokenHash, purpose string) (string, error) {
 	tok, ok := m.tokens[tokenHash]
 	if !ok || tok.consumed || tok.purpose != purpose {
@@ -164,10 +172,11 @@ func (m *mockAuth) DeleteUser(_ context.Context, id string) (bool, error) {
 // --- test scaffolding --------------------------------------------------------
 
 func authTestServer(m *mockAuth) *Server {
-	return &Server{
+	s := &Server{
 		authBackend:   m,
 		mailer:        stubMailer{},
 		loginThrottle: auth.NewLoginThrottle(5, time.Second, 5*time.Minute, 15*time.Minute),
+		resetThrottle: auth.NewLoginThrottle(3, time.Second, 15*time.Minute, 15*time.Minute),
 		authConfig: AuthConfig{
 			CookieName:      "aer_session",
 			SecureCookies:   false,
@@ -178,6 +187,10 @@ func authTestServer(m *mockAuth) *Server {
 			InviteTTL:       time.Hour,
 		},
 	}
+	// Run the forgot-password dispatch synchronously in tests for deterministic
+	// assertions (production detaches it to a goroutine — SEC-019).
+	s.dispatchReset = func(ctx context.Context, email string) { s.dispatchPasswordReset(ctx, email) }
+	return s
 }
 
 type stubMailer struct{}
@@ -440,6 +453,52 @@ func TestForgotPasswordAlways202(t *testing.T) {
 	// Exactly one reset token minted (for the existing active user only).
 	if len(m.tokens) != 1 {
 		t.Fatalf("expected one reset token, got %d", len(m.tokens))
+	}
+}
+
+func TestForgotPasswordThrottleKeepsSingleLiveToken(t *testing.T) {
+	// SEC-006/SEC-022 — repeated forgot-password requests all return 202 (no
+	// enumeration), the per-account throttle bounds issuance, and prior-token
+	// invalidation keeps exactly one live reset link.
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "hunter2hunter2"))
+	s := authTestServer(m)
+	req := PostAuthForgotPasswordRequestObject{
+		Body: &PostAuthForgotPasswordJSONRequestBody{Email: openapi_types.Email("alice@example.org")},
+	}
+	for i := 0; i < 6; i++ {
+		resp, _ := s.PostAuthForgotPassword(context.Background(), req)
+		rec := httptest.NewRecorder()
+		_ = resp.VisitPostAuthForgotPasswordResponse(rec)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("call %d: expected 202, got %d", i, rec.Code)
+		}
+	}
+	live := 0
+	for _, tok := range m.tokens {
+		if !tok.consumed {
+			live++
+		}
+	}
+	if live != 1 {
+		t.Fatalf("SEC-022: expected exactly one live reset token, got %d", live)
+	}
+}
+
+func TestForgotPasswordInvalidatesPriorToken(t *testing.T) {
+	// SEC-022 — issuing a new reset link consumes a prior unconsumed one.
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "hunter2hunter2"))
+	m.tokens["old-hash"] = &mockToken{userID: "u1", purpose: "password_reset"}
+	s := authTestServer(m)
+
+	resp, _ := s.PostAuthForgotPassword(context.Background(), PostAuthForgotPasswordRequestObject{
+		Body: &PostAuthForgotPasswordJSONRequestBody{Email: openapi_types.Email("alice@example.org")},
+	})
+	_ = resp.VisitPostAuthForgotPasswordResponse(httptest.NewRecorder())
+
+	if !m.tokens["old-hash"].consumed {
+		t.Fatal("a new reset must invalidate the prior unconsumed token")
 	}
 }
 

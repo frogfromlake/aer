@@ -203,6 +203,21 @@ func (s *AuthStore) ListUserSessions(ctx context.Context, userID string) ([]Sess
 	return out, rows.Err()
 }
 
+// InvalidateUserTokens marks every still-unconsumed token of the given purpose
+// for a user as consumed, so a freshly-issued token becomes the only live one
+// (SEC-022 — collapse repeated forgot-password requests to a single outstanding
+// reset link). bff_auth already holds UPDATE on auth_tokens (ConsumeToken).
+func (s *AuthStore) InvalidateUserTokens(ctx context.Context, userID, purpose string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE auth_tokens SET consumed_at = now()
+		 WHERE user_id = $1::uuid AND purpose = $2 AND consumed_at IS NULL`,
+		userID, purpose)
+	if err != nil {
+		return fmt.Errorf("invalidate user tokens: %w", err)
+	}
+	return nil
+}
+
 // CreateToken inserts a single-use, hashed invite / password-reset token.
 func (s *AuthStore) CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error {
 	_, err := s.db.ExecContext(ctx,

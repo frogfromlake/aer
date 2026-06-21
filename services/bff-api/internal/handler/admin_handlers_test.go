@@ -66,7 +66,7 @@ func TestAdminCreateUserIssuesInvite(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "/accept-invite?token=") {
+	if !strings.Contains(rec.Body.String(), "/accept-invite#token=") {
 		t.Fatalf("expected an accept-invite link in body, got %s", rec.Body.String())
 	}
 	if len(m.byEmail) != 1 || len(m.tokens) != 1 {
@@ -186,7 +186,7 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "/reset-password?token=") {
+	if !strings.Contains(rec.Body.String(), "/reset-password#token=") {
 		t.Fatalf("expected a reset link, got %s", rec.Body.String())
 	}
 	// SEC-008 — the admin reset must also revoke the target's live sessions so
@@ -256,7 +256,7 @@ func TestAdminCreateUserDeliveredFlag(t *testing.T) {
 		if r.Delivered == nil || *r.Delivered {
 			t.Errorf("Delivered = %v, want false on send failure", r.Delivered)
 		}
-		if !strings.Contains(r.Link, "/accept-invite?token=") {
+		if !strings.Contains(r.Link, "/accept-invite#token=") {
 			t.Errorf("break-glass link missing on send failure: %q", r.Link)
 		}
 	})

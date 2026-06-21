@@ -22,6 +22,12 @@ import (
 // an invite/reset request.
 const dialTimeout = 15 * time.Second
 
+// sendTimeout bounds the WHOLE SMTP conversation (STARTTLS/AUTH/MAIL/RCPT/DATA/
+// QUIT) via conn.SetDeadline, not just the dial — a relay that accepts the
+// connection then tarpits a later phase cannot otherwise hang the goroutine
+// indefinitely (SEC-022).
+const sendTimeout = 30 * time.Second
+
 // SMTPConfig carries the credentials for a hosted transactional-email relay.
 type SMTPConfig struct {
 	Host     string // relay host, e.g. smtp-relay.brevo.com
@@ -111,6 +117,12 @@ func sendStartTLS(cfg SMTPConfig, to string, msg []byte) error {
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 	conn, err := net.DialTimeout("tcp", addr, dialTimeout)
 	if err != nil {
+		return err
+	}
+	// Bound every subsequent phase, not just the dial (SEC-022): a relay that
+	// stalls on STARTTLS/AUTH/DATA now fails by deadline instead of hanging.
+	if err := conn.SetDeadline(time.Now().Add(sendTimeout)); err != nil {
+		_ = conn.Close()
 		return err
 	}
 	c, err := smtp.NewClient(conn, cfg.Host)

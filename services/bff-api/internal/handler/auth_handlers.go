@@ -241,36 +241,73 @@ func (s *Server) PostAuthAcceptInvite(ctx context.Context, request PostAuthAccep
 	return acceptInviteCookieResponse{cookie: cookie, inner: acceptInviteUserResponse(user)}, nil
 }
 
+// passwordResetDispatchTimeout bounds the detached token-mint + email-send that
+// runs off the forgot-password request path (SEC-019). It exceeds the SMTP
+// sendTimeout so the dispatch ends on its own deadline rather than abruptly.
+const passwordResetDispatchTimeout = 45 * time.Second
+
 // PostAuthForgotPassword issues a single-use reset token and dispatches it.
 // Always returns 202 — no user enumeration.
+//
+// The lookup + token-mint + email-send run OFF the request path (SEC-019): the
+// response time is constant whether or not the account exists, so the
+// synchronous-SMTP timing oracle is gone and a slow relay can never hang the
+// request goroutine. A dedicated per-account + per-IP throttle (SEC-006/022)
+// bounds issuance — when armed the request still returns 202 but does no work,
+// preserving the uniform 202 (and the no-enumeration guarantee).
 func (s *Server) PostAuthForgotPassword(ctx context.Context, request PostAuthForgotPasswordRequestObject) (PostAuthForgotPasswordResponseObject, error) {
-	if request.Body != nil {
-		email := strings.TrimSpace(string(request.Body.Email))
-		user, err := s.authBackend.GetUserByEmail(ctx, email)
-		if err != nil {
-			// Log but still return 202 so the response shape never reveals
-			// whether the account exists.
-			slog.Error("forgot-password: get user", "error", err)
-		} else if user != nil && user.Status == "active" {
-			if raw, hash, gErr := auth.GenerateOpaqueToken(); gErr == nil {
-				exp := time.Now().Add(s.authConfig.ResetTTL)
-				if cErr := s.authBackend.CreateToken(ctx, user.ID, "password_reset", hash, exp); cErr == nil {
-					link := s.authConfig.PublicBaseURL + "/reset-password?token=" + raw
-					if s.mailer != nil {
-						// Log a send failure for operator visibility (a provider
-						// outage must not be silent). The response stays 202
-						// regardless, so the email identity is never revealed.
-						if mErr := s.mailer.SendPasswordReset(ctx, user.Email, link); mErr != nil {
-							slog.Error("forgot-password: deliver reset email", "error", mErr)
-						}
-					}
-				} else {
-					slog.Error("forgot-password: create token", "error", cErr)
-				}
-			}
-		}
+	if request.Body == nil {
+		return PostAuthForgotPassword202Response{}, nil
 	}
+	email := strings.TrimSpace(string(request.Body.Email))
+	keys := s.loginKeys(ctx, email)
+	if blocked, _ := s.resetThrottle.Blocked(keys...); blocked {
+		return PostAuthForgotPassword202Response{}, nil
+	}
+	s.resetThrottle.Fail(keys...)
+	s.dispatchReset(ctx, email)
 	return PostAuthForgotPassword202Response{}, nil
+}
+
+// dispatchPasswordReset performs the off-request-path token-mint + email-send
+// for forgot-password (SEC-019). Errors are logged for operator visibility but
+// never surfaced — the caller already returned the uniform 202.
+func (s *Server) dispatchPasswordReset(ctx context.Context, email string) {
+	ctx, cancel := context.WithTimeout(ctx, passwordResetDispatchTimeout)
+	defer cancel()
+
+	user, err := s.authBackend.GetUserByEmail(ctx, email)
+	if err != nil {
+		slog.Error("forgot-password: get user", "error", err)
+		return
+	}
+	if user == nil || user.Status != "active" {
+		return
+	}
+	// SEC-022 — consume any prior unconsumed reset tokens so only the newest
+	// link stays live.
+	if err := s.authBackend.InvalidateUserTokens(ctx, user.ID, "password_reset"); err != nil {
+		slog.Error("forgot-password: invalidate prior tokens", "error", err)
+		return
+	}
+	raw, hash, err := auth.GenerateOpaqueToken()
+	if err != nil {
+		slog.Error("forgot-password: generate token", "error", err)
+		return
+	}
+	if err := s.authBackend.CreateToken(ctx, user.ID, "password_reset", hash, time.Now().Add(s.authConfig.ResetTTL)); err != nil {
+		slog.Error("forgot-password: create token", "error", err)
+		return
+	}
+	if s.mailer == nil {
+		return
+	}
+	// SEC-009 — the token rides in the URL fragment, never the query string, so
+	// it is never sent to a server and never lands in access logs.
+	link := s.authConfig.PublicBaseURL + "/reset-password#token=" + raw
+	if err := s.mailer.SendPasswordReset(ctx, user.Email, link); err != nil {
+		slog.Error("forgot-password: deliver reset email", "error", err)
+	}
 }
 
 // PostAuthResetPassword consumes a reset token, sets the new password, and

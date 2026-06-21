@@ -411,6 +411,30 @@ func TestAuthStore_RevokeOtherKeepsCurrent(t *testing.T) {
 	}
 }
 
+// SEC-022 — issuing a new reset link invalidates the user's prior unconsumed
+// tokens of that purpose; tokens of other purposes are untouched.
+func TestAuthStore_InvalidateUserTokens(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	exp := time.Now().Add(time.Hour)
+	_ = s.CreateToken(ctx, uid, "password_reset", "tok-1", exp)
+	_ = s.CreateToken(ctx, uid, "password_reset", "tok-2", exp)
+	_ = s.CreateToken(ctx, uid, "invite", "tok-inv", exp)
+
+	if err := s.InvalidateUserTokens(ctx, uid, "password_reset"); err != nil {
+		t.Fatalf("invalidate: %v", err)
+	}
+	if u, _ := s.ConsumeToken(ctx, "tok-1", "password_reset"); u != "" {
+		t.Fatal("tok-1 should be invalidated (unusable)")
+	}
+	if u, _ := s.ConsumeToken(ctx, "tok-2", "password_reset"); u != "" {
+		t.Fatal("tok-2 should be invalidated (unusable)")
+	}
+	if u, _ := s.ConsumeToken(ctx, "tok-inv", "invite"); u != uid {
+		t.Fatal("an invite token of a different purpose must survive")
+	}
+}
+
 // SEC-005 — the user's own active-sessions view lists only live sessions, so a
 // revoked or expired session never appears, and the id hash round-trips so the
 // handler can mark the current device.

@@ -229,6 +229,12 @@ func Load() (*Config, error) {
 		if cfg.SMTPFromAddress == "" {
 			missing = append(missing, "SMTP_FROM_ADDRESS")
 		}
+		// SEC-027 — with SMTP on, invite/reset links are built by concatenating
+		// BFF_PUBLIC_BASE_URL; an empty base URL emits relative links that don't
+		// resolve in a mail client. Require it in the same all-or-nothing block.
+		if cfg.PublicBaseURL == "" {
+			missing = append(missing, "BFF_PUBLIC_BASE_URL")
+		}
 		if len(missing) > 0 {
 			return nil, fmt.Errorf("SMTP_HOST is set but %s missing", strings.Join(missing, ", "))
 		}

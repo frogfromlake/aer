@@ -207,6 +207,7 @@ func TestLoad_SMTPGroupAllOrNothing(t *testing.T) {
 		t.Setenv("SMTP_USERNAME", "relay-user")
 		t.Setenv("SMTP_PASSWORD", "relay-key")
 		t.Setenv("SMTP_FROM_ADDRESS", "noreply@aer.example")
+		t.Setenv("BFF_PUBLIC_BASE_URL", "https://aer.example") // SEC-027
 
 		cfg, err := Load()
 		if err != nil {
@@ -214,6 +215,24 @@ func TestLoad_SMTPGroupAllOrNothing(t *testing.T) {
 		}
 		if !cfg.EmailEnabled() {
 			t.Error("EmailEnabled() = false with a complete SMTP group, want true")
+		}
+	})
+
+	t.Run("SMTP on without base URL fails (SEC-027)", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("SMTP_HOST", "smtp-relay.brevo.com")
+		t.Setenv("SMTP_USERNAME", "relay-user")
+		t.Setenv("SMTP_PASSWORD", "relay-key")
+		t.Setenv("SMTP_FROM_ADDRESS", "noreply@aer.example")
+		// BFF_PUBLIC_BASE_URL deliberately left empty.
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("expected error when SMTP_HOST set but BFF_PUBLIC_BASE_URL empty")
+		}
+		if !strings.Contains(err.Error(), "BFF_PUBLIC_BASE_URL") {
+			t.Errorf("error = %q, want it to name BFF_PUBLIC_BASE_URL", err.Error())
 		}
 	})
 }

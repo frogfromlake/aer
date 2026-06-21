@@ -280,6 +280,7 @@ func main() {
 				return
 			case <-ticker.C:
 				serverLogic.LoginThrottle().Sweep()
+				serverLogic.ResetThrottle().Sweep()
 			}
 		}
 	}()

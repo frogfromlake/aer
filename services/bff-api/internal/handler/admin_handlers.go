@@ -25,8 +25,10 @@ func adminAllowed(ctx context.Context) bool {
 
 // issueActionLink mints a single-use token for the given purpose, persists its
 // hash, and returns the raw link the admin can deliver (also dispatched via the
-// email seam). pathAndQuery is e.g. "/accept-invite?token=".
-func (s *Server) issueActionLink(ctx context.Context, userID, purpose, pathAndQuery string) (string, error) {
+// email seam). pathAndFragment is e.g. "/accept-invite#token=" — the token rides
+// in the URL fragment, never the query string, so it is never sent to a server
+// and never lands in access logs (SEC-009).
+func (s *Server) issueActionLink(ctx context.Context, userID, purpose, pathAndFragment string) (string, error) {
 	raw, hash, err := auth.GenerateOpaqueToken()
 	if err != nil {
 		return "", err
@@ -38,7 +40,7 @@ func (s *Server) issueActionLink(ctx context.Context, userID, purpose, pathAndQu
 	if err := s.authBackend.CreateToken(ctx, userID, purpose, hash, time.Now().Add(ttl)); err != nil {
 		return "", err
 	}
-	return s.authConfig.PublicBaseURL + pathAndQuery + raw, nil
+	return s.authConfig.PublicBaseURL + pathAndFragment + raw, nil
 }
 
 // GetAdminUsers lists all users (admin only; gate enforced by middleware).
@@ -94,7 +96,7 @@ func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersReque
 		slog.Error("admin: create user", "error", err)
 		return PostAdminUsers500JSONResponse{Message: genericInternalError}, nil
 	}
-	link, err := s.issueActionLink(ctx, userID, "invite", "/accept-invite?token=")
+	link, err := s.issueActionLink(ctx, userID, "invite", "/accept-invite#token=")
 	if err != nil {
 		slog.Error("admin: issue invite", "error", err)
 		return PostAdminUsers500JSONResponse{Message: genericInternalError}, nil
@@ -166,7 +168,7 @@ func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdm
 	if user == nil {
 		return PostAdminUserResetPassword404JSONResponse{Code: "not_found", Message: "no such user"}, nil
 	}
-	link, err := s.issueActionLink(ctx, user.ID, "password_reset", "/reset-password?token=")
+	link, err := s.issueActionLink(ctx, user.ID, "password_reset", "/reset-password#token=")
 	if err != nil {
 		slog.Error("admin: issue reset", "error", err)
 		return PostAdminUserResetPassword500JSONResponse{Message: genericInternalError}, nil
