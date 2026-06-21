@@ -177,8 +177,10 @@ export type QueryOutcome<T> = SuccessOutcome<T> | RefusalOutcome | NetworkErrorO
 
 export interface FetchContext {
   /** BFF base URL. In every deployment this is `/api/v1` — Traefik routes
-   *  same-origin requests to the BFF and injects the X-API-Key header
-   *  server-side, so the browser bundle never carries a secret. */
+   *  same-origin requests to the BFF. Browsers authenticate via the
+   *  `__Host-` session cookie (Phase 134 / ADR-040); X-API-Key is a
+   *  machine-only credential and is NEVER injected by Traefik, so the
+   *  browser bundle carries no secret. */
   readonly baseUrl: string;
   /** Fetch override (tests). */
   readonly fetch?: typeof fetch;

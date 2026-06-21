@@ -13,6 +13,16 @@ import (
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
+// adminAllowed reports whether the context identity is an admin user. Admin
+// handlers call it as defense-in-depth (SEC-025): the path-prefix middleware
+// gate is the primary control, but no handler may rely solely on its mount path
+// — a future admin route misfiled outside /api/v1/admin/ would otherwise
+// de-gate silently. Machine (X-API-Key) callers are never admins.
+func adminAllowed(ctx context.Context) bool {
+	id, ok := auth.IdentityFromContext(ctx)
+	return ok && !id.Machine && id.Role == auth.RoleAdmin
+}
+
 // issueActionLink mints a single-use token for the given purpose, persists its
 // hash, and returns the raw link the admin can deliver (also dispatched via the
 // email seam). pathAndQuery is e.g. "/accept-invite?token=".
@@ -33,6 +43,9 @@ func (s *Server) issueActionLink(ctx context.Context, userID, purpose, pathAndQu
 
 // GetAdminUsers lists all users (admin only; gate enforced by middleware).
 func (s *Server) GetAdminUsers(ctx context.Context, _ GetAdminUsersRequestObject) (GetAdminUsersResponseObject, error) {
+	if !adminAllowed(ctx) {
+		return GetAdminUsers403JSONResponse{Code: "forbidden_role", Message: "admin role required"}, nil
+	}
 	rows, err := s.authBackend.ListUsers(ctx)
 	if err != nil {
 		slog.Error("admin: list users", "error", err)
@@ -59,6 +72,9 @@ func (s *Server) GetAdminUsers(ctx context.Context, _ GetAdminUsersRequestObject
 
 // PostAdminUsers creates an invited user and returns the accept-invite link.
 func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersRequestObject) (PostAdminUsersResponseObject, error) {
+	if !adminAllowed(ctx) {
+		return PostAdminUsers403JSONResponse{Code: "forbidden_role", Message: "admin role required"}, nil
+	}
 	if request.Body == nil {
 		return PostAdminUsers400JSONResponse{Code: "invalid_request", Message: "missing request body"}, nil
 	}
@@ -104,6 +120,9 @@ func (s *Server) PostAdminUsers(ctx context.Context, request PostAdminUsersReque
 
 // PostAdminUserSuspend suspends a user. An admin cannot suspend themselves.
 func (s *Server) PostAdminUserSuspend(ctx context.Context, request PostAdminUserSuspendRequestObject) (PostAdminUserSuspendResponseObject, error) {
+	if !adminAllowed(ctx) {
+		return PostAdminUserSuspend403JSONResponse{Code: "forbidden_role", Message: "admin role required"}, nil
+	}
 	if id, ok := auth.IdentityFromContext(ctx); ok && id.UserID == request.ID {
 		return PostAdminUserSuspend400JSONResponse{Code: "cannot_suspend_self", Message: "an admin cannot suspend their own account"}, nil
 	}
@@ -120,6 +139,9 @@ func (s *Server) PostAdminUserSuspend(ctx context.Context, request PostAdminUser
 
 // PostAdminUserReactivate returns a suspended user to active.
 func (s *Server) PostAdminUserReactivate(ctx context.Context, request PostAdminUserReactivateRequestObject) (PostAdminUserReactivateResponseObject, error) {
+	if !adminAllowed(ctx) {
+		return PostAdminUserReactivate403JSONResponse{Code: "forbidden_role", Message: "admin role required"}, nil
+	}
 	updated, err := s.authBackend.SetUserStatus(ctx, request.ID, "active")
 	if err != nil {
 		slog.Error("admin: reactivate", "error", err)
@@ -133,6 +155,9 @@ func (s *Server) PostAdminUserReactivate(ctx context.Context, request PostAdminU
 
 // PostAdminUserResetPassword issues a reset token for a user and returns the link.
 func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdminUserResetPasswordRequestObject) (PostAdminUserResetPasswordResponseObject, error) {
+	if !adminAllowed(ctx) {
+		return PostAdminUserResetPassword403JSONResponse{Code: "forbidden_role", Message: "admin role required"}, nil
+	}
 	user, err := s.authBackend.GetUserByID(ctx, request.ID)
 	if err != nil {
 		slog.Error("admin: reset lookup", "error", err)

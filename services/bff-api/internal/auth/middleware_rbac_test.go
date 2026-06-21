@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-func TestRequireAdminForSegment(t *testing.T) {
+func TestRequireAdminForPrefix(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mw := RequireAdminForSegment("/admin/")(next)
+	mw := RequireAdminForPrefix("/api/v1/admin/")(next)
 
 	cases := []struct {
 		name     string
@@ -24,6 +24,9 @@ func TestRequireAdminForSegment(t *testing.T) {
 		{"no identity blocked", "/api/v1/admin/users", nil, http.StatusForbidden},
 		{"non-admin path passes for researcher", "/api/v1/metrics", &Identity{UserID: "r", Role: RoleResearcher}, http.StatusOK},
 		{"non-admin path passes with no identity", "/api/v1/metrics", nil, http.StatusOK},
+		// SEC-026 — a content path that merely embeds "admin" must NOT be forced
+		// through the admin gate (the old substring match over-blocked it).
+		{"content/admin not gated for researcher", "/api/v1/content/admin/x", &Identity{UserID: "r", Role: RoleResearcher}, http.StatusOK},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

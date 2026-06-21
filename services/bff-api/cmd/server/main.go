@@ -350,9 +350,12 @@ func main() {
 			},
 		}))
 
-		// RBAC: /admin/* requires the admin role (runs after auth so the
-		// identity is in context). Phase 134 / ADR-040.
-		r.Use(auth.RequireAdminForSegment("/admin/"))
+		// RBAC: /api/v1/admin/* requires the admin role (runs after auth so the
+		// identity is in context). Phase 134 / ADR-040. Prefix-anchored, not a
+		// substring match, so it cannot over-block /content/admin/... or be
+		// mis-gated by a crafted path (SEC-026); handlers also re-check in-handler
+		// (SEC-025).
+		r.Use(auth.RequireAdminForPrefix("/api/v1/admin/"))
 
 		// Phase 122j J3: long browser cache for `/content/*` responses.
 		// The catalog is loaded from versioned YAML at startup and only

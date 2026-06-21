@@ -68,8 +68,9 @@
   } from './atmosphere-surface-internals';
 
   // The BFF is reachable at `/api/v1` via Traefik in every deployment.
-  // Traefik attaches X-API-Key to every /api/* request (see compose.yaml
-  // bff-api labels), so the static bundle ships with no secret.
+  // Browsers authenticate via the `__Host-` session cookie (Phase 134 /
+  // ADR-040); X-API-Key is machine-only and is NEVER injected by Traefik,
+  // so the static bundle ships with no secret.
   const ctx: FetchContext = {
     baseUrl: '/api/v1'
   };

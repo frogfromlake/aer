@@ -115,14 +115,21 @@ func SessionOrAPIKey(v SessionValidator, cfg MiddlewareConfig) func(http.Handler
 	}
 }
 
-// RequireAdminForSegment gates any request whose path contains `segment` (e.g.
-// "/admin/") behind the admin role. It runs AFTER SessionOrAPIKey, so the
-// identity is already in context. Machine (X-API-Key) callers are NOT admins —
-// admin is a user concept; user management requires an admin session.
-func RequireAdminForSegment(segment string) func(http.Handler) http.Handler {
+// RequireAdminForPrefix gates any request whose path begins with `prefix` (the
+// full mounted admin base, e.g. "/api/v1/admin/") behind the admin role. It runs
+// AFTER SessionOrAPIKey, so the identity is already in context. Machine
+// (X-API-Key) callers are NOT admins — admin is a user concept; user management
+// requires an admin session.
+//
+// Prefix-anchored, NOT substring: a `strings.Contains(path, "/admin/")` test
+// couples RBAC to attacker-supplied path data — it over-blocks a legitimate
+// `/api/v1/content/admin/...` request (SEC-026) and would mis-gate any route
+// that merely embeds the token. Admin handlers also re-check the role in-handler
+// as defense-in-depth (SEC-025).
+func RequireAdminForPrefix(prefix string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.URL.Path, segment) {
+			if strings.HasPrefix(r.URL.Path, prefix) {
 				id, ok := IdentityFromContext(r.Context())
 				if !ok || id.Machine || id.Role != RoleAdmin {
 					writeJSON(w, http.StatusForbidden, `{"code":"forbidden_role","message":"admin role required"}`)
