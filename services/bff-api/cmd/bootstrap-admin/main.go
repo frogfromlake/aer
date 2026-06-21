@@ -100,7 +100,12 @@ func run() error {
 		return fmt.Errorf("create invite token: %w", err)
 	}
 
-	link := v.GetString("BFF_PUBLIC_BASE_URL") + "/accept-invite?token=" + raw
+	// SEC-009 — the token rides in the URL fragment (#token=), never the query
+	// string, so it is never sent to a server or written to an access log. The
+	// accept-invite page reads it via tokenFromHash(window.location.hash); a
+	// `?token=` link would surface as "missing invite token". This must match the
+	// other link builders (issueActionLink / dispatchPasswordReset).
+	link := v.GetString("BFF_PUBLIC_BASE_URL") + "/accept-invite#token=" + raw
 	fmt.Println("\nAccept-invite link (deliver to the admin; sets their password + consent):")
 	fmt.Println("  " + link)
 	return nil
