@@ -340,6 +340,10 @@ class DataProcessor:
                 all_metrics.extend(result.metrics)
                 all_entities.extend(result.entities)
                 all_entity_links.extend(result.entity_links)
+                # SEC-066 — honour the full ExtractionResult contract: a future
+                # non-language extractor emitting language_detections would
+                # otherwise be silently dropped (partial write as success).
+                all_language_detections.extend(result.language_detections)
             except Exception as e:
                 logger.error(
                     "Extractor failed. Skipping this extractor; other extractors continue.",
@@ -619,6 +623,13 @@ class DataProcessor:
             return core, empty
         try:
             result = detection.extract_all(core, article_id)
+            # SEC-091 — keep the result-access (iterating language_detections)
+            # inside the guard so a malformed ExtractionResult degrades to the
+            # adapter language instead of crashing the document.
+            primary = next(
+                (d for d in result.language_detections if d.rank == 1),
+                None,
+            )
         except Exception as e:
             logger.error(
                 "Language detection failed before Silver write. "
@@ -627,10 +638,6 @@ class DataProcessor:
                 error=str(e),
             )
             return core, empty
-        primary = next(
-            (d for d in result.language_detections if d.rank == 1),
-            None,
-        )
         if primary is None or not primary.detected_language:
             return core, result
         working = core.model_copy(update={"language": primary.detected_language})

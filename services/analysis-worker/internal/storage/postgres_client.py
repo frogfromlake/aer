@@ -42,7 +42,22 @@ def init_postgres(maxconn: int | None = None) -> ThreadedConnectionPool:
         maxconn = 10
     if maxconn < 1:
         maxconn = 1
-    statement_timeout_ms = os.getenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "5000")
+    # SEC-098 — validate before interpolating into the libpq options string: a
+    # non-integer value would otherwise reach libpq verbatim and fail opaquely
+    # at first connection. Coerce to int and fall back to the safe default with
+    # a visible warning (graceful degradation over a crash-loop on a typo).
+    raw_timeout = os.getenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "5000")
+    try:
+        statement_timeout_ms = int(raw_timeout)
+        if statement_timeout_ms < 0:
+            raise ValueError("must be non-negative")
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid WORKER_PG_STATEMENT_TIMEOUT_MS; falling back to default",
+            value=raw_timeout,
+            default=5000,
+        )
+        statement_timeout_ms = 5000
     pool = ThreadedConnectionPool(
         minconn=1,
         maxconn=maxconn,

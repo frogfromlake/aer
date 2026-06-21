@@ -171,6 +171,46 @@ class TestInitPostgres:
             pool.putconn(conn)
             pool.closeall()
 
+    def test_invalid_statement_timeout_falls_back(self, monkeypatch):
+        """SEC-098 — a non-integer WORKER_PG_STATEMENT_TIMEOUT_MS degrades to the
+        safe 5000ms default rather than reaching libpq options verbatim."""
+        monkeypatch.setenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "not-a-number")
+        captured = {}
+
+        def capture_pool(*args, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        with patch("internal.storage.postgres_client.ThreadedConnectionPool", side_effect=capture_pool):
+            init_postgres()
+        assert captured["options"] == "-c statement_timeout=5000"
+
+    def test_negative_statement_timeout_falls_back(self, monkeypatch):
+        """SEC-098 — a negative value is rejected and falls back to the default."""
+        monkeypatch.setenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "-1")
+        captured = {}
+
+        def capture_pool(*args, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        with patch("internal.storage.postgres_client.ThreadedConnectionPool", side_effect=capture_pool):
+            init_postgres()
+        assert captured["options"] == "-c statement_timeout=5000"
+
+    def test_valid_statement_timeout_passes_through(self, monkeypatch):
+        """SEC-098 — a valid integer is honoured."""
+        monkeypatch.setenv("WORKER_PG_STATEMENT_TIMEOUT_MS", "8000")
+        captured = {}
+
+        def capture_pool(*args, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        with patch("internal.storage.postgres_client.ThreadedConnectionPool", side_effect=capture_pool):
+            init_postgres()
+        assert captured["options"] == "-c statement_timeout=8000"
+
     def test_retries_on_transient_failure(self, monkeypatch):
         """
         Verifies that init_postgres() retries when the DB is temporarily unavailable.
