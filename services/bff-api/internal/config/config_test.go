@@ -218,6 +218,48 @@ func TestLoad_SMTPGroupAllOrNothing(t *testing.T) {
 	})
 }
 
+func TestLoad_SecureCookiesRequiredInProduction(t *testing.T) {
+	t.Run("production + insecure cookies refuses to boot", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("APP_ENV", "production")
+		t.Setenv("BFF_SECURE_COOKIES", "false")
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("expected Load to fail for insecure cookies in production")
+		}
+		if !strings.Contains(err.Error(), "BFF_SECURE_COOKIES") {
+			t.Errorf("error = %q, want it to name BFF_SECURE_COOKIES", err.Error())
+		}
+	})
+
+	t.Run("production + secure cookies boots", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("APP_ENV", "production")
+		// BFF_SECURE_COOKIES defaults to true.
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.SecureCookies {
+			t.Error("SecureCookies = false, want true (the production default)")
+		}
+	})
+
+	t.Run("development tolerates insecure cookies", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("BFF_SECURE_COOKIES", "false") // APP_ENV defaults to development
+
+		if _, err := Load(); err != nil {
+			t.Fatalf("development must tolerate insecure cookies: %v", err)
+		}
+	})
+}
+
 // TestLoad_ReadsDotEnvFile confirms the best-effort .env read path is wired:
 // a value present only in a .env file (not in the environment) reaches the
 // struct.

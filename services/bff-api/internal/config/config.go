@@ -234,5 +234,14 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// SEC-004 — BFF_SECURE_COOKIES=false drops the __Host- prefix and the
+	// Secure flag, leaving the opaque session id replayable over a cleartext
+	// hop. It is the only production-unsafe value, with no legitimate use on an
+	// internet-facing deployment (Traefik is the sole TLS ingress), so refuse to
+	// boot rather than silently emit insecure session cookies.
+	if cfg.Environment == "production" && !cfg.SecureCookies {
+		return nil, fmt.Errorf("BFF_SECURE_COOKIES must be true when APP_ENV=production")
+	}
+
 	return &cfg, nil
 }

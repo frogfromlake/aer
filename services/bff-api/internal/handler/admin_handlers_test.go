@@ -14,11 +14,48 @@ import (
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
+// adminCtx returns a context carrying an admin identity. Admin handlers now
+// re-check the role in-handler as defense-in-depth (SEC-025), so a handler-level
+// test must supply one (the middleware that normally injects it is exercised in
+// the auth package).
+func adminCtx() context.Context {
+	return auth.WithIdentity(context.Background(), &auth.Identity{UserID: "admin-test", Role: auth.RoleAdmin})
+}
+
+func TestAdminHandlersRejectNonAdminInHandler(t *testing.T) {
+	// SEC-025 — even if a request somehow reached an admin handler without the
+	// path-prefix gate (e.g. a future route misfiled outside /api/v1/admin/),
+	// the in-handler check must still refuse a non-admin identity with 403.
+	m := newMockAuth()
+	m.addUser(&storage.AuthUser{ID: "u2", Email: "b@example.org", Role: "researcher", Status: "active"})
+	s := authTestServer(m)
+	researcher := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "r", Role: auth.RoleResearcher})
+
+	resp, _ := s.GetAdminUsers(researcher, GetAdminUsersRequestObject{})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitGetAdminUsersResponse(rec)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for a researcher reaching GetAdminUsers, got %d", rec.Code)
+	}
+
+	// A machine (X-API-Key) identity is never an admin either.
+	machine := auth.WithIdentity(context.Background(), &auth.Identity{Machine: true})
+	resp2, _ := s.PostAdminUserResetPassword(machine, PostAdminUserResetPasswordRequestObject{ID: "u2"})
+	rec = httptest.NewRecorder()
+	_ = resp2.VisitPostAdminUserResetPasswordResponse(rec)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for a machine caller reaching reset-password, got %d", rec.Code)
+	}
+	if len(m.revokedAll) != 0 {
+		t.Fatal("a refused admin reset must not revoke any sessions")
+	}
+}
+
 func TestAdminCreateUserIssuesInvite(t *testing.T) {
 	m := newMockAuth()
 	s := authTestServer(m)
 
-	resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+	resp, err := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 		Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("new@example.org"), Role: "researcher"},
 	})
 	if err != nil {
@@ -42,7 +79,7 @@ func TestAdminCreateUserDuplicateIs409(t *testing.T) {
 	m.addUser(&storage.AuthUser{ID: "u1", Email: "taken@example.org", Role: "researcher", Status: "active"})
 	s := authTestServer(m)
 
-	resp, _ := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+	resp, _ := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 		Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("taken@example.org"), Role: "researcher"},
 	})
 	rec := httptest.NewRecorder()
@@ -54,7 +91,7 @@ func TestAdminCreateUserDuplicateIs409(t *testing.T) {
 
 func TestAdminCreateUserInvalidRoleIs400(t *testing.T) {
 	s := authTestServer(newMockAuth())
-	resp, _ := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+	resp, _ := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 		Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("x@example.org"), Role: "superuser"},
 	})
 	rec := httptest.NewRecorder()
@@ -70,7 +107,7 @@ func TestAdminListUsers(t *testing.T) {
 	m.addUser(&storage.AuthUser{ID: "u2", Email: "b@example.org", Role: "researcher", Status: "invited"})
 	s := authTestServer(m)
 
-	resp, _ := s.GetAdminUsers(context.Background(), GetAdminUsersRequestObject{})
+	resp, _ := s.GetAdminUsers(adminCtx(), GetAdminUsersRequestObject{})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitGetAdminUsersResponse(rec)
 	if rec.Code != http.StatusOK {
@@ -143,7 +180,7 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	m.addUser(&storage.AuthUser{ID: "u2", Email: "b@example.org", Role: "researcher", Status: "active"})
 	s := authTestServer(m)
 
-	resp, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{ID: "u2"})
+	resp, _ := s.PostAdminUserResetPassword(adminCtx(), PostAdminUserResetPasswordRequestObject{ID: "u2"})
 	rec := httptest.NewRecorder()
 	_ = resp.VisitPostAdminUserResetPasswordResponse(rec)
 	if rec.Code != http.StatusOK {
@@ -159,7 +196,7 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	}
 
 	// Unknown user → 404.
-	resp2, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{ID: "ghost"})
+	resp2, _ := s.PostAdminUserResetPassword(adminCtx(), PostAdminUserResetPasswordRequestObject{ID: "ghost"})
 	rec = httptest.NewRecorder()
 	_ = resp2.VisitPostAdminUserResetPasswordResponse(rec)
 	if rec.Code != http.StatusNotFound {
@@ -186,7 +223,7 @@ func TestAdminCreateUserDeliveredFlag(t *testing.T) {
 		s := authTestServer(newMockAuth())
 		s.emailEnabled = true // stubMailer returns nil
 
-		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+		resp, err := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("ok@example.org"), Role: "researcher"},
 		})
 		if err != nil {
@@ -206,7 +243,7 @@ func TestAdminCreateUserDeliveredFlag(t *testing.T) {
 		s.mailer = failingMailer{}
 		s.emailEnabled = true
 
-		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+		resp, err := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("down@example.org"), Role: "researcher"},
 		})
 		if err != nil {
@@ -226,7 +263,7 @@ func TestAdminCreateUserDeliveredFlag(t *testing.T) {
 
 	t.Run("LogSender fallback → delivered false", func(t *testing.T) {
 		s := authTestServer(newMockAuth()) // emailEnabled stays false
-		resp, err := s.PostAdminUsers(context.Background(), PostAdminUsersRequestObject{
+		resp, err := s.PostAdminUsers(adminCtx(), PostAdminUsersRequestObject{
 			Body: &PostAdminUsersJSONRequestBody{Email: openapi_types.Email("log@example.org"), Role: "researcher"},
 		})
 		if err != nil {
