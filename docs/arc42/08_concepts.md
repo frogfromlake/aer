@@ -368,7 +368,7 @@ WP-005 §5.4 prescribes a tiered retention strategy in which raw 5-minute sample
 
 AĒR enforces code quality at the Git level via hooks in `scripts/hooks/`:
 
-**Pre-commit** (`scripts/hooks/pre-commit`): Runs `make lint` (`golangci-lint` for Go, `ruff` for Python). Commits are blocked if linting fails.
+**Pre-commit** (`scripts/hooks/pre-commit`): Runs **scoped** linters — only the languages the commit staged (`lint-python`/ruff, `lint-go`/golangci-lint + OpenAPI, `fe-lint` for the dashboard); docs-/config-only commits skip. Commits are blocked if linting fails. The full `make lint` runs at pre-push + CI.
 
 **Pre-push** (`scripts/hooks/pre-push`): Runs `make lint`, then `make audit` (`govulncheck` for Go, `pip-audit` for Python), then `make test` (full Go integration tests + Python unit tests). Pushes are blocked if any step fails. This ensures CI parity — no push reaches the remote with known dependency vulnerabilities.
 

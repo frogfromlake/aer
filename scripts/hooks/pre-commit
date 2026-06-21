@@ -1,19 +1,52 @@
 #!/bin/bash
 
 # ==============================================================================
-# AĒR PRE-COMMIT HOOK
-# Ensures code quality before committing to the local repository.
+# AĒR PRE-COMMIT HOOK — fast, SCOPED lint gate.
+#
+# Runs ONLY the linters for the languages this commit actually staged:
+#   Python  (services/analysis-worker, crawlers/*)         → make lint-python
+#   Go      (services/ingestion-api, bff-api, pkg, openapi) → make lint-go
+#   Frontend(services/dashboard)                           → make fe-lint
+#
+# A docs-/config-/compose-only commit runs nothing and is instant. The full
+# `make lint` (all languages) still runs in the pre-PUSH hook and in CI as the
+# authoritative gate, so nothing reaches a shared branch unlinted.
+#
+# Frontend lint compiles Paraglide i18n messages only when they actually
+# changed (services/dashboard/scripts/messages-if-stale.mjs) — so the ~3.8s
+# compile no longer runs (3×) on every commit.
 # ==============================================================================
 
-echo "🛑 [Pre-Commit Hook] Running Linters..."
+set -uo pipefail
 
-# 1. Run Linters
-make lint
+STAGED=$(git diff --cached --name-only 2>/dev/null || true)
 
-if [ $? -ne 0 ]; then
-  echo "❌ [Pre-Commit Hook] Linting failed! Please fix the errors before committing."
-  exit 1
+run_go=false
+run_py=false
+run_fe=false
+echo "$STAGED" | grep -qE '^(services/analysis-worker|crawlers)/'        && run_py=true
+echo "$STAGED" | grep -qE '^(services/(ingestion-api|bff-api)|pkg)/'     && run_go=true
+echo "$STAGED" | grep -qE '^services/dashboard/'                         && run_fe=true
+
+if ! $run_go && ! $run_py && ! $run_fe; then
+  echo "ℹ️  [Pre-Commit] No lintable code staged (docs/config only) — skipping lint."
+  exit 0
 fi
 
-echo "✅ [Pre-Commit Hook] Linting passed. Proceeding with commit..."
+echo "🛑 [Pre-Commit] Running scoped linters..."
+
+if $run_py; then
+  echo "🔎 [Pre-Commit] Python staged → make lint-python"
+  make lint-python || { echo "❌ [Pre-Commit] Python lint failed. Fix before committing."; exit 1; }
+fi
+if $run_go; then
+  echo "🔎 [Pre-Commit] Go/OpenAPI staged → make lint-go"
+  make lint-go || { echo "❌ [Pre-Commit] Go lint failed. Fix before committing."; exit 1; }
+fi
+if $run_fe; then
+  echo "🔎 [Pre-Commit] Dashboard staged → make fe-lint"
+  make fe-lint || { echo "❌ [Pre-Commit] Frontend lint failed. Fix before committing."; exit 1; }
+fi
+
+echo "✅ [Pre-Commit] Scoped lint passed. (Full lint runs in pre-push + CI.)"
 exit 0

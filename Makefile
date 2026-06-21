@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
+.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-python lint-go lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-lighthouse fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -539,6 +539,14 @@ cover: cover-go cover-python fe-test
 
 lint:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running Linters...$(RESET)"
+	@$(MAKE) --no-print-directory lint-python
+	@$(MAKE) --no-print-directory lint-go
+	@$(MAKE) --no-print-directory fe-lint
+
+# Granular lint targets — `make lint` runs all three; the scoped pre-commit
+# hook (scripts/hooks/pre-commit) calls only the ones whose files a commit
+# actually staged, so a docs- or single-language commit stays fast.
+lint-python:
 	@cd services/analysis-worker && \
 		if [ -f ./.venv/bin/python ]; then \
 			./.venv/bin/python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (analysis-worker) passed!$(RESET)"; \
@@ -551,11 +559,12 @@ lint:
 		else \
 			python -m ruff check . && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Python lint (web-crawler) passed!$(RESET)"; \
 		fi
+
+lint-go:
 	@cd services/ingestion-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (Ingestion API) lint passed!$(RESET)"
 	@cd services/bff-api && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (BFF API) lint passed!$(RESET)"
 	@cd pkg && golangci-lint run && echo -e "$(SYMBOL_SUCCESS) $(GREEN)Go (pkg/) lint passed!$(RESET)"
 	@$(MAKE) --no-print-directory openapi-lint
-	@$(MAKE) --no-print-directory fe-lint
 
 lint-go-pkg:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running golangci-lint for pkg/...$(RESET)"

@@ -91,7 +91,7 @@ The default is the **in-worker NATS-cron** pattern wherever possible. Standalone
 | `scripts/operations/clean.sh` | Remove `.pids` and `__pycache__` directories | `make services-clean`, manual | On-demand | early |
 | `scripts/operations/clean_infra.sh` | Wipe MinIO / Postgres / ClickHouse persistent volumes (with confirmation) | `make infra-clean[-postgres\|-minio\|-clickhouse]`, manual | On-demand | early |
 | `scripts/build/deps_refresh.sh` | Update pinned external assets (SentiWS lexicon hash, etc.) and rebuild | Manual | On-demand (when an upstream lexicon updates) | 119? |
-| `scripts/hooks/pre-commit` | Run `make lint` before commit | Git hook | Every commit | 50 |
+| `scripts/hooks/pre-commit` | Run scoped linters (only staged languages; docs-only commits skip) before commit | Git hook | Every commit | 50 |
 | `scripts/hooks/pre-push` | Run `make lint && make audit && make test` before push | Git hook | Every push | 50 |
 | `scripts/build/generate_metric_validity_scaffold.py` | Auto-generate `aer_gold.metric_validity` scaffold from Capability Manifest | `make scaffold-metric-validity`, CI drift gate | On every manifest edit | 118a |
 
