@@ -1,5 +1,14 @@
 # Production overlay — adds Let's Encrypt ACME TLS certificates.
 # Usage: docker compose -f compose.yaml -f compose.prod.yaml up -d
+#
+# Disk-fill posture is INHERITED from compose.yaml and verified to hold in the
+# merged prod config (SEC-055/099/100): every service keeps the base rotated
+# json-file logging cap (10MB x 3), ClickHouse keeps its system-log TTL/disable
+# config mount, and the NATS AER_LAKE stream keeps its bounded max_age/max_bytes.
+# This overlay must NOT override a service's `logging:` (the base anchor
+# `*default-logging` is file-local to compose.yaml and not available here) — if a
+# prod-specific log driver is ever needed, re-add an explicit cap, never an
+# unbounded driver.
 services:
   traefik:
     command:

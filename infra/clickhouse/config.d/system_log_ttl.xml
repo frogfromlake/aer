@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!--
+  SEC-099 — bound ClickHouse's internal system logs so they cannot fill the disk.
+  On a single budget box these grew to 1.27 GiB from a few crawls (trace_log
+  544 MiB, text_log 367 MiB, asynchronous_metric_log 181 MiB, …) vs ~46 MiB of
+  real aer_gold data — a 27x amplification that grows with process UPTIME, not
+  data.
+
+  Strategy: DISABLE the high-volume, uptime-/query-driven profiling logs (no
+  value to a solo operator; the dominant disk-fill source), and keep the
+  operationally useful ones (query/part/text) on a short TTL. Verified live: CH
+  starts Healthy, disabled tables stay at 0 B and do not refill, kept tables
+  carry the TTL (query_log → toIntervalDay(7)).
+
+  NOTE: only `event_date`-bearing tables get a TTL expression. A TTL on a table
+  without event_date (e.g. error_log) crashes startup — those are left at their
+  defaults rather than TTL'd here.
+-->
+<clickhouse>
+    <!-- Disabled: profiling / per-second telemetry, useless to a solo operator. -->
+    <asynchronous_metric_log remove="1"/>
+    <metric_log remove="1"/>
+    <trace_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <query_views_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <query_metric_log remove="1"/>
+    <asynchronous_insert_log remove="1"/>
+
+    <!-- Kept, bounded by a short TTL (all have an event_date column). -->
+    <query_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></query_log>
+    <part_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></part_log>
+    <text_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></text_log>
+</clickhouse>
