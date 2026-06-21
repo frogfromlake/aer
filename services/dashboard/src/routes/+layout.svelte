@@ -21,14 +21,18 @@
   setUnauthenticatedHandler(handleUnauthenticated);
 
   // One QueryClient for the lifetime of the shell. Defaults:
-  //  - Refusals are returned as success data, so `retry` on errors stays
-  //    at TanStack's default (3x) — only 5xx/transport failures retry.
+  //  - Refusals are returned as success data; only a thrown NetworkErrorOutcome
+  //    retries. A 401 (known-dead session) already fired the bounce, so the
+  //    retry predicate excludes it (SEC-087) — otherwise the default 3x backoff
+  //    keeps hammering the now-401-ing BFF. 5xx/transport failures still retry 3x.
   //  - `refetchOnWindowFocus` is off: the Atmosphere holds long views;
   //    silent refetches would re-pulse the globe on every tab-switch.
   const client = new QueryClient({
     defaultOptions: {
       queries: {
-        refetchOnWindowFocus: false
+        refetchOnWindowFocus: false,
+        retry: (failureCount, error) =>
+          (error as { httpStatus?: number } | null)?.httpStatus !== 401 && failureCount < 3
       }
     }
   });
