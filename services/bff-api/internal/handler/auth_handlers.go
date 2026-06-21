@@ -201,22 +201,22 @@ func (s *Server) PostAuthAcceptInvite(ctx context.Context, request PostAuthAccep
 	if !passwordOK(b.Password) {
 		return PostAuthAcceptInvite400JSONResponse{Code: "weak_password", Message: "password too short"}, nil
 	}
-	userID, err := s.authBackend.ConsumeToken(ctx, auth.HashOpaqueToken(b.Token), "invite")
-	if err != nil {
-		slog.Error("accept-invite: consume token", "error", err)
-		return PostAuthAcceptInvite500JSONResponse{Message: genericInternalError}, nil
-	}
-	if userID == "" {
-		return PostAuthAcceptInvite400JSONResponse{Code: "invalid_token", Message: "the invitation link is invalid or has expired"}, nil
-	}
+	// Hash before the transaction so the CPU-bound argon2 work never holds the
+	// token+activate tx open.
 	pwHash, err := auth.HashPassword(b.Password, s.authConfig.Argon2)
 	if err != nil {
 		slog.Error("accept-invite: hash password", "error", err)
 		return PostAuthAcceptInvite500JSONResponse{Message: genericInternalError}, nil
 	}
-	if err := s.authBackend.ActivateUser(ctx, userID, pwHash); err != nil {
-		slog.Error("accept-invite: activate user", "error", err)
+	// SEC-078 — consume the single-use token and activate atomically: a partial
+	// failure can no longer burn the token while leaving the account inactive.
+	userID, err := s.authBackend.ConsumeTokenAndActivate(ctx, auth.HashOpaqueToken(b.Token), pwHash)
+	if err != nil {
+		slog.Error("accept-invite: consume token and activate", "error", err)
 		return PostAuthAcceptInvite500JSONResponse{Message: genericInternalError}, nil
+	}
+	if userID == "" {
+		return PostAuthAcceptInvite400JSONResponse{Code: "invalid_token", Message: "the invitation link is invalid or has expired"}, nil
 	}
 	user, err := s.authBackend.GetUserByID(ctx, userID)
 	if err != nil || user == nil {
@@ -272,26 +272,23 @@ func (s *Server) PostAuthResetPassword(ctx context.Context, request PostAuthRese
 	if !passwordOK(request.Body.Password) {
 		return PostAuthResetPassword400JSONResponse{Code: "weak_password", Message: "password too short"}, nil
 	}
-	userID, err := s.authBackend.ConsumeToken(ctx, auth.HashOpaqueToken(request.Body.Token), "password_reset")
-	if err != nil {
-		slog.Error("reset-password: consume token", "error", err)
-		return PostAuthResetPassword500JSONResponse{Message: genericInternalError}, nil
-	}
-	if userID == "" {
-		return PostAuthResetPassword400JSONResponse{Code: "invalid_token", Message: "the reset link is invalid or has expired"}, nil
-	}
+	// Hash before the transaction so the CPU-bound argon2 work never holds the
+	// token+password+revoke tx open.
 	pwHash, err := auth.HashPassword(request.Body.Password, s.authConfig.Argon2)
 	if err != nil {
 		slog.Error("reset-password: hash password", "error", err)
 		return PostAuthResetPassword500JSONResponse{Message: genericInternalError}, nil
 	}
-	if err := s.authBackend.UpdateUserPassword(ctx, userID, pwHash); err != nil {
-		slog.Error("reset-password: update password", "error", err)
+	// SEC-078 — consume the token, set the password, and revoke all sessions
+	// atomically: the password change and the session revocation co-commit, so a
+	// partial failure can neither burn the token nor leave stale sessions live.
+	userID, err := s.authBackend.ConsumeTokenAndResetPassword(ctx, auth.HashOpaqueToken(request.Body.Token), pwHash)
+	if err != nil {
+		slog.Error("reset-password: consume token and reset", "error", err)
 		return PostAuthResetPassword500JSONResponse{Message: genericInternalError}, nil
 	}
-	if err := s.authBackend.RevokeAllUserSessions(ctx, userID); err != nil {
-		slog.Error("reset-password: revoke sessions", "error", err)
-		return PostAuthResetPassword500JSONResponse{Message: genericInternalError}, nil
+	if userID == "" {
+		return PostAuthResetPassword400JSONResponse{Code: "invalid_token", Message: "the reset link is invalid or has expired"}, nil
 	}
 	return PostAuthResetPassword204Response{}, nil
 }

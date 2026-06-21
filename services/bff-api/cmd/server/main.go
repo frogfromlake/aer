@@ -80,6 +80,13 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("ClickHouse connected successfully")
+	// SEC-088 — drain the ClickHouse pool on shutdown, mirroring the PG-pool
+	// defers below. Close() is nil-safe and idempotent.
+	defer func() {
+		if err := chStore.Close(); err != nil {
+			slog.Error("Error closing ClickHouse pool", "error", err)
+		}
+	}()
 
 	// 6. Load static BFF config (metric provenance). Source metadata now
 	// lives in Postgres (Phase 87 — no more YAML mirror).

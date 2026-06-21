@@ -81,6 +81,23 @@ func (m *mockAuth) ConsumeToken(_ context.Context, tokenHash, purpose string) (s
 	tok.consumed = true
 	return tok.userID, nil
 }
+func (m *mockAuth) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+	userID, _ := m.ConsumeToken(ctx, tokenHash, "invite")
+	if userID == "" {
+		return "", nil
+	}
+	_ = m.ActivateUser(ctx, userID, passwordHash)
+	return userID, nil
+}
+func (m *mockAuth) ConsumeTokenAndResetPassword(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+	userID, _ := m.ConsumeToken(ctx, tokenHash, "password_reset")
+	if userID == "" {
+		return "", nil
+	}
+	_ = m.UpdateUserPassword(ctx, userID, passwordHash)
+	_ = m.RevokeAllUserSessions(ctx, userID)
+	return userID, nil
+}
 func (m *mockAuth) ActivateUser(_ context.Context, id, passwordHash string) error {
 	if u := m.byID[id]; u != nil {
 		u.Status = "active"

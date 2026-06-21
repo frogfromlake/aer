@@ -221,6 +221,10 @@ type AuthBackend interface {
 	RevokeOtherUserSessions(ctx context.Context, userID, keepIDHash string) error
 	CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error
 	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
+	// Transactional token flows (SEC-078): consume + apply co-commit so a
+	// partial failure cannot burn the single-use token.
+	ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error)
+	ConsumeTokenAndResetPassword(ctx context.Context, tokenHash, passwordHash string) (string, error)
 	ActivateUser(ctx context.Context, id, passwordHash string) error
 	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
 	// Admin (Phase 134 / ADR-040).

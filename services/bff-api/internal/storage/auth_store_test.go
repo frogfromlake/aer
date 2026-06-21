@@ -410,3 +410,85 @@ func TestAuthStore_RevokeOtherKeepsCurrent(t *testing.T) {
 		t.Fatal("expected sibling session to be revoked")
 	}
 }
+
+// SEC-078 — token-consuming flows must be transactional: token consumption and
+// the downstream writes co-commit, so a partial failure never burns the
+// single-use token.
+
+func TestAuthStore_ConsumeTokenAndActivate(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	var uid string
+	if err := s.db.QueryRowContext(ctx,
+		`INSERT INTO users (email, role, status) VALUES ('inv@x.y','researcher','invited') RETURNING id::text`).Scan(&uid); err != nil {
+		t.Fatalf("seed invited: %v", err)
+	}
+	if err := s.CreateToken(ctx, uid, "invite", "tok-inv", time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	got, err := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$activated")
+	if err != nil || got != uid {
+		t.Fatalf("activate: got=%q err=%v", got, err)
+	}
+	u, _ := s.GetUserByID(ctx, uid)
+	if u == nil || u.Status != "active" || u.PasswordHash.String != "$argon2id$activated" {
+		t.Fatalf("expected active user with new password, got %+v", u)
+	}
+	// Single-use: the token is burned.
+	if again, _ := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$other"); again != "" {
+		t.Fatal("expected single-use invite token to be burned")
+	}
+	// Invalid token → empty, no error.
+	if bad, _ := s.ConsumeTokenAndActivate(ctx, "nope", "$argon2id$z"); bad != "" {
+		t.Fatal("expected invalid token to yield empty")
+	}
+}
+
+func TestAuthStore_ConsumeTokenAndResetPassword(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	now := time.Now()
+	_ = s.CreateSession(ctx, "rs1", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	_ = s.CreateSession(ctx, "rs2", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	if err := s.CreateToken(ctx, uid, "password_reset", "tok-rst", now.Add(time.Hour)); err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	got, err := s.ConsumeTokenAndResetPassword(ctx, "tok-rst", "$argon2id$reset")
+	if err != nil || got != uid {
+		t.Fatalf("reset: got=%q err=%v", got, err)
+	}
+	// Password updated AND every session revoked — co-committed.
+	u, _ := s.GetUserByID(ctx, uid)
+	if u == nil || u.PasswordHash.String != "$argon2id$reset" {
+		t.Fatalf("expected password updated, got %+v", u)
+	}
+	for _, h := range []string{"rs1", "rs2"} {
+		if id, _ := s.ValidateAndTouchSession(ctx, h, time.Hour); id != nil {
+			t.Fatalf("expected session %s revoked by reset", h)
+		}
+	}
+}
+
+func TestAuthStore_ConsumeTokenTxRollsBackOnApplyFailure(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	if err := s.CreateToken(ctx, uid, "invite", "tok-rb", time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	// A failing apply must roll back the whole transaction, including the
+	// token-consume UPDATE — the single-use token must NOT be burned.
+	_, err := s.consumeTokenTx(ctx, "tok-rb", "invite",
+		func(context.Context, *sql.Tx, string) error { return fmt.Errorf("boom") })
+	if err == nil {
+		t.Fatal("expected the apply failure to surface")
+	}
+	got, cErr := s.ConsumeToken(ctx, "tok-rb", "invite")
+	if cErr != nil {
+		t.Fatalf("consume after rollback: %v", cErr)
+	}
+	if got != uid {
+		t.Fatal("expected token to remain unconsumed after a rolled-back tx (SEC-078)")
+	}
+}

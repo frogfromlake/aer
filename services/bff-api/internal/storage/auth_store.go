@@ -191,6 +191,78 @@ func (s *AuthStore) ConsumeToken(ctx context.Context, tokenHash, purpose string)
 	return userID, nil
 }
 
+// ConsumeTokenAndActivate consumes a single-use invite token and activates the
+// user in one transaction (SEC-078): a partial failure can no longer burn the
+// token while leaving the account un-activated. Returns ("", nil) when the
+// token is invalid / expired / already consumed (transaction rolled back).
+func (s *AuthStore) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+	return s.consumeTokenTx(ctx, tokenHash, "invite", func(ctx context.Context, tx *sql.Tx, userID string) error {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE users SET password_hash = $2, status = 'active',
+			        responsible_use_accepted_at = now(), updated_at = now()
+			 WHERE id = $1::uuid`, userID, passwordHash)
+		return err
+	})
+}
+
+// ConsumeTokenAndResetPassword consumes a single-use reset token, sets the new
+// password, and revokes all of the user's sessions in one transaction
+// (SEC-078): the password change and the session revocation co-commit, so a
+// partial failure can neither burn the token nor leave stale sessions live.
+// Returns ("", nil) for an invalid token (transaction rolled back).
+func (s *AuthStore) ConsumeTokenAndResetPassword(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+	return s.consumeTokenTx(ctx, tokenHash, "password_reset", func(ctx context.Context, tx *sql.Tx, userID string) error {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1::uuid`,
+			userID, passwordHash); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx,
+			`UPDATE sessions SET revoked_at = now() WHERE user_id = $1::uuid AND revoked_at IS NULL`,
+			userID)
+		return err
+	})
+}
+
+// consumeTokenTx burns the single-use token and applies the supplied follow-up
+// writes atomically in one transaction. The token-consume UPDATE and apply()
+// share the same *sql.Tx, so either all writes commit or none do. apply() runs
+// only when a valid token was consumed; an invalid token returns ("", nil) with
+// the transaction rolled back. Password hashing is deliberately done by the
+// caller before this call so the CPU-bound argon2 work never holds the tx open.
+func (s *AuthStore) consumeTokenTx(
+	ctx context.Context,
+	tokenHash, purpose string,
+	apply func(context.Context, *sql.Tx, string) error,
+) (string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin token tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op once Commit succeeds
+
+	var userID string
+	err = tx.QueryRowContext(ctx, `
+		UPDATE auth_tokens SET consumed_at = now()
+		WHERE token_hash = $1 AND purpose = $2
+		  AND consumed_at IS NULL AND expires_at > now()
+		RETURNING user_id::text`, tokenHash, purpose).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil // invalid token — rollback leaves it unconsumed
+		}
+		return "", fmt.Errorf("consume token: %w", err)
+	}
+
+	if err := apply(ctx, tx, userID); err != nil {
+		return "", fmt.Errorf("apply token effect: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit token tx: %w", err)
+	}
+	return userID, nil
+}
+
 // DeleteExpiredSessions purges sessions past their absolute cap and sessions
 // revoked more than a day ago. Best-effort housekeeping; returns the row count.
 func (s *AuthStore) DeleteExpiredSessions(ctx context.Context) (int64, error) {
