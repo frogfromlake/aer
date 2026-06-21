@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -381,6 +382,24 @@ def test_normalise_source_discovery_defaults_for_empty_source() -> None:
         "archive_index": None,
         "expected_floor_per_run": None,
     }
+
+
+def test_normalise_source_discovery_is_memoised_one_shot(monkeypatch) -> None:
+    """SEC-094 — normalisation (and its legacy-key warning) runs exactly once
+    per source, however many of the three call sites invoke it."""
+    import main as crawler_main
+
+    mock_log = MagicMock()
+    monkeypatch.setattr(crawler_main.structlog, "get_logger", lambda *a, **k: mock_log)
+
+    source = {"name": "legacy", "sitemap_urls": ["https://x/sitemap.xml"]}
+    first = crawler_main._normalise_source_discovery(source)
+    second = crawler_main._normalise_source_discovery(source)
+
+    assert first is second  # cached on the source, not recomputed
+    assert source["_normalised_discovery"] is first
+    # The legacy-key migration warning fired once across both calls, not twice.
+    assert mock_log.warning.call_count == 1
 
 
 def test_discover_for_source_uses_plural_rss_feeds(monkeypatch) -> None:

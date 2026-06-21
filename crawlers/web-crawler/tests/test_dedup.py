@@ -189,6 +189,23 @@ def test_record_upserts_row_and_returns_connection():
     pool.putconn.assert_called_once()
 
 
+def test_record_coalesce_protects_content_hash_on_304():
+    # SEC-092 — a 304 re-fetch records content_sha256=None; the upsert must
+    # COALESCE so the prior body hash survives instead of being wiped to NULL.
+    pool, cursor = _fake_pool()
+    _state(pool).record(
+        7,
+        "https://x/a",
+        etag="E",
+        http_last_modified=None,
+        content_sha256=None,  # 304: no body to hash
+        sitemap_lastmod=None,
+    )
+    sql, params = cursor.execute.call_args[0]
+    assert "content_hash       = COALESCE(EXCLUDED.content_hash" in sql
+    assert params[5] is None  # the None is still bound; COALESCE keeps the old row value
+
+
 # --- close -------------------------------------------------------------------
 
 

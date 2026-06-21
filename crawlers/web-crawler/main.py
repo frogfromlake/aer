@@ -200,6 +200,14 @@ def _normalise_source_discovery(source: dict[str, Any]) -> dict[str, Any]:
     so operators see the migration prompt without breaking existing
     configs. The aliasing is retired in Phase 127.
     """
+    # SEC-094 — memoise on the source dict so the normalisation (and its
+    # legacy-key warning) runs exactly once per source, no matter how many of
+    # the three call sites (discover, validate, telemetry) invoke it. Honours
+    # the docstring's "one-shot warning" promise and drops the duplicated work.
+    cached = source.get("_normalised_discovery")
+    if cached is not None:
+        return cached
+
     log = structlog.get_logger()
     discovery = source.get("discovery")
     legacy_used: list[str] = []
@@ -237,13 +245,15 @@ def _normalise_source_discovery(source: dict[str, Any]) -> dict[str, Any]:
             migration="wrap into `discovery:` block per Phase 122g — flat keys retire in Phase 127",
         )
 
-    return {
+    normalised = {
         "sitemap_urls": sitemap_urls,
         "rss_hint_urls": rss_hint_urls,
         "html_sitemap_urls": html_sitemap_urls,
         "archive_index": archive_index,
         "expected_floor_per_run": expected_floor,
     }
+    source["_normalised_discovery"] = normalised
+    return normalised
 
 
 @dataclass(frozen=True)

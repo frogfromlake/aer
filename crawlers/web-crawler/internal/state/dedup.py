@@ -130,7 +130,11 @@ class CrawlerState:
                             last_fetched       = EXCLUDED.last_fetched,
                             etag               = EXCLUDED.etag,
                             http_last_modified = EXCLUDED.http_last_modified,
-                            content_hash       = EXCLUDED.content_hash,
+                            -- SEC-092 — a 304 re-fetch records content_sha256=None;
+                            -- COALESCE so it preserves the prior body hash instead of
+                            -- wiping it, mirroring sitemap_lastmod below.
+                            content_hash       = COALESCE(EXCLUDED.content_hash,
+                                                          crawler_state.content_hash),
                             sitemap_lastmod    = COALESCE(EXCLUDED.sitemap_lastmod,
                                                           crawler_state.sitemap_lastmod);
                         """,
