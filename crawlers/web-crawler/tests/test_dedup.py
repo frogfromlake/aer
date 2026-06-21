@@ -1,10 +1,11 @@
 """Unit tests for the PostgreSQL-backed dedup / conditional-GET state.
 
 The pg connection pool is fully faked (mirrors tests/test_discovery_runs.py) —
-pure unit tests, no real Postgres. The ``except psycopg2.Error`` degraded-read
-branch is intentionally not exercised: under the conftest's mocked psycopg2 the
+pure unit tests, no real Postgres. The ``except psycopg2.Error`` degraded read
+and write branches (the read path and, since SEC-085, the symmetric write path)
+are intentionally not exercised: under the conftest's mocked psycopg2 the
 sentinel is not a real exception class, so the happy paths are asserted here and
-that branch is left to integration coverage.
+those branches are left to integration coverage.
 """
 
 from __future__ import annotations

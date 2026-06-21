@@ -129,6 +129,17 @@ class CrawlerState:
                             sitemap_lastmod,
                         ),
                     )
+        except psycopg2.Error as exc:
+            # Symmetric with _fetch_row: a transient write hiccup degrades
+            # gracefully rather than propagating out of parse_article. The
+            # Bronze key is deterministic, so a lost crawler_state row only
+            # causes a re-fetch next run (idempotent, no duplication). (SEC-085)
+            logger.warning(
+                "crawler_state write failed for source=%s url=%s: %s",
+                source_id,
+                canonical_url,
+                exc,
+            )
         finally:
             self._pool.putconn(conn)
 
