@@ -5,8 +5,17 @@ import type { UrlState } from './url-types';
 import { clampLocale, NORMALIZATIONS, RESOLUTIONS, VIEWING_MODES } from './url-types';
 import { encodePillarState, decodePillarState } from './url-codec';
 
+// SEC-093 — an RFC-3339-style instant: a full date, at least `THH:mm`, and a
+// `Z`/`±hh:mm` designator. Requiring the time + offset rejects ambiguous
+// partials (`2026`, `2026-04`, `2026-04-01`) that `new Date()` would otherwise
+// coerce into a valid-but-unintended window from a malformed/hand-edited URL.
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 function parseIso(v: string | null): string | null {
   if (v === null) return null;
+  if (!ISO_INSTANT.test(v)) return null;
+  // The regex pins the shape; new Date still rejects impossible calendar values
+  // (e.g. month 13) and toISOString normalises to the canonical UTC form.
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }

@@ -34,6 +34,20 @@ describe('readFromSearch', () => {
     expect(readFromSearch('?from=not-a-date').from).toBeNull();
   });
 
+  it('rejects ambiguous partial dates that would coerce to an unintended window (SEC-093)', () => {
+    // Bare year / year-month / date-only must NOT be silently widened to a
+    // midnight-UTC instant by new Date(); only a full date+time+offset parses.
+    expect(readFromSearch('?from=2026').from).toBeNull();
+    expect(readFromSearch('?from=2026-04').from).toBeNull();
+    expect(readFromSearch('?from=2026-04-01').from).toBeNull();
+    // Calendar-impossible values matching the shape are still rejected.
+    expect(readFromSearch('?from=2026-13-01T00:00:00Z').from).toBeNull();
+    // An offset instant remains accepted and normalises to UTC.
+    expect(readFromSearch('?from=2026-04-01T02:00:00%2B02:00').from).toBe(
+      '2026-04-01T00:00:00.000Z'
+    );
+  });
+
   it('validates resolution against its enum', () => {
     expect(readFromSearch('?resolution=hourly').resolution).toBe('hourly');
     expect(readFromSearch('?resolution=yearly').resolution).toBeNull();
