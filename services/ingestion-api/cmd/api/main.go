@@ -37,22 +37,35 @@ func startRetentionCleanup(ctx context.Context, db *storage.PostgresDB) {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
+	// SEC-071: each retention DELETE runs under its own bounded context so a hung
+	// query (lock contention, slow anti-join) cannot hold a pooled connection
+	// until process shutdown. Mirrors the per-query timeouts elsewhere in the
+	// service; the DSN sets no statement_timeout for this background path.
+	const retentionQueryTimeout = 60 * time.Second
 	runCleanup := func() {
 		cutoff := time.Now().AddDate(0, 0, -retentionDays)
 
-		docsDeleted, err := db.DeleteOldDocuments(ctx, cutoff)
-		if err != nil {
-			slog.Error("PostgreSQL document retention cleanup failed", "error", err)
-		} else if docsDeleted > 0 {
-			slog.Info("PostgreSQL retention: deleted old documents", "count", docsDeleted, "cutoff", cutoff.Format(time.RFC3339))
-		}
+		func() {
+			qctx, cancel := context.WithTimeout(ctx, retentionQueryTimeout)
+			defer cancel()
+			docsDeleted, err := db.DeleteOldDocuments(qctx, cutoff)
+			if err != nil {
+				slog.Error("PostgreSQL document retention cleanup failed", "error", err)
+			} else if docsDeleted > 0 {
+				slog.Info("PostgreSQL retention: deleted old documents", "count", docsDeleted, "cutoff", cutoff.Format(time.RFC3339))
+			}
+		}()
 
-		jobsDeleted, err := db.DeleteOldIngestionJobs(ctx, cutoff)
-		if err != nil {
-			slog.Error("PostgreSQL job retention cleanup failed", "error", err)
-		} else if jobsDeleted > 0 {
-			slog.Info("PostgreSQL retention: deleted old ingestion jobs", "count", jobsDeleted, "cutoff", cutoff.Format(time.RFC3339))
-		}
+		func() {
+			qctx, cancel := context.WithTimeout(ctx, retentionQueryTimeout)
+			defer cancel()
+			jobsDeleted, err := db.DeleteOldIngestionJobs(qctx, cutoff)
+			if err != nil {
+				slog.Error("PostgreSQL job retention cleanup failed", "error", err)
+			} else if jobsDeleted > 0 {
+				slog.Info("PostgreSQL retention: deleted old ingestion jobs", "count", jobsDeleted, "cutoff", cutoff.Format(time.RFC3339))
+			}
+		}()
 	}
 
 	runCleanup() // run once immediately on startup

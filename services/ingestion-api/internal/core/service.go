@@ -180,7 +180,15 @@ func (s *IngestionService) IngestDocuments(ctx context.Context, sourceID int, do
 		}
 	}
 
-	if err := s.db.UpdateJobStatus(ctx, jobID, finalStatus); err != nil {
+	// SEC-076: the terminal status write must survive a client disconnect. The
+	// whole batch runs on the inbound request ctx; if the client drops after the
+	// job row was created but before we get here, that ctx is cancelled and this
+	// write would fail-fast, stranding the row 'running' forever (the retention
+	// sweep only reclaims terminal 'completed'/'failed'). Detach from the
+	// request's cancellation and bound it independently.
+	termCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := s.db.UpdateJobStatus(termCtx, jobID, finalStatus); err != nil {
 		slog.Error("Failed to update job status", "job_id", jobID, "error", err)
 	} else {
 		slog.Info("Ingestion job finished", "job_id", jobID, "status", finalStatus,

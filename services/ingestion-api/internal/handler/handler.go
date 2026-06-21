@@ -68,10 +68,20 @@ func (s *Server) IngestDocuments(ctx context.Context, request IngestDocumentsReq
 	}
 
 	docs := make([]core.Document, 0, len(body.Documents))
+	// SEC-070: reject duplicate keys before the concurrent upload fan-out. Two
+	// identical keys would race on the same MinIO object + PostgreSQL row
+	// (last-writer-wins overwrite) yet both count as accepted — an overstated
+	// count and one silently clobbered payload. Rejecting (rather than silently
+	// collapsing) keeps the accepted count honest and surfaces the client bug.
+	seen := make(map[string]struct{}, len(body.Documents))
 	for _, d := range body.Documents {
 		if d.Key == "" {
 			return IngestDocuments400JSONResponse{Error: "each document must have a non-empty key"}, nil
 		}
+		if _, dup := seen[d.Key]; dup {
+			return IngestDocuments400JSONResponse{Error: "duplicate document key in batch"}, nil
+		}
+		seen[d.Key] = struct{}{}
 		raw, err := json.Marshal(d.Data)
 		if err != nil {
 			slog.Error("handler failure", "op", "IngestDocuments.marshalData", "key", d.Key, "error", err)

@@ -267,6 +267,9 @@ func TestIngest_ValidationErrors(t *testing.T) {
 		{"negative source_id", `{"source_id": -1, "documents": [{"key": "a.json", "data": {}}]}`},
 		{"empty documents", `{"source_id": 1, "documents": []}`},
 		{"empty key", `{"source_id": 1, "documents": [{"key": "", "data": {}}]}`},
+		// SEC-070: duplicate keys in one batch are rejected before the upload
+		// fan-out (they would race the same object/row and overstate accepted).
+		{"duplicate key", `{"source_id": 1, "documents": [{"key": "dup.json", "data": {"id":1}}, {"key": "dup.json", "data": {"id":2}}]}`},
 	}
 
 	for _, tc := range cases {

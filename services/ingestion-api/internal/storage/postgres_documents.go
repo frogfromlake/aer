@@ -8,11 +8,16 @@ import (
 
 // LogDocument records the INTENT to ingest a document (Status: pending).
 func (p *PostgresDB) LogDocument(ctx context.Context, jobID int, bronzeKey string, traceID string) error {
-	// We use ON CONFLICT DO UPDATE to handle duplicate test cases gracefully and reset them to pending
+	// We use ON CONFLICT DO UPDATE to handle duplicate test cases gracefully and reset them to pending.
+	// SEC-067: refresh `ingested_at` on re-ingest. The Bronze object key is
+	// deterministic on canonical_url, so a re-crawl rewrites the same MinIO
+	// object (resetting its ~90d lifetime); without this the metadata row keeps
+	// its first-insert timestamp and the retention sweep (DELETE WHERE
+	// ingested_at < now-90d) could prune a row whose Bronze object is still live.
 	query := `
 		INSERT INTO documents (job_id, bronze_object_key, trace_id, status)
 		VALUES ($1, $2, $3, 'pending')
-		ON CONFLICT (bronze_object_key) DO UPDATE SET status = 'pending', trace_id = EXCLUDED.trace_id
+		ON CONFLICT (bronze_object_key) DO UPDATE SET status = 'pending', trace_id = EXCLUDED.trace_id, ingested_at = CURRENT_TIMESTAMP
 	`
 	_, err := p.DB.ExecContext(ctx, query, jobID, bronzeKey, traceID)
 	if err != nil {

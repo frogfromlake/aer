@@ -338,6 +338,40 @@ func TestIngestDocuments_StatusUpdateFailureDoesNotFailJob(t *testing.T) {
 	}
 }
 
+// TestIngestDocuments_TerminalStatusSurvivesClientDisconnect pins SEC-076: the
+// terminal job-status write must run on a LIVE context even when the inbound
+// request ctx is already cancelled (client disconnected mid-batch), otherwise
+// the job row is stranded 'running' forever.
+func TestIngestDocuments_TerminalStatusSurvivesClientDisconnect(t *testing.T) {
+	db := newMockDB()
+	minio := newMockMinio()
+
+	var sawLiveCtx bool
+	db.updateJobStatusFn = func(c context.Context, _ int, status string) error {
+		sawLiveCtx = c.Err() == nil // detached from the cancelled request ctx?
+		db.jobStatuses = append(db.jobStatuses, status)
+		return nil
+	}
+
+	// Simulate the client having disconnected by the time the batch finishes:
+	// the request ctx is already cancelled. The mocks ignore ctx, so the batch
+	// still completes; the assertion that matters is the terminal write detaches.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	svc := NewIngestionService(db, minio, "bronze", serialUploads)
+	_, err := svc.IngestDocuments(ctx, 1, []Document{{Key: "k1.json", Data: "{}"}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sawLiveCtx {
+		t.Error("terminal UpdateJobStatus ran on a cancelled ctx — SEC-076 regressed")
+	}
+	if !slices.Contains(db.jobStatuses, "completed") {
+		t.Errorf("terminal status never persisted, got %v", db.jobStatuses)
+	}
+}
+
 // TestJobStatusTransitions checks the three possible terminal states.
 func TestJobStatusTransitions(t *testing.T) {
 	cases := []struct {
