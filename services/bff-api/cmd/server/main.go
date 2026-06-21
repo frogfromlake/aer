@@ -336,13 +336,17 @@ func main() {
 			APIKey:     cfg.APIKey,
 			CookieName: cookieName,
 			IdleTTL:    time.Duration(cfg.SessionIdleSeconds) * time.Second,
-			ExemptSuffixes: []string{
-				"/healthz",
-				"/readyz",
-				"/auth/login",
-				"/auth/accept-invite",
-				"/auth/forgot-password",
-				"/auth/reset-password",
+			// Exact mounted paths (the /api/v1 base is hardcoded below in
+			// HandlerFromMuxWithBaseURL). Whole-path equality, not suffix, so a
+			// crafted path like /api/v1/articles/healthz cannot bypass the gate
+			// (SEC-013).
+			ExemptPaths: []string{
+				"/api/v1/healthz",
+				"/api/v1/readyz",
+				"/api/v1/auth/login",
+				"/api/v1/auth/accept-invite",
+				"/api/v1/auth/forgot-password",
+				"/api/v1/auth/reset-password",
 			},
 		}))
 

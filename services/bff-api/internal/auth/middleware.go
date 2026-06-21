@@ -56,10 +56,13 @@ type MiddlewareConfig struct {
 	CookieName string
 	// IdleTTL is how far each authenticated request slides the idle window.
 	IdleTTL time.Duration
-	// ExemptSuffixes are path suffixes that bypass auth entirely (health
+	// ExemptPaths are the EXACT request paths that bypass auth entirely (health
 	// probes + the pre-auth endpoints: login, accept-invite, forgot/reset
-	// password).
-	ExemptSuffixes []string
+	// password). Matched by whole-path equality, never by suffix: a suffix match
+	// on an attacker-controlled path lets e.g. `/api/v1/articles/healthz` skip
+	// the whole-app gate and reach a handler unauthenticated (SEC-013). Set the
+	// full mounted paths, including the `/api/v1` base.
+	ExemptPaths []string
 }
 
 // SessionOrAPIKey authenticates every request by EITHER a valid session cookie
@@ -67,13 +70,18 @@ type MiddlewareConfig struct {
 // browser path carries only the opaque cookie; the key is the machine path.
 // This is the whole-app gate (ADR-040 / LICENSE §4c).
 func SessionOrAPIKey(v SessionValidator, cfg MiddlewareConfig) func(http.Handler) http.Handler {
+	// Build the exempt-path allowlist once. Whole-path equality (not suffix)
+	// keeps the gate from being bypassed by a crafted path ending in an exempt
+	// token, e.g. `/api/v1/articles/healthz` (SEC-013).
+	exempt := make(map[string]struct{}, len(cfg.ExemptPaths))
+	for _, p := range cfg.ExemptPaths {
+		exempt[p] = struct{}{}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			for _, sfx := range cfg.ExemptSuffixes {
-				if strings.HasSuffix(r.URL.Path, sfx) {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if _, ok := exempt[r.URL.Path]; ok {
+				next.ServeHTTP(w, r)
+				return
 			}
 
 			// 1) Session cookie (the browser path).

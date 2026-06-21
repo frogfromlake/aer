@@ -114,13 +114,13 @@ func TestApiKeyFromRequest_XAPIKeyPreferredOverBearer(t *testing.T) {
 	}
 }
 
-func TestSessionOrAPIKey_ExemptSuffixBypassesAuth(t *testing.T) {
+func TestSessionOrAPIKey_ExemptPathBypassesAuth(t *testing.T) {
 	v := &stubValidator{} // would return (nil,nil) → 401 if consulted
 	cfg := MiddlewareConfig{
-		APIKey:         "machine-key",
-		CookieName:     "__Host-aer_session",
-		IdleTTL:        time.Hour,
-		ExemptSuffixes: []string{"/auth/login", "/healthz"},
+		APIKey:      "machine-key",
+		CookieName:  "__Host-aer_session",
+		IdleTTL:     time.Hour,
+		ExemptPaths: []string{"/api/v1/auth/login", "/api/v1/healthz"},
 	}
 	var reached bool
 	mw := SessionOrAPIKey(v, cfg)(okNext(&reached))
@@ -134,6 +134,36 @@ func TestSessionOrAPIKey_ExemptSuffixBypassesAuth(t *testing.T) {
 	}
 	if v.seenIDHash != "" {
 		t.Fatal("exempt path must not consult the session validator")
+	}
+}
+
+func TestSessionOrAPIKey_CraftedSuffixPathIsNotExempt(t *testing.T) {
+	// SEC-013 — a path that merely *ends* in an exempt token must NOT bypass
+	// the gate. `/api/v1/articles/healthz` is not the health probe; with no
+	// credential it must 401, never reach the handler, and never be treated as
+	// exempt (the old unanchored HasSuffix match let it through).
+	v := &stubValidator{}
+	cfg := MiddlewareConfig{
+		APIKey:      "machine-key",
+		CookieName:  "__Host-aer_session",
+		IdleTTL:     time.Hour,
+		ExemptPaths: []string{"/api/v1/healthz", "/api/v1/readyz"},
+	}
+	var reached bool
+	mw := SessionOrAPIKey(v, cfg)(okNext(&reached))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/articles/healthz", nil)
+	rec := httptest.NewRecorder()
+	mw.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("crafted suffix path must be gated (401), got %d", rec.Code)
+	}
+	if reached {
+		t.Fatal("crafted suffix path must not reach the handler unauthenticated")
+	}
+	if v.seenIDHash != "" {
+		t.Fatal("crafted suffix path must not be treated as exempt")
 	}
 }
 

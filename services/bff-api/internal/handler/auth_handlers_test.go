@@ -277,6 +277,45 @@ func TestLoginThrottleReturns429AfterRepeatedFailures(t *testing.T) {
 	}
 }
 
+func TestLoginCorrectPasswordBypassesArmedThrottle(t *testing.T) {
+	// SEC-020 — a third party arming the account-only throttle with wrong
+	// guesses must not lock out the legitimate owner: a correct password always
+	// succeeds and clears the throttle. (No client IP in the test context, so
+	// only the email key is armed — exactly the targeted-lockout vector.)
+	m := newMockAuth()
+	m.addUser(activeUser(t, "u1", "alice@example.org", "hunter2hunter2"))
+	s := authTestServer(m)
+
+	wrong := PostAuthLoginRequestObject{
+		Body: &PostAuthLoginJSONRequestBody{Email: openapi_types.Email("alice@example.org"), Password: "wrongwrongwrong"},
+	}
+	// Attacker arms the email throttle (5 free + arming attempts).
+	for i := 0; i < 7; i++ {
+		resp, _ := s.PostAuthLogin(context.Background(), wrong)
+		_ = resp.VisitPostAuthLoginResponse(httptest.NewRecorder())
+	}
+	// Confirm the throttle is armed: another wrong guess is now 429.
+	resp, _ := s.PostAuthLogin(context.Background(), wrong)
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPostAuthLoginResponse(rec)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected an armed throttle (429) for the wrong password, got %d", rec.Code)
+	}
+
+	// The legitimate owner's correct password must still succeed.
+	resp, _ = s.PostAuthLogin(context.Background(), PostAuthLoginRequestObject{
+		Body: &PostAuthLoginJSONRequestBody{Email: openapi_types.Email("alice@example.org"), Password: "hunter2hunter2"},
+	})
+	rec = httptest.NewRecorder()
+	_ = resp.VisitPostAuthLoginResponse(rec)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("SEC-020: correct password must bypass the armed throttle, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if setCookie(rec) == nil {
+		t.Fatal("expected a session cookie on the bypassing login")
+	}
+}
+
 func TestMeRequiresSession(t *testing.T) {
 	s := authTestServer(newMockAuth())
 

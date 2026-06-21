@@ -146,6 +146,16 @@ func (s *Server) PostAdminUserResetPassword(ctx context.Context, request PostAdm
 		slog.Error("admin: issue reset", "error", err)
 		return PostAdminUserResetPassword500JSONResponse{Message: genericInternalError}, nil
 	}
+	// SEC-008 — an admin-initiated reset immediately revokes the target's live
+	// sessions, so a compromised/phished account is locked out at once rather
+	// than only once the legitimate user consumes the link (mirrors the
+	// self-service reset, which already evicts all sessions). Suspend remains
+	// the documented instant-lockout primitive; this closes the least-surprise
+	// gap where "reset password" left an attacker's session validating.
+	if err := s.authBackend.RevokeAllUserSessions(ctx, user.ID); err != nil {
+		slog.Error("admin: revoke sessions on reset", "error", err)
+		return PostAdminUserResetPassword500JSONResponse{Message: genericInternalError}, nil
+	}
 	delivered := false
 	if s.mailer != nil {
 		if err := s.mailer.SendPasswordReset(ctx, user.Email, link); err != nil {

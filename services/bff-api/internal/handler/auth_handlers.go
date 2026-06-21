@@ -113,36 +113,46 @@ func (s *Server) PostAuthLogin(ctx context.Context, request PostAuthLoginRequest
 	}
 	email := strings.TrimSpace(string(request.Body.Email))
 	// Brute-force throttle (security review M-3): exponential backoff keyed by
-	// account + client IP. Checked before any work.
+	// account + client IP. SEC-020 — we evaluate the throttle but do NOT
+	// hard-block before verifying the password. A correct credential must
+	// always succeed and clear the throttle, so a third party arming the
+	// account-only key with wrong guesses can never lock the legitimate owner
+	// out; a wrong guess made while armed is what earns the 429.
 	keys := s.loginKeys(ctx, email)
-	if blocked, _ := s.loginThrottle.Blocked(keys...); blocked {
-		return PostAuthLogin429JSONResponse{Code: "too_many_attempts", Message: "too many failed attempts; please try again later"}, nil
-	}
+	blocked, _ := s.loginThrottle.Blocked(keys...)
 
 	user, err := s.authBackend.GetUserByEmail(ctx, email)
 	if err != nil {
 		slog.Error("login: get user", "error", err)
 		return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
 	}
-	// Generic failure for unknown user / no password / inactive — no enumeration.
-	// Anti-timing: ALWAYS run one argon2id operation so the response time does
-	// not reveal whether the account exists or is active. For a real active
-	// account we verify the stored hash; otherwise we hash the candidate and
-	// discard it (same dominant argon2.IDKey cost).
+	// Anti-timing: ALWAYS run exactly one argon2id operation so the response
+	// time does not reveal whether the account exists or is active — and we
+	// must verify the password even while throttled to tell the legitimate
+	// owner from an attacker. For a real active account we verify the stored
+	// hash; otherwise we hash the candidate and discard it (same dominant cost).
+	passwordCorrect := false
 	if user == nil || !user.PasswordHash.Valid || user.Status != "active" {
 		_, _ = auth.HashPassword(request.Body.Password, s.authConfig.Argon2)
+	} else {
+		ok, vErr := auth.VerifyPassword(request.Body.Password, user.PasswordHash.String)
+		if vErr != nil {
+			slog.Error("login: verify password", "error", vErr)
+			return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
+		}
+		passwordCorrect = ok
+	}
+
+	if !passwordCorrect {
 		s.loginThrottle.Fail(keys...)
+		// A wrong attempt during the backoff window is throttled; otherwise it
+		// is a generic 401 (the Fail above may arm the backoff).
+		if blocked {
+			return PostAuthLogin429JSONResponse{Code: "too_many_attempts", Message: "too many failed attempts; please try again later"}, nil
+		}
 		return PostAuthLogin401JSONResponse{Code: "invalid_credentials", Message: "invalid email or password"}, nil
 	}
-	ok, err := auth.VerifyPassword(request.Body.Password, user.PasswordHash.String)
-	if err != nil {
-		slog.Error("login: verify password", "error", err)
-		return PostAuthLogin500JSONResponse{Message: genericInternalError}, nil
-	}
-	if !ok {
-		s.loginThrottle.Fail(keys...)
-		return PostAuthLogin401JSONResponse{Code: "invalid_credentials", Message: "invalid email or password"}, nil
-	}
+
 	cookie, err := s.establishSession(ctx, user.ID)
 	if err != nil {
 		slog.Error("login: establish session", "error", err)

@@ -152,6 +152,11 @@ func TestAdminResetPasswordIssuesLink(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "/reset-password?token=") {
 		t.Fatalf("expected a reset link, got %s", rec.Body.String())
 	}
+	// SEC-008 — the admin reset must also revoke the target's live sessions so
+	// a compromised account is locked out immediately, not only on link use.
+	if len(m.revokedAll) != 1 || m.revokedAll[0] != "u2" {
+		t.Fatalf("expected admin reset to revoke u2's sessions, got %v", m.revokedAll)
+	}
 
 	// Unknown user → 404.
 	resp2, _ := s.PostAdminUserResetPassword(context.Background(), PostAdminUserResetPasswordRequestObject{ID: "ghost"})
