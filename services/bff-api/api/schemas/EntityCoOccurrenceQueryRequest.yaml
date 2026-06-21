@@ -46,11 +46,12 @@ properties:
   topN:
     type: integer
     minimum: 1
-    maximum: 500
+    maximum: 6000
     default: 50
     description: >
       Maximum number of co-occurrence edges to return. Server clamps
-      values outside [1, 500] to the nearest bound.
+      values outside [1, 6000] to the nearest bound (same ceiling as the
+      GET endpoint and the cooccurrence-network config UI).
   viewerLanguage:
     type: string
     minLength: 2

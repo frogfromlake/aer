@@ -357,14 +357,16 @@ func TestPostEntityCoOccurrenceQuery_ScopeLimitExceeded413(t *testing.T) {
 }
 
 func TestPostEntityCoOccurrenceQuery_ClampsTopN(t *testing.T) {
-	store := &mockStore{cooccurrence: storage.CoOccurrenceResult{TopN: 500}}
+	store := &mockStore{cooccurrence: storage.CoOccurrenceResult{TopN: storage.MaxCoOccurrenceTopN}}
 	router := newTestRouter(newViewModeServer(store))
 
+	// SEC-069 — POST shares the GET/storage/UI ceiling (6000); an over-cap
+	// request clamps to MaxCoOccurrenceTopN, not the stale 500.
 	body := strings.NewReader(`{
 		"scopes": [{"probeIds": ["probe-0-de-institutional-web"], "sourceIds": []}],
 		"windowStart": "` + winStart + `",
 		"windowEnd": "` + winEnd + `",
-		"topN": 9999
+		"topN": 99999
 	}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/entities/cooccurrence/query", body)
@@ -374,7 +376,7 @@ func TestPostEntityCoOccurrenceQuery_ClampsTopN(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
 	}
-	if store.capturedTopN != 500 {
-		t.Fatalf("topN should clamp to 500, got %d", store.capturedTopN)
+	if store.capturedTopN != storage.MaxCoOccurrenceTopN {
+		t.Fatalf("topN should clamp to %d, got %d", storage.MaxCoOccurrenceTopN, store.capturedTopN)
 	}
 }

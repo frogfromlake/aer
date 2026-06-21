@@ -2137,7 +2137,7 @@ type PostEntityCoOccurrenceQueryJSONBody struct {
 		SourceIds []string `json:"sourceIds"`
 	} `json:"scopes"`
 
-	// TopN Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
+	// TopN Maximum number of co-occurrence edges to return. Server clamps values outside [1, 6000] to the nearest bound (same ceiling as the GET endpoint and the cooccurrence-network config UI).
 	TopN *int `json:"topN,omitempty"`
 
 	// ViewerLanguage Optional viewer-language code (e.g. `de`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`; unlinked nodes (and QIDs lacking a label in this language) keep their source surface form. Absent = no relabelling. Swaps in the per-language Wikidata label, never a machine translation.

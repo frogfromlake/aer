@@ -6306,7 +6306,7 @@ export interface operations {
                      */
                     windowEnd?: string;
                     /**
-                     * @description Maximum number of co-occurrence edges to return. Server clamps values outside [1, 500] to the nearest bound.
+                     * @description Maximum number of co-occurrence edges to return. Server clamps values outside [1, 6000] to the nearest bound (same ceiling as the GET endpoint and the cooccurrence-network config UI).
                      * @default 50
                      */
                     topN?: number;

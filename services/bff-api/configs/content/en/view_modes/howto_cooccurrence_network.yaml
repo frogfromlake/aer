@@ -16,7 +16,7 @@ registers:
     long: >
       The note is composed from a per-presentation template plus the live top-N cap and the
       bound size/colour channels. Edges are the top-N pairs by summed co-occurrence count in the
-      window (clamped server-side to [1, 500]); a sparse graph reflects corpus sparseness, not an
+      window (clamped server-side to [1, 6000]); a sparse graph reflects corpus sparseness, not an
       analytical conclusion. Colour carries no valence — it is a categorical/by-presence
       encoding only.
 contentVersion: "v2026-05-a"

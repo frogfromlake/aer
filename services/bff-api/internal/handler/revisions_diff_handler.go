@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
@@ -308,7 +306,3 @@ func (s *Server) resolveRevisionsArticlesScope(
 func encodeRevisionsCursor(offset int) string {
 	return base64.RawURLEncoding.EncodeToString([]byte("o=" + strconv.Itoa(offset)))
 }
-
-// guard against unused-import on `fmt` / `strings` when shifting code.
-var _ = fmt.Sprintf
-var _ = strings.TrimSpace

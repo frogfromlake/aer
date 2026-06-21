@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
 
 // GetEntityCoOccurrence returns the top-N entity-pair edges aggregated over
@@ -30,6 +32,7 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	if request.Params.TopN != nil {
 		topN = *request.Params.TopN
 	}
+	topN = storage.ClampCoOccurrenceTopN(topN)
 
 	viewerLanguage := ""
 	if request.Params.ViewerLanguage != nil {
@@ -336,12 +339,9 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	if body.TopN != nil {
 		topN = *body.TopN
 	}
-	if topN < 1 {
-		topN = 1
-	}
-	if topN > 500 {
-		topN = 500
-	}
+	// SEC-069 — same [1, 6000] ceiling as GET/storage/UI (was a stale 500 cap
+	// that silently clamped topN the cooccurrence config UI offers up to 6000).
+	topN = storage.ClampCoOccurrenceTopN(topN)
 
 	viewerLanguage := ""
 	if body.ViewerLanguage != nil {

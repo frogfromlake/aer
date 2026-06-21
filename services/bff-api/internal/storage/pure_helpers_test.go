@@ -356,3 +356,29 @@ func TestClickHouseStorage_ConnAndPing(t *testing.T) {
 		t.Error("Ping with a cancelled context should error")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// cooccurrence_query.go — topN clamp (SEC-069: single source of truth shared
+// by the GET/POST handlers and the query, pinned at the boundary here).
+// ---------------------------------------------------------------------------
+
+func TestClampCoOccurrenceTopN(t *testing.T) {
+	cases := []struct {
+		name string
+		in   int
+		want int
+	}{
+		{"below floor clamps to 1", 0, 1},
+		{"negative clamps to 1", -100, 1},
+		{"at floor", 1, 1},
+		{"in range", 50, 50},
+		{"at ceiling", MaxCoOccurrenceTopN, MaxCoOccurrenceTopN},
+		{"above ceiling clamps down", MaxCoOccurrenceTopN + 1, MaxCoOccurrenceTopN},
+		{"far above ceiling", 1_000_000, MaxCoOccurrenceTopN},
+	}
+	for _, tc := range cases {
+		if got := ClampCoOccurrenceTopN(tc.in); got != tc.want {
+			t.Errorf("%s: ClampCoOccurrenceTopN(%d) = %d, want %d", tc.name, tc.in, got, tc.want)
+		}
+	}
+}

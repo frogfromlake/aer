@@ -57,6 +57,18 @@ func NewClickHouseStorage(ctx context.Context, addr, user, password, db string, 
 				Password: password,
 			},
 			DialTimeout: 5 * time.Second,
+			// SEC-089 — explicit pool bounds + a server-side query ceiling, for
+			// parity with the PG pools and the worker. max_execution_time is
+			// defense-in-depth behind the 30s request-context timeout (ctx-cancel
+			// already tears the query down); it caps a query that somehow outlives
+			// its context. Pool bounds keep a burst of dashboard refreshes from
+			// opening unbounded ClickHouse connections.
+			Settings: clickhouse.Settings{
+				"max_execution_time": 30,
+			},
+			MaxOpenConns:    10,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: time.Hour,
 		})
 		if err != nil {
 			return nil, err

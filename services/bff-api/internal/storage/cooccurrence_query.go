@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 )
@@ -18,6 +19,21 @@ import (
 // hardware; raise it empirically after measuring real corpus payloads. Going much
 // higher needs a streaming/binary transport, not just a larger cap.
 const MaxCoOccurrenceTopN = 6000
+
+// ClampCoOccurrenceTopN bounds topN to [1, MaxCoOccurrenceTopN]. It is the
+// single source of truth shared by the GET handler, the POST handler, and the
+// query itself, so the topN contract can no longer drift across layers
+// (SEC-069 — previously the POST handler capped at 500 while GET/storage/UI
+// allowed 6000, silently clamping requests the UI offered).
+func ClampCoOccurrenceTopN(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > MaxCoOccurrenceTopN {
+		return MaxCoOccurrenceTopN
+	}
+	return n
+}
 
 // CoOccurrenceEdge is one entity-pair edge aggregated over a window.
 //
@@ -127,12 +143,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	nsOverlay bool,
 	colorMetric string,
 ) (CoOccurrenceResult, error) {
-	if topN < 1 {
-		topN = 1
-	}
-	if topN > MaxCoOccurrenceTopN {
-		topN = MaxCoOccurrenceTopN
-	}
+	topN = ClampCoOccurrenceTopN(topN)
 	if minWeight < 0 {
 		minWeight = 0
 	}
@@ -341,6 +352,10 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		}
 		nodes = append(nodes, n)
 	}
+	// SEC-090 — nodes are accumulated by iterating a Go map, whose order is
+	// randomised per run; sort by Text so the response (and any byte-level
+	// cache/diff/snapshot) is deterministic, mirroring the SQL-ordered edges.
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Text < nodes[j].Text })
 
 	// Phase 131a pipeline-gap diagnostic: count articles with ≥2 entities
 	// in the window/scope. Lets the dashboard distinguish "sparse corpus"

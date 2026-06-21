@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"strings"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -339,11 +338,6 @@ func mapSilverGateError(err error) (any, bool) {
 	}
 	return nil, false
 }
-
-// Lightweight helper kept for symmetry with strings.HasPrefix usage in
-// view_mode_handlers — currently unused but reserved if the eligibility
-// reason set grows.
-var _ = strings.HasPrefix
 
 // silverAggregationRefusal builds the canonical 403 RefusalPayload for the
 // aggregation endpoint. Uses the same eligibility anchor as the document
