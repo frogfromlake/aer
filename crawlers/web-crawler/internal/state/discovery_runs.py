@@ -167,7 +167,7 @@ class DiscoveryRunsWriter:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT consecutive_runs, alert_type
+                        SELECT consecutive_runs, alert_type, first_observed_at
                           FROM crawler_discovery_alerts
                          WHERE source_id = %s
                            AND alert_type IN ('underflow_pending', 'underflow')
@@ -177,6 +177,13 @@ class DiscoveryRunsWriter:
                     row = cur.fetchone()
                     prior_runs = row[0] if row else 0
                     prior_type = row[1] if row else None
+                    # Preserve the genuine first-observed timestamp from the
+                    # pending row when promoting to a fired alert. (SEC-080: the
+                    # promote INSERT previously bound row[0] — the int run-count —
+                    # into the first_observed_at TIMESTAMPTZ column, which raised a
+                    # datatype mismatch swallowed by the broad except below, so the
+                    # underflow alert never fired for any source.)
+                    prior_first_observed = row[2] if row else None
 
                     if below_floor:
                         new_runs = (prior_runs or 0) + 1
@@ -196,7 +203,7 @@ class DiscoveryRunsWriter:
                                 """,
                                 (
                                     source_id,
-                                    row[0] if row else run_started_at,
+                                    prior_first_observed or run_started_at,
                                     run_started_at,
                                     new_runs,
                                     expected_floor,

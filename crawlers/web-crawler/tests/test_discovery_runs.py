@@ -142,7 +142,9 @@ def test_evaluate_alerts_second_consecutive_below_floor_fires() -> None:
     into a fired `underflow` alert."""
     pool, _conn, cursor = _fake_pool()
     writer = DiscoveryRunsWriter(pool)
-    cursor.fetchone.return_value = (1, "underflow_pending")
+    first_seen = datetime(2026, 5, 10, tzinfo=timezone.utc)
+    # SELECT now returns (consecutive_runs, alert_type, first_observed_at).
+    cursor.fetchone.return_value = (1, "underflow_pending", first_seen)
 
     event = writer.evaluate_alerts(
         source_id=1,
@@ -153,8 +155,14 @@ def test_evaluate_alerts_second_consecutive_below_floor_fires() -> None:
     assert event == "alerted"
     # 3 calls: SELECT, INSERT-or-update alert, DELETE pending.
     assert cursor.execute.call_count == 3
-    upsert_sql = cursor.execute.call_args_list[1][0][0]
+    upsert_sql, upsert_params = cursor.execute.call_args_list[1][0]
     assert "'underflow'" in upsert_sql
+    # SEC-080 regression guard: first_observed_at must be bound to the pending
+    # row's real timestamp, never the integer run-count (binding the int into
+    # the TIMESTAMPTZ column raised a datatype error that the broad except
+    # swallowed, silently disabling the underflow alert for every source).
+    assert upsert_params[1] == first_seen
+    assert isinstance(upsert_params[1], datetime)
     # Third call is the cleanup DELETE of the pending row.
     delete_sql = cursor.execute.call_args_list[2][0][0]
     assert "DELETE" in delete_sql
@@ -166,7 +174,7 @@ def test_evaluate_alerts_recovery_clears_prior_alert() -> None:
     underflow row and any lingering pending row."""
     pool, _conn, cursor = _fake_pool()
     writer = DiscoveryRunsWriter(pool)
-    cursor.fetchone.return_value = (2, "underflow")
+    cursor.fetchone.return_value = (2, "underflow", datetime(2026, 5, 10, tzinfo=timezone.utc))
 
     event = writer.evaluate_alerts(
         source_id=1,
