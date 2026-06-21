@@ -179,6 +179,7 @@
   "cells_scatter_plot_aria": "Streudiagramm von {x} gegen {y}",
   "cells_ts_silver": "Die Zeitreihenansicht ist für Daten der Silver-Schicht nicht verfügbar. Wechseln Sie zur Verteilung, um Dokumentmerkmale der Silver-Schicht zu erkunden.",
   "cells_ts_no_sources": "Keine Quellen im aktiven Geltungsbereich.",
+  "cells_ts_truncated": "Es werden die frühesten Zeitabschnitte gezeigt (begrenzt) — grenzen Sie das Zeitfenster ein, filtern Sie auf eine Metrik oder erhöhen Sie die Auflösung für die vollständige Reihe.",
   "cells_topicdist_title": "Themen",
   "cells_topicdist_subtitle": "BERTopic-Verteilung",
   "cells_topicdist_tier_badge": "Tier 2",

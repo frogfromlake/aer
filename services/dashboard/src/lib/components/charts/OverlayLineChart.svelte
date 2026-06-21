@@ -126,6 +126,11 @@
 
   const anyPending = $derived(queries.some((q) => q.isPending));
   const allEmpty = $derived(seriesData.length === 0 || seriesData.every((s) => s.x.length === 0));
+  // SEC-077: disclose if ANY overlaid source's series was capped, so the chart
+  // is never read as complete when one line ends early at the row cap.
+  const anyTruncated = $derived(
+    queries.some((q) => q.data?.kind === 'success' && q.data.data.truncated === true)
+  );
 
   interface UPlotChart {
     setSize(size: { width: number; height: number }): void;
@@ -306,6 +311,9 @@
       <p class="muted">{m.cells_chart_no_data({ metric: metricName })}</p>
     </div>
   {:else}
+    {#if anyTruncated}
+      <p class="truncation-note" role="note">{m.cells_ts_truncated()}</p>
+    {/if}
     <div
       bind:this={host}
       class="chart"
@@ -385,5 +393,15 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .truncation-note {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-status-expired) 8%, var(--color-surface));
+    border-left: 3px solid var(--color-status-expired);
+    border-radius: var(--radius-sm);
   }
 </style>

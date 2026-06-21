@@ -132,6 +132,13 @@
     if (metricsQ.data?.kind === 'success') return toChartData(metricsQ.data);
     return null;
   });
+
+  // SEC-077: the BFF caps the series at a row limit and discloses it via
+  // `truncated`. Surface a note so a wide window/scope is never read as a
+  // complete series (the chart would otherwise just end at the earliest buckets).
+  let truncated = $derived(
+    metricsQ.data?.kind === 'success' && metricsQ.data.data.truncated === true
+  );
 </script>
 
 <div class="source-lane" aria-labelledby="sl-title-{displayName}">
@@ -162,6 +169,9 @@
   {:else if metricsQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={metricsQ.data} {ctx} />
   {:else if chartData && chartData.x.length > 0}
+    {#if truncated}
+      <p class="truncation-note" role="note">{m.cells_ts_truncated()}</p>
+    {/if}
     <TimeSeriesChart
       x={chartData.x}
       y={chartData.y}
@@ -222,5 +232,15 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
+  }
+
+  .truncation-note {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-status-expired) 8%, var(--color-surface));
+    border-left: 3px solid var(--color-status-expired);
+    border-radius: var(--radius-sm);
   }
 </style>

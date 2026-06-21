@@ -179,6 +179,7 @@
   "cells_scatter_plot_aria": "Scatter plot of {x} versus {y}",
   "cells_ts_silver": "Time-series view is not available for Silver-layer data. Switch to Distribution to explore Silver-layer document characteristics.",
   "cells_ts_no_sources": "No sources in the active scope.",
+  "cells_ts_truncated": "Showing the earliest buckets (capped) — narrow the window, filter to a metric, or raise the resolution for the full series.",
   "cells_topicdist_title": "Topics",
   "cells_topicdist_subtitle": "BERTopic distribution",
   "cells_topicdist_tier_badge": "Tier 2",
