@@ -47,6 +47,17 @@ DEFAULT_USER_AGENT = (
 # pre-date the cutoff field.
 DEFAULT_TIME_WINDOW_DAYS = 365
 
+# SEC-075 — freshness safety net for dateless discovery channels (HTML
+# sitemaps, archive indexes, undated RSS) whose `lastmod` never changes, so
+# the `sitemap_lastmod`-newer re-fetch trigger can never re-fire. Past this
+# many days since the last fetch, the URL is re-discovered and re-requested
+# with conditional-GET headers, so an unchanged article short-circuits at a
+# 304 (no re-submit). Tune relative to the crawl cadence and the 90-day
+# Bronze TTL: small enough that a corrected article reaches a fresh Bronze
+# object well within the original's lifetime, large enough to keep dated
+# channels from re-issuing a conditional GET every run. `0` disables it.
+DEFAULT_REFETCH_STALE_AFTER_DAYS = 14
+
 
 def _format_red_banner(message: str) -> str:
     """Render a high-visibility ANSI-red error banner. Used to surface
@@ -95,10 +106,12 @@ def _load_probe_config(probe: str, config_dir: Path) -> dict[str, Any]:
     config: ``{"sources": [...], "time_window_days": int}``.
 
     Phase 122b — the YAML's optional top-level ``probe:`` block carries
-    probe-scoped settings that apply uniformly across every source. The
-    only setting today is ``time_window_days`` (the temporal cutoff for
-    sitemap discovery); falls back to :data:`DEFAULT_TIME_WINDOW_DAYS`
-    with a structured warning when absent.
+    probe-scoped settings that apply uniformly across every source:
+    ``time_window_days`` (temporal cutoff for sitemap discovery; falls back
+    to :data:`DEFAULT_TIME_WINDOW_DAYS` with a structured warning when
+    absent), ``sitemap_strict_lastmod`` (drop undated sitemap entries), and
+    ``refetch_stale_after_days`` (SEC-075 re-fetch staleness window; falls
+    back to :data:`DEFAULT_REFETCH_STALE_AFTER_DAYS`, ``0`` disables).
     """
     log = structlog.get_logger()
     path = config_dir / probe / "sources.yaml"
@@ -147,10 +160,30 @@ def _load_probe_config(probe: str, config_dir: Path) -> dict[str, Any]:
             f"probe.sitemap_strict_lastmod must be a boolean (got {raw_strict!r})"
         )
 
+    # SEC-075 — re-fetch staleness window (days) for dateless discovery
+    # channels; defaults to DEFAULT_REFETCH_STALE_AFTER_DAYS, `0` disables.
+    raw_stale = probe_block.get("refetch_stale_after_days")
+    if raw_stale is None:
+        refetch_stale_after_days = DEFAULT_REFETCH_STALE_AFTER_DAYS
+    else:
+        try:
+            refetch_stale_after_days = int(raw_stale)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "probe.refetch_stale_after_days must be an integer "
+                f"(got {raw_stale!r})"
+            ) from exc
+        if refetch_stale_after_days < 0:
+            raise ValueError(
+                "probe.refetch_stale_after_days must be non-negative "
+                f"(got {refetch_stale_after_days})"
+            )
+
     return {
         "sources": sources,
         "time_window_days": time_window_days,
         "sitemap_strict_lastmod": sitemap_strict_lastmod,
+        "refetch_stale_after_days": refetch_stale_after_days,
     }
 
 
@@ -487,11 +520,18 @@ def cli(argv: list[str] | None = None) -> int:
                 return 2
     time_window_days = probe_config["time_window_days"]
     sitemap_strict_lastmod = probe_config["sitemap_strict_lastmod"]
+    refetch_stale_after_days = probe_config["refetch_stale_after_days"]
+    refetch_stale_after = (
+        timedelta(days=refetch_stale_after_days)
+        if refetch_stale_after_days > 0
+        else None
+    )
     since = datetime.now(tz=timezone.utc) - timedelta(days=time_window_days)
     log.info(
         "crawl_window_configured",
         probe=args.probe,
         time_window_days=time_window_days,
+        refetch_stale_after_days=refetch_stale_after_days,
         since=since.isoformat(),
     )
 
@@ -626,6 +666,7 @@ def cli(argv: list[str] | None = None) -> int:
                 custom_extractors=source.get("custom_extractors", {}) or {},
                 state=state,
                 ingestion_client=ingestion,
+                refetch_stale_after=refetch_stale_after,
             )
             sources_queued += 1
 

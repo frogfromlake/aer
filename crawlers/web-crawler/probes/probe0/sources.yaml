@@ -84,6 +84,29 @@ probe:
   # backfill run.
   sitemap_strict_lastmod: true
 
+  # SEC-075 — re-fetch staleness window (days) for dateless discovery
+  # channels (HTML sitemaps, archive indexes, undated RSS). Their
+  # `<lastmod>` is always None or a fixed per-URL date, so the
+  # `sitemap_lastmod`-newer re-fetch trigger can never re-fire and an
+  # already-seen URL would otherwise be skipped *forever* — leaving the
+  # conditional-GET machinery dead for sources like tagesschau that depend
+  # entirely on these channels. Past this many days since the last fetch,
+  # the URL is re-discovered and re-requested with `If-None-Match` /
+  # `If-Modified-Since`; an unchanged article short-circuits at a 304
+  # (no re-submit to Bronze), so the cost of a wide window is one cheap
+  # conditional request per stale URL per crawl.
+  #
+  # **Tuning** — this value lives in tension with two others:
+  #   * the **crawl cadence** (`make crawl-probe0`, currently operator/cron
+  #     -driven): the window should exceed the crawl interval, or every run
+  #     re-checks every URL; at 14 d a daily cron re-checks each URL ~once
+  #     per fortnight.
+  #   * the **90-day Bronze TTL**: keep it well below 90 d so a corrected
+  #     dateless-channel article is re-captured into a fresh Bronze object
+  #     long before the original is TTL-evicted.
+  # `0` disables the staleness re-fetch entirely (pre-SEC-075 behaviour).
+  refetch_stale_after_days: 14
+
 sources:
   - name: tagesschau
     # Phase 122g — operator-readable publisher homepage. Used by

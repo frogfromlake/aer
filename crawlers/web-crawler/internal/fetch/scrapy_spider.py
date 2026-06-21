@@ -12,7 +12,7 @@ through :mod:`internal.translate.contract` to Bronze.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator, Optional
 from urllib.parse import urlsplit
 
@@ -106,6 +106,7 @@ class WebSpider(scrapy.Spider):
         custom_extractors: Optional[dict[str, Any]],
         state: CrawlerState,
         ingestion_client: IngestionClient,
+        refetch_stale_after: Optional[timedelta] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -117,6 +118,7 @@ class WebSpider(scrapy.Spider):
         self._custom_extractors = custom_extractors
         self._state = state
         self._ingestion = ingestion_client
+        self._refetch_stale_after = refetch_stale_after
         self.submitted = 0
         self.skipped = 0
         self.errored = 0
@@ -130,7 +132,12 @@ class WebSpider(scrapy.Spider):
                 self.skipped += 1
                 continue
 
-            if self._state.has_seen(self.source_id, canonical, entry.sitemap_lastmod):
+            if self._state.has_seen(
+                self.source_id,
+                canonical,
+                entry.sitemap_lastmod,
+                refetch_stale_after=self._refetch_stale_after,
+            ):
                 self.skipped += 1
                 continue
 
@@ -311,6 +318,7 @@ def queue_source_crawl(
     custom_extractors: Optional[dict[str, Any]],
     state: CrawlerState,
     ingestion_client: IngestionClient,
+    refetch_stale_after: Optional[timedelta] = None,
 ) -> None:
     """Queue one source's :class:`WebSpider` on the shared
     :class:`CrawlerProcess`. The spider does not start fetching until
@@ -327,4 +335,5 @@ def queue_source_crawl(
         custom_extractors=custom_extractors,
         state=state,
         ingestion_client=ingestion_client,
+        refetch_stale_after=refetch_stale_after,
     )

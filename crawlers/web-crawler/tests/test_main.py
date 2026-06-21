@@ -98,6 +98,31 @@ def test_load_probe_config_defaults_to_365_when_absent(tmp_path: Path) -> None:
     assert config["time_window_days"] == DEFAULT_TIME_WINDOW_DAYS == 365
 
 
+def test_load_probe_config_refetch_stale_after_days_default(tmp_path: Path) -> None:
+    from main import _load_probe_config, DEFAULT_REFETCH_STALE_AFTER_DAYS
+
+    config_dir = _write_probe_yaml(
+        tmp_path,
+        {"sources": [{"name": "x", "sitemap_urls": ["https://x"]}]},
+    )
+    config = _load_probe_config("probe0", config_dir)
+    assert config["refetch_stale_after_days"] == DEFAULT_REFETCH_STALE_AFTER_DAYS
+
+
+def test_load_probe_config_refetch_stale_after_days_explicit(tmp_path: Path) -> None:
+    from main import _load_probe_config
+
+    config_dir = _write_probe_yaml(
+        tmp_path,
+        {
+            "probe": {"refetch_stale_after_days": 0},
+            "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
+        },
+    )
+    config = _load_probe_config("probe0", config_dir)
+    assert config["refetch_stale_after_days"] == 0
+
+
 @pytest.mark.parametrize(
     ("payload", "match"),
     [
@@ -116,6 +141,22 @@ def test_load_probe_config_defaults_to_365_when_absent(tmp_path: Path) -> None:
             },
             "must be positive",
             id="zero-or-negative-window",
+        ),
+        pytest.param(
+            {
+                "probe": {"refetch_stale_after_days": "soon"},
+                "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
+            },
+            "must be an integer",
+            id="non-integer-stale",
+        ),
+        pytest.param(
+            {
+                "probe": {"refetch_stale_after_days": -1},
+                "sources": [{"name": "x", "sitemap_urls": ["https://x"]}],
+            },
+            "must be non-negative",
+            id="negative-stale",
         ),
         pytest.param(
             {"sources": []},

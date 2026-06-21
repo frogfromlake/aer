@@ -10,7 +10,7 @@ those branches are left to integration coverage.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -95,6 +95,40 @@ def test_has_seen_true_when_stored_lastmod_missing():
     newer = datetime(2026, 6, 1, tzinfo=timezone.utc)
     pool, _ = _fake_pool(fetchone=_row(sitemap_lm=None))
     assert _state(pool).has_seen(1, "https://x/a", sitemap_lastmod=newer) is True
+
+
+# SEC-075 — staleness re-fetch for dateless discovery channels
+
+
+def test_has_seen_false_when_stale_past_refetch_window():
+    # Dateless channel (no sitemap_lastmod), last fetched 30 days ago, 14-day
+    # window → re-fetch (the conditional GET then 304s cheaply if unchanged).
+    fetched = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    pool, _ = _fake_pool(fetchone=_row(fetched=fetched))
+    assert (
+        _state(pool).has_seen(
+            1, "https://x/a", refetch_stale_after=timedelta(days=14)
+        )
+        is False
+    )
+
+
+def test_has_seen_true_when_fresh_within_refetch_window():
+    fetched = datetime.now(tz=timezone.utc) - timedelta(days=2)
+    pool, _ = _fake_pool(fetchone=_row(fetched=fetched))
+    assert (
+        _state(pool).has_seen(
+            1, "https://x/a", refetch_stale_after=timedelta(days=14)
+        )
+        is True
+    )
+
+
+def test_has_seen_true_when_stale_but_refetch_disabled():
+    # refetch_stale_after=None preserves the pre-SEC-075 behaviour (skip).
+    fetched = datetime.now(tz=timezone.utc) - timedelta(days=365)
+    pool, _ = _fake_pool(fetchone=_row(fetched=fetched))
+    assert _state(pool).has_seen(1, "https://x/a") is True
 
 
 # --- conditional_headers -----------------------------------------------------

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import psycopg2
@@ -58,9 +58,20 @@ class CrawlerState:
         source_id: int,
         canonical_url: str,
         sitemap_lastmod: Optional[datetime] = None,
+        refetch_stale_after: Optional[timedelta] = None,
     ) -> bool:
-        """Return True when the URL has been recorded *and* the supplied
-        sitemap_lastmod is not strictly newer than the stored value.
+        """Return True when the URL should be skipped at discovery.
+
+        A recorded URL is skipped unless one of two re-fetch triggers fires:
+
+        * the supplied ``sitemap_lastmod`` is strictly newer than the stored
+          value (the publisher signalled a substantive update); or
+        * ``refetch_stale_after`` is set and the last fetch is older than that
+          window — a freshness safety net for dateless discovery channels
+          (HTML sitemaps, archive indexes, undated RSS) whose ``lastmod`` is
+          always None/static, so the first trigger never re-fires. The
+          re-fetched request carries conditional-GET headers, so an unchanged
+          article short-circuits cheaply at a 304 (no re-submit to Bronze).
         """
         row = self._fetch_row(source_id, canonical_url)
         if row is None:
@@ -68,6 +79,10 @@ class CrawlerState:
         stored_lastmod: Optional[datetime] = row.get("sitemap_lastmod")
         if sitemap_lastmod is not None and stored_lastmod is not None:
             if sitemap_lastmod > stored_lastmod:
+                return False
+        if refetch_stale_after is not None:
+            last_fetched: Optional[datetime] = row.get("last_fetched")
+            if last_fetched is not None and _now_utc() - last_fetched > refetch_stale_after:
                 return False
         return True
 
