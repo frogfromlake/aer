@@ -1,0 +1,32 @@
+type: object
+description: >
+  The authenticated user's own active sessions (ADR-040, SEC-005).
+  Privacy-minimal: no session id or hash is exposed — only coarse metadata and
+  a `current` flag marking the device making this request.
+required:
+  - sessions
+properties:
+  sessions:
+    type: array
+    description: Active (non-revoked, unexpired) sessions, most-recently-seen first.
+    items:
+      type: object
+      required:
+        - createdAt
+        - lastSeenAt
+        - current
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: When this session was created (login time).
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: When this session was last used.
+        userAgent:
+          type: string
+          description: The User-Agent recorded at login (may be empty).
+        current:
+          type: boolean
+          description: True for the session making this request.

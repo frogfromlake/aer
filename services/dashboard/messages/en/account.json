@@ -29,6 +29,14 @@
   "account_passkeys_added_notice": "Passkey added.",
   "account_passkeys_add": "Add a passkey",
 
+  "account_sessions_heading": "Active sessions",
+  "account_sessions_intro": "Where you are currently signed in. If you lost a device, log out everywhere to revoke them all.",
+  "account_sessions_empty": "No other active sessions.",
+  "account_sessions_item": "{agent} · last active {lastSeen}",
+  "account_sessions_unknown_device": "Unknown device",
+  "account_sessions_current": "This device",
+  "account_sessions_revoke_all": "Log out all devices",
+
   "account_privacy_heading": "Data & privacy",
   "account_privacy_intro": "AĒR stores only your identity and consent — never a record of what you analyse.",
   "account_privacy_export": "Export my data",

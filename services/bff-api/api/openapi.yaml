@@ -46,6 +46,8 @@ paths:
     $ref: './paths/auth_me.yaml'
   /auth/me/export:
     $ref: './paths/auth_me_export.yaml'
+  /auth/sessions:
+    $ref: './paths/auth_sessions.yaml'
   /auth/accept-invite:
     $ref: './paths/auth_accept_invite.yaml'
   /auth/forgot-password:

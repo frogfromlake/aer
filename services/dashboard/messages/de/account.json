@@ -29,6 +29,14 @@
   "account_passkeys_added_notice": "Passkey hinzugefügt.",
   "account_passkeys_add": "Passkey hinzufügen",
 
+  "account_sessions_heading": "Aktive Sitzungen",
+  "account_sessions_intro": "Wo Sie derzeit angemeldet sind. Bei einem verlorenen Gerät überall abmelden, um alle zu widerrufen.",
+  "account_sessions_empty": "Keine weiteren aktiven Sitzungen.",
+  "account_sessions_item": "{agent} · zuletzt aktiv {lastSeen}",
+  "account_sessions_unknown_device": "Unbekanntes Gerät",
+  "account_sessions_current": "Dieses Gerät",
+  "account_sessions_revoke_all": "Auf allen Geräten abmelden",
+
   "account_privacy_heading": "Daten & Datenschutz",
   "account_privacy_intro": "AĒR speichert nur Ihre Identität und Ihre Einwilligung — niemals eine Aufzeichnung dessen, was Sie analysieren.",
   "account_privacy_export": "Meine Daten exportieren",

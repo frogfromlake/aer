@@ -1,0 +1,43 @@
+get:
+  tags: [Auth]
+  summary: List the current user's active sessions (ADR-040, SEC-005)
+  description: >
+    Returns the authenticated user's own active sessions so they can review
+    where they are logged in. Privacy-minimal — no session id is exposed; the
+    session making the request is marked `current`. Returns 401 when there is
+    no valid session (a machine X-API-Key caller has no user identity).
+  operationId: getAuthSessions
+  responses:
+    '200':
+      description: The user's active sessions.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/SessionList.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
+delete:
+  tags: [Auth]
+  summary: Log out everywhere — revoke all of the current user's sessions (ADR-040, SEC-005)
+  description: >
+    Revokes every session for the authenticated user, INCLUDING the current
+    one, and clears the session cookie. Use after losing a device. Returns 401
+    when there is no valid session.
+  operationId: deleteAuthSessions
+  responses:
+    '204':
+      description: All sessions revoked; session cookie cleared.
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'

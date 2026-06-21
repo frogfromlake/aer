@@ -11,6 +11,7 @@
   import Button from '$lib/components/base/Button.svelte';
   import LocaleSwitch from '$lib/components/chrome/LocaleSwitch.svelte';
   import AdminPanel from '$lib/components/account/AdminPanel.svelte';
+  import AccountSessions from '$lib/components/account/AccountSessions.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { formatDate } from '$lib/localization/format';
 
@@ -280,6 +281,8 @@
               >
             </div>
           </section>
+
+          <AccountSessions />
 
           <section class="block">
             <h3>{m.account_privacy_heading()}</h3>

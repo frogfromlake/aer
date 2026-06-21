@@ -69,6 +69,15 @@ func (m *mockAuth) RevokeAllUserSessions(_ context.Context, userID string) error
 	return nil
 }
 func (m *mockAuth) RevokeOtherUserSessions(_ context.Context, _, _ string) error { return nil }
+func (m *mockAuth) ListUserSessions(_ context.Context, userID string) ([]storage.SessionInfo, error) {
+	var out []storage.SessionInfo
+	for idHash, uid := range m.sessions {
+		if uid == userID {
+			out = append(out, storage.SessionInfo{IDHash: idHash})
+		}
+	}
+	return out, nil
+}
 func (m *mockAuth) CreateToken(_ context.Context, userID, purpose, tokenHash string, _ time.Time) error {
 	m.tokens[tokenHash] = &mockToken{userID: userID, purpose: purpose}
 	return nil

@@ -411,6 +411,58 @@ func TestAuthStore_RevokeOtherKeepsCurrent(t *testing.T) {
 	}
 }
 
+// SEC-005 — the user's own active-sessions view lists only live sessions, so a
+// revoked or expired session never appears, and the id hash round-trips so the
+// handler can mark the current device.
+func TestAuthStore_ListUserSessions(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	uid := seedUser(t, s, ctx, "a@b.c", "active")
+	other := seedUser(t, s, ctx, "z@b.c", "active")
+	now := time.Now()
+
+	_ = s.CreateSession(ctx, "live-1", uid, now.Add(time.Hour), now.Add(24*time.Hour), "Firefox")
+	_ = s.CreateSession(ctx, "live-2", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	_ = s.CreateSession(ctx, "revoked", uid, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	_ = s.CreateSession(ctx, "expired", uid, now.Add(-time.Minute), now.Add(24*time.Hour), "")
+	_ = s.CreateSession(ctx, "someone-else", other, now.Add(time.Hour), now.Add(24*time.Hour), "")
+	if err := s.RevokeSession(ctx, "revoked"); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+
+	got, err := s.ListUserSessions(ctx, uid)
+	if err != nil {
+		t.Fatalf("list user sessions: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 live sessions for the user, got %d (%+v)", len(got), got)
+	}
+	seen := map[string]string{}
+	for _, si := range got {
+		seen[si.IDHash] = si.UserAgent
+		if si.CreatedAt.IsZero() || si.LastSeenAt.IsZero() {
+			t.Fatalf("expected timestamps to be populated, got %+v", si)
+		}
+	}
+	if _, ok := seen["live-1"]; !ok {
+		t.Fatal("expected live-1 in the list")
+	}
+	if _, ok := seen["live-2"]; !ok {
+		t.Fatal("expected live-2 in the list")
+	}
+	if ua := seen["live-1"]; ua != "Firefox" {
+		t.Fatalf("expected live-1 user-agent 'Firefox', got %q", ua)
+	}
+	if _, ok := seen["revoked"]; ok {
+		t.Fatal("revoked session must not appear")
+	}
+	if _, ok := seen["expired"]; ok {
+		t.Fatal("expired session must not appear")
+	}
+	if _, ok := seen["someone-else"]; ok {
+		t.Fatal("another user's session must not appear")
+	}
+}
+
 // SEC-078 — token-consuming flows must be transactional: token consumption and
 // the downstream writes co-commit, so a partial failure never burns the
 // single-use token.

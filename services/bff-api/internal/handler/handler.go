@@ -219,6 +219,9 @@ type AuthBackend interface {
 	RevokeSession(ctx context.Context, idHash string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 	RevokeOtherUserSessions(ctx context.Context, userID, keepIDHash string) error
+	// Self-service session management (SEC-005): the user's own active-sessions
+	// view (log-out-everywhere reuses RevokeAllUserSessions).
+	ListUserSessions(ctx context.Context, userID string) ([]storage.SessionInfo, error)
 	CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error
 	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
 	// Transactional token flows (SEC-078): consume + apply co-commit so a

@@ -163,6 +163,46 @@ func (s *AuthStore) RevokeOtherUserSessions(ctx context.Context, userID, keepIDH
 	return err
 }
 
+// SessionInfo is one of a user's active sessions, for their own
+// active-sessions view (SEC-005). IDHash is the sha256 of the cookie id — it
+// NEVER leaves the BFF; the handler uses it only to mark the caller's current
+// session.
+type SessionInfo struct {
+	IDHash     string
+	CreatedAt  time.Time
+	LastSeenAt time.Time
+	UserAgent  string
+}
+
+// ListUserSessions returns a user's currently-active (non-revoked, unexpired)
+// sessions, most-recently-seen first (SEC-005).
+func (s *AuthStore) ListUserSessions(ctx context.Context, userID string) ([]SessionInfo, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, created_at, last_seen_at, user_agent
+		FROM sessions
+		WHERE user_id = $1::uuid
+		  AND revoked_at IS NULL
+		  AND idle_expires_at > now()
+		  AND absolute_expires_at > now()
+		ORDER BY last_seen_at DESC`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user sessions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []SessionInfo
+	for rows.Next() {
+		var si SessionInfo
+		var ua sql.NullString
+		if err := rows.Scan(&si.IDHash, &si.CreatedAt, &si.LastSeenAt, &ua); err != nil {
+			return nil, fmt.Errorf("scan session row: %w", err)
+		}
+		si.UserAgent = ua.String
+		out = append(out, si)
+	}
+	return out, rows.Err()
+}
+
 // CreateToken inserts a single-use, hashed invite / password-reset token.
 func (s *AuthStore) CreateToken(ctx context.Context, userID, purpose, tokenHash string, exp time.Time) error {
 	_, err := s.db.ExecContext(ctx,

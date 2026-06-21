@@ -157,6 +157,24 @@ export const resetPassword = (token: string, password: string) =>
 export const changePassword = (currentPassword: string, newPassword: string) =>
   send<void>('POST', '/auth/change-password', { currentPassword, newPassword });
 
+// --- sessions (SEC-005) ----------------------------------------------------
+
+/** One of the user's own active sessions. Privacy-minimal — no id is exposed;
+ *  `current` marks the device making the request. */
+export interface SessionSummary {
+  createdAt: string;
+  lastSeenAt: string;
+  userAgent?: string;
+  current: boolean;
+}
+
+/** Lists the current user's active sessions (where they are logged in). */
+export const listSessions = () => send<{ sessions: SessionSummary[] }>('GET', '/auth/sessions');
+
+/** Logs out everywhere: revokes all of the user's sessions (incl. the current
+ *  one) and clears the cookie. The caller must then re-authenticate. */
+export const revokeAllSessions = () => send<void>('DELETE', '/auth/sessions');
+
 // --- DSGVO -----------------------------------------------------------------
 
 export const exportMyData = () => send<UserDataExport>('GET', '/auth/me/export');

@@ -2912,6 +2912,12 @@ type ServerInterface interface {
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(w http.ResponseWriter, r *http.Request)
+	// Log out everywhere — revoke all of the current user's sessions (ADR-040, SEC-005)
+	// (DELETE /auth/sessions)
+	DeleteAuthSessions(w http.ResponseWriter, r *http.Request)
+	// List the current user's active sessions (ADR-040, SEC-005)
+	// (GET /auth/sessions)
+	GetAuthSessions(w http.ResponseWriter, r *http.Request)
 	// Begin a passkey assertion / step-up (ADR-040)
 	// (POST /auth/webauthn/assert/begin)
 	PostAuthWebauthnAssertBegin(w http.ResponseWriter, r *http.Request)
@@ -3203,6 +3209,18 @@ func (_ Unimplemented) GetAuthMeExport(w http.ResponseWriter, r *http.Request) {
 // Complete a password reset (ADR-040)
 // (POST /auth/reset-password)
 func (_ Unimplemented) PostAuthResetPassword(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Log out everywhere — revoke all of the current user's sessions (ADR-040, SEC-005)
+// (DELETE /auth/sessions)
+func (_ Unimplemented) DeleteAuthSessions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the current user's active sessions (ADR-040, SEC-005)
+// (GET /auth/sessions)
+func (_ Unimplemented) GetAuthSessions(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4119,6 +4137,46 @@ func (siw *ServerInterfaceWrapper) PostAuthResetPassword(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthResetPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAuthSessions operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAuthSessions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAuthSessions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthSessions operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthSessions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthSessions(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7244,6 +7302,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/reset-password", wrapper.PostAuthResetPassword)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/sessions", wrapper.DeleteAuthSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/sessions", wrapper.GetAuthSessions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/webauthn/assert/begin", wrapper.PostAuthWebauthnAssertBegin)
 	})
 	r.Group(func(r chi.Router) {
@@ -9149,6 +9213,124 @@ type PostAuthResetPassword500JSONResponse struct {
 }
 
 func (response PostAuthResetPassword500JSONResponse) VisitPostAuthResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthSessionsRequestObject struct {
+}
+
+type DeleteAuthSessionsResponseObject interface {
+	VisitDeleteAuthSessionsResponse(w http.ResponseWriter) error
+}
+
+type DeleteAuthSessions204Response struct {
+}
+
+func (response DeleteAuthSessions204Response) VisitDeleteAuthSessionsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAuthSessions401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response DeleteAuthSessions401JSONResponse) VisitDeleteAuthSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteAuthSessions500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response DeleteAuthSessions500JSONResponse) VisitDeleteAuthSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthSessionsRequestObject struct {
+}
+
+type GetAuthSessionsResponseObject interface {
+	VisitGetAuthSessionsResponse(w http.ResponseWriter) error
+}
+
+type GetAuthSessions200JSONResponse struct {
+	// Sessions Active (non-revoked, unexpired) sessions, most-recently-seen first.
+	Sessions []struct {
+		// CreatedAt When this session was created (login time).
+		CreatedAt time.Time `json:"createdAt"`
+
+		// Current True for the session making this request.
+		Current bool `json:"current"`
+
+		// LastSeenAt When this session was last used.
+		LastSeenAt time.Time `json:"lastSeenAt"`
+
+		// UserAgent The User-Agent recorded at login (may be empty).
+		UserAgent *string `json:"userAgent,omitempty"`
+	} `json:"sessions"`
+}
+
+func (response GetAuthSessions200JSONResponse) VisitGetAuthSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthSessions401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response GetAuthSessions401JSONResponse) VisitGetAuthSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAuthSessions500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response GetAuthSessions500JSONResponse) VisitGetAuthSessionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -13206,6 +13388,12 @@ type StrictServerInterface interface {
 	// Complete a password reset (ADR-040)
 	// (POST /auth/reset-password)
 	PostAuthResetPassword(ctx context.Context, request PostAuthResetPasswordRequestObject) (PostAuthResetPasswordResponseObject, error)
+	// Log out everywhere — revoke all of the current user's sessions (ADR-040, SEC-005)
+	// (DELETE /auth/sessions)
+	DeleteAuthSessions(ctx context.Context, request DeleteAuthSessionsRequestObject) (DeleteAuthSessionsResponseObject, error)
+	// List the current user's active sessions (ADR-040, SEC-005)
+	// (GET /auth/sessions)
+	GetAuthSessions(ctx context.Context, request GetAuthSessionsRequestObject) (GetAuthSessionsResponseObject, error)
 	// Begin a passkey assertion / step-up (ADR-040)
 	// (POST /auth/webauthn/assert/begin)
 	PostAuthWebauthnAssertBegin(ctx context.Context, request PostAuthWebauthnAssertBeginRequestObject) (PostAuthWebauthnAssertBeginResponseObject, error)
@@ -14058,6 +14246,54 @@ func (sh *strictHandler) PostAuthResetPassword(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthResetPasswordResponseObject); ok {
 		if err := validResponse.VisitPostAuthResetPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAuthSessions operation middleware
+func (sh *strictHandler) DeleteAuthSessions(w http.ResponseWriter, r *http.Request) {
+	var request DeleteAuthSessionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAuthSessions(ctx, request.(DeleteAuthSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAuthSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAuthSessionsResponseObject); ok {
+		if err := validResponse.VisitDeleteAuthSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthSessions operation middleware
+func (sh *strictHandler) GetAuthSessions(w http.ResponseWriter, r *http.Request) {
+	var request GetAuthSessionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthSessions(ctx, request.(GetAuthSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthSessionsResponseObject); ok {
+		if err := validResponse.VisitGetAuthSessionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
