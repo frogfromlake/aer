@@ -58,7 +58,7 @@ func PrometheusMetrics(service string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			ww := wrapResponseWriterOnce(w, r.ProtoMajor)
 
 			next.ServeHTTP(ww, r)
 
@@ -97,7 +97,7 @@ func RequestLogger(service string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			ww := wrapResponseWriterOnce(w, r.ProtoMajor)
 
 			next.ServeHTTP(ww, r)
 
@@ -115,6 +115,18 @@ func RequestLogger(service string) func(http.Handler) http.Handler {
 			)
 		})
 	}
+}
+
+// wrapResponseWriterOnce returns the request's status-capturing wrapper,
+// reusing one already installed upstream rather than nesting a second
+// (SEC-097). RequestLogger and PrometheusMetrics are mounted together; whichever
+// runs first wraps, the other reuses it — so a chained request allocates one
+// wrapper, not two, while each middleware still works standalone.
+func wrapResponseWriterOnce(w http.ResponseWriter, protoMajor int) chimw.WrapResponseWriter {
+	if ww, ok := w.(chimw.WrapResponseWriter); ok {
+		return ww
+	}
+	return chimw.NewWrapResponseWriter(w, protoMajor)
 }
 
 // routePattern returns the chi route pattern for the request, falling back to

@@ -58,6 +58,42 @@ func TestTraceIDHeaderMiddleware_NoSpanIsNoop(t *testing.T) {
 	}
 }
 
+func TestWrapResponseWriterOnce_ReusesExistingWrapper(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	// A plain ResponseWriter gets a fresh wrapper.
+	first := wrapResponseWriterOnce(rec, 1)
+	if first == nil {
+		t.Fatal("expected a wrapper for a plain ResponseWriter")
+	}
+
+	// SEC-097 — passing the already-wrapped writer back returns the SAME
+	// instance, so chained middlewares wrap once rather than nesting.
+	if again := wrapResponseWriterOnce(first, 1); again != first {
+		t.Fatal("expected the existing wrapper to be reused, got a new one")
+	}
+}
+
+func TestRequestLoggerAndPrometheusChained_CaptureStatus(t *testing.T) {
+	// Chaining both middlewares must still capture the handler's status after
+	// the SEC-097 single-wrap change (the inner reuses the outer's wrapper).
+	h := PrometheusMetrics("svc")(RequestLogger("svc")(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	if rec.Code != http.StatusTeapot {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusTeapot)
+	}
+	// The inner handler's status must reach the wrapper both middlewares share.
+	if rec.Result().StatusCode != http.StatusTeapot {
+		t.Fatalf("captured status = %d, want %d", rec.Result().StatusCode, http.StatusTeapot)
+	}
+}
+
 func TestPrometheusMetrics_RecordsRequest(t *testing.T) {
 	httpRequestsTotal.Reset()
 

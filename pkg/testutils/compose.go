@@ -24,7 +24,12 @@ type composeService struct {
 // GetImageFromCompose parses the compose.yaml at the repo root and extracts the image string.
 func GetImageFromCompose(serviceName string) (string, error) {
 	// runtime.Caller(0) gets the path to this exact file (e.g., /aer/pkg/testutils/compose.go)
-	_, b, _, _ := runtime.Caller(0)
+	_, b, _, ok := runtime.Caller(0)
+	if !ok {
+		// SEC-096 — without the caller path the repo-root walk below silently
+		// resolves against "" and reads a bogus compose.yaml; fail explicitly.
+		return "", fmt.Errorf("failed to resolve caller path for compose.yaml lookup")
+	}
 
 	// Navigate up the directory tree to the repository root
 	repoRoot := filepath.Join(filepath.Dir(b), "..", "..")
