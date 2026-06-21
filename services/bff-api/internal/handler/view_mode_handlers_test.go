@@ -3,8 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -206,6 +208,27 @@ func TestGetMetricHeatmap_InvalidDimensionRejectedByRouter(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+// TestGetMetricHeatmap_SegmentByExceedingCapReturns400 pins SEC-072: a
+// segmentBy fan-out beyond maxHeatmapSegments is refused (400) BEFORE the
+// per-segment ClickHouse queries run, so a broad scope can't turn one request
+// into an unbounded N+1 that 500s mid-loop.
+func TestGetMetricHeatmap_SegmentByExceedingCapReturns400(t *testing.T) {
+	router := newTestRouter(newViewModeServer(&mockStore{}))
+
+	ids := make([]string, 0, maxHeatmapSegments+1)
+	for i := 0; i <= maxHeatmapSegments; i++ {
+		ids = append(ids, fmt.Sprintf("s%d", i))
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/metrics/word_count/heatmap?scope=source&sourceIds="+strings.Join(ids, ",")+
+			"&segmentBy=source&xDimension=dayOfWeek&yDimension=hour&start="+winStart+"&end="+winEnd, nil))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for over-cap segmentBy, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

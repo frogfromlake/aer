@@ -2,11 +2,18 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
+
+// maxHeatmapSegments caps the segmentBy fan-out (SEC-072). Each segment is one
+// sequential ClickHouse query sharing the request's single deadline, so an
+// unbounded segment count is an N+1 scaling cliff that would 500 the whole
+// request mid-loop. Generous for the current corpus; refuse (400) above it.
+const maxHeatmapSegments = 50
 
 // GetMetricHeatmap returns a 2D aggregation of a metric for the requested
 // xDimension / yDimension within a window. Backs the EDA x heatmap view-mode
@@ -73,6 +80,17 @@ func (s *Server) GetMetricHeatmap(ctx context.Context, request GetMetricHeatmapR
 
 	// segmentBy: build per-segment streams when requested.
 	if request.Params.SegmentBy != nil {
+		// SEC-072: refuse an unbounded fan-out before issuing the sequential
+		// per-segment queries below, rather than blow the request budget.
+		segCount := len(sources)
+		if *request.Params.SegmentBy == GetMetricHeatmapParamsSegmentByProbe {
+			segCount = len(probeSegs)
+		}
+		if segCount > maxHeatmapSegments {
+			return GetMetricHeatmap400JSONResponse{Message: fmt.Sprintf(
+				"segmentBy fan-out exceeds the %d-segment limit; narrow the scope (fewer sources or probes)",
+				maxHeatmapSegments)}, nil
+		}
 		switch *request.Params.SegmentBy {
 		case GetMetricHeatmapParamsSegmentBySource:
 			streams := make([]struct {
