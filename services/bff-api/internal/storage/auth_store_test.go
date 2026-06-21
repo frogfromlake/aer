@@ -59,7 +59,7 @@ func setupAuthStore(t *testing.T) (*AuthStore, context.Context) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	migDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..",
 		"infra", "postgres", "migrations")
-	for _, name := range []string{"000024_auth_schema.up.sql", "000025_webauthn.up.sql", "000026_saved_analyses.up.sql"} {
+	for _, name := range []string{"000024_auth_schema.up.sql", "000025_webauthn.up.sql", "000026_saved_analyses.up.sql", "000028_saved_analyses_length_checks.up.sql"} {
 		migSQL, err := os.ReadFile(filepath.Join(migDir, name))
 		if err != nil {
 			t.Fatalf("read migration %s: %v", name, err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -16,9 +17,11 @@ import (
 // --- mock AnalysesBackend ---------------------------------------------------
 
 type mockAnalyses struct {
-	items     map[string]*storage.Analysis // id -> analysis
-	ownerOf   map[string]string            // id -> owner userID
-	createErr error
+	items      map[string]*storage.Analysis // id -> analysis
+	ownerOf    map[string]string            // id -> owner userID
+	createErr  error
+	countOwned int   // reported by CountOwned (SEC-016 row cap)
+	countErr   error // when set, CountOwned fails
 	// Optional overrides for the error/permission branches; nil/zero keeps the
 	// default ownerOf/items-driven behaviour the existing tests rely on.
 	listVisibleErr error
@@ -68,6 +71,9 @@ func (m *mockAnalyses) Update(_ context.Context, _, _, _, _, _ string) (bool, er
 }
 func (m *mockAnalyses) Delete(_ context.Context, id, userID string) (bool, error) {
 	return m.ownerOf[id] == userID, nil
+}
+func (m *mockAnalyses) CountOwned(_ context.Context, _ string) (int, error) {
+	return m.countOwned, m.countErr
 }
 func (m *mockAnalyses) IsOwner(_ context.Context, id, userID string) (bool, error) {
 	if m.isOwnerErr != nil {
@@ -248,6 +254,70 @@ func TestGetAnalysis_StoreError_500(t *testing.T) {
 	resp, _ := s.GetAnalysis(withUser("u1"), GetAnalysisRequestObject{ID: "a1"})
 	if _, ok := resp.(GetAnalysis500JSONResponse); !ok {
 		t.Fatalf("response = %T, want 500", resp)
+	}
+}
+
+// --- SEC-016: field-length caps + per-user row cap -------------------------
+
+func TestPostAnalyses_RejectsOverlongState(t *testing.T) {
+	s := analysesServer(newMockAnalyses())
+	big := strings.Repeat("x", maxAnalysisStateLen+1)
+	resp, _ := s.PostAnalyses(withUser("u1"), PostAnalysesRequestObject{
+		Body: &PostAnalysesJSONRequestBody{Name: "ok", State: big},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPostAnalysesResponse(rec)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("overlong state must be 400, got %d", rec.Code)
+	}
+}
+
+func TestPostAnalyses_RejectsAtRowCap(t *testing.T) {
+	m := newMockAnalyses()
+	m.countOwned = maxAnalysesPerUser // already at the cap
+	s := analysesServer(m)
+	resp, _ := s.PostAnalyses(withUser("u1"), PostAnalysesRequestObject{
+		Body: &PostAnalysesJSONRequestBody{Name: "ok", State: "?s=1"},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPostAnalysesResponse(rec)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("at the row cap must be 400, got %d", rec.Code)
+	}
+	if b := rec.Body.String(); !strings.Contains(b, "quota_exceeded") {
+		t.Fatalf("expected quota_exceeded, got %s", b)
+	}
+}
+
+func TestPostAnalyses_WithinCapsSucceeds(t *testing.T) {
+	m := newMockAnalyses()
+	m.countOwned = maxAnalysesPerUser - 1
+	s := analysesServer(m)
+	resp, _ := s.PostAnalyses(withUser("u1"), PostAnalysesRequestObject{
+		Body: &PostAnalysesJSONRequestBody{Name: "ok", State: "?s=1"},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPostAnalysesResponse(rec)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("within caps must be 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPatchAnalysis_RejectsOverlongState(t *testing.T) {
+	m := newMockAnalyses()
+	m.items["a1"] = &storage.Analysis{Name: "n", Description: "d", State: "?s=1"}
+	m.ownerOf["a1"] = "u1"
+	s := analysesServer(m)
+	big := strings.Repeat("x", maxAnalysisStateLen+1)
+	resp, _ := s.PatchAnalysis(withUser("u1"), PatchAnalysisRequestObject{
+		ID: "a1", Body: &PatchAnalysisJSONRequestBody{State: &big},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPatchAnalysisResponse(rec)
+	// PatchAnalysis has no 400 in its contract; it already returns 403
+	// invalid_request for a bad body, so an overlong field follows that pattern.
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("overlong state on patch must be 403 (invalid_request), got %d", rec.Code)
 	}
 }
 

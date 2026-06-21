@@ -20,10 +20,40 @@ type AnalysesBackend interface {
 	Create(ctx context.Context, ownerID, name, description, state string) (storage.AnalysisListItem, error)
 	Update(ctx context.Context, id, userID, name, description, state string) (bool, error)
 	Delete(ctx context.Context, id, userID string) (bool, error)
+	// CountOwned reports how many analyses the user owns, for the per-user row
+	// cap (SEC-016).
+	CountOwned(ctx context.Context, ownerID string) (int, error)
 	IsOwner(ctx context.Context, id, userID string) (bool, error)
 	ListShares(ctx context.Context, analysisID string) ([]storage.ShareItem, error)
 	AddShare(ctx context.Context, analysisID, ownerID, granteeEmail string, canEdit bool) (storage.ShareItem, error)
 	RemoveShare(ctx context.Context, analysisID, granteeID string) (bool, error)
+}
+
+// Saved-analysis field caps (SEC-016). Lengths are byte caps (Go len() ==
+// Postgres octet_length, so the handler guard and the DB CHECK in migration
+// 000028 agree exactly). `state` is the serialized Workbench URL grammar — 256
+// KiB is far above any real analysis yet bounds the unbounded-TEXT write into
+// the shared auth DB. maxAnalysesPerUser caps the row count per owner.
+const (
+	maxAnalysisNameLen  = 200
+	maxAnalysisDescLen  = 2 << 10   // 2 KiB
+	maxAnalysisStateLen = 256 << 10 // 256 KiB
+	maxAnalysesPerUser  = 500
+)
+
+// validateAnalysisFields enforces the per-field length caps. Returns a non-empty
+// client-safe message on the first violation, or "" when all fields are within
+// bounds (SEC-016).
+func validateAnalysisFields(name, description, state string) string {
+	switch {
+	case len(name) > maxAnalysisNameLen:
+		return "name is too long"
+	case len(description) > maxAnalysisDescLen:
+		return "description is too long"
+	case len(state) > maxAnalysisStateLen:
+		return "analysis state is too long"
+	}
+	return ""
 }
 
 // analysisListEntry is the generated anonymous list-item struct shape, shared
@@ -101,6 +131,19 @@ func (s *Server) PostAnalyses(ctx context.Context, request PostAnalysesRequestOb
 	if request.Body.Description != nil {
 		desc = *request.Body.Description
 	}
+	if msg := validateAnalysisFields(name, desc, request.Body.State); msg != "" {
+		return PostAnalyses400JSONResponse{Code: "invalid_request", Message: msg}, nil
+	}
+	// Per-user row cap (SEC-016): bound how many analyses one user can persist to
+	// the shared auth DB. Generous for a real researcher; blocks a write-loop.
+	count, err := s.analysesBackend.CountOwned(ctx, id.UserID)
+	if err != nil {
+		slog.Error("analyses: count owned", "error", err)
+		return PostAnalyses500JSONResponse{Message: genericInternalError}, nil
+	}
+	if count >= maxAnalysesPerUser {
+		return PostAnalyses400JSONResponse{Code: "quota_exceeded", Message: "saved-analysis limit reached"}, nil
+	}
 	it, err := s.analysesBackend.Create(ctx, id.UserID, name, desc, request.Body.State)
 	if err != nil {
 		slog.Error("analyses: create", "error", err)
@@ -153,6 +196,9 @@ func (s *Server) PatchAnalysis(ctx context.Context, request PatchAnalysisRequest
 	}
 	if request.Body.State != nil {
 		state = *request.Body.State
+	}
+	if msg := validateAnalysisFields(name, desc, state); msg != "" {
+		return PatchAnalysis403JSONResponse{Code: "invalid_request", Message: msg}, nil
 	}
 	ok, err := s.analysesBackend.Update(ctx, request.ID, id.UserID, name, desc, state)
 	if err != nil {

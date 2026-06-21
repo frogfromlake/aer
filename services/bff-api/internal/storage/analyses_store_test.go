@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,48 @@ func TestAnalysesStore_CRUDAndVisibility(t *testing.T) {
 	}
 	if got, _ := as.Get(ctx, created.ID, owner); got != nil {
 		t.Fatal("analysis should be gone")
+	}
+}
+
+// SEC-016 — CountOwned backs the per-user row cap: it counts only the caller's
+// own analyses, and a malformed user id degrades to 0 (not an error).
+func TestAnalysesStore_CountOwned(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	owner := seedUser(t, s, ctx, "owner@x.y", "active")
+	other := seedUser(t, s, ctx, "other@x.y", "active")
+	as := NewAnalysesStore(s.db)
+
+	if n, err := as.CountOwned(ctx, owner); err != nil || n != 0 {
+		t.Fatalf("empty owner count = %d err=%v, want 0", n, err)
+	}
+	if _, err := as.Create(ctx, owner, "A", "", "?s=1"); err != nil {
+		t.Fatalf("create A: %v", err)
+	}
+	if _, err := as.Create(ctx, owner, "B", "", "?s=2"); err != nil {
+		t.Fatalf("create B: %v", err)
+	}
+	if _, err := as.Create(ctx, other, "C", "", "?s=3"); err != nil {
+		t.Fatalf("create C: %v", err)
+	}
+
+	if n, err := as.CountOwned(ctx, owner); err != nil || n != 2 {
+		t.Fatalf("owner count = %d err=%v, want 2", n, err)
+	}
+	if n, err := as.CountOwned(ctx, "not-a-uuid"); err != nil || n != 0 {
+		t.Fatalf("malformed id count = %d err=%v, want 0 with no error", n, err)
+	}
+}
+
+// SEC-016 — the migration-000028 CHECK rejects an oversized state at the DB
+// layer even if a future code path bypasses the handler guard.
+func TestAnalysesStore_StateLengthCheckRejectsOversized(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	owner := seedUser(t, s, ctx, "owner@x.y", "active")
+	as := NewAnalysesStore(s.db)
+
+	oversized := strings.Repeat("x", 262144+1) // 256 KiB + 1 byte
+	if _, err := as.Create(ctx, owner, "ok", "", oversized); err == nil {
+		t.Fatal("expected the DB CHECK to reject an oversized state, got nil error")
 	}
 }
 

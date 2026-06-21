@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -261,7 +262,13 @@ func main() {
 		WebAuthnBE:          webAuthnStore,
 		Analyses:            analysesStore,
 	})
-	strictHandler := handler.NewStrictHandler(serverLogic, nil)
+	// Custom strict-handler error handling (SEC-015 + SEC-017): map an oversized
+	// body to 413, and return generic 400/500 bodies that never leak binding
+	// internals or dependency errors to the client.
+	strictHandler := handler.NewStrictHandlerWithOptions(serverLogic, nil, handler.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  requestBindingErrorHandler,
+		ResponseErrorHandlerFunc: responseErrorHandler,
+	})
 
 	// Periodically drop idle login-throttle keys (security review M-3).
 	go func() {
@@ -292,6 +299,11 @@ func main() {
 	r.Group(func(r chi.Router) {
 		// Request Timeout: limits each request to 30s to prevent hanging ClickHouse queries
 		r.Use(middleware.Timeout(30 * time.Second))
+
+		// Request body cap (SEC-015): wrap every body in MaxBytesReader before any
+		// decoder runs, so an oversized payload (incl. on the pre-auth /auth/*
+		// POSTs) fails with 413 instead of buffering unbounded memory.
+		r.Use(bodyCap(maxRequestBodyBytes))
 
 		// CORS: configurable allowed origins via CORS_ALLOWED_ORIGINS env var.
 		// POST is required for the /auth/* endpoints (Phase 134 / ADR-040).
@@ -486,4 +498,51 @@ func rateLimiter(limiter *rate.Limiter) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// maxRequestBodyBytes caps every request body the BFF will buffer. Its payloads
+// are small JSON (auth credentials, saved-analysis state, query parameters); 1
+// MiB is generous for those yet blocks the multi-hundred-MB body that would
+// otherwise spike memory toward the container limit (SEC-015).
+const maxRequestBodyBytes int64 = 1 << 20 // 1 MiB
+
+// bodyCap wraps each request body in http.MaxBytesReader so an oversized payload
+// fails fast at decode time with *http.MaxBytesError — mapped to 413 by
+// requestBindingErrorHandler — instead of buffering unbounded memory (SEC-015).
+func bodyCap(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// requestBindingErrorHandler runs on param/body binding failure, before the
+// handler. An oversized body becomes 413 (SEC-015); every other binding error
+// becomes a generic 400 — never the raw error, which leaks parameter names and
+// decoder internals (SEC-017). The real error is logged server-side.
+func requestBindingErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		writeJSONError(w, http.StatusRequestEntityTooLarge, `{"code":"payload_too_large","message":"request body too large"}`)
+		return
+	}
+	slog.Warn("request binding failed", "path", r.URL.Path, "error", err)
+	writeJSONError(w, http.StatusBadRequest, `{"code":"invalid_request","message":"invalid request"}`)
+}
+
+// responseErrorHandler returns a generic 500; the real error is logged, never
+// surfaced to the client (SEC-017).
+func responseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Error("response error", "path", r.URL.Path, "error", err)
+	writeJSONError(w, http.StatusInternalServerError, `{"error":"internal error"}`)
+}
+
+func writeJSONError(w http.ResponseWriter, status int, body string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body))
 }

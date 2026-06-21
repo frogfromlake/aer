@@ -136,6 +136,21 @@ func (s *AnalysesStore) Create(ctx context.Context, ownerID, name, description, 
 	return it, nil
 }
 
+// CountOwned reports how many analyses the user owns, for the per-user row cap
+// (SEC-016).
+func (s *AnalysesStore) CountOwned(ctx context.Context, ownerID string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM saved_analyses WHERE owner_id = $1::uuid`, ownerID).Scan(&n)
+	if err != nil {
+		if isInvalidUUIDErr(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("count owned analyses: %w", err)
+	}
+	return n, nil
+}
+
 // Update changes name/description/state if the user is the owner or a can_edit
 // grantee. Reports whether a row was updated (false → not found / no permission).
 func (s *AnalysesStore) Update(ctx context.Context, id, userID, name, description, state string) (bool, error) {
