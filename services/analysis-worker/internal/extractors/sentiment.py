@@ -415,10 +415,13 @@ class SentimentExtractor:
         else:
             scores = self._score_bag_of_words(text)
 
+        # Zero lexicon hits is "no measurable signal", not a measured neutral:
+        # emit no row so absence surfaces as Negative Space (DISCLOSE-NEVER-COERCE),
+        # consistent with the no-lexicon / no-text / unsupported-language cases above.
         if not scores:
-            sentiment = 0.0
-        else:
-            sentiment = sum(scores) / len(scores)
+            return ExtractionResult()
+
+        sentiment = sum(scores) / len(scores)
         sentiment = max(-1.0, min(1.0, sentiment))
 
         return ExtractionResult(

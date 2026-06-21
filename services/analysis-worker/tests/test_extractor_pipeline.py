@@ -386,8 +386,9 @@ def test_sentiment_extractor_negative_text(tmp_path):
     assert -1.0 <= sentiment.value <= 1.0
 
 
-def test_sentiment_extractor_no_matches_returns_zero(tmp_path):
-    """Tests that text with no lexicon matches returns sentiment_score = 0."""
+def test_sentiment_extractor_no_matches_emits_no_row(tmp_path):
+    """Text with zero lexicon matches emits no sentiment row (Negative Space):
+    "no measurable signal" must not masquerade as a measured neutral 0.0."""
     pos_file = tmp_path / "SentiWS_v2.0_Positive.txt"
     neg_file = tmp_path / "SentiWS_v2.0_Negative.txt"
 
@@ -407,8 +408,7 @@ def test_sentiment_extractor_no_matches_returns_zero(tmp_path):
     )
 
     result = extractor.extract_all(core, None)
-    sentiment = next(m for m in result.metrics if m.metric_name == "sentiment_score_sentiws")
-    assert sentiment.value == 0.0
+    assert not any(m.metric_name == "sentiment_score_sentiws" for m in result.metrics)
 
 
 def test_sentiment_lexicon_hash_deterministic(tmp_path):

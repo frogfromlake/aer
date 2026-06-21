@@ -134,17 +134,18 @@ def test_compound_split_scores_known_compound(tmp_path):
 # (d) Compound failure path
 # ---------------------------------------------------------------------------
 
-def test_unrecognised_compound_returns_zero(tmp_path):
+def test_unrecognised_compound_emits_no_row(tmp_path):
     extractor = SentimentExtractor(
         sentiws_dir=_write_minimal_lexicon(tmp_path),
         custom_lexicon_path=_empty_custom(tmp_path),
     )
 
     # No constituent of `Donaudampfschifffahrtsgesellschaft` is in the
-    # minimal lexicon → no token scored → zero, no exception.
+    # minimal lexicon → zero lexicon hits. That is "no measurable signal",
+    # not a measured neutral, so no row is emitted (Negative Space) rather
+    # than a spurious value=0.0 indistinguishable from a genuine neutral.
     out = extractor.extract_all(_core("Donaudampfschifffahrtsgesellschaft."), "p5").metrics
-    assert out
-    assert out[0].value == 0.0
+    assert out == []
 
 
 # ---------------------------------------------------------------------------
