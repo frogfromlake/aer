@@ -2951,3 +2951,45 @@ Constraints (operator, 2026-06-14/20): permanently as-free-as-possible, no fragi
 
 * **Positive:** The invite-only model becomes operable with zero new Go dependencies and no vendor lock-in; the provider is a deployment decision, deferrable to Iteration 13. The fallback keeps dev and bootstrap frictionless. Credentials flow through the same boot-time secret validator + `.env.example` discipline as every other secret. The `delivered` signal makes delivery state explicit to the admin without weakening enumeration-safety on the self-service path.
 * **Negative:** STARTTLS-on-submission only — an implicit-TLS (465) relay is not supported (587 is the documented Brevo path; adding 465 is a small, deferred transport variant). Bilingual single-body mails are slightly longer than a locale-targeted mail would be; acceptable until a locale is ever captured at invite time. Deliverability now depends on an external free tier — its limits, SPF/DKIM setup, and the abuse/outage story live in the Operations Playbook, revisited on `make deps-refresh`.
+
+---
+
+## ADR-044: Single-Box Deployment Topology, Backup & Capacity Strategy (Phase 148)
+
+**Date:** 2026-06-21
+**Status:** Accepted
+
+### Context
+
+AĒR reaches deployment as a one-operator, tight-budget project that grows with probes (each new probe/source adds crawl volume and, over time, larger or additional NLP models in the analysis-worker) and serves few concurrent users (researchers and interested readers). The medallion stack (Traefik · BFF · static dashboard · ingestion-api · analysis-worker · MinIO · ClickHouse · NATS · Postgres · OTel→Tempo/Prometheus/Grafana) runs and is healthy as built; what a POC lacks for production is the operational envelope around it — where it runs, how it is backed up and recovered, how a failure reaches the operator, and how its storage/compute growth is bounded.
+
+The decision was grounded in **measured POC numbers**, not estimates: per-article on-disk footprint per medallion layer, the analysis-worker image size, and the internal log-growth vectors were read from the running stack before sizing. (The detailed measurements + the operational-readiness review live in the operator's private notes; this ADR records the resulting architecture decision.)
+
+### Decision
+
+**A single EU box running the full stack as built, with a tested off-box backup as the resilience story, and an explicitly-documented single-box scaling limit.**
+
+**1. Topology & host.** One EU VPS — launch target **Hetzner CX43** (x86/amd64, 8 vCPU, 16 GB RAM, 160 GB SSD, ~€16.49/mo) plus a Hetzner Storage Box (~€4/mo) for backups (~€20/mo all-in). x86 is chosen so the amd64-built custom images (analysis-worker, BFF, ingestion, crawler, dashboard) run without an ARM rebuild; ARM (Ampere) is revisitable later behind a multi-arch image pipeline. The single point of failure is accepted deliberately at this budget — mitigated by **tested backup/restore, not redundancy**.
+
+**2. Observability stays full / as-built.** Prometheus + Grafana + Tempo all run in production; 16 GB carries the stack's ~12.5 GB resource-limit ceiling. A trimmed footprint is unnecessary at 16 GB.
+
+**3. Backups (restic → EU object storage).** `restic` to the EU Storage Box — one tool for transport, dedup, client-side encryption and retention-prune. ClickHouse is dumped **partition-level** (`clickhouse-backup`/`BACKUP`) and shipped by restic — never via replay, because the indefinite monthly aggregate is unrebuildable past its raw TTL. Retention 35 days (bounds the GDPR right-to-erasure tail). **Client-side encryption**, key escrowed off-box ("a leaked provider cannot read backups"). A restore tested in a clean environment is part of the deploy gate.
+
+**4. Alerting.** Grafana unified alerting → email, reusing the transactional-email relay (ADR-043). No extra container. Host signals (disk/mem via node-exporter, cert-expiry, up-rules) are added so disk-fill and liveness are actually alertable.
+
+**5. Crawl scheduler.** An `ofelia` sidecar behind a `scheduler` compose profile — periodic crawls stay inside the single `docker compose` mental model (no host cron/systemd to learn).
+
+**6. Configuration forwarding via `env_file`.** Services receive a generated per-service `env_file` subset rather than hand-curated `environment:` allowlists, so "documented + read-by-code ⇒ forwarded" holds structurally (the allowlist drift was a recurring source of silently-inert config).
+
+**7. First-admin bootstrap.** The `bootstrap-admin` binary is baked into the BFF image as a build stage, so `docker compose run --rm bff-api bootstrap-admin …` works on a prod box with no host path to Postgres.
+
+**8. TLS/ACME.** An env-driven ACME staging toggle (first-boot dry runs avoid Let's Encrypt rate limits); `traefik-certs` joins the backup scope; cert-expiry is alerted from Traefik's Prometheus metrics.
+
+**9. Domain (one domain, three uses).** A single cheap EU-registrar domain serves as the app URL, the TLS subject, and the transactional-email sender domain, with a monitored `kontakt@<domain>` from-address shape (free registrar forwarding, no paid mailbox). The strategy is fixed here; the concrete domain is registered at provisioning (Phase 149).
+
+**10. Capacity model & scaling limit.** Steady-state storage ≈ **Bronze (90 d) + Silver (365 d)**; Gold (ClickHouse, compressed) and Postgres are negligible. Measured ≈ **0.3 GB per sustained doc/day** (with a known ~3× reduction available by not duplicating raw HTML into Silver — a separate change). The **worker compute** (CPU inference, growing models) is the first bottleneck as probes scale, before storage. A single box carries launch through early growth; the mid-scale tier (multi-TB + worker fleet/GPU) is a deliberate, fundable, later step. Live guardrails + the scale-trigger runbook are Phase 150.
+
+### Consequences
+
+* **Positive:** Cheapest viable EU posture (~€20/mo) that runs the project **as built**, full observability included; one operational mental model (`docker compose`); pay-as-you-grow (cost tracks the project, not paid upfront); principled, provider-opaque backup encryption; the env_file + baked-bootstrap + staging-ACME choices remove the deployment foot-guns a first-time operator hits.
+* **Negative:** A single point of failure — recovery depends on the backup actually restoring, so an **untested restore is the real risk** (hence the clean-env restore gate). Scaling past early growth is a manual step (bigger box / storage server / worker fleet), triggered by Phase-150 guardrails, not automatic. ARM price/performance is deferred until a multi-arch image pipeline exists. The concrete domain + provider live accounts are provisioning actions (Phase 149), so this ADR is "signed" on strategy, not on a running URL.
