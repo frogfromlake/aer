@@ -55,7 +55,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from . import assert_pattern_usable
+from . import ChannelStats, assert_pattern_usable
 
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ def discover(
     user_agent: str = DEFAULT_USER_AGENT,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     http_get=None,
+    stats: Optional[ChannelStats] = None,
 ) -> Iterator[Tuple[str, Optional[datetime]]]:
     """Yield ``(url, None)`` pairs from publisher-built HTML sitemap pages.
 
@@ -108,6 +109,15 @@ def discover(
     """
     if not configs:
         return
+
+    # Phase 148d — the HTML sitemap channel is structurally dateless (it is a
+    # publisher-refreshed snapshot of "current articles", not a dated
+    # inventory). It cannot supply a trustworthy in-window declared
+    # denominator, so completeness on this channel is always *indeterminate*
+    # (WP-007 §4.1) — the yielded count below is recorded only as a lower
+    # bound, never a 100 %-able ratio.
+    if stats is not None:
+        stats.mark_indeterminate()
 
     fetch = http_get or requests.get
     headers = {"User-Agent": user_agent}
@@ -159,6 +169,8 @@ def discover(
             if absolute in yielded:
                 continue
             yielded.add(absolute)
+            if stats is not None:
+                stats.count()  # lower-bound declared (channel is dateless)
             yield absolute, None
 
 

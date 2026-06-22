@@ -40,7 +40,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from . import assert_pattern_usable
+from . import ChannelStats, assert_pattern_usable
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ def discover(
     now: Optional[datetime] = None,
     http_get=None,
     sleep=None,
+    stats: Optional[ChannelStats] = None,
 ) -> Iterator[Tuple[str, Optional[datetime]]]:
     """Yield ``(url, published_date)`` pairs from a date-indexed archive page.
 
@@ -170,6 +171,12 @@ def discover(
             resp = fetch(url, headers=headers, timeout=timeout_seconds)
         except Exception as exc:
             logger.warning("archive_index fetch failed: %s — %s", url, exc)
+            # Phase 148d — a transport failure loses a date page's worth of
+            # in-window listings: the declared count becomes a lower bound
+            # (WP-007 §5). A 4xx (below) is the publisher saying "no archive
+            # page for this date" — a legitimate empty, not lost data.
+            if stats is not None:
+                stats.mark_indeterminate()
             cursor = _step_back(cursor, granularity)
             polite_sleep(delay_seconds)
             continue
@@ -182,6 +189,10 @@ def discover(
                 url,
                 status,
             )
+            # 5xx is a server-side failure (lost listings → lower bound);
+            # 4xx is a legitimate empty date and does not taint the count.
+            if status >= 500 and stats is not None:
+                stats.mark_indeterminate()
             cursor = _step_back(cursor, granularity)
             polite_sleep(delay_seconds)
             continue
@@ -207,6 +218,13 @@ def discover(
             if absolute in yielded:
                 continue
             yielded.add(absolute)
+            # Phase 148d — declared denominator (WP-007 §4.1, Decision B):
+            # count the article-pattern links listed on the date pages we
+            # walk anyway, before AĒR's cross-channel dedup/filters. Zero
+            # extra fetches — the polite, measured floor for a paginated
+            # archive that has no single advertised total.
+            if stats is not None:
+                stats.count()
             yield absolute, entry_dt
 
         cursor = _step_back(cursor, granularity)

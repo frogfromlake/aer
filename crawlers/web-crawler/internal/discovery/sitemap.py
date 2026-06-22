@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterator, Optional
 
+from . import ChannelStats
+
 
 @dataclass(frozen=True)
 class DiscoveredUrl:
@@ -39,6 +41,7 @@ def discover(
     sitemap_urls: list[str],
     since: Optional[datetime] = None,
     strict_lastmod: bool = True,
+    stats: Optional[ChannelStats] = None,
 ) -> Iterator[DiscoveredUrl]:
     """Yield every leaf URL surfaced by the supplied sitemap roots.
 
@@ -85,16 +88,27 @@ def discover(
     # `_MAX_SITEMAP_FETCHES`.
     seen_urls: set[str] = set()
     for root in sitemap_urls:
-        for url, lastmod in _iter_sitemap_entries(root):
+        for url, lastmod in _iter_sitemap_entries(root, stats=stats):
             if not url or url in seen_urls:
                 continue
             if since is not None:
                 if lastmod is None:
                     if strict_lastmod:
-                        continue  # F-A21: drop undated entries in continuous mode
+                        # F-A21: drop undated entries in continuous mode.
+                        # Phase 148d — the publisher advertised content we
+                        # cannot date-place inside the window, so the
+                        # in-window declared count is a lower bound: the
+                        # completeness denominator is no longer trustworthy.
+                        if stats is not None:
+                            stats.mark_indeterminate()
+                        continue
                     # else: fall through (backfill mode)
                 elif lastmod < since:
-                    continue
+                    continue  # out of window — correctly excluded from declared
+            # In-window (or no temporal cutoff) — counts toward the
+            # publisher-declared denominator (WP-007 §4.1).
+            if stats is not None:
+                stats.count()
             seen_urls.add(url)
             section = _section_from_url(url)
             yield DiscoveredUrl(url=url, sitemap_lastmod=lastmod, sitemap_section=section)
@@ -107,7 +121,9 @@ def discover(
 _MAX_SITEMAP_FETCHES = 50
 
 
-def _iter_sitemap_entries(root: str) -> Iterator[tuple[Optional[str], "datetime | None"]]:
+def _iter_sitemap_entries(
+    root: str, stats: Optional[ChannelStats] = None
+) -> Iterator[tuple[Optional[str], "datetime | None"]]:
     """Yield ``(loc, lastmod)`` from the configured sitemap URL.
 
     Handles both ``<urlset>`` (flat list of page URLs) and ``<sitemapindex>``
@@ -141,6 +157,11 @@ def _iter_sitemap_entries(root: str) -> Iterator[tuple[Optional[str], "datetime 
             root_el = ET.fromstring(body)
         except Exception as exc:
             logger.warning("Failed to fetch/parse sitemap %s: %s", sm_url, exc)
+            # Phase 148d — a swallowed leaf means the declared count is a
+            # lower bound: we cannot know how many in-window entries this
+            # document would have surfaced (WP-007 §5, polite-by-default).
+            if stats is not None:
+                stats.mark_indeterminate()
             continue
 
         tag = _localname(root_el.tag)
@@ -157,6 +178,14 @@ def _iter_sitemap_entries(root: str) -> Iterator[tuple[Optional[str], "datetime 
                 if not loc:
                     continue
                 yield loc.strip(), _parse_lastmod(_child_text(url_el, "lastmod"))
+
+    # Phase 148d — the fetch budget was exhausted with child sitemaps still
+    # un-walked: the publisher exposes more than we sampled, so the declared
+    # count is a lower bound (WP-007 §3 — completeness measured politely or
+    # not at all; the cap is the polite bound, the indeterminate flag is the
+    # honest disclosure of it).
+    if queue and stats is not None:
+        stats.mark_indeterminate()
 
 
 def _localname(tag: str) -> str:

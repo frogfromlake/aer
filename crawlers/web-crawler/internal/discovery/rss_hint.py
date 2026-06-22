@@ -28,12 +28,16 @@ import logging
 from datetime import datetime, timezone
 from typing import Iterator, Optional, Tuple
 
+from . import ChannelStats
+
 
 logger = logging.getLogger(__name__)
 
 
 def discover(
-    rss_url: str, since: Optional[datetime] = None
+    rss_url: str,
+    since: Optional[datetime] = None,
+    stats: Optional[ChannelStats] = None,
 ) -> Iterator[Tuple[str, Optional[datetime]]]:
     """Yield ``(url, published_at)`` pairs surfaced by the RSS feed.
 
@@ -52,12 +56,17 @@ def discover(
         import feedparser  # type: ignore
     except Exception as exc:  # pragma: no cover - import-shim
         logger.warning("feedparser not installed: %s", exc)
+        if stats is not None:
+            stats.mark_indeterminate()
         return
 
     try:
         feed = feedparser.parse(rss_url)
     except Exception as exc:
         logger.warning("Failed to parse RSS feed %s: %s", rss_url, exc)
+        # Phase 148d — no feed parsed: declared count is unknowable here.
+        if stats is not None:
+            stats.mark_indeterminate()
         return
 
     for entry in feed.entries:
@@ -67,6 +76,15 @@ def discover(
         entry_dt = _entry_datetime(entry)
         if since is not None and entry_dt is not None and entry_dt < since:
             continue
+        # Phase 148d — declared denominator (WP-007 §4.1). A dated, in-window
+        # item is a trustworthy declared count; an undated item is advertised
+        # but undatable in a windowed crawl, so it is surfaced (yielded) yet
+        # marks the denominator as a lower bound rather than counting toward it.
+        if stats is not None:
+            if entry_dt is None and since is not None:
+                stats.mark_indeterminate()
+            else:
+                stats.count()
         yield url, entry_dt
 
 

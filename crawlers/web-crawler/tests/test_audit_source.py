@@ -226,6 +226,58 @@ def test_yaml_suggestion_contains_operator_placeholders() -> None:
     assert "Mediacloud" in out
 
 
+def test_completeness_baseline_measures_observed_inventory() -> None:
+    """Phase 148d (WP-007 §6) — the onboarding contract measures the
+    publisher-declared inventory per channel so the underflow floor is a
+    measured seed, not a hand-typed guess."""
+    report = {
+        "trafilatura_sitemaps_found": ["https://x/a", "https://x/b", "https://x/c"],  # 3
+        "trafilatura_feeds_found": ["https://x/f1", "https://x/f2"],  # 2
+        "html_sitemap_candidates": [
+            {"url": "https://x/s.html", "article_count": 40},
+            {"url": "https://x/skip", "skipped": True, "article_count": 999},
+        ],
+        "archive_index_candidates": [{"url_template": "/archiv", "article_count": 120}],
+    }
+    baseline = audit_core._compute_completeness_baseline(report)
+    assert baseline["per_channel"] == {
+        "sitemap": 3,
+        "rss": 2,
+        "html_sitemap": 40,  # skipped candidate excluded
+        "archive_index": 120,
+    }
+    assert baseline["observed_total"] == 165
+    assert baseline["suggested_floor_per_run"] == 82  # 165 // 2, conservative
+
+
+def test_completeness_baseline_empty_when_nothing_observed() -> None:
+    baseline = audit_core._compute_completeness_baseline(
+        {"trafilatura_sitemaps_found": "skipped — trafilatura not installed"}
+    )
+    assert baseline["observed_total"] == 0
+    assert baseline["suggested_floor_per_run"] == 0
+    assert baseline["per_channel"] == {}
+
+
+def test_yaml_suggestion_emits_measured_floor_when_baseline_present() -> None:
+    """When the audit measured an inventory, the YAML carries a measured floor
+    seed (not the bare <edit-me> placeholder)."""
+    report = {
+        "homepage": "https://x",
+        "origin": "https://x",
+        "trafilatura_sitemaps_found": ["https://x/a", "https://x/b"],
+        "trafilatura_feeds_found": [],
+        "completeness_baseline": {
+            "per_channel": {"sitemap": 200},
+            "observed_total": 200,
+            "suggested_floor_per_run": 100,
+        },
+    }
+    out = audit_source._format_yaml_suggestion(report)
+    assert "expected_floor_per_run: 100" in out
+    assert "measured at audit" in out
+
+
 def test_cli_emits_yaml_by_default(capsys) -> None:
     with patch.object(audit_source, "audit_source") as fake_audit:
         fake_audit.return_value = {

@@ -52,6 +52,8 @@ def test_record_run_inserts_one_row() -> None:
         channel="rss",
         urls_discovered=70,
         urls_after_dedup=68,
+        declared=72,
+        declared_indeterminate=True,
         run_started_at=started,
         run_completed_at=started + timedelta(seconds=3),
     )
@@ -61,7 +63,18 @@ def test_record_run_inserts_one_row() -> None:
     assert cursor.execute.call_count == 1
     sql, params = cursor.execute.call_args[0]
     assert "INSERT INTO crawler_discovery_runs" in sql
-    assert params[1:7] == (1, "rss", 70, 68, started, started + timedelta(seconds=3))
+    # Phase 148d — declared + declared_indeterminate land between
+    # urls_after_dedup and the timestamps (see DiscoveryRunsWriter.record_run).
+    assert params[1:9] == (
+        1,
+        "rss",
+        70,
+        68,
+        72,
+        True,
+        started,
+        started + timedelta(seconds=3),
+    )
 
 
 def test_record_run_batch_groups_per_channel() -> None:

@@ -72,7 +72,20 @@ def _format_yaml_suggestion(report: dict[str, Any]) -> str:
     else:
         lines.append("  # archive_index: not detected at common paths")
 
-    lines.append("  expected_floor_per_run: <edit-me — operator-set after first run>")
+    # Phase 148d (WP-007 §6) — a MEASURED floor seed: half the inventory the
+    # audit observed across channels, so the underflow alert is sane from run
+    # one. The runtime `declared` telemetry is the authoritative signal; refine
+    # after a few real runs.
+    baseline = report.get("completeness_baseline") or {}
+    suggested = baseline.get("suggested_floor_per_run")
+    observed = baseline.get("observed_total")
+    if isinstance(suggested, int) and suggested > 0:
+        lines.append(
+            f"  expected_floor_per_run: {suggested}   "
+            f"# measured at audit (~50% of {observed} observed); refine after first runs"
+        )
+    else:
+        lines.append("  expected_floor_per_run: <edit-me — operator-set after first run>")
 
     lines.append("")
     lines.append("# ──────────────────────────────────────────────────────────────────────")

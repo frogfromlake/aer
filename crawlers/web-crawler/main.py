@@ -24,7 +24,7 @@ from typing import Any, Iterable, Iterator, Optional
 import structlog
 import yaml
 
-from internal.discovery import DiscoveryConfigurationError
+from internal.discovery import ChannelStats, DiscoveryConfigurationError
 from internal.discovery.archive_index import discover as discover_archive_index
 from internal.discovery.html_sitemap import discover as discover_html_sitemap
 from internal.discovery.rss_hint import discover as discover_rss
@@ -258,11 +258,22 @@ def _normalise_source_discovery(source: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class ChannelCount:
-    """One channel's per-run telemetry — raw discovered + after-dedup."""
+    """One channel's per-run telemetry — raw discovered + after-dedup.
+
+    Phase 148d (WP-007) adds the **declared denominator**: the
+    publisher-advertised, in-window item count measured at the channel's
+    parse boundary, before AĒR's cross-channel dedup/filters
+    (``completeness = collected / declared``). ``declared_indeterminate``
+    is True when that count is only a lower bound (a fetch/parse error, a
+    walk/fetch cap, or advertised-but-undatable content) — in which case
+    completeness is reported as *indeterminate*, never a clean ratio.
+    """
 
     channel: str
     urls_discovered: int
     urls_after_dedup: int
+    declared: Optional[int] = None
+    declared_indeterminate: bool = False
 
 
 @dataclass(frozen=True)
@@ -321,7 +332,11 @@ def _discover_for_source(
     channel_counts: list[ChannelCount] = []
     run_started_at = datetime.now(tz=timezone.utc)
 
-    def _add_channel(channel: str, items: Iterable[tuple[str, Optional[datetime]]]) -> None:
+    def _add_channel(
+        channel: str,
+        items: Iterable[tuple[str, Optional[datetime]]],
+        stats: Optional[ChannelStats] = None,
+    ) -> None:
         """Run one channel's discovery, attributing first-seen URLs to it.
 
         ``urls_discovered`` is the raw count from the channel (pre-
@@ -331,6 +346,12 @@ def _discover_for_source(
         telemetry attributable: when sitemap + html_sitemap both yield
         URL X, sitemap (first) gets +1 ``after_dedup``, html_sitemap
         (second) gets +1 ``discovered`` but +0 ``after_dedup``.
+
+        Phase 148d — ``stats`` is the per-channel declared-denominator
+        sink the underlying ``discover_*`` populated while streaming. When
+        the channel left it at the sentinel (a mocked test double, or a
+        legacy path), ``declared`` falls back to ``discovered`` so the
+        denominator never regresses to a spurious zero.
         """
         discovered = 0
         after_dedup = 0
@@ -343,11 +364,17 @@ def _discover_for_source(
                     url=url, sitemap_lastmod=lastmod, sitemap_section=None
                 )
                 after_dedup += 1
+        declared = (
+            stats.declared if stats is not None and stats.declared is not None
+            else discovered
+        )
         channel_counts.append(
             ChannelCount(
                 channel=channel,
                 urls_discovered=discovered,
                 urls_after_dedup=after_dedup,
+                declared=declared,
+                declared_indeterminate=bool(stats.indeterminate) if stats else False,
             )
         )
 
@@ -358,10 +385,12 @@ def _discover_for_source(
     # subsequent collisions.
     sitemap_discovered = 0
     sitemap_after_dedup = 0
+    sitemap_stats = ChannelStats()
     for entry in discover_sitemap(
         discovery["sitemap_urls"],
         since=since,
         strict_lastmod=sitemap_strict_lastmod,
+        stats=sitemap_stats,
     ):
         sitemap_discovered += 1
         if entry.url and entry.url not in seen:
@@ -372,6 +401,12 @@ def _discover_for_source(
             channel="sitemap",
             urls_discovered=sitemap_discovered,
             urls_after_dedup=sitemap_after_dedup,
+            declared=(
+                sitemap_stats.declared
+                if sitemap_stats.declared is not None
+                else sitemap_discovered
+            ),
+            declared_indeterminate=sitemap_stats.indeterminate,
         )
     )
 
@@ -380,13 +415,15 @@ def _discover_for_source(
     # may expose multiple official feeds, e.g. bundesregierung's four).
     # All configured feeds are flattened into one telemetry row tagged
     # `rss` so cross-source comparison stays uniform.
+    rss_stats = ChannelStats()
+
     def _rss_items() -> Iterator[tuple[str, Optional[datetime]]]:
         for rss_url in discovery["rss_hint_urls"]:
             if not rss_url:
                 continue
-            yield from discover_rss(rss_url, since=since)
+            yield from discover_rss(rss_url, since=since, stats=rss_stats)
 
-    _add_channel("rss", _rss_items())
+    _add_channel("rss", _rss_items(), stats=rss_stats)
 
     # Channel 3: HTML sitemap pages (Phase 122g — for publishers who
     # don't ship a sitemap.xml but DO publish a navigation page that
@@ -394,9 +431,13 @@ def _discover_for_source(
     # `/infoservices/startseite-sitemap-*.html`). Entries carry no
     # per-article timestamp; they flow in with `sitemap_lastmod=None`
     # and sink to the end of the newest-first sort.
+    html_sitemap_stats = ChannelStats()
     _add_channel(
         "html_sitemap",
-        discover_html_sitemap(discovery["html_sitemap_urls"], since=since),
+        discover_html_sitemap(
+            discovery["html_sitemap_urls"], since=since, stats=html_sitemap_stats
+        ),
+        stats=html_sitemap_stats,
     )
 
     # Channel 4: date-indexed archive walker (Phase 122e A20 — for
@@ -405,13 +446,23 @@ def _discover_for_source(
     # activates per-source configuration on tagesschau.
     archive_index_cfg = discovery["archive_index"]
     if archive_index_cfg:
+        archive_stats = ChannelStats()
         _add_channel(
             "archive_index",
-            discover_archive_index(archive_index_cfg, since=since),
+            discover_archive_index(archive_index_cfg, since=since, stats=archive_stats),
+            stats=archive_stats,
         )
     else:
+        # Channel not configured for this source — declared is a true 0
+        # (nothing advertised here), not an indeterminate measurement.
         channel_counts.append(
-            ChannelCount(channel="archive_index", urls_discovered=0, urls_after_dedup=0)
+            ChannelCount(
+                channel="archive_index",
+                urls_discovered=0,
+                urls_after_dedup=0,
+                declared=0,
+                declared_indeterminate=False,
+            )
         )
 
     def _sort_key(entry: DiscoveredUrl) -> tuple[int, float]:
@@ -594,8 +645,10 @@ def cli(argv: list[str] | None = None) -> int:
                 discovered=len(urls),
                 per_channel={
                     cc.channel: {
+                        "declared": cc.declared,
                         "discovered": cc.urls_discovered,
                         "after_dedup": cc.urls_after_dedup,
+                        "indeterminate": cc.declared_indeterminate,
                     }
                     for cc in result.channel_counts
                 },
@@ -618,6 +671,8 @@ def cli(argv: list[str] | None = None) -> int:
                         channel=cc.channel,
                         urls_discovered=cc.urls_discovered,
                         urls_after_dedup=cc.urls_after_dedup,
+                        declared=cc.declared,
+                        declared_indeterminate=cc.declared_indeterminate,
                         run_started_at=result.run_started_at,
                         run_completed_at=result.run_completed_at,
                     )

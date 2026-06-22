@@ -30,7 +30,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class DiscoveryRunRecord:
-    """One row's worth of telemetry — one (source, channel) per crawl run."""
+    """One row's worth of telemetry — one (source, channel) per crawl run.
+
+    Phase 148d (WP-007) adds ``declared`` (the publisher-advertised,
+    in-window denominator measured at the channel's parse boundary, before
+    AĒR's filters) and ``declared_indeterminate`` (True when that count is
+    only a lower bound — error, cap, or undatable content — so completeness
+    must be reported as *indeterminate*, never a clean ratio). Both are
+    optional so older callers / fixtures that omit them keep working.
+    """
 
     source_id: int
     channel: str
@@ -38,6 +46,8 @@ class DiscoveryRunRecord:
     urls_after_dedup: int
     run_started_at: datetime
     run_completed_at: datetime
+    declared: Optional[int] = None
+    declared_indeterminate: bool = False
 
 
 class DiscoveryRunsWriter:
@@ -72,8 +82,9 @@ class DiscoveryRunsWriter:
                         """
                         INSERT INTO crawler_discovery_runs
                             (run_id, source_id, channel, urls_discovered,
-                             urls_after_dedup, run_started_at, run_completed_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                             urls_after_dedup, declared, declared_indeterminate,
+                             run_started_at, run_completed_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             str(run_id),
@@ -81,6 +92,8 @@ class DiscoveryRunsWriter:
                             record.channel,
                             record.urls_discovered,
                             record.urls_after_dedup,
+                            record.declared,
+                            record.declared_indeterminate,
                             record.run_started_at,
                             record.run_completed_at,
                         ),
@@ -105,6 +118,8 @@ class DiscoveryRunsWriter:
                     rec.channel,
                     rec.urls_discovered,
                     rec.urls_after_dedup,
+                    rec.declared,
+                    rec.declared_indeterminate,
                     rec.run_started_at,
                     rec.run_completed_at,
                 )
@@ -119,8 +134,9 @@ class DiscoveryRunsWriter:
                         """
                         INSERT INTO crawler_discovery_runs
                             (run_id, source_id, channel, urls_discovered,
-                             urls_after_dedup, run_started_at, run_completed_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                             urls_after_dedup, declared, declared_indeterminate,
+                             run_started_at, run_completed_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         rows,
                     )

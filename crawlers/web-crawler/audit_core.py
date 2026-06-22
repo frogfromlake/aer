@@ -184,7 +184,58 @@ def audit_source(
         )
     report["archive_index_candidates"] = archive_index_hits
 
+    # Phase 148d (WP-007 §6) — the onboarding completeness contract: record the
+    # publisher-declared inventory this audit observed per channel, so the
+    # source's `expected_floor_per_run` is a MEASURED starting point rather than
+    # a hand-typed guess.
+    report["completeness_baseline"] = _compute_completeness_baseline(report)
+
     return report
+
+
+def _compute_completeness_baseline(report: dict[str, Any]) -> dict[str, Any]:
+    """Phase 148d (WP-007 §6) — measure the publisher-declared inventory the
+    audit observed, per channel, to seed a measured underflow floor.
+
+    Each count is the number of article URLs the channel surfaced during this
+    one-shot audit (trafilatura's sitemap/feed discovery returns article URLs;
+    the HTML-sitemap / archive probes count article-shaped links). It is a
+    point-in-time sample, NOT a guarantee — the runtime declared-denominator
+    telemetry (the per-run `declared` column, Phase 148d) is the authoritative
+    completeness signal; this baseline only seeds the floor so the
+    two-consecutive-runs underflow alert is sane from the very first run.
+    """
+    per_channel: dict[str, int] = {}
+
+    sm = report.get("trafilatura_sitemaps_found")
+    if isinstance(sm, list):
+        per_channel["sitemap"] = len(sm)
+    feeds = report.get("trafilatura_feeds_found")
+    if isinstance(feeds, list):
+        per_channel["rss"] = len(feeds)
+
+    def _max_article_count(key: str) -> "int | None":
+        hits = report.get(key) or []
+        counts = [int(h.get("article_count", 0) or 0) for h in hits if not h.get("skipped")]
+        return max(counts) if counts else None
+
+    html = _max_article_count("html_sitemap_candidates")
+    if html is not None:
+        per_channel["html_sitemap"] = html
+    arch = _max_article_count("archive_index_candidates")
+    if arch is not None:
+        per_channel["archive_index"] = arch
+
+    observed_total = sum(per_channel.values())
+    # Conservative floor — half the observed inventory — so a genuine quiet day
+    # does not false-fire the underflow alert. The runtime drift detector is the
+    # precise signal; this is only a sane measured seed (WP-007 §5, §6).
+    suggested_floor = observed_total // 2 if observed_total else 0
+    return {
+        "per_channel": per_channel,
+        "observed_total": observed_total,
+        "suggested_floor_per_run": suggested_floor,
+    }
 
 
 def extract_discovered_urls(report: dict[str, Any]) -> dict[str, list[str]]:

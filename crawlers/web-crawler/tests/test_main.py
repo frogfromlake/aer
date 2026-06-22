@@ -411,7 +411,7 @@ def test_discover_for_source_uses_plural_rss_feeds(monkeypatch) -> None:
 
     rss_calls: list[str] = []
 
-    def fake_rss(url, since=None):
+    def fake_rss(url, since=None, **_kw):
         rss_calls.append(url)
         # Each feed yields a distinct URL so the union is observable.
         if "feed-a" in url:
@@ -420,7 +420,10 @@ def test_discover_for_source_uses_plural_rss_feeds(monkeypatch) -> None:
             return iter([("https://x/article-from-b", _NOW - timedelta(hours=2))])
         return iter([])
 
-    monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
+    monkeypatch.setattr(
+        "main.discover_sitemap",
+        lambda urls, since=None, strict_lastmod=True, **_kw: iter([]),
+    )
     monkeypatch.setattr("main.discover_rss", fake_rss)
 
     source = {
@@ -545,11 +548,14 @@ def test_discover_for_source_aliases_legacy_rss_hint_url(monkeypatch) -> None:
 
     rss_calls: list[str] = []
 
-    def fake_rss(url, since=None):
+    def fake_rss(url, since=None, **_kw):
         rss_calls.append(url)
         return iter([("https://x/article", _NOW - timedelta(hours=1))])
 
-    monkeypatch.setattr("main.discover_sitemap", lambda urls, since=None, strict_lastmod=True: iter([]))
+    monkeypatch.setattr(
+        "main.discover_sitemap",
+        lambda urls, since=None, strict_lastmod=True, **_kw: iter([]),
+    )
     monkeypatch.setattr("main.discover_rss", fake_rss)
 
     source = {

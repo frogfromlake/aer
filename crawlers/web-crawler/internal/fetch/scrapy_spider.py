@@ -24,6 +24,11 @@ from scrapy.http import Response  # type: ignore
 from internal.discovery.sitemap import DiscoveredUrl
 from internal.ingestion.client import IngestionClient
 from internal.state.dedup import CrawlerState, content_hash
+from internal.state.funnel_runs import (
+    FunnelRunsWriter,
+    build_funnel_record,
+    funnel_counters_from,
+)
 from internal.translate.contract import (
     FetchEnvelope,
     build_payload,
@@ -122,6 +127,20 @@ class WebSpider(scrapy.Spider):
         self.submitted = 0
         self.skipped = 0
         self.errored = 0
+        # Phase 148d (WP-007 §5) — attributable per-stage funnel counters,
+        # recorded per source in `crawler_funnel_runs` at spider close so a
+        # per-source conversion gap is localised to a stage instead of left
+        # as an unexplained artifact. `discovered` is the after-dedup input
+        # the discovery layer handed this spider; `already_collected` is the
+        # conditional-GET avoidance count (NOT a loss — we already hold it).
+        self._run_started_at = datetime.now(tz=timezone.utc)
+        self.discovered = len(urls)
+        self.url_filtered = 0
+        self.already_collected = 0
+        self.fetched = 0
+        self.not_modified = 0
+        self.content_dropped = 0
+        self.thin_content_dropped = 0
 
     def start_requests(self) -> Iterator[scrapy.Request]:
         for entry in self._urls:
@@ -130,6 +149,7 @@ class WebSpider(scrapy.Spider):
 
             if not _passes_url_filter(url, self._url_filter):
                 self.skipped += 1
+                self.url_filtered += 1
                 continue
 
             if self._state.has_seen(
@@ -139,6 +159,7 @@ class WebSpider(scrapy.Spider):
                 refetch_stale_after=self._refetch_stale_after,
             ):
                 self.skipped += 1
+                self.already_collected += 1
                 continue
 
             headers = self._state.conditional_headers(self.source_id, canonical)
@@ -161,6 +182,10 @@ class WebSpider(scrapy.Spider):
         sitemap_lastmod = meta.get("sitemap_lastmod")
         sitemap_section = meta.get("sitemap_section")
 
+        # Phase 148d — every response that reaches the callback was fetched
+        # (transport failures go to errback, not here).
+        self.fetched += 1
+
         # Conditional-GET path: 304 Not Modified → just refresh the
         # last_fetched stamp so future runs respect the new lastmod.
         if response.status == 304:
@@ -175,6 +200,7 @@ class WebSpider(scrapy.Spider):
                 sitemap_lastmod=sitemap_lastmod,
             )
             self.skipped += 1
+            self.not_modified += 1
             return
 
         if response.status != 200:
@@ -192,19 +218,24 @@ class WebSpider(scrapy.Spider):
             self._url_filter.get("require_html_content_type", True),
         ):
             self.skipped += 1
+            self.content_dropped += 1
             return
 
         html = response.text or ""
         if not html.strip():
             self.skipped += 1
+            self.content_dropped += 1
             return
 
         # Cheap technical heuristic: word-count gate. Final decision is at
         # the worker (`require_extraction_success`), but a 200-byte 404
-        # template is not worth Bronze storage.
+        # template is not worth Bronze storage. Phase 148d — this drop is
+        # the Layer-3 over-collection (non-article) signal; counted as its
+        # own funnel stage so it is disclosed, never silently dropped.
         min_word_count = int(self._content_filter.get("min_word_count", 0) or 0)
         if min_word_count and len(html.split()) < min_word_count:
             self.skipped += 1
+            self.thin_content_dropped += 1
             return
 
         envelope = FetchEnvelope(
@@ -249,9 +280,34 @@ class WebSpider(scrapy.Spider):
         # IgnoreRequest is raised for filtered-out URLs and is benign.
         if failure.check(IgnoreRequest):
             self.skipped += 1
+            self.url_filtered += 1
             return
         logger.warning("request error: %s", failure.getErrorMessage())
         self.errored += 1
+
+    def closed(self, reason: str) -> None:
+        """Phase 148d (WP-007 §5) — persist this source's per-run funnel.
+
+        Scrapy calls this on ``spider_closed``. The row-construction is a
+        pure, tested helper (:func:`build_funnel_record`); writing it is
+        best-effort — a telemetry-store outage must never fail a crawl, so
+        the exception is logged and swallowed (mirrors the discovery-run
+        telemetry write in ``main.py``).
+        """
+        record = build_funnel_record(
+            source_id=self.source_id,
+            counters=funnel_counters_from(self),
+            run_started_at=self._run_started_at,
+            run_completed_at=datetime.now(tz=timezone.utc),
+        )
+        try:
+            FunnelRunsWriter(self._state._pool).record_run(record)  # noqa: SLF001
+        except Exception as exc:  # pragma: no cover — defensive, no DB in unit env
+            logger.warning(
+                "crawler_funnel_runs write failed for source=%s: %s",
+                self.source_name,
+                exc,
+            )
 
 
 def _parse_http_date(value: Optional[str]) -> Optional[datetime]:
