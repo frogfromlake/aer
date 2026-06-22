@@ -87,7 +87,7 @@
 
   "workbench_cell_custom_badge": "custom",
   "workbench_cell_custom_badge_title": "This cell is on a custom configuration — not directly comparable to its sibling cells.",
-  "workbench_cell_config_btn": "⚙ Cell",
+  "workbench_cell_config_btn": "⚙ Adjust cell",
   "workbench_cell_config_btn_label": "Configure this cell",
   "workbench_cell_config_btn_title": "Per-cell configuration — override the panel default for this cell only",
   "workbench_cell_group_badge": "Group {index}",

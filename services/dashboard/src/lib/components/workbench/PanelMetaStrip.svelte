@@ -37,10 +37,11 @@
 
   let { panel, dossier, panelPath, ctx, onEditScope }: Props = $props();
 
-  // Phase 123c — expanded by default (TESTING.md Issue 4.2): a freshly composed
-  // panel should reveal its probes/sources scope chips, not hide them behind a
-  // collapsed strip. The user can still collapse it to reclaim vertical space.
-  let expanded = $state(true);
+  // Phase 148e — collapsed by default (chart-first): the panel opens on its cell,
+  // not on the full probes/sources chip body. The compact PanelScopeChips still
+  // surfaces the scope summary below, so the Phase-123c intent (don't hide scope)
+  // holds; this strip just starts in its compact header form, one click to expand.
+  let expanded = $state(false);
 
   // Phase 123c — probe display-name resolution for the scope chips. Falls back
   // to the raw id while the list loads or for an unknown probe.

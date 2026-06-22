@@ -194,7 +194,9 @@
 
   .active-description {
     margin: 0;
-    padding: 0 var(--space-2);
+    /* Phase 148e — a little breathing room below the active-pillar blurb before
+       the panel content begins. */
+    padding: 0 var(--space-2) var(--space-3);
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);

@@ -237,6 +237,24 @@
   const viewSupportsSilver = $derived(activePresentation.supportsSilver ?? false);
   const configParams = $derived(activePresentation.configurableParams ?? []);
 
+  // Phase 148e (Variant 1) — disclosure counts shown on the COLLAPSED header so
+  // the withheld / no-signal negative space stays disclosed even when the strip
+  // (and MetricHints) is closed (ADR-039 DISCLOSE-NEVER-COERCE). Mirrors the
+  // per-section gating in MetricHints exactly.
+  const metricBinds = $derived(viewUsesMetric || configParams.includes('scatterAxes'));
+  const withheldCount = $derived(
+    (viewUsesMetadataField ? partialMetadataFields.length : 0) +
+      (metricBinds ? partialMetrics.length : 0)
+  );
+  const degenerateCount = $derived(
+    (metricBinds ? (degenerateMetrics?.length ?? 0) : 0) +
+      (viewUsesMetadataField ? (degenerateMetadata?.length ?? 0) : 0)
+  );
+  const lowSignalCount = $derived(
+    (metricBinds ? (lowSignalMetrics?.length ?? 0) : 0) +
+      (viewUsesMetadataField ? (lowSignalMetadata?.length ?? 0) : 0)
+  );
+
   // Compare gate (Phase 131 BUG1): deviation/percentile need a deviation/absolute
   // equivalence grant; read it from /metrics/available so the buttons disable.
   const metricEquivalenceLevel = $derived.by<string | null>(() => {
@@ -287,7 +305,27 @@
           >{m.workbench_controls_locked_post()}
         </span>
       {:else}
-        <span class="header-eyebrow">{m.workbench_controls_header_eyebrow()}</span>
+        <span class="header-icon" aria-hidden="true">⚙</span>
+        <span class="header-label">{m.workbench_controls_header_eyebrow()}</span>
+      {/if}
+      {#if isCollapsed && withheldCount + degenerateCount + lowSignalCount > 0}
+        <span class="header-disclosures">
+          {#if withheldCount > 0}
+            <span class="hd-chip hd-withheld" title={m.levers_withheld_eyebrow()}
+              >⚠ {withheldCount}</span
+            >
+          {/if}
+          {#if degenerateCount > 0}
+            <span class="hd-chip hd-signal" title={m.levers_degenerate_eyebrow()}
+              >○ {degenerateCount}</span
+            >
+          {/if}
+          {#if lowSignalCount > 0}
+            <span class="hd-chip hd-signal" title={m.levers_lowsignal_eyebrow()}
+              >≈ {lowSignalCount}</span
+            >
+          {/if}
+        </span>
       {/if}
       <span
         class="collapse-toggle"
@@ -402,10 +440,13 @@
 
   /* Phase 122k §14b finding 4 — clickable header reads as an interactive
      surface, not just the chevron. */
+  /* Phase 148e — the control strip is AĒR's primary analysis tool, so its header
+     reads as a real, accent-tinted control even when collapsed (not a faint
+     eyebrow): a gear glyph + a legible label. */
   .cell-controls-header {
     appearance: none;
-    background: color-mix(in srgb, var(--color-fg) 4%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
     border-radius: var(--radius-sm);
     color: inherit;
     cursor: pointer;
@@ -421,17 +462,23 @@
   }
   .cell-controls-header:hover,
   .cell-controls-header:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 16%, transparent);
     border-color: var(--color-accent);
     color: var(--color-fg);
   }
 
-  .header-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-fg-subtle);
+  .header-icon {
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .header-label {
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.01em;
+    color: var(--color-fg);
   }
 
   .collapse-toggle {
@@ -441,6 +488,32 @@
     font-size: var(--font-size-sm);
     line-height: 1;
     padding: 0 var(--space-1);
+  }
+
+  /* Variant 1 — disclosure counts on the collapsed header (always present so the
+     negative space is never silently hidden). The withheld chip carries the calm
+     warning hue; the no-signal/low-signal chips stay neutral (methodological). */
+  .header-disclosures {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hd-chip {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+  }
+  .hd-withheld {
+    color: var(--color-fg-muted);
+    background: color-mix(in srgb, var(--color-status-expired) 16%, transparent);
+  }
+  .hd-signal {
+    color: var(--color-fg-subtle);
+    background: color-mix(in srgb, var(--color-fg-subtle) 14%, transparent);
   }
 
   .cell-controls.collapsed {

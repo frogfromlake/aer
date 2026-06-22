@@ -547,7 +547,10 @@ export function buildPanelFromScopes(
     // Phase 123c (Issue 4) — scope-aware default: cross-probe scopes get the
     // multilingual backbone so FR cells aren't empty under the DE-only default.
     metric: opts.metric ?? defaultMetricForScopes(scopes),
-    layer: opts.layer ?? 'gold'
+    layer: opts.layer ?? 'gold',
+    // Phase 148e — chart-first: new panels open with the control strip collapsed
+    // (cell visible without scrolling); the collapsed header still discloses counts.
+    cellControlsCollapsed: true
   };
   if (opts.lockedFunction) {
     panel.locked = true;

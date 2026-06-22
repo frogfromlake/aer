@@ -133,10 +133,16 @@
   }
 </script>
 
-<!-- ADR-038 — metadata withholding (mirror of the metric hint). -->
+<!-- ADR-038 — metadata withholding. Phase 148e: a collapsed disclosure — the
+     eyebrow + count stay visible (never silently filtered), the per-field detail
+     and "show anyway" toggle expand on demand so the strip stays shallow. -->
 {#if viewUsesMetadataField && partialMetadataFields.length > 0}
-  <div class="ctrl-row partial-hint" role="note">
-    <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
+  <details class="hint-disclosure">
+    <summary class="hint-summary">
+      <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
+      <span class="hint-count">{partialMetadataFields.length}</span>
+      <span class="hint-chevron" aria-hidden="true">›</span>
+    </summary>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
         {partialMetadataFields.length === 1
@@ -182,14 +188,18 @@
         {activeShowWithheld ? m.levers_withheld_showing_fields() : m.levers_withheld_show_anyway()}
       </LeverButton>
     </div>
-  </div>
+  </details>
 {/if}
 
 <!-- Phase 123c (C1) + ADR-038 — partial-metric hint (metrics on only SOME
      scoped sources). -->
 {#if partialMetrics.length > 0 && (viewUsesMetric || configParams.includes('scatterAxes'))}
-  <div class="ctrl-row partial-hint" role="note">
-    <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
+  <details class="hint-disclosure">
+    <summary class="hint-summary">
+      <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>
+      <span class="hint-count">{partialMetrics.length}</span>
+      <span class="hint-chevron" aria-hidden="true">›</span>
+    </summary>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
         {partialMetrics.length === 1
@@ -235,7 +245,7 @@
         {activeShowWithheld ? m.levers_withheld_showing_metrics() : m.levers_withheld_show_anyway()}
       </LeverButton>
     </div>
-  </div>
+  </details>
 {/if}
 
 <!-- Task A — degenerate (constant, "no signal") dimensions. Present but
@@ -243,8 +253,12 @@
      value (ADR-039 DISCLOSE-NEVER-COERCE). Neutral hue — methodological, not a
      warning (METHODOLOGICAL-NOT-WARNING). -->
 {#if degenerateRows.length > 0}
-  <div class="ctrl-row partial-hint signal-note" role="note">
-    <span class="ctrl-eyebrow">{m.levers_degenerate_eyebrow()}</span>
+  <details class="hint-disclosure signal-note">
+    <summary class="hint-summary">
+      <span class="ctrl-eyebrow">{m.levers_degenerate_eyebrow()}</span>
+      <span class="hint-count">{degenerateRows.length}</span>
+      <span class="hint-chevron" aria-hidden="true">›</span>
+    </summary>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
         {degenerateRows.length === 1
@@ -262,15 +276,19 @@
         {/each}
       </ul>
     </div>
-  </div>
+  </details>
 {/if}
 
 <!-- Task A — low-signal (near-constant) metrics + fields. NOT dropped (a
      rare-but-real minority is still real signal); disclosed so the reader knows
      the dimension is effectively constant in THIS scope before binding it. -->
 {#if lowSignalRows.length > 0}
-  <div class="ctrl-row partial-hint signal-note" role="note">
-    <span class="ctrl-eyebrow">{m.levers_lowsignal_eyebrow()}</span>
+  <details class="hint-disclosure signal-note">
+    <summary class="hint-summary">
+      <span class="ctrl-eyebrow">{m.levers_lowsignal_eyebrow()}</span>
+      <span class="hint-count">{lowSignalRows.length}</span>
+      <span class="hint-chevron" aria-hidden="true">›</span>
+    </summary>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
         {lowSignalRows.length === 1
@@ -292,15 +310,64 @@
         {/each}
       </ul>
     </div>
-  </div>
+  </details>
 {/if}
 
 <style>
-  /* Phase 123c (C1) — partial-metric (withheld) hint. A calm, low-emphasis note
-     in the warning hue; never an error — the withholding is a deliberate honesty
-     guard. The row itself overrides the base alignment. */
-  .partial-hint {
-    align-items: flex-start;
+  /* Phase 148e — each withheld / no-signal note is a collapsed <details>: the
+     eyebrow + count are always visible (disclosed, never silently filtered —
+     ADR-039), the per-dimension detail expands on demand so the control strip
+     stays shallow. Calm and low-emphasis; never an error. */
+  .hint-disclosure {
+    font-size: var(--font-size-xs);
+  }
+  .hint-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    list-style: none;
+    padding: 2px 0;
+  }
+  .hint-summary::-webkit-details-marker {
+    display: none;
+  }
+  .hint-summary:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: var(--radius-sm);
+  }
+  .hint-count {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+    background: color-mix(in srgb, var(--color-status-expired) 12%, transparent);
+    border-radius: var(--radius-pill);
+    padding: 0 6px;
+    min-width: 1.2em;
+    text-align: center;
+  }
+  /* Degenerate / low-signal counts are methodological, never a warning hue. */
+  .signal-note .hint-count {
+    background: color-mix(in srgb, var(--color-fg-subtle) 14%, transparent);
+  }
+  .hint-chevron {
+    margin-left: auto;
+    color: var(--color-fg-subtle);
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .hint-disclosure[open] .hint-chevron {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hint-chevron {
+      transition: none;
+    }
+  }
+  .hint-disclosure .partial-hint-body {
+    margin-top: var(--space-1);
   }
   .partial-hint-body {
     margin: 0;

@@ -87,7 +87,7 @@
 
   "workbench_cell_custom_badge": "benutzerdefiniert",
   "workbench_cell_custom_badge_title": "Diese Zelle ist benutzerdefiniert konfiguriert — nicht direkt mit ihren Geschwisterzellen vergleichbar.",
-  "workbench_cell_config_btn": "⚙ Zelle",
+  "workbench_cell_config_btn": "⚙ Zelle anpassen",
   "workbench_cell_config_btn_label": "Diese Zelle konfigurieren",
   "workbench_cell_config_btn_title": "Konfiguration pro Zelle — den Panel-Standard nur für diese Zelle überschreiben",
   "workbench_cell_group_badge": "Gruppe {index}",

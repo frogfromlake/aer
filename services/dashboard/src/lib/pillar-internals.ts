@@ -60,7 +60,10 @@ export function seedPillarFromCurrent(
     composition: 'split',
     view: defaultPresentationForPillar(targetPillar),
     metric: sourcePanel.metric,
-    layer: sourcePanel.layer
+    layer: sourcePanel.layer,
+    // Phase 148e — chart-first, like buildPanelFromScopes: a pillar-switch seed
+    // opens with its control strip collapsed so the cell shows without scrolling.
+    cellControlsCollapsed: true
   };
   return {
     windows: [{ panels: [seededPanel], focusedPanelIndex: 0 }],
