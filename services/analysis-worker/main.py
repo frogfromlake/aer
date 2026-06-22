@@ -784,6 +784,17 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
     loop.add_signal_handler(signal.SIGINT, shutdown_signal)
     loop.add_signal_handler(signal.SIGTERM, shutdown_signal)
 
+    # Phase 148c: one shared mutex serialises the heavy corpus sweeps
+    # (co-occurrence / baseline / topic / revision-diff) so they never saturate
+    # CPU + RAM at the same time. Yesterday's 707-doc validation showed the
+    # BERTopic fit starving — and the worker pinned at its memory ceiling —
+    # because these loops fired on independent timers and piled up. Holding this
+    # lock around each loop's `to_thread` sweep makes the peak `max(sweep)`
+    # instead of `sum(sweeps)` and lets the topic fit run alone with full RAM.
+    # The light/network loops (enrichment reattempt, consumer-lag, reaper) stay
+    # independent.
+    corpus_extraction_lock = asyncio.Lock()
+
     # Phase 102: corpus-extraction loop (entity co-occurrence). Runs in the
     # same process as the per-document workers; idempotent via
     # ReplacingMergeTree(ingestion_version).
@@ -795,6 +806,7 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
             EntityCoOccurrenceExtractor(),
             corpus_config,
             stop_event,
+            extraction_lock=corpus_extraction_lock,
         )
     )
 
@@ -808,6 +820,7 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
             MetricBaselineExtractor(),
             baseline_config,
             stop_event,
+            extraction_lock=corpus_extraction_lock,
         )
     )
 
@@ -822,6 +835,7 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
             TopicModelingExtractor(),
             topic_config,
             stop_event,
+            extraction_lock=corpus_extraction_lock,
         )
     )
 
@@ -842,6 +856,7 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
             revision_diff_config,
             stop_event,
             revision_delta_tools,
+            extraction_lock=corpus_extraction_lock,
         )
     )
 

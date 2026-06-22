@@ -349,6 +349,15 @@ class TopicModelingExtractor:
                     min_docs=_MIN_DOCS_PER_LANGUAGE,
                 )
                 continue
+            # Heartbeat (Phase 148c): a stuck BERTopic/UMAP fit is otherwise
+            # invisible — the next log line (partition_complete) only fires AFTER
+            # the fit. Emitting a start line makes a hang attributable to the
+            # exact language partition (n_docs) instead of silent.
+            logger.info(
+                "topic_modeling.partition_start",
+                language=language,
+                n_docs=len(docs),
+            )
             try:
                 rows.extend(
                     self._fit_partition(
@@ -436,15 +445,40 @@ class TopicModelingExtractor:
 
         # RAW text drives c-TF-IDF labelling (no prefix → labels stay clean).
         texts = [rec.cleaned_text for rec in docs]
-        # Clustering runs on E5 "passage: "-prefixed, L2-normalised embeddings
-        # computed here and handed to BERTopic, so the prefix shapes the
-        # vector space without polluting the labels. See module docstring.
-        embeddings = embedder.encode(
-            [_E5_PASSAGE_PREFIX + t for t in texts],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        topics, _ = topic_model.fit_transform(texts, embeddings=embeddings)
+        # Phase 148c — the worker pins OMP/MKL to 1 thread so the 4 per-document
+        # workers don't oversubscribe the cores. That makes the E5 embedding here
+        # single-threaded → a 300-doc French partition took ~19 min, holding the
+        # corpus mutex and starving every other sweep. The topic sweep holds that
+        # mutex (no other heavy sweep runs) and usually fires post-drain (the
+        # per-doc workers are idle), so we can safely let torch use more cores for
+        # the embedding, then restore the global cap. ~6× faster on the 6-core
+        # worker. (UMAP is single-threaded by construction via random_state.)
+        # Best-effort: torch ships with sentence-transformers in the worker image
+        # but not in the unit-test venv, so a missing torch degrades to default
+        # (single) threads rather than failing the partition.
+        torch = None
+        prev_threads = None
+        try:
+            import torch as _torch  # type: ignore[import-not-found]
+
+            torch = _torch
+            prev_threads = torch.get_num_threads()
+            torch.set_num_threads(max(1, int(os.getenv("TOPIC_EMBED_THREADS", "6"))))
+        except Exception:  # noqa: BLE001 — torch unavailable → run at default threads
+            torch = None
+        try:
+            # Clustering runs on E5 "passage: "-prefixed, L2-normalised embeddings
+            # computed here and handed to BERTopic, so the prefix shapes the
+            # vector space without polluting the labels. See module docstring.
+            embeddings = embedder.encode(
+                [_E5_PASSAGE_PREFIX + t for t in texts],
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            topics, _ = topic_model.fit_transform(texts, embeddings=embeddings)
+        finally:
+            if torch is not None and prev_threads is not None:
+                torch.set_num_threads(prev_threads)
 
         topic_info = topic_model.get_topic_info()
         label_by_topic_id: dict[int, str] = {}

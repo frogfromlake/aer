@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import nullcontext
 
 import structlog
 
@@ -224,6 +225,8 @@ async def revision_diff_extraction_loop(
     config: RevisionDiffConfig,
     stop_event: asyncio.Event,
     delta_tools=None,
+    *,
+    extraction_lock: asyncio.Lock | None = None,
 ) -> None:
     """Background task: every ``interval_seconds`` invoke a diff sweep.
 
@@ -262,15 +265,16 @@ async def revision_diff_extraction_loop(
 
     while not stop_event.is_set():
         try:
-            rows_written = await asyncio.to_thread(
-                run_revision_diff_sweep,
-                ch_pool,
-                snapshot_fetcher,
-                minio_client,
-                bucket,
-                config.max_pairs_per_tick,
-                delta_tools,
-            )
+            async with (extraction_lock or nullcontext()):
+                rows_written = await asyncio.to_thread(
+                    run_revision_diff_sweep,
+                    ch_pool,
+                    snapshot_fetcher,
+                    minio_client,
+                    bucket,
+                    config.max_pairs_per_tick,
+                    delta_tools,
+                )
             logger.info("revision_diff.sweep.complete", rows_written=rows_written)
         except Exception as e:
             logger.error(

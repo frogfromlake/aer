@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -137,6 +138,18 @@ class TopicConfig:
     )
     silver_bucket: str = field(
         default_factory=lambda: os.getenv("WORKER_SILVER_BUCKET", SILVER_BUCKET_DEFAULT)
+    )
+    # Phase 148c — hard ceiling on a single topic sweep. The corpus mutex
+    # serialises the heavy sweeps, so a runaway BERTopic fit would otherwise hold
+    # the lock indefinitely and starve co-occurrence / baseline / revision-diff
+    # ("holds everything else up"). On timeout the loop releases the lock and
+    # retries next tick (the orphaned thread finishes in the background; Gold
+    # writes are idempotent). Generous: with multi-threaded embedding a full
+    # partition is minutes, so this only fires on a genuine pathology.
+    sweep_timeout_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("TOPIC_EXTRACTION_SWEEP_TIMEOUT_SECONDS", "1800")
+        )
     )
 
 
@@ -396,10 +409,18 @@ async def corpus_extraction_loop(
     extractor: EntityCoOccurrenceExtractor,
     config: CorpusConfig,
     stop_event: asyncio.Event,
+    *,
+    extraction_lock: asyncio.Lock | None = None,
 ) -> None:
     """
     Background task: every ``interval_seconds`` invoke ``run_sweep`` for the
     previous ``window_seconds``. Exits cleanly when ``stop_event`` is set.
+
+    ``extraction_lock`` (Phase 148c) serialises the heavy corpus sweeps
+    (co-occurrence / topic / baseline / revision-diff) against each other so
+    they never saturate CPU + RAM simultaneously — the contention that starved
+    the BERTopic fit and pushed the worker to its memory ceiling. ``None``
+    (the default, used by unit tests) means no locking.
     """
     if not config.enabled:
         logger.info("corpus.loop.disabled")
@@ -426,12 +447,13 @@ async def corpus_extraction_loop(
         )
 
         try:
-            with corpus_extraction_duration_seconds.labels(
-                extractor=extractor.name
-            ).time():
-                rows_written = await asyncio.to_thread(
-                    run_sweep, ch_pool, pg_pool, extractor, window
-                )
+            async with (extraction_lock or nullcontext()):
+                with corpus_extraction_duration_seconds.labels(
+                    extractor=extractor.name
+                ).time():
+                    rows_written = await asyncio.to_thread(
+                        run_sweep, ch_pool, pg_pool, extractor, window
+                    )
             corpus_extraction_runs_total.labels(
                 extractor=extractor.name, outcome="ok"
             ).inc()

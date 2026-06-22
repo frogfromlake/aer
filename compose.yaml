@@ -608,15 +608,21 @@ services:
     deploy:
       resources:
         limits:
-          # Phase 123 — the worker runs the full heavy-NLP stack (2× BERT
-          # sentiment + 2× spaCy NER + per-doc topic + entity-linking) per
-          # document across WORKER_COUNT threads. At 2 CPUs the large
-          # franceinfo live-blog articles took minutes each and the backlog
-          # never drained. Raised to 6 CPUs (host has 24) so each of the 4
-          # workers gets >1 core. Memory 6G (host has ~8G free — 8G would risk
-          # OOM for the rest of the stack); the BERT/spaCy models are ~3-4G
-          # resident, leaving headroom for 4 concurrent inferences.
-          memory: 6144M
+          # CPUs: the worker runs the full heavy-NLP stack (2× BERT sentiment +
+          # 2× spaCy NER + per-doc topic + entity-linking) across WORKER_COUNT
+          # threads; 6 CPUs so each of the 4 workers gets >1 core (the target
+          # CX43 has 8 vCPU).
+          #
+          # Memory 11G (Phase 148c, measured): a fresh reset+crawl (594 docs)
+          # peaked at ~9.3 GiB — the full-corpus topic E5 embedding plus the
+          # co-occurrence 1-year window. The Phase-148c corpus mutex serialises
+          # the heavy sweeps, so the peak is max(single sweep), not the sum; the
+          # old 6 GiB cap was below that peak and the BERTopic fit stalled at the
+          # ceiling. Non-worker services use only ~1.4 GiB actual on the box, so
+          # 11 GiB leaves the 16 GB CX43 comfortable (~11 + 1.4 + OS ≈ 13.4 GiB).
+          # The per-sweep peak scales with the corpus; the topic embedding-cache /
+          # window-streaming work (ROADMAP) will bring it back down.
+          memory: 11264M
           cpus: "6.00"
 
   # ----------------------------------------------------

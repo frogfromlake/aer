@@ -5,16 +5,19 @@ ClickHouse pool + MinIO client are fully faked — no real infrastructure.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from internal.corpus import BaselineConfig
 from internal.corpus_baseline_topic import (
     TOPIC_ASSIGNMENT_COLUMNS,
     DocumentRecord,
     TimeWindow,
     TopicAssignmentRow,
+    baseline_extraction_loop,
     fetch_silver_documents_for_window,
     insert_topic_assignment_rows,
 )
@@ -97,3 +100,54 @@ def test_insert_topic_assignment_rows_inserts_with_dedup_token():
     assert args[0] == "aer_gold.topic_assignments"
     assert kwargs["column_names"] == TOPIC_ASSIGNMENT_COLUMNS
     assert "999" in kwargs["deduplication_token"]
+
+
+def test_extraction_loop_serialises_on_shared_lock(monkeypatch):
+    """Phase 148c — a heavy corpus sweep cannot start while another holds the
+    shared ``extraction_lock``. Proves the mutex that stops co-occurrence /
+    topic / baseline / revision-diff from saturating CPU+RAM concurrently.
+
+    Deterministic (not timing-dependent): while the test holds the lock the loop
+    physically cannot enter the guarded ``to_thread`` block, so the sweep is
+    never dispatched; it runs only once the lock is released.
+    """
+    calls: list[int] = []
+
+    def fake_sweep(_ch_pool, _extractor, _window):
+        calls.append(1)
+        return SimpleNamespace(rows_written=0)
+
+    # The baseline loop imports _run_baseline_sweep into its own module namespace.
+    import internal.corpus_baseline_topic as cbt
+
+    monkeypatch.setattr(cbt, "_run_baseline_sweep", fake_sweep)
+
+    async def run() -> None:
+        lock = asyncio.Lock()
+        cfg = BaselineConfig(
+            enabled=True,
+            interval_seconds=100.0,
+            window_seconds=1.0,
+            initial_delay_seconds=0.0,
+        )
+        stop = asyncio.Event()
+        extractor = SimpleNamespace(name="metric_baseline")
+
+        await lock.acquire()  # simulate another heavy sweep holding the mutex
+        task = asyncio.create_task(
+            baseline_extraction_loop(object(), extractor, cfg, stop, extraction_lock=lock)
+        )
+        await asyncio.sleep(0.1)  # give the loop time to reach the lock
+        assert calls == []  # blocked — the sweep cannot run while the lock is held
+
+        lock.release()
+        for _ in range(100):  # let the now-unblocked sweep run
+            if calls:
+                break
+            await asyncio.sleep(0.02)
+        assert calls == [1]  # ran exactly once the lock was free
+
+        stop.set()
+        await asyncio.wait_for(task, timeout=2.0)
+
+    asyncio.run(run())

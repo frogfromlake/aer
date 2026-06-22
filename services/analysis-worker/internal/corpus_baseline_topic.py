@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -48,6 +49,8 @@ async def baseline_extraction_loop(
     extractor: MetricBaselineExtractor,
     config: BaselineConfig,
     stop_event: asyncio.Event,
+    *,
+    extraction_lock: asyncio.Lock | None = None,
 ) -> None:
     """
     Phase 115: periodic baseline-maintenance loop.
@@ -88,12 +91,13 @@ async def baseline_extraction_loop(
         )
 
         try:
-            with corpus_extraction_duration_seconds.labels(
-                extractor=extractor.name
-            ).time():
-                result = await asyncio.to_thread(
-                    _run_baseline_sweep, ch_pool, extractor, window
-                )
+            async with (extraction_lock or nullcontext()):
+                with corpus_extraction_duration_seconds.labels(
+                    extractor=extractor.name
+                ).time():
+                    result = await asyncio.to_thread(
+                        _run_baseline_sweep, ch_pool, extractor, window
+                    )
             corpus_extraction_runs_total.labels(
                 extractor=extractor.name, outcome="ok"
             ).inc()
@@ -297,6 +301,8 @@ async def topic_extraction_loop(
     extractor: TopicModelingExtractor,
     config: TopicConfig,
     stop_event: asyncio.Event,
+    *,
+    extraction_lock: asyncio.Lock | None = None,
 ) -> None:
     """Background task: every ``interval_seconds`` invoke ``run_topic_sweep``
     over the previous ``window_seconds``. Exits cleanly when ``stop_event`` is set.
@@ -331,17 +337,27 @@ async def topic_extraction_loop(
         )
 
         try:
-            with corpus_extraction_duration_seconds.labels(
-                extractor=extractor.name
-            ).time():
-                rows_written = await asyncio.to_thread(
-                    run_topic_sweep,
-                    ch_pool,
-                    minio_client,
-                    extractor,
-                    window,
-                    config.silver_bucket,
-                )
+            async with (extraction_lock or nullcontext()):
+                with corpus_extraction_duration_seconds.labels(
+                    extractor=extractor.name
+                ).time():
+                    # Phase 148c — bound the sweep so a runaway fit can't hold the
+                    # corpus mutex forever (it would starve co-occurrence /
+                    # baseline / revision-diff). On timeout this raises into the
+                    # except below, the lock releases, and the loop retries next
+                    # tick. The orphaned to_thread finishes in the background;
+                    # Gold writes are idempotent (ReplacingMergeTree).
+                    rows_written = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            run_topic_sweep,
+                            ch_pool,
+                            minio_client,
+                            extractor,
+                            window,
+                            config.silver_bucket,
+                        ),
+                        timeout=config.sweep_timeout_seconds,
+                    )
             corpus_extraction_runs_total.labels(
                 extractor=extractor.name, outcome="ok"
             ).inc()
