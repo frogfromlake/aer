@@ -382,3 +382,33 @@ func TestClampCoOccurrenceTopN(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// silver_store.go — parseBronzeRawHTML (Phase 148c Bronze-on-demand raw view).
+// ---------------------------------------------------------------------------
+
+func TestParseBronzeRawHTML(t *testing.T) {
+	t.Run("extracts raw_html from a Bronze envelope", func(t *testing.T) {
+		body := []byte(`{"canonical_url":"https://x/a","raw_html":"<html><body>hi</body></html>","http_status":200}`)
+		got, err := parseBronzeRawHTML(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "<html><body>hi</body></html>" {
+			t.Errorf("raw_html mismatch: got %q", got)
+		}
+	})
+
+	t.Run("missing raw_html yields empty string, no error", func(t *testing.T) {
+		got, err := parseBronzeRawHTML([]byte(`{"canonical_url":"https://x/a"}`))
+		if err != nil || got != "" {
+			t.Fatalf("want empty/no-error, got %q / %v", got, err)
+		}
+	})
+
+	t.Run("malformed JSON returns a decode error", func(t *testing.T) {
+		if _, err := parseBronzeRawHTML([]byte(`{not json`)); err == nil {
+			t.Fatal("expected a decode error on malformed Bronze payload")
+		}
+	})
+}

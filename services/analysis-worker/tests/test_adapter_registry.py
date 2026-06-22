@@ -81,7 +81,7 @@ def test_legacy_adapter_backward_compatibility(processor, mock_minio, mock_click
 
     assert silver_data["core"]["source_type"] == "legacy"
     assert silver_data["core"]["schema_version"] == 1
-    assert silver_data["core"]["raw_text"] == VALID_RAW_TEXT
+    assert "raw_text" not in silver_data["core"]  # Phase 148c — Silver no longer carries raw_text
     assert silver_data["core"]["cleaned_text"] == VALID_RAW_TEXT
     assert silver_data["core"]["language"] == "und"
     assert silver_data["meta"] is None

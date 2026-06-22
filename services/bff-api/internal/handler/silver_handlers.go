@@ -281,9 +281,15 @@ func (s *Server) GetSilverDocumentDetail(ctx context.Context, request GetSilverD
 		l := envelope.Core.Language
 		resp.Language = &l
 	}
-	if envelope.Core.RawText != "" {
-		rt := envelope.Core.RawText
-		resp.RawText = &rt
+	// Phase 148c — raw HTML is no longer stored in Silver; fetch it from Bronze
+	// on-demand for the L5 "Raw" view (Bronze + Silver share the object key).
+	// Best-effort: a missing Bronze object (past the 90-day TTL) or any error
+	// just omits rawText — the UI hides the Raw toggle + shows the 90-day note;
+	// the detail response never fails on it.
+	if raw, rerr := s.silver.GetBronzeRawHTML(ctx, res.BronzeObjectKey); rerr == nil && raw != "" {
+		resp.RawText = &raw
+	} else if rerr != nil && !errors.Is(rerr, storage.ErrBronzeNotFound) {
+		slog.Warn("bronze raw fetch failed", "op", "GetSilverDocumentDetail.GetBronzeRawHTML", "error", rerr)
 	}
 	if len(envelope.Meta) > 0 {
 		m := envelope.Meta

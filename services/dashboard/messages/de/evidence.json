@@ -76,5 +76,6 @@
   "evidence_diff": "Diff",
   "evidence_cleaned": "Bereinigt",
   "evidence_raw": "Roh",
+  "evidence_raw_note": "Rohquelle wird ~90 Tage vorgehalten (Bronze-Ebene); ältere Artikel zeigen nur den bereinigten Text.",
   "evidence_extraction_provenance": "Extraktions-Herkunft ({count} Extraktoren)"
 }

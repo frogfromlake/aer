@@ -16,6 +16,12 @@ import (
 // part of the Medallion contract — it never changes per-environment.
 const silverBucket = "silver"
 
+// bronzeBucket is the canonical Bronze-layer bucket name. Bronze stores the raw
+// HTML verbatim under the SAME deterministic object key as Silver (different
+// bucket). Phase 148c stopped duplicating that raw HTML into Silver, so the L5
+// "Raw" view sources it from Bronze on-demand via GetBronzeRawHTML.
+const bronzeBucket = "bronze"
+
 // SilverEnvelope mirrors the worker's `SilverEnvelope` Pydantic shape.
 // Only the fields the BFF actually surfaces on the article-detail
 // endpoint are decoded; SilverMeta is kept as raw JSON because it is
@@ -45,6 +51,11 @@ type SilverCore struct {
 // transport / auth failure so the handler can return generic 5xx in the
 // latter case without leaking implementation details.
 var ErrSilverNotFound = errors.New("silver object not found")
+
+// ErrBronzeNotFound signals the Bronze object is gone — typically because it
+// aged past the 90-day Bronze TTL. The L5 "Raw" view treats this as "raw source
+// no longer available" (cleaned text still shows), never as an error.
+var ErrBronzeNotFound = errors.New("bronze object not found")
 
 // SilverStore reads SilverEnvelope objects from MinIO. The BFF's account
 // holds GetObject only — a misconfigured store cannot mutate Silver.
@@ -91,4 +102,42 @@ func (s *SilverStore) GetEnvelope(ctx context.Context, objectKey string) (*Silve
 		return nil, fmt.Errorf("decode silver envelope: %w", err)
 	}
 	return &env, nil
+}
+
+// GetBronzeRawHTML fetches the raw HTML for a document from the Bronze layer by
+// the same object key the Silver envelope uses (Bronze + Silver share the
+// deterministic key, different bucket). Phase 148c: raw HTML is no longer
+// duplicated into Silver, so the L5 "Raw" view sources it here on-demand. Returns
+// ErrBronzeNotFound when the object has aged past the 90-day Bronze TTL.
+func (s *SilverStore) GetBronzeRawHTML(ctx context.Context, objectKey string) (string, error) {
+	obj, err := s.client.GetObject(ctx, bronzeBucket, objectKey, minio.GetObjectOptions{})
+	if err != nil {
+		return "", fmt.Errorf("minio GetObject (bronze): %w", err)
+	}
+	defer func() { _ = obj.Close() }()
+
+	body, err := io.ReadAll(obj)
+	if err != nil {
+		var minioErr minio.ErrorResponse
+		if errors.As(err, &minioErr) && minioErr.Code == "NoSuchKey" {
+			return "", ErrBronzeNotFound
+		}
+		return "", fmt.Errorf("read bronze object: %w", err)
+	}
+
+	return parseBronzeRawHTML(body)
+}
+
+// parseBronzeRawHTML extracts raw_html from a Bronze envelope payload. Split out
+// from the MinIO I/O so the decode is unit-testable without a round-trip (the
+// GetObject path itself needs live MinIO and is exercised in integration).
+func parseBronzeRawHTML(body []byte) (string, error) {
+	// The Bronze object is the crawler's raw envelope; only raw_html is needed.
+	var env struct {
+		RawHTML string `json:"raw_html"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return "", fmt.Errorf("decode bronze envelope: %w", err)
+	}
+	return env.RawHTML, nil
 }

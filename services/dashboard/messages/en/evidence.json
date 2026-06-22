@@ -76,5 +76,6 @@
   "evidence_diff": "Diff",
   "evidence_cleaned": "Cleaned",
   "evidence_raw": "Raw",
+  "evidence_raw_note": "Raw source is kept ~90 days (Bronze layer); older articles show cleaned text only.",
   "evidence_extraction_provenance": "Extraction provenance ({count} extractors)"
 }

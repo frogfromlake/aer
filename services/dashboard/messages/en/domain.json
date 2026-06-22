@@ -60,6 +60,8 @@
   "domain_ns_k_anonymity_suppression_desc": "Data exists but is withheld to protect k-anonymity — an ethical choice, distinct from publisher omission (WP-006 §7.2.2).",
   "domain_ns_equivalence_refusal_label": "Equivalence Refusal",
   "domain_ns_equivalence_refusal_desc": "Cross-frame normalisation was requested without a granted metric equivalence — refused rather than coerced (WP-004 §5.3).",
+  "domain_ns_thin_content_label": "Thin Content",
+  "domain_ns_thin_content_desc": "The article body is below the prose-length floor (a live-blog / photo / listing-page stub) — collected and disclosed, never silently dropped or counted as full prose (WP-007 §4.3).",
   "domain_ns_policy_overlay": "Negative Space: when the toggle is on, the artefacts excluded as methodologically meaningless are ghost-rendered here (dim) — shown for disclosure, not re-admitted to the counts (WP-005 §3.1).",
   "domain_ns_policy_gap": "Negative Space: intervals dominated by unobserved articles break the line rather than read as zero — an observation gap is not a discourse gap (WP-005 §3.1).",
   "domain_ns_policy_badge": "Negative Space: per-article markers (∅) appear in the article list and the source dossier; this aggregate view never coerces an absent value to zero (WP-003 §3.2).",

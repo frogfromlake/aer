@@ -75,12 +75,18 @@ func (f *fakeArticles) GetArticleProvenance(_ context.Context, _ string) (map[st
 }
 
 type fakeSilver struct {
-	envelope *storage.SilverEnvelope
-	err      error
+	envelope  *storage.SilverEnvelope
+	err       error
+	bronzeRaw string
+	bronzeErr error
 }
 
 func (f *fakeSilver) GetEnvelope(_ context.Context, _ string) (*storage.SilverEnvelope, error) {
 	return f.envelope, f.err
+}
+
+func (f *fakeSilver) GetBronzeRawHTML(_ context.Context, _ string) (string, error) {
+	return f.bronzeRaw, f.bronzeErr
 }
 
 func TestGetProbeDossier_ComposesSourcesAndFunctionCoverage(t *testing.T) {

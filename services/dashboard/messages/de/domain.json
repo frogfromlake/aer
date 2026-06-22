@@ -60,6 +60,8 @@
   "domain_ns_k_anonymity_suppression_desc": "Daten existieren, werden aber zum Schutz der k-Anonymität zurückgehalten — eine ethische Entscheidung, verschieden von einer Auslassung des Herausgebers (WP-006 §7.2.2).",
   "domain_ns_equivalence_refusal_label": "Äquivalenzverweigerung",
   "domain_ns_equivalence_refusal_desc": "Eine rahmenübergreifende Normalisierung wurde ohne gewährte Metrik-Äquivalenz angefordert — verweigert statt erzwungen (WP-004 §5.3).",
+  "domain_ns_thin_content_label": "Dünner Inhalt",
+  "domain_ns_thin_content_desc": "Der Artikeltext liegt unter der Prosa-Längen-Schwelle (ein Liveblog-/Foto-/Listen-Stub) — erfasst und offengelegt, niemals still verworfen oder als vollständige Prosa gezählt (WP-007 §4.3).",
   "domain_ns_policy_overlay": "Negativraum: Ist der Schalter aktiv, werden die als methodisch bedeutungslos ausgeschlossenen Artefakte hier als Geist (gedimmt) dargestellt — zur Offenlegung gezeigt, nicht wieder in die Zählung aufgenommen (WP-005 §3.1).",
   "domain_ns_policy_gap": "Negativraum: Von unbeobachteten Artikeln dominierte Intervalle unterbrechen die Linie, statt als Null gelesen zu werden — eine Beobachtungslücke ist keine Diskurslücke (WP-005 §3.1).",
   "domain_ns_policy_badge": "Negativraum: Markierungen je Artikel (∅) erscheinen in der Artikelliste und im Quellen-Dossier; diese Aggregatansicht erzwingt nie einen abwesenden Wert zu Null (WP-003 §3.2).",

@@ -27,7 +27,8 @@ export const NS_CLASSES = [
   'silent_edit',
   'analytical_capability_absence',
   'k_anonymity_suppression',
-  'equivalence_refusal'
+  'equivalence_refusal',
+  'thin_content'
 ] as const;
 
 export type NSClass = (typeof NS_CLASSES)[number];
@@ -111,6 +112,16 @@ export const NS_CLASS_DEFINITIONS: Record<NSClass, NSClassDef> = {
       'Cross-frame normalisation was requested without a granted metric equivalence — refused rather than coerced (WP-004 §5.3).',
     wpAnchor: '/reflection/wp/wp-004?section=5.3',
     scope: 'query'
+  },
+  thin_content: {
+    key: 'thin_content',
+    abbr: 'TC',
+    label: 'Thin Content',
+    color: '#9a958a',
+    description:
+      'The article body is below the prose-length floor (a live-blog / photo / listing-page stub) — collected and disclosed, never silently dropped or counted as full prose (WP-007 §4.3).',
+    wpAnchor: '/reflection/wp/wp-007?section=4.3',
+    scope: 'article'
   }
 };
 
@@ -146,7 +157,8 @@ const NS_CLASS_LABELS: Record<NSClass, () => string> = {
   silent_edit: () => m.domain_ns_silent_edit_label(),
   analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_label(),
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_label(),
-  equivalence_refusal: () => m.domain_ns_equivalence_refusal_label()
+  equivalence_refusal: () => m.domain_ns_equivalence_refusal_label(),
+  thin_content: () => m.domain_ns_thin_content_label()
 };
 
 const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
@@ -155,7 +167,8 @@ const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
   silent_edit: () => m.domain_ns_silent_edit_desc(),
   analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_desc(),
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_desc(),
-  equivalence_refusal: () => m.domain_ns_equivalence_refusal_desc()
+  equivalence_refusal: () => m.domain_ns_equivalence_refusal_desc(),
+  thin_content: () => m.domain_ns_thin_content_desc()
 };
 
 export function nsPolicyNote(policy: string | null | undefined): string {
@@ -185,11 +198,19 @@ export const NS_CLASS_DEFINITIONS_ORDERED: readonly NSClassDef[] = NS_CLASSES.ma
 export interface NSRow {
   timestampSource?: string | null | undefined;
   hasHeadlineChange?: boolean | null | undefined;
+  /** Body word count (Silver `word_count`). Drives the Thin-Content class. */
+  wordCount?: number | null | undefined;
 }
+
+/** Below this body word count an article reads as a stub (live-blog / photo /
+ *  listing page), not full prose, and is surfaced as Thin-Content Negative Space
+ *  rather than silently dropped or counted as full prose (WP-007 §4.3). A
+ *  provisional engineering default — NOT a validated linguistic threshold. */
+export const THIN_CONTENT_WORD_FLOOR = 50;
 
 /**
  * classifyNegativeSpace returns the PER-ARTICLE NS-classes a row belongs to (a
- * row can belong to several). It covers the two article-granular classes:
+ * row can belong to several). It covers the three article-granular classes:
  *   • Temporal-Provenance-Absence — `timestampSource === 'fetch_at_fallback'`
  *     (the methodologically-honest "no real date" marker; empty/other = a real
  *     or legacy date, NOT this class).
@@ -197,6 +218,8 @@ export interface NSRow {
  *     in the list DTO; finer silent-edit signals — republication trigger,
  *     Wayback lookup failure — surface in the L5 reader's NS-section from the
  *     per-revision query, not the list row).
+ *   • Thin-Content — `wordCount < THIN_CONTENT_WORD_FLOOR` (a stub/non-article
+ *     body, disclosed rather than dropped or counted as full prose; WP-007 §4.3).
  *
  * The source-/query-level classes (structural-metadata, analytical-capability,
  * k-anonymity, equivalence-refusal) are NOT row-derivable; they are surfaced by
@@ -206,5 +229,7 @@ export function classifyNegativeSpace(row: NSRow): NSClass[] {
   const out: NSClass[] = [];
   if (row.timestampSource === 'fetch_at_fallback') out.push('temporal_provenance_absence');
   if (row.hasHeadlineChange === true) out.push('silent_edit');
+  if (typeof row.wordCount === 'number' && row.wordCount < THIN_CONTENT_WORD_FLOOR)
+    out.push('thin_content');
   return out;
 }

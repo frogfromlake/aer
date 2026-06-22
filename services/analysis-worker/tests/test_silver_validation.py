@@ -319,7 +319,10 @@ def test_raw_text_preserved_separately_from_cleaned(processor, mock_minio, mock_
     silver_buffer.seek(0)
     silver_data = json.loads(silver_buffer.read().decode('utf-8'))
 
-    assert silver_data["core"]["raw_text"] == raw_text
+    # Phase 148c — raw_text is no longer duplicated into the Silver envelope;
+    # provenance is preserved by Bronze (the immutable raw layer, same key) plus
+    # the in-memory SilverCore. Silver keeps only the normalized cleaned_text.
+    assert "raw_text" not in silver_data["core"]
     assert silver_data["core"]["cleaned_text"] == "Hello world from the source"
 
 

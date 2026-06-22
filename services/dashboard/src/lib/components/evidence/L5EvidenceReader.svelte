@@ -215,6 +215,11 @@
             aria-pressed={showRaw}
             onclick={() => (showRaw = true)}>{m.evidence_raw()}</button
           >
+          <!-- Phase 148c — raw HTML is sourced from Bronze on-demand (no longer
+               stored in Silver); Bronze has a 90-day TTL, so the Raw view is
+               time-limited. Disclose it so an absent Raw toggle on older
+               articles reads as expected, not broken. -->
+          <span class="raw-note">{m.evidence_raw_note()}</span>
         {/if}
       </div>
       <div class="article-text" lang={article.language ?? undefined}>
@@ -340,8 +345,17 @@
 
   .text-subcontrols {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-2);
     margin: var(--space-2) 0 var(--space-3);
+  }
+
+  /* Phase 148c — discloses the 90-day Bronze TTL on the on-demand Raw view. */
+  .raw-note {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-fg-subtle);
+    line-height: 1.3;
   }
 
   /* BUG-6 — tab panels always mounted; visibility toggled via class. */

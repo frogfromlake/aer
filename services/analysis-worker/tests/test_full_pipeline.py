@@ -40,8 +40,12 @@ def test_rss_adapter_happy_path(mock_minio, mock_clickhouse, mock_pg_pool, adapt
     assert core["schema_version"] == 2
     assert core["language"] == "und"
     assert core["url"] == "https://www.tagesschau.de/inland/klimaschutz-2026"
-    assert core["raw_text"] == "Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet."
-    assert core["cleaned_text"] == core["raw_text"]
+    # Phase 148c storage lever — raw_text is NOT persisted in the Silver envelope
+    # anymore (it duplicates Bronze; the L5 "Raw" view fetches it from Bronze
+    # on-demand). It stays on the in-memory SilverCore for the contract, but the
+    # serialized-to-MinIO form drops it.
+    assert "raw_text" not in core
+    assert core["cleaned_text"] == "Die Bundesregierung hat am Mittwoch ein umfassendes Maßnahmenpaket zum Klimaschutz verabschiedet."
     assert core["word_count"] == 11
     assert len(core["document_id"]) == 64
 
@@ -91,7 +95,7 @@ def test_rss_adapter_whitespace_normalization(mock_minio, mock_clickhouse, mock_
     silver_buffer.seek(0)
     silver_data = json.loads(silver_buffer.read().decode('utf-8'))
 
-    assert silver_data["core"]["raw_text"] == "  Viel   unnötiger   Leerraum   hier  "
+    assert "raw_text" not in silver_data["core"]  # Phase 148c — Silver no longer carries raw_text
     assert silver_data["core"]["cleaned_text"] == "Viel unnötiger Leerraum hier"
     assert silver_data["core"]["word_count"] == 4
 

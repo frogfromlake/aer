@@ -6,6 +6,7 @@ import {
   NS_CLASS_DEFINITIONS_ORDERED,
   getNSClassDef,
   classifyNegativeSpace,
+  THIN_CONTENT_WORD_FLOOR,
   type NSClass
 } from '../../src/lib/negative-space';
 
@@ -13,14 +14,15 @@ import {
 // pin both so a drift is a deliberate, reviewed change.
 
 describe('NS class vocabulary', () => {
-  it('defines exactly the six shipped classes', () => {
+  it('defines exactly the seven shipped classes', () => {
     expect([...NS_CLASSES]).toEqual([
       'structural_metadata_absence',
       'temporal_provenance_absence',
       'silent_edit',
       'analytical_capability_absence',
       'k_anonymity_suppression',
-      'equivalence_refusal'
+      'equivalence_refusal',
+      'thin_content'
     ]);
   });
 
@@ -43,6 +45,9 @@ describe('NS class vocabulary', () => {
 
   it('getNSClassDef resolves known keys and returns null for unknown', () => {
     expect(getNSClassDef('silent_edit')?.label).toBe('Silent Edit');
+    const tc = getNSClassDef('thin_content');
+    expect(tc?.label).toBe('Thin Content');
+    expect(tc?.description).toMatch(/WP-007/);
     expect(getNSClassDef('nope')).toBeNull();
     expect(getNSClassDef(null)).toBeNull();
   });
@@ -61,6 +66,18 @@ describe('classifyNegativeSpace (per-article)', () => {
   it('flags Silent-Edit when headline changed', () => {
     expect(classifyNegativeSpace({ hasHeadlineChange: true })).toEqual(['silent_edit']);
     expect(classifyNegativeSpace({ hasHeadlineChange: false })).toEqual([]);
+  });
+
+  it('flags Thin-Content below the word floor only, and never for an unknown count', () => {
+    expect(classifyNegativeSpace({ wordCount: 12 })).toEqual(['thin_content']);
+    expect(classifyNegativeSpace({ wordCount: THIN_CONTENT_WORD_FLOOR - 1 })).toEqual([
+      'thin_content'
+    ]);
+    expect(classifyNegativeSpace({ wordCount: THIN_CONTENT_WORD_FLOOR })).toEqual([]);
+    expect(classifyNegativeSpace({ wordCount: 800 })).toEqual([]);
+    // Disclose only what we measure — an unknown count must not flag.
+    expect(classifyNegativeSpace({ wordCount: null })).toEqual([]);
+    expect(classifyNegativeSpace({})).toEqual([]);
   });
 
   it('a row can belong to multiple classes', () => {

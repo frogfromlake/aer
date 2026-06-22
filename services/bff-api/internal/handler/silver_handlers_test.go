@@ -331,6 +331,55 @@ func TestGetSilverDocumentDetail_HappyPath(t *testing.T) {
 	}
 }
 
+func TestGetSilverDocumentDetail_RawTextFromBronze(t *testing.T) {
+	// Phase 148c — raw HTML is sourced from Bronze on-demand (not the Silver
+	// envelope). A present Bronze object populates rawText; a TTL-expired one
+	// (ErrBronzeNotFound) gracefully omits it without failing the response.
+	newReq := func() *http.Request {
+		return httptest.NewRequest(http.MethodGet, "/silver/documents/art-1", nil)
+	}
+	mkDossier := func() *fakeDossier {
+		return &fakeDossier{
+			article:     &storage.ArticleResolution{BronzeObjectKey: "k", SourceName: "tagesschau"},
+			eligibility: eligibleRow(),
+		}
+	}
+
+	t.Run("present bronze populates rawText", func(t *testing.T) {
+		silver := &fakeSilver{envelope: sampleEnvelope(), bronzeRaw: "<html>bronze raw</html>"}
+		router := newTestRouter(newSilverServer(mkDossier(), &fakeArticles{}, silver))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, newReq())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			RawText *string `json:"rawText"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+		if resp.RawText == nil || *resp.RawText != "<html>bronze raw</html>" {
+			t.Fatalf("rawText not sourced from Bronze: %+v", resp.RawText)
+		}
+	})
+
+	t.Run("ttl-expired bronze omits rawText, still 200", func(t *testing.T) {
+		silver := &fakeSilver{envelope: sampleEnvelope(), bronzeErr: storage.ErrBronzeNotFound}
+		router := newTestRouter(newSilverServer(mkDossier(), &fakeArticles{}, silver))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, newReq())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			RawText *string `json:"rawText"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+		if resp.RawText != nil {
+			t.Fatalf("expected no rawText for TTL-expired bronze, got %q", *resp.RawText)
+		}
+	})
+}
+
 func TestGetSilverDocumentDetail_NotEligibleReturns403(t *testing.T) {
 	dossier := &fakeDossier{
 		article:     &storage.ArticleResolution{BronzeObjectKey: "k", SourceName: "wikipedia"},
