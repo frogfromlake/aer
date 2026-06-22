@@ -73,7 +73,8 @@ GRANT SELECT ON TABLE public.sources TO :"bff_user";
 -- "permission denied for table X (SQLSTATE 42501)". This file is the
 -- single point of truth for BFF Postgres permissions — do not grant
 -- elsewhere. Tables added since Phase 101: crawler_discovery_runs
--- (Phase 122g — Discovery Surface Hardening).
+-- (Phase 122g — Discovery Surface Hardening), crawler_funnel_runs
+-- (Phase 148d / WP-007 — collection-completeness funnel).
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM :"bff_user";
 GRANT SELECT ON TABLE public.sources TO :"bff_user";
 GRANT SELECT ON TABLE public.documents TO :"bff_user";
@@ -81,6 +82,7 @@ GRANT SELECT ON TABLE public.ingestion_jobs TO :"bff_user";
 GRANT SELECT ON TABLE public.source_classifications TO :"bff_user";
 GRANT SELECT ON TABLE public.crawler_discovery_runs TO :"bff_user";
 GRANT SELECT ON TABLE public.crawler_discovery_alerts TO :"bff_user";
+GRANT SELECT ON TABLE public.crawler_funnel_runs TO :"bff_user";
 SQL
 
 # ---------------------------------------------------------------------------

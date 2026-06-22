@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
@@ -237,6 +238,9 @@ func TestGetScopeAvailableMetrics_StorageError_500(t *testing.T) {
 // --- GetSourceDiscoveryCoverage ---
 
 func TestGetSourceDiscoveryCoverage_Success(t *testing.T) {
+	// Phase 148d — a populated completeness verdict + funnel so the handler's
+	// declared/completeness/funnel-present branches are exercised and the
+	// JSON shape is asserted (WP-007 Layer 1/3).
 	dossier := &fakeDossier{resolvedID: 1, resolved: "tagesschau", discovery: &storage.DiscoveryCoverageSummary{
 		WindowDays:              30,
 		TotalDiscoveredLastRun:  120,
@@ -244,13 +248,43 @@ func TestGetSourceDiscoveryCoverage_Success(t *testing.T) {
 		UnderflowAlertActive:    true,
 		ExpectedFloorPerRun:     sql.NullInt64{Int64: 80, Valid: true},
 		PerChannel: []storage.DiscoveryCoverageRow{
-			{Channel: "sitemap", LastRunDiscovered: 90, LastRunAfterDedup: 75, AverageDiscoveredPerRun: 88.5},
+			{Channel: "sitemap", LastRunDiscovered: 90, LastRunAfterDedup: 75, AverageDiscoveredPerRun: 88.5,
+				Declared: sql.NullInt64{Int64: 90, Valid: true}, DeclaredIndeterminate: false},
+			{Channel: "html_sitemap", LastRunDiscovered: 44, LastRunAfterDedup: 1, AverageDiscoveredPerRun: 44,
+				Declared: sql.NullInt64{Int64: 44, Valid: true}, DeclaredIndeterminate: true},
+		},
+		Completeness: storage.CompletenessResult{
+			DeclaredTotal:             sql.NullInt64{Int64: 90, Valid: true},
+			Completeness:              sql.NullFloat64{Float64: 0.83, Valid: true},
+			Indeterminate:             false,
+			IndeterminateChannelCount: 1,
+		},
+		Funnel: storage.FunnelSummary{
+			Present: true, Discovered: 100, ThinContentDropped: 5, Submitted: 90,
+			Fetched: 95, GoldRows: 75,
+			ExtractionSuccessRate: sql.NullFloat64{Float64: 0.83, Valid: true},
+			NonArticleRate:        sql.NullFloat64{Float64: 0.05, Valid: true},
 		},
 	}}
 	router := newTestRouter(dossierServer(&mockStore{}, dossier, &fakeArticles{}))
 	rec := do(t, router, "/sources/tagesschau/discovery-coverage?windowDays=30")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`"completeness":0.83`,
+		`"completenessIndeterminate":false`,
+		`"declaredTotalLastRun":90`,
+		`"indeterminateChannelCount":1`,
+		`"funnel":`,
+		`"present":true`,
+		`"goldRows":75`,
+		`"declaredIndeterminate":true`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("response missing %q\nbody: %s", want, body)
+		}
 	}
 }
 

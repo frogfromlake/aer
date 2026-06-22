@@ -15,7 +15,7 @@ import {
 // pin both so a drift is a deliberate, reviewed change.
 
 describe('NS class vocabulary', () => {
-  it('defines exactly the eight shipped classes', () => {
+  it('defines exactly the nine shipped classes', () => {
     expect([...NS_CLASSES]).toEqual([
       'structural_metadata_absence',
       'temporal_provenance_absence',
@@ -24,7 +24,8 @@ describe('NS class vocabulary', () => {
       'k_anonymity_suppression',
       'equivalence_refusal',
       'thin_content',
-      'live_ticker'
+      'live_ticker',
+      'collection_completeness'
     ]);
   });
 
@@ -53,6 +54,10 @@ describe('NS class vocabulary', () => {
     const lt = getNSClassDef('live_ticker');
     expect(lt?.label).toBe('Live Ticker');
     expect(lt?.description).toMatch(/WP-007/);
+    const cc = getNSClassDef('collection_completeness');
+    expect(cc?.label).toBe('Collection Completeness');
+    expect(cc?.scope).toBe('source'); // source-level, NOT row-derivable
+    expect(cc?.description).toMatch(/WP-007/);
     expect(getNSClassDef('nope')).toBeNull();
     expect(getNSClassDef(null)).toBeNull();
   });

@@ -29,7 +29,8 @@ export const NS_CLASSES = [
   'k_anonymity_suppression',
   'equivalence_refusal',
   'thin_content',
-  'live_ticker'
+  'live_ticker',
+  'collection_completeness'
 ] as const;
 
 export type NSClass = (typeof NS_CLASSES)[number];
@@ -133,6 +134,16 @@ export const NS_CLASS_DEFINITIONS: Record<NSClass, NSClassDef> = {
       'A live-ticker / continuously-updated page (a stable URL re-captured past the revision cap) — its endless versions are bounded and the article is excluded from the analytical reading, disclosed rather than silently dropped (WP-007 §4.3).',
     wpAnchor: '/reflection/wp/wp-007?section=4.3',
     scope: 'article'
+  },
+  collection_completeness: {
+    key: 'collection_completeness',
+    abbr: 'CC',
+    label: 'Collection Completeness',
+    color: '#8a958f',
+    description:
+      "This source's corpus is N % complete for the period — the share of the publisher-declared in-window inventory that reached Gold, measured against its declared channels; the un-captured remainder (and any channel with no measurable denominator) is named, never assumed to be zero or 100 % (WP-007 §4.1, §7).",
+    wpAnchor: '/reflection/wp/wp-007?section=4.1',
+    scope: 'source'
   }
 };
 
@@ -170,7 +181,8 @@ const NS_CLASS_LABELS: Record<NSClass, () => string> = {
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_label(),
   equivalence_refusal: () => m.domain_ns_equivalence_refusal_label(),
   thin_content: () => m.domain_ns_thin_content_label(),
-  live_ticker: () => m.domain_ns_live_ticker_label()
+  live_ticker: () => m.domain_ns_live_ticker_label(),
+  collection_completeness: () => m.domain_ns_collection_completeness_label()
 };
 
 const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
@@ -181,7 +193,8 @@ const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_desc(),
   equivalence_refusal: () => m.domain_ns_equivalence_refusal_desc(),
   thin_content: () => m.domain_ns_thin_content_desc(),
-  live_ticker: () => m.domain_ns_live_ticker_desc()
+  live_ticker: () => m.domain_ns_live_ticker_desc(),
+  collection_completeness: () => m.domain_ns_collection_completeness_desc()
 };
 
 export function nsPolicyNote(policy: string | null | undefined): string {

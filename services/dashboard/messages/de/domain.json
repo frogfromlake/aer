@@ -64,6 +64,8 @@
   "domain_ns_thin_content_desc": "Der Artikeltext liegt unter der Prosa-Längen-Schwelle (ein Liveblog-/Foto-/Listen-Stub) — erfasst und offengelegt, niemals still verworfen oder als vollständige Prosa gezählt (WP-007 §4.3).",
   "domain_ns_live_ticker_label": "Live-Ticker",
   "domain_ns_live_ticker_desc": "Eine Live-Ticker-/laufend aktualisierte Seite (eine stabile URL, die über das Revisions-Limit hinaus erneut erfasst wurde) — ihre endlosen Versionen werden begrenzt und der Artikel wird aus der analytischen Lesart ausgenommen, offengelegt statt still verworfen (WP-007 §4.3).",
+  "domain_ns_collection_completeness_label": "Sammlungs-Vollständigkeit",
+  "domain_ns_collection_completeness_desc": "Das Korpus dieser Quelle ist für den Zeitraum zu N % vollständig — der Anteil des vom Verlag deklarierten Inventars im Zeitfenster, der bis Gold gelangt ist, gemessen gegen die deklarierten Kanäle; der nicht erfasste Rest (und jeder Kanal ohne messbaren Nenner) wird benannt, nie als Null oder 100 % angenommen (WP-007 §4.1, §7).",
   "domain_ns_policy_overlay": "Negativraum: Ist der Schalter aktiv, werden die als methodisch bedeutungslos ausgeschlossenen Artefakte hier als Geist (gedimmt) dargestellt — zur Offenlegung gezeigt, nicht wieder in die Zählung aufgenommen (WP-005 §3.1).",
   "domain_ns_policy_gap": "Negativraum: Von unbeobachteten Artikeln dominierte Intervalle unterbrechen die Linie, statt als Null gelesen zu werden — eine Beobachtungslücke ist keine Diskurslücke (WP-005 §3.1).",
   "domain_ns_policy_badge": "Negativraum: Markierungen je Artikel (∅) erscheinen in der Artikelliste und im Quellen-Dossier; diese Aggregatansicht erzwingt nie einen abwesenden Wert zu Null (WP-003 §3.2).",

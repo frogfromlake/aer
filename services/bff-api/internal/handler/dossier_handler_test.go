@@ -47,7 +47,7 @@ func (f *fakeDossier) ResolveSourceWithEligibility(_ context.Context, _ string) 
 // fake returns an empty summary; per-test setup can override via a
 // dedicated field if/when handler tests for the discovery-coverage
 // endpoint land.
-func (f *fakeDossier) GetDiscoveryCoverage(_ context.Context, _ int64, _ int) (*storage.DiscoveryCoverageSummary, error) {
+func (f *fakeDossier) GetDiscoveryCoverage(_ context.Context, _ int64, _ string, _ int) (*storage.DiscoveryCoverageSummary, error) {
 	if f.discoveryErr != nil {
 		return nil, f.discoveryErr
 	}

@@ -69,3 +69,48 @@ properties:
       fired. Same field as on each channel's record but at source
       level — surfaces the alert state directly to the dashboard panel.
     example: false
+  declaredTotalLastRun:
+    type: integer
+    nullable: true
+    minimum: 0
+    description: >
+      Phase 148d (WP-007 §4.1) — sum of `declared` across the channels
+      that supplied a TRUSTWORTHY denominator in the most recent run
+      (declared not null AND not `declaredIndeterminate`). The completeness
+      denominator. `null` when no channel supplied a measurable denominator.
+    example: 411
+  completeness:
+    type: number
+    nullable: true
+    description: >
+      Phase 148d (WP-007 §4.1, §3) — `goldRows / declaredTotalLastRun`:
+      the share of the publisher-declared in-window inventory (over the
+      MEASURABLE channels) that reached analysable Gold. This is
+      "N % complete for this period against its declared channels"; any
+      `declaredIndeterminate` channels are the named remainder
+      (`indeterminateChannelCount`), not folded into this ratio. `null`
+      when `completenessIndeterminate` is true — AĒR refuses to invent a
+      ratio it cannot back, and never reports 100 %.
+    example: 0.81
+  completenessIndeterminate:
+    type: boolean
+    description: >
+      Phase 148d (WP-007 §3/§5) — true when NO channel supplied a
+      trustworthy denominator (`declaredTotalLastRun` is null/zero), so a
+      completeness ratio cannot be formed at all. A source with at least
+      one measurable channel reports a completeness figure even if other
+      channels are indeterminate (those are disclosed as the named
+      remainder, never silently dropped and never silently treated as 100 %).
+    example: false
+  indeterminateChannelCount:
+    type: integer
+    minimum: 0
+    description: >
+      Phase 148d (WP-007 §3) — how many channels in the last run had an
+      indeterminate (lower-bound) denominator. The "named remainder": when
+      > 0, the completeness figure is against the measurable channels only,
+      and this count is the un-captured surface AĒR discloses rather than
+      hides.
+    example: 1
+  funnel:
+    $ref: './CollectionFunnel.yaml'

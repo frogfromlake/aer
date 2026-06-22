@@ -273,6 +273,8 @@ components:
       $ref: './schemas/MetadataFieldsResponse.yaml'
     DiscoveryCoveragePerChannel:
       $ref: './schemas/DiscoveryCoveragePerChannel.yaml'
+    CollectionFunnel:
+      $ref: './schemas/CollectionFunnel.yaml'
     DiscoveryCoverageResponse:
       $ref: './schemas/DiscoveryCoverageResponse.yaml'
     RevisionActivityEntry:

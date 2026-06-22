@@ -34,6 +34,11 @@
   } from '$lib/api/queries';
   import { m } from '$lib/paraglide/messages.js';
   import { formatNumber } from '$lib/localization/format';
+  import NegativeSpaceBadge from '$lib/components/base/NegativeSpaceBadge.svelte';
+
+  // Phase 148d — render a 0..1 ratio as a whole-number percent for the
+  // completeness headline + the funnel rates (WP-007 §4.1, §4.3).
+  const pct = (ratio: number): number => Math.round(ratio * 100);
 
   interface Props {
     sourceId: string;
@@ -151,6 +156,83 @@
       {/if}
     </dl>
 
+    <!-- Phase 148d (WP-007 §4.1, §7) — completeness travels WITH the data:
+         a reader cannot read this source's corpus without seeing how complete
+         it is. The badge is neutral methodological-register, never a warning. -->
+    <div class="completeness" class:indeterminate={payload.completenessIndeterminate}>
+      {#if payload.completenessIndeterminate}
+        <div class="completeness-head">
+          <NegativeSpaceBadge nsClass="collection_completeness" size="md" showLabel showInfo />
+        </div>
+        <p class="ns-prose">{m.source_completeness_indeterminate()}</p>
+      {:else if payload.completeness != null}
+        <div class="completeness-head">
+          <NegativeSpaceBadge nsClass="collection_completeness" size="md" showInfo />
+          <span class="pct">{m.source_completeness_value({ pct: pct(payload.completeness) })}</span>
+          <span class="muted"
+            >{m.source_completeness_against({
+              measured: payload.perChannel.length - (payload.indeterminateChannelCount ?? 0),
+              total: payload.perChannel.length
+            })}</span
+          >
+        </div>
+        {#if (payload.indeterminateChannelCount ?? 0) > 0}
+          <p class="ns-prose">
+            {m.source_completeness_remainder({ n: payload.indeterminateChannelCount ?? 0 })}
+          </p>
+        {/if}
+      {/if}
+
+      {#if payload.funnel?.present}
+        {@const f = payload.funnel}
+        <details class="funnel">
+          <summary>{m.source_funnel_summary()}</summary>
+          <dl>
+            {#if payload.declaredTotalLastRun != null}
+              <div>
+                <dt>{m.source_funnel_stage_declared()}</dt>
+                <dd>{formatNumber(payload.declaredTotalLastRun)}</dd>
+              </div>
+            {/if}
+            <div>
+              <dt>{m.source_funnel_stage_discovered()}</dt>
+              <dd>{formatNumber(f.discovered ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>{m.source_funnel_stage_already_collected()}</dt>
+              <dd>{formatNumber(f.alreadyCollected ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>{m.source_funnel_stage_fetched()}</dt>
+              <dd>{formatNumber(f.fetched ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>{m.source_funnel_stage_thin()}</dt>
+              <dd>{formatNumber(f.thinContentDropped ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>{m.source_funnel_stage_submitted()}</dt>
+              <dd>{formatNumber(f.submitted ?? 0)}</dd>
+            </div>
+            <div>
+              <dt>{m.source_funnel_stage_gold()}</dt>
+              <dd>{formatNumber(f.goldRows ?? 0)}</dd>
+            </div>
+          </dl>
+          <p class="funnel-rates">
+            {#if f.extractionSuccessRate != null}
+              <span>{m.source_funnel_rate_extraction({ pct: pct(f.extractionSuccessRate) })}</span>
+            {/if}
+            {#if f.nonArticleRate != null}
+              <span class="muted"
+                >{m.source_funnel_rate_nonarticle({ pct: pct(f.nonArticleRate) })}</span
+              >
+            {/if}
+          </p>
+        </details>
+      {/if}
+    </div>
+
     <ul class="channels">
       {#each orderedChannels(payload) as channel (channel.channel)}
         <li class="channel" class:underflow={channel.underflowAlertActive}>
@@ -159,6 +241,15 @@
               >{(CHANNEL_LABELS[channel.channel] ?? (() => channel.channel))()}</span
             >
             <span class="channel-counts">
+              {#if channel.declared != null}
+                <span class="muted"
+                  >{channel.declaredIndeterminate
+                    ? m.source_channel_declared_indeterminate({
+                        n: formatNumber(channel.declared)
+                      })
+                    : m.source_channel_declared({ n: formatNumber(channel.declared) })}</span
+                >
+              {/if}
               {m.source_discovery_channel_counts({
                 discovered: formatNumber(channel.lastRunUrlsDiscovered)
               })}
@@ -253,6 +344,59 @@
   .summary dd {
     margin: 0;
     font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .completeness {
+    margin: 0 0 1rem 0;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-bg-elevated, rgba(255, 255, 255, 0.02));
+    border-left: 2px solid var(--border-subtle, #2a2a2a);
+    border-radius: 2px;
+  }
+  .completeness-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .completeness .pct {
+    font-size: 1rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .ns-prose {
+    margin: 0.35rem 0 0 0;
+    color: var(--text-muted, #aaa);
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+  .funnel {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.82rem;
+  }
+  .funnel summary {
+    cursor: pointer;
+    color: var(--color-fg-muted, #aaa);
+    user-select: none;
+  }
+  .funnel dl {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.15rem 1rem;
+    margin: 0.5rem 0 0 0;
+  }
+  .funnel dt {
+    color: var(--text-muted, #888);
+  }
+  .funnel dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .funnel-rates {
+    display: flex;
+    gap: 1rem;
+    margin: 0.5rem 0 0 0;
     font-variant-numeric: tabular-nums;
   }
   .channels {

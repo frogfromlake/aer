@@ -2492,6 +2492,88 @@ export interface components {
              * @example false
              */
             underflowAlertActive: boolean;
+            /**
+             * @description Phase 148d (WP-007 §4.1) — the publisher-declared, in-window inventory this channel advertised, measured at its parse boundary BEFORE AĒR's filters. The completeness denominator (`completeness = collected / declared`). `null` for pre-148d rows (never measured) → treated as indeterminate.
+             * @example 411
+             */
+            declared?: number | null;
+            /**
+             * @description Phase 148d (WP-007 §3/§5) — true when `declared` is only a LOWER BOUND and cannot be trusted as the full in-window inventory: a fetch/parse error swallowed entries, a walk/fetch cap truncated the channel, or the channel is structurally dateless (e.g. `html_sitemap`) / surfaced advertised-but-undatable content. When true, completeness for this channel is reported as indeterminate, never a clean ratio and never 100 %.
+             * @example false
+             */
+            declaredIndeterminate?: boolean;
+        };
+        /**
+         * @description Phase 148d (WP-007 §5) — the per-source collection funnel for the most recent crawl run, so a per-source conversion gap (e.g. franceinfo's declared→Gold ratio versus tagesschau's) is attributable stage-by-stage instead of left as a silent artifact (WP-007 §2).
+         *     The channel-attributable head (declared → discovered → after_dedup) is in `perChannel`; once URLs merge into one crawl list, channel attribution is gone, so these spider stages are PER SOURCE. The tail (extracted → Gold) is reconciled at read-time against the current ClickHouse Gold row count for the source — no run_id is propagated Bronze→Silver→Gold.
+         *     `present` is false when no funnel run has been recorded yet (a never-crawled source or a crawl that predates Phase 148d); the dashboard shows the head-of-funnel discovery telemetry alone in that case.
+         */
+        CollectionFunnel: {
+            /**
+             * @description True iff a funnel run has been recorded for this source.
+             * @example true
+             */
+            present: boolean;
+            /**
+             * @description After-dedup URL count handed to the spider (funnel entry point).
+             * @example 443
+             */
+            discovered?: number;
+            /**
+             * @description Dropped by the url_filter / IgnoreRequest (fails passed_filters).
+             * @example 4
+             */
+            urlFiltered?: number;
+            /**
+             * @description Skipped by conditional-GET avoidance — already held from a prior run. NOT a collection loss; disclosed separately so a re-crawl that submits zero new documents reads as "fully held", never "0 % complete".
+             * @example 0
+             */
+            alreadyCollected?: number;
+            /**
+             * @description HTTP responses received (transport failures excluded).
+             * @example 439
+             */
+            fetched?: number;
+            /**
+             * @description 304 Not Modified responses (fetched, unchanged, already held).
+             * @example 0
+             */
+            notModified?: number;
+            /**
+             * @description Dropped by content-type / empty-body guard (fails passed_filters).
+             * @example 2
+             */
+            contentDropped?: number;
+            /**
+             * @description Dropped by the min_word_count gate — the Layer-3 over-collection (non-article) signal (WP-007 §4.3). Disclosed, never silently dropped.
+             * @example 44
+             */
+            thinContentDropped?: number;
+            /**
+             * @description Reached Bronze (feeds extracted → Gold downstream).
+             * @example 393
+             */
+            submitted?: number;
+            /**
+             * @description Non-200 / build / submit / transport failures.
+             * @example 0
+             */
+            errored?: number;
+            /**
+             * @description Distinct articles for this source currently in ClickHouse Gold — the reconciled funnel tail (extracted → Gold). A point-in-time count, not scoped to a single run.
+             * @example 333
+             */
+            goldRows?: number;
+            /**
+             * @description Layer-3 (WP-007 §4.3) — goldRows / submitted: the share of Bronze-submitted documents that became analysable Gold articles. Null when submitted is 0.
+             * @example 0.847
+             */
+            extractionSuccessRate?: number | null;
+            /**
+             * @description Layer-3 (WP-007 §4.3) — thinContentDropped / fetched: the share of fetched pages that were non-article (thin) content. A high rate is an over-collection signal (the mirror image of an under-collection gap). Null when fetched is 0.
+             * @example 0.1
+             */
+            nonArticleRate?: number | null;
         };
         /**
          * @description Per-source discovery telemetry payload for the Phase 122g `GET /sources/{sourceId}/discovery-coverage` endpoint. Sibling to `GET /sources/{sourceId}/metadata-coverage` (Phase 122f) — both surface the publisher's emission posture as a queryable runtime signal, supporting the WP-006 §6 reflexive-architecture status-disclosure principle.
@@ -2530,6 +2612,27 @@ export interface components {
              * @example false
              */
             underflowAlertActive: boolean;
+            /**
+             * @description Phase 148d (WP-007 §4.1) — sum of `declared` across the channels that supplied a TRUSTWORTHY denominator in the most recent run (declared not null AND not `declaredIndeterminate`). The completeness denominator. `null` when no channel supplied a measurable denominator.
+             * @example 411
+             */
+            declaredTotalLastRun?: number | null;
+            /**
+             * @description Phase 148d (WP-007 §4.1, §3) — `goldRows / declaredTotalLastRun`: the share of the publisher-declared in-window inventory (over the MEASURABLE channels) that reached analysable Gold. This is "N % complete for this period against its declared channels"; any `declaredIndeterminate` channels are the named remainder (`indeterminateChannelCount`), not folded into this ratio. `null` when `completenessIndeterminate` is true — AĒR refuses to invent a ratio it cannot back, and never reports 100 %.
+             * @example 0.81
+             */
+            completeness?: number | null;
+            /**
+             * @description Phase 148d (WP-007 §3/§5) — true when NO channel supplied a trustworthy denominator (`declaredTotalLastRun` is null/zero), so a completeness ratio cannot be formed at all. A source with at least one measurable channel reports a completeness figure even if other channels are indeterminate (those are disclosed as the named remainder, never silently dropped and never silently treated as 100 %).
+             * @example false
+             */
+            completenessIndeterminate?: boolean;
+            /**
+             * @description Phase 148d (WP-007 §3) — how many channels in the last run had an indeterminate (lower-bound) denominator. The "named remainder": when > 0, the completeness figure is against the measurable channels only, and this count is the un-captured surface AĒR discloses rather than hides.
+             * @example 1
+             */
+            indeterminateChannelCount?: number;
+            funnel?: components["schemas"]["CollectionFunnel"];
         };
         /** @description One row of the aggregated revision-activity surface. Each entry rolls up `aer_gold.article_revisions` by (source, bucket) where the bucket is the time-grain produced by the requested resolution. Phase 122d.0 (ADR-032). Used by the `revision_activity` (Aleph snapshot) and `revision_timeline` (Episteme over-time) cells. */
         RevisionActivityEntry: {

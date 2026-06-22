@@ -64,6 +64,8 @@
   "domain_ns_thin_content_desc": "The article body is below the prose-length floor (a live-blog / photo / listing-page stub) — collected and disclosed, never silently dropped or counted as full prose (WP-007 §4.3).",
   "domain_ns_live_ticker_label": "Live Ticker",
   "domain_ns_live_ticker_desc": "A live-ticker / continuously-updated page (a stable URL re-captured past the revision cap) — its endless versions are bounded and the article is excluded from the analytical reading, disclosed rather than silently dropped (WP-007 §4.3).",
+  "domain_ns_collection_completeness_label": "Collection Completeness",
+  "domain_ns_collection_completeness_desc": "This source's corpus is N % complete for the period — the share of the publisher-declared in-window inventory that reached Gold, measured against its declared channels; the un-captured remainder (and any channel with no measurable denominator) is named, never assumed to be zero or 100 % (WP-007 §4.1, §7).",
   "domain_ns_policy_overlay": "Negative Space: when the toggle is on, the artefacts excluded as methodologically meaningless are ghost-rendered here (dim) — shown for disclosure, not re-admitted to the counts (WP-005 §3.1).",
   "domain_ns_policy_gap": "Negative Space: intervals dominated by unobserved articles break the line rather than read as zero — an observation gap is not a discourse gap (WP-005 §3.1).",
   "domain_ns_policy_badge": "Negative Space: per-article markers (∅) appear in the article list and the source dossier; this aggregate view never coerces an absent value to zero (WP-003 §3.2).",

@@ -195,17 +195,19 @@ func TestGetDiscoveryCoverage_PerChannelAndAlert(t *testing.T) {
 		channel    string
 		discovered int
 		dedup      int
+		declared   int
+		indet      bool
 		started    time.Time
 	}{
-		{"sitemap", 100, 90, older},
-		{"sitemap", 120, 110, now}, // last run
-		{"rss", 30, 28, now},       // last run
+		{"sitemap", 100, 90, 100, false, older},
+		{"sitemap", 120, 110, 120, false, now}, // last run, trustworthy denominator
+		{"rss", 30, 28, 30, false, now},        // last run, trustworthy denominator
 	}
 	for _, r := range runs {
 		if _, err := db.ExecContext(ctx, `INSERT INTO crawler_discovery_runs
-			(run_id, source_id, channel, urls_discovered, urls_after_dedup, run_started_at, run_completed_at)
-			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $5)`,
-			id, r.channel, r.discovered, r.dedup, r.started); err != nil {
+			(run_id, source_id, channel, urls_discovered, urls_after_dedup, declared, declared_indeterminate, run_started_at, run_completed_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $7)`,
+			id, r.channel, r.discovered, r.dedup, r.declared, r.indet, r.started); err != nil {
 			t.Fatalf("insert run: %v", err)
 		}
 	}
@@ -215,11 +217,45 @@ func TestGetDiscoveryCoverage_PerChannelAndAlert(t *testing.T) {
 		VALUES ($1, 'underflow', $2, $2, 2, 50, 30)`, id, now); err != nil {
 		t.Fatalf("insert alert: %v", err)
 	}
+	// Phase 148d — a funnel row so the per-source funnel reconciliation is
+	// exercised end-to-end (Gold tail stays 0 with no ClickHouse handle).
+	if _, err := db.ExecContext(ctx, `INSERT INTO crawler_funnel_runs
+		(run_id, source_id, discovered, url_filtered, already_collected, fetched,
+		 not_modified, content_dropped, thin_content_dropped, submitted, errored,
+		 run_started_at, run_completed_at)
+		VALUES (gen_random_uuid(), $1, 138, 2, 0, 136, 0, 1, 5, 130, 0, $2, $2)`, id, now); err != nil {
+		t.Fatalf("insert funnel: %v", err)
+	}
 
 	store := NewDossierStore(db, nil)
-	summary, err := store.GetDiscoveryCoverage(ctx, id, 30)
+	summary, err := store.GetDiscoveryCoverage(ctx, id, "tagesschau", 30)
 	if err != nil {
 		t.Fatalf("GetDiscoveryCoverage: %v", err)
+	}
+	// Phase 148d — declared denominator wired through (sitemap 120 + rss 30
+	// = 150 trustworthy). No ClickHouse handle in this PG-only test, so
+	// goldRows reconciles to 0 → completeness 0/150 = 0 (a measured zero,
+	// NOT indeterminate — a real denominator exists).
+	if !summary.Completeness.DeclaredTotal.Valid || summary.Completeness.DeclaredTotal.Int64 != 150 {
+		t.Errorf("declared total: want 150, got %v", summary.Completeness.DeclaredTotal)
+	}
+	if summary.Completeness.Indeterminate {
+		t.Error("completeness should not be indeterminate when a trustworthy denominator exists")
+	}
+	if !summary.Completeness.Completeness.Valid || summary.Completeness.Completeness.Float64 != 0 {
+		t.Errorf("completeness: want 0 (goldRows=0/150), got %v", summary.Completeness.Completeness)
+	}
+	// Funnel reconciliation: the latest funnel row is surfaced per source.
+	if !summary.Funnel.Present {
+		t.Fatal("funnel should be present (a row was inserted)")
+	}
+	if summary.Funnel.Discovered != 138 || summary.Funnel.ThinContentDropped != 5 || summary.Funnel.Submitted != 130 {
+		t.Errorf("funnel stages mismatch: %+v", summary.Funnel)
+	}
+	// NonArticleRate = thinContentDropped/fetched = 5/136; ExtractionSuccessRate
+	// = goldRows/submitted = 0/130 = 0 (gold reconciles to 0 sans ClickHouse).
+	if !summary.Funnel.NonArticleRate.Valid || summary.Funnel.NonArticleRate.Float64 <= 0 {
+		t.Errorf("non-article rate should be a positive measured rate, got %v", summary.Funnel.NonArticleRate)
 	}
 	if summary.WindowDays != 30 {
 		t.Errorf("window days: want 30, got %d", summary.WindowDays)
@@ -258,9 +294,14 @@ func TestGetDiscoveryCoverage_NoAlertNoRuns(t *testing.T) {
 	id := insertSource(t, db, ctx, "tagesschau", "web", "https://tagesschau.de", true)
 
 	store := NewDossierStore(db, nil)
-	summary, err := store.GetDiscoveryCoverage(ctx, id, 0) // 0 → defaults to 30
+	summary, err := store.GetDiscoveryCoverage(ctx, id, "tagesschau", 0) // 0 → defaults to 30
 	if err != nil {
 		t.Fatalf("GetDiscoveryCoverage: %v", err)
+	}
+	// No runs at all → no trustworthy denominator → completeness indeterminate
+	// (AĒR refuses to invent a ratio), never a misleading 0 % or 100 %.
+	if !summary.Completeness.Indeterminate {
+		t.Error("no discovery runs must yield indeterminate completeness")
 	}
 	if summary.WindowDays != 30 {
 		t.Errorf("zero window must default to 30, got %d", summary.WindowDays)

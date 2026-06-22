@@ -1476,8 +1476,64 @@ type ContentResponseLocale string
 // DiscoveryCoverageResponse Per-source discovery telemetry payload for the Phase 122g `GET /sources/{sourceId}/discovery-coverage` endpoint. Sibling to `GET /sources/{sourceId}/metadata-coverage` (Phase 122f) — both surface the publisher's emission posture as a queryable runtime signal, supporting the WP-006 §6 reflexive-architecture status-disclosure principle.
 // Recorded in ADR-031 (DiscoveryProtocol Contract for Multi-Channel Source Discovery). The schema is platform-agnostic so future Twitter / Reddit / Mastodon / YouTube crawlers feed the same endpoint without schema work.
 type DiscoveryCoverageResponse struct {
+	// Completeness Phase 148d (WP-007 §4.1, §3) — `goldRows / declaredTotalLastRun`: the share of the publisher-declared in-window inventory (over the MEASURABLE channels) that reached analysable Gold. This is "N % complete for this period against its declared channels"; any `declaredIndeterminate` channels are the named remainder (`indeterminateChannelCount`), not folded into this ratio. `null` when `completenessIndeterminate` is true — AĒR refuses to invent a ratio it cannot back, and never reports 100 %.
+	Completeness *float32 `json:"completeness,omitempty"`
+
+	// CompletenessIndeterminate Phase 148d (WP-007 §3/§5) — true when NO channel supplied a trustworthy denominator (`declaredTotalLastRun` is null/zero), so a completeness ratio cannot be formed at all. A source with at least one measurable channel reports a completeness figure even if other channels are indeterminate (those are disclosed as the named remainder, never silently dropped and never silently treated as 100 %).
+	CompletenessIndeterminate *bool `json:"completenessIndeterminate,omitempty"`
+
+	// DeclaredTotalLastRun Phase 148d (WP-007 §4.1) — sum of `declared` across the channels that supplied a TRUSTWORTHY denominator in the most recent run (declared not null AND not `declaredIndeterminate`). The completeness denominator. `null` when no channel supplied a measurable denominator.
+	DeclaredTotalLastRun *int `json:"declaredTotalLastRun,omitempty"`
+
 	// ExpectedFloorPerRun Source-declared minimum URL count per discovery run (Phase 122g). `null` when the operator hasn't yet set a floor for this source — no underflow alerting in that case.
 	ExpectedFloorPerRun *int `json:"expectedFloorPerRun,omitempty"`
+
+	// Funnel Phase 148d (WP-007 §5) — the per-source collection funnel for the most recent crawl run, so a per-source conversion gap (e.g. franceinfo's declared→Gold ratio versus tagesschau's) is attributable stage-by-stage instead of left as a silent artifact (WP-007 §2).
+	// The channel-attributable head (declared → discovered → after_dedup) is in `perChannel`; once URLs merge into one crawl list, channel attribution is gone, so these spider stages are PER SOURCE. The tail (extracted → Gold) is reconciled at read-time against the current ClickHouse Gold row count for the source — no run_id is propagated Bronze→Silver→Gold.
+	// `present` is false when no funnel run has been recorded yet (a never-crawled source or a crawl that predates Phase 148d); the dashboard shows the head-of-funnel discovery telemetry alone in that case.
+	Funnel *struct {
+		// AlreadyCollected Skipped by conditional-GET avoidance — already held from a prior run. NOT a collection loss; disclosed separately so a re-crawl that submits zero new documents reads as "fully held", never "0 % complete".
+		AlreadyCollected *int `json:"alreadyCollected,omitempty"`
+
+		// ContentDropped Dropped by content-type / empty-body guard (fails passed_filters).
+		ContentDropped *int `json:"contentDropped,omitempty"`
+
+		// Discovered After-dedup URL count handed to the spider (funnel entry point).
+		Discovered *int `json:"discovered,omitempty"`
+
+		// Errored Non-200 / build / submit / transport failures.
+		Errored *int `json:"errored,omitempty"`
+
+		// ExtractionSuccessRate Layer-3 (WP-007 §4.3) — goldRows / submitted: the share of Bronze-submitted documents that became analysable Gold articles. Null when submitted is 0.
+		ExtractionSuccessRate *float32 `json:"extractionSuccessRate,omitempty"`
+
+		// Fetched HTTP responses received (transport failures excluded).
+		Fetched *int `json:"fetched,omitempty"`
+
+		// GoldRows Distinct articles for this source currently in ClickHouse Gold — the reconciled funnel tail (extracted → Gold). A point-in-time count, not scoped to a single run.
+		GoldRows *int `json:"goldRows,omitempty"`
+
+		// NonArticleRate Layer-3 (WP-007 §4.3) — thinContentDropped / fetched: the share of fetched pages that were non-article (thin) content. A high rate is an over-collection signal (the mirror image of an under-collection gap). Null when fetched is 0.
+		NonArticleRate *float32 `json:"nonArticleRate,omitempty"`
+
+		// NotModified 304 Not Modified responses (fetched, unchanged, already held).
+		NotModified *int `json:"notModified,omitempty"`
+
+		// Present True iff a funnel run has been recorded for this source.
+		Present bool `json:"present"`
+
+		// Submitted Reached Bronze (feeds extracted → Gold downstream).
+		Submitted *int `json:"submitted,omitempty"`
+
+		// ThinContentDropped Dropped by the min_word_count gate — the Layer-3 over-collection (non-article) signal (WP-007 §4.3). Disclosed, never silently dropped.
+		ThinContentDropped *int `json:"thinContentDropped,omitempty"`
+
+		// URLFiltered Dropped by the url_filter / IgnoreRequest (fails passed_filters).
+		URLFiltered *int `json:"urlFiltered,omitempty"`
+	} `json:"funnel,omitempty"`
+
+	// IndeterminateChannelCount Phase 148d (WP-007 §3) — how many channels in the last run had an indeterminate (lower-bound) denominator. The "named remainder": when > 0, the completeness figure is against the measurable channels only, and this count is the un-captured surface AĒR discloses rather than hides.
+	IndeterminateChannelCount *int `json:"indeterminateChannelCount,omitempty"`
 
 	// PerChannel One entry per declared channel. Includes channels that yielded zero URLs in the last run (the zero is itself a signal).
 	PerChannel []struct {
@@ -1486,6 +1542,12 @@ type DiscoveryCoverageResponse struct {
 
 		// Channel Discovery channel identifier. Web-crawler channels today: `sitemap`, `rss`, `html_sitemap`, `archive_index`. Future platform crawlers contribute their own channel labels.
 		Channel string `json:"channel"`
+
+		// Declared Phase 148d (WP-007 §4.1) — the publisher-declared, in-window inventory this channel advertised, measured at its parse boundary BEFORE AĒR's filters. The completeness denominator (`completeness = collected / declared`). `null` for pre-148d rows (never measured) → treated as indeterminate.
+		Declared *int `json:"declared,omitempty"`
+
+		// DeclaredIndeterminate Phase 148d (WP-007 §3/§5) — true when `declared` is only a LOWER BOUND and cannot be trusted as the full in-window inventory: a fetch/parse error swallowed entries, a walk/fetch cap truncated the channel, or the channel is structurally dateless (e.g. `html_sitemap`) / surfaced advertised-but-undatable content. When true, completeness for this channel is reported as indeterminate, never a clean ratio and never 100 %.
+		DeclaredIndeterminate *bool `json:"declaredIndeterminate,omitempty"`
 
 		// LastRunUrlsAfterDedup URLs unique to this channel after the URL-union dedup across every declared channel. When sitemap + html_sitemap both yield URL X, sitemap (first) gets +1 here and html_sitemap (second) gets +0; the raw discovered count reflects what the channel actually surfaced.
 		LastRunUrlsAfterDedup int `json:"lastRunUrlsAfterDedup"`

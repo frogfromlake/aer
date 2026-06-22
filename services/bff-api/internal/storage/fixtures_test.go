@@ -180,12 +180,31 @@ func setupSourcesDB(t *testing.T) (*sql.DB, context.Context) {
 			classification_date DATE NOT NULL,
 			PRIMARY KEY (source_id, classification_date)
 		)`,
+		// Mirrors infra/postgres/migrations 000018 + 000029 (declared columns).
 		`CREATE TABLE crawler_discovery_runs (
 			run_id UUID PRIMARY KEY,
 			source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
 			channel TEXT NOT NULL,
 			urls_discovered INTEGER NOT NULL,
 			urls_after_dedup INTEGER NOT NULL,
+			declared INTEGER,
+			declared_indeterminate BOOLEAN NOT NULL DEFAULT FALSE,
+			run_started_at TIMESTAMPTZ NOT NULL,
+			run_completed_at TIMESTAMPTZ NOT NULL
+		)`,
+		// Mirrors infra/postgres/migrations 000030 (per-source funnel).
+		`CREATE TABLE crawler_funnel_runs (
+			run_id UUID PRIMARY KEY,
+			source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+			discovered INTEGER NOT NULL,
+			url_filtered INTEGER NOT NULL DEFAULT 0,
+			already_collected INTEGER NOT NULL DEFAULT 0,
+			fetched INTEGER NOT NULL DEFAULT 0,
+			not_modified INTEGER NOT NULL DEFAULT 0,
+			content_dropped INTEGER NOT NULL DEFAULT 0,
+			thin_content_dropped INTEGER NOT NULL DEFAULT 0,
+			submitted INTEGER NOT NULL DEFAULT 0,
+			errored INTEGER NOT NULL DEFAULT 0,
 			run_started_at TIMESTAMPTZ NOT NULL,
 			run_completed_at TIMESTAMPTZ NOT NULL
 		)`,

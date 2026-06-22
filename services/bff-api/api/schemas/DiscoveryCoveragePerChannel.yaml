@@ -51,3 +51,25 @@ properties:
       threshold for two consecutive runs (Phase 122g two-strike gate).
       The flag clears the first run back at or above floor.
     example: false
+  declared:
+    type: integer
+    nullable: true
+    minimum: 0
+    description: >
+      Phase 148d (WP-007 §4.1) — the publisher-declared, in-window
+      inventory this channel advertised, measured at its parse boundary
+      BEFORE AĒR's filters. The completeness denominator
+      (`completeness = collected / declared`). `null` for pre-148d rows
+      (never measured) → treated as indeterminate.
+    example: 411
+  declaredIndeterminate:
+    type: boolean
+    description: >
+      Phase 148d (WP-007 §3/§5) — true when `declared` is only a LOWER
+      BOUND and cannot be trusted as the full in-window inventory: a
+      fetch/parse error swallowed entries, a walk/fetch cap truncated the
+      channel, or the channel is structurally dateless (e.g. `html_sitemap`)
+      / surfaced advertised-but-undatable content. When true, completeness
+      for this channel is reported as indeterminate, never a clean ratio
+      and never 100 %.
+    example: false

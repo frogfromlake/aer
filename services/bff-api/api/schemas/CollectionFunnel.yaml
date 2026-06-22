@@ -1,0 +1,98 @@
+type: object
+description: >
+  Phase 148d (WP-007 §5) — the per-source collection funnel for the most
+  recent crawl run, so a per-source conversion gap (e.g. franceinfo's
+  declared→Gold ratio versus tagesschau's) is attributable stage-by-stage
+  instead of left as a silent artifact (WP-007 §2).
+
+  The channel-attributable head (declared → discovered → after_dedup) is in
+  `perChannel`; once URLs merge into one crawl list, channel attribution is
+  gone, so these spider stages are PER SOURCE. The tail (extracted → Gold)
+  is reconciled at read-time against the current ClickHouse Gold row count
+  for the source — no run_id is propagated Bronze→Silver→Gold.
+
+  `present` is false when no funnel run has been recorded yet (a
+  never-crawled source or a crawl that predates Phase 148d); the dashboard
+  shows the head-of-funnel discovery telemetry alone in that case.
+required:
+  - present
+properties:
+  present:
+    type: boolean
+    description: True iff a funnel run has been recorded for this source.
+    example: true
+  discovered:
+    type: integer
+    minimum: 0
+    description: After-dedup URL count handed to the spider (funnel entry point).
+    example: 443
+  urlFiltered:
+    type: integer
+    minimum: 0
+    description: Dropped by the url_filter / IgnoreRequest (fails passed_filters).
+    example: 4
+  alreadyCollected:
+    type: integer
+    minimum: 0
+    description: >
+      Skipped by conditional-GET avoidance — already held from a prior run.
+      NOT a collection loss; disclosed separately so a re-crawl that submits
+      zero new documents reads as "fully held", never "0 % complete".
+    example: 0
+  fetched:
+    type: integer
+    minimum: 0
+    description: HTTP responses received (transport failures excluded).
+    example: 439
+  notModified:
+    type: integer
+    minimum: 0
+    description: 304 Not Modified responses (fetched, unchanged, already held).
+    example: 0
+  contentDropped:
+    type: integer
+    minimum: 0
+    description: Dropped by content-type / empty-body guard (fails passed_filters).
+    example: 2
+  thinContentDropped:
+    type: integer
+    minimum: 0
+    description: >
+      Dropped by the min_word_count gate — the Layer-3 over-collection
+      (non-article) signal (WP-007 §4.3). Disclosed, never silently dropped.
+    example: 44
+  submitted:
+    type: integer
+    minimum: 0
+    description: Reached Bronze (feeds extracted → Gold downstream).
+    example: 393
+  errored:
+    type: integer
+    minimum: 0
+    description: Non-200 / build / submit / transport failures.
+    example: 0
+  goldRows:
+    type: integer
+    minimum: 0
+    description: >
+      Distinct articles for this source currently in ClickHouse Gold — the
+      reconciled funnel tail (extracted → Gold). A point-in-time count, not
+      scoped to a single run.
+    example: 333
+  extractionSuccessRate:
+    type: number
+    nullable: true
+    description: >
+      Layer-3 (WP-007 §4.3) — goldRows / submitted: the share of
+      Bronze-submitted documents that became analysable Gold articles. Null
+      when submitted is 0.
+    example: 0.847
+  nonArticleRate:
+    type: number
+    nullable: true
+    description: >
+      Layer-3 (WP-007 §4.3) — thinContentDropped / fetched: the share of
+      fetched pages that were non-article (thin) content. A high rate is an
+      over-collection signal (the mirror image of an under-collection gap).
+      Null when fetched is 0.
+    example: 0.10
