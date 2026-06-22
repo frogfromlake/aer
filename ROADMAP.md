@@ -5215,7 +5215,7 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ---
 
-## Phase 148c: Pre-Deploy Pipeline & Storage Fixes [P0] - [ ] TODO
+## Phase 148c: Pre-Deploy Pipeline & Storage Fixes [P0] - [x] DONE
 
 *The fixes surfaced by the 148b full-crawl validation, done **before first deploy** — you don't go live with a known-broken extractor, a too-tight memory cap, or a 3×-bloated storage layout that then accumulates for 365 days. All of this is **code/config, no provisioned box needed** (final RAM tuning is confirmed on the real 16 GB box in 149, but the fixes are built here). Sequenced after 148b, before 149.*
 
@@ -5228,7 +5228,7 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 * [x] **Live-ticker over-crawl bound + `live_ticker` Negative Space — DONE (2026-06-22; operator-requested finding).** Measured: 82/83 revisions in the validation corpus are `cdx_snapshot` (Wayback CDX backfill), not live edits. A **live-ticker** (weather / live-blog — a stable URL with ever-changing content) accumulates dozens-to-hundreds of distinct CDX content-versions; backfilling + diffing/enriching each costs CPU for zero analytical value. **Reliable, source-agnostic signal = CDX-snapshot count per article** (not per-source URL patterns, which the operator correctly flagged as unreliable cross-source). Two-part fix: (1) **Worker** — `article_revisions._build_chain` caps the chain at `MAX_CDX_REVISIONS_PER_ARTICLE = 20` (provisional; validation real articles topped at 8), keeping the chronologically-first N + logging `article_revisions.chain_capped` → bounds the diff/enrichment cost. (2) **Frontend** — an 8th NS class `live_ticker` (`negative-space.ts`, `LIVE_TICKER_REVISION_FLOOR = 20`, MUST match the worker cap; classifier reads `NSRow.chainLength`), wired free via `ArticleRow` (already passes `chainLength`), label/desc in `domain.json` EN+DE, WP-007 §4.3 anchor → a capped ticker surfaces as Negative Space + is excluded from the analytical reading, disclosed not silently dropped. Gates: worker 479 passed / cov 81.06 %; `make fe-test` ($lib floor 90) green; `negative-space.test.ts` pins the 8-class vocabulary + the live-ticker classifier. *Follow-up (deferred): deeper exclusion from every Gold aggregate query + threshold tuning once real ticker data exists at scale.*
 
 ### Validation
-* [ ] A full `make reset` + `make crawl` completes a topic tick with real topic rows; worker RSS stays bounded; new Silver objects no longer carry `raw_text` and the L5 Raw view resolves from Bronze (with the 90-day note); the word_count policy behaves as decided (thin-content + over-cap live-ticker articles surface as Negative Space). `make lint` + touched-service tests + coverage floors green.
+* [x] **e2e PASSED (2026-06-22):** fresh `make reset` + `make crawl` (644 docs, 0 quarantine / 0 dlq). Item 1 — warm full-corpus topic tick completed (de 295 + fr 343 → **9 topics**, no hang, fr ~5.9 min). Item 2 — worker RAM peak **9.12 GiB < 11 GiB** cap (6 GiB would have OOM'd on this 644-doc corpus → the raise is justified). Item 3 — a new Silver object had **`raw_text` absent** (19 KB) while Bronze carried `raw_html` (362 KB) for the on-demand Raw view. Item 4 — **21 articles with `word_count` < 50** → thin_content disclosure fires. Item 5 — max revision chain **6 < cap 20** (cap active, no false positives; no real ticker in the fresh corpus). `make lint` + touched-service tests + coverage floors green earlier in the session.
 
 ---
 
