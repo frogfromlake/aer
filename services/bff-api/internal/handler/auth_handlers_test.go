@@ -98,12 +98,16 @@ func (m *mockAuth) ConsumeToken(_ context.Context, tokenHash, purpose string) (s
 	tok.consumed = true
 	return tok.userID, nil
 }
-func (m *mockAuth) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+func (m *mockAuth) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash, firstName, lastName string) (string, error) {
 	userID, _ := m.ConsumeToken(ctx, tokenHash, "invite")
 	if userID == "" {
 		return "", nil
 	}
 	_ = m.ActivateUser(ctx, userID, passwordHash)
+	if u := m.byID[userID]; u != nil {
+		u.FirstName = firstName
+		u.LastName = lastName
+	}
 	return userID, nil
 }
 func (m *mockAuth) ConsumeTokenAndResetPassword(ctx context.Context, tokenHash, passwordHash string) (string, error) {
@@ -125,6 +129,13 @@ func (m *mockAuth) ActivateUser(_ context.Context, id, passwordHash string) erro
 func (m *mockAuth) UpdateUserPassword(_ context.Context, id, passwordHash string) error {
 	if u := m.byID[id]; u != nil {
 		u.PasswordHash = sql.NullString{String: passwordHash, Valid: true}
+	}
+	return nil
+}
+func (m *mockAuth) UpdateUserNames(_ context.Context, id, firstName, lastName string) error {
+	if u := m.byID[id]; u != nil {
+		u.FirstName = firstName
+		u.LastName = lastName
 	}
 	return nil
 }
@@ -339,7 +350,9 @@ func TestLoginCorrectPasswordBypassesArmedThrottle(t *testing.T) {
 }
 
 func TestMeRequiresSession(t *testing.T) {
-	s := authTestServer(newMockAuth())
+	m := newMockAuth()
+	m.addUser(&storage.AuthUser{ID: "u1", Email: "alice@example.org", FirstName: "Alice", LastName: "Active", Role: "researcher", Status: "active"})
+	s := authTestServer(m)
 
 	// No identity in context → 401.
 	resp, _ := s.GetAuthMe(context.Background(), GetAuthMeRequestObject{})
@@ -349,13 +362,16 @@ func TestMeRequiresSession(t *testing.T) {
 		t.Fatalf("expected 401 without session, got %d", rec.Code)
 	}
 
-	// Identity in context → 200.
+	// Identity in context → 200 with the display name (Phase 148e).
 	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "u1", Email: "alice@example.org", Role: auth.RoleResearcher})
 	resp, _ = s.GetAuthMe(ctx, GetAuthMeRequestObject{})
 	rec = httptest.NewRecorder()
 	_ = resp.VisitGetAuthMeResponse(rec)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 with session, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"firstName":"Alice"`) {
+		t.Fatalf("expected the display name in /me, got %s", rec.Body.String())
 	}
 }
 
@@ -388,7 +404,7 @@ func TestAcceptInviteActivatesAndLogsIn(t *testing.T) {
 	s := authTestServer(m)
 
 	resp, err := s.PostAuthAcceptInvite(context.Background(), PostAuthAcceptInviteRequestObject{
-		Body: &PostAuthAcceptInviteJSONRequestBody{Token: rawTok, Password: "freshpassword123", AcceptResponsibleUse: true},
+		Body: &PostAuthAcceptInviteJSONRequestBody{Token: rawTok, FirstName: "Test", LastName: "User", Password: "freshpassword123", AcceptResponsibleUse: true},
 	})
 	if err != nil {
 		t.Fatalf("accept-invite: %v", err)
@@ -404,9 +420,12 @@ func TestAcceptInviteActivatesAndLogsIn(t *testing.T) {
 	if m.byID["u1"].Status != "active" {
 		t.Fatal("expected user to be activated")
 	}
+	if m.byID["u1"].FirstName != "Test" || m.byID["u1"].LastName != "User" {
+		t.Fatalf("expected the name set at activation, got %q %q", m.byID["u1"].FirstName, m.byID["u1"].LastName)
+	}
 	// Token is single-use: a replay must now fail with 400 invalid_token.
 	resp, _ = s.PostAuthAcceptInvite(context.Background(), PostAuthAcceptInviteRequestObject{
-		Body: &PostAuthAcceptInviteJSONRequestBody{Token: rawTok, Password: "freshpassword123", AcceptResponsibleUse: true},
+		Body: &PostAuthAcceptInviteJSONRequestBody{Token: rawTok, FirstName: "Test", LastName: "User", Password: "freshpassword123", AcceptResponsibleUse: true},
 	})
 	rec = httptest.NewRecorder()
 	_ = resp.VisitPostAuthAcceptInviteResponse(rec)
@@ -432,6 +451,69 @@ func TestAcceptInviteRequiresConsent(t *testing.T) {
 	}
 	if m.byID["u1"].Status == "active" {
 		t.Fatal("user must not be activated without consent")
+	}
+}
+
+func TestAcceptInviteRejectsEmptyName(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(&storage.AuthUser{ID: "u1", Email: "new@example.org", Role: "researcher", Status: "invited"})
+	rawTok, hashTok, _ := auth.GenerateOpaqueToken()
+	m.tokens[hashTok] = &mockToken{userID: "u1", purpose: "invite"}
+	s := authTestServer(m)
+
+	// A blank (whitespace-only) name is rejected; the token must NOT be burned.
+	resp, _ := s.PostAuthAcceptInvite(context.Background(), PostAuthAcceptInviteRequestObject{
+		Body: &PostAuthAcceptInviteJSONRequestBody{Token: rawTok, FirstName: "  ", LastName: "User", Password: "freshpassword123", AcceptResponsibleUse: true},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPostAuthAcceptInviteResponse(rec)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 invalid_name, got %d", rec.Code)
+	}
+	if m.byID["u1"].Status == "active" {
+		t.Fatal("user must not be activated with an invalid name")
+	}
+}
+
+func TestPatchAuthMeUpdatesName(t *testing.T) {
+	m := newMockAuth()
+	m.addUser(&storage.AuthUser{ID: "u1", Email: "alice@example.org", FirstName: "Alice", LastName: "Active", Role: "researcher", Status: "active"})
+	s := authTestServer(m)
+	ctx := auth.WithIdentity(context.Background(), &auth.Identity{UserID: "u1", Email: "alice@example.org", Role: auth.RoleResearcher})
+
+	// No session → 401.
+	resp, _ := s.PatchAuthMe(context.Background(), PatchAuthMeRequestObject{
+		Body: &PatchAuthMeJSONRequestBody{FirstName: "X", LastName: "Y"},
+	})
+	rec := httptest.NewRecorder()
+	_ = resp.VisitPatchAuthMeResponse(rec)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without session, got %d", rec.Code)
+	}
+
+	// Blank name → 400, no mutation.
+	resp, _ = s.PatchAuthMe(ctx, PatchAuthMeRequestObject{Body: &PatchAuthMeJSONRequestBody{FirstName: "", LastName: "Y"}})
+	rec = httptest.NewRecorder()
+	_ = resp.VisitPatchAuthMeResponse(rec)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 invalid_name, got %d", rec.Code)
+	}
+	if m.byID["u1"].FirstName != "Alice" {
+		t.Fatal("a rejected edit must not mutate the name")
+	}
+
+	// Valid edit → 200, trimmed, returned + persisted.
+	resp, _ = s.PatchAuthMe(ctx, PatchAuthMeRequestObject{Body: &PatchAuthMeJSONRequestBody{FirstName: " Alicia ", LastName: " Renamed "}})
+	rec = httptest.NewRecorder()
+	_ = resp.VisitPatchAuthMeResponse(rec)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if m.byID["u1"].FirstName != "Alicia" || m.byID["u1"].LastName != "Renamed" {
+		t.Fatalf("expected the trimmed name persisted, got %q %q", m.byID["u1"].FirstName, m.byID["u1"].LastName)
+	}
+	if !strings.Contains(rec.Body.String(), `"firstName":"Alicia"`) {
+		t.Fatalf("expected the updated name in the response, got %s", rec.Body.String())
 	}
 }
 

@@ -14,6 +14,8 @@
   const MIN_LEN = 12;
 
   let token = $state('');
+  let firstName = $state('');
+  let lastName = $state('');
   let password = $state('');
   let confirm = $state('');
   let consent = $state(false);
@@ -28,7 +30,13 @@
   const tooShort = $derived(password.length > 0 && password.length < MIN_LEN);
   const mismatch = $derived(confirm.length > 0 && password !== confirm);
   const canSubmit = $derived(
-    token.length > 0 && password.length >= MIN_LEN && password === confirm && consent && !submitting
+    token.length > 0 &&
+      firstName.trim().length > 0 &&
+      lastName.trim().length > 0 &&
+      password.length >= MIN_LEN &&
+      password === confirm &&
+      consent &&
+      !submitting
   );
 
   async function submit(event: SubmitEvent) {
@@ -36,7 +44,13 @@
     if (!canSubmit) return;
     error = null;
     submitting = true;
-    const res = await authApi.acceptInvite(token, password, consent);
+    const res = await authApi.acceptInvite(
+      token,
+      firstName.trim(),
+      lastName.trim(),
+      password,
+      consent
+    );
     submitting = false;
     if (res.ok) {
       setUser(res.data);
@@ -49,11 +63,13 @@
     error =
       res.code === 'invalid_token'
         ? m.auth_invite_error_invalid_token()
-        : res.code === 'weak_password'
-          ? m.auth_password_too_weak({ min: MIN_LEN })
-          : res.code === 'consent_required'
-            ? m.auth_invite_error_consent_required()
-            : m.auth_invite_error_generic();
+        : res.code === 'invalid_name'
+          ? m.auth_invite_error_invalid_name()
+          : res.code === 'weak_password'
+            ? m.auth_password_too_weak({ min: MIN_LEN })
+            : res.code === 'consent_required'
+              ? m.auth_invite_error_consent_required()
+              : m.auth_invite_error_generic();
   }
 </script>
 
@@ -67,6 +83,25 @@
     {#if !token}
       <AuthNotice variant="error">{m.auth_invite_missing_token()}</AuthNotice>
     {/if}
+
+    <div class="name-row">
+      <AuthField
+        id="first-name"
+        label={m.auth_field_first_name_label()}
+        bind:value={firstName}
+        autocomplete="given-name"
+        required
+        disabled={submitting}
+      />
+      <AuthField
+        id="last-name"
+        label={m.auth_field_last_name_label()}
+        bind:value={lastName}
+        autocomplete="family-name"
+        required
+        disabled={submitting}
+      />
+    </div>
 
     <AuthField
       id="password"
@@ -119,6 +154,17 @@
   form :global(.btn) {
     width: 100%;
     margin-top: var(--space-2);
+  }
+  /* Given + family name sit side by side; they stack on a very narrow card. */
+  .name-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  @media (max-width: 22rem) {
+    .name-row {
+      grid-template-columns: 1fr;
+    }
   }
   .inline-warn {
     font-size: var(--font-size-xs);

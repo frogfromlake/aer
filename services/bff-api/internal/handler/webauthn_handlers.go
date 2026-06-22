@@ -98,7 +98,8 @@ func (s *Server) PostAuthWebauthnRegisterFinish(ctx context.Context, request Pos
 	}
 	parsed, err := parseCreationResponse(*request.Body)
 	if err != nil {
-		return PostAuthWebauthnRegisterFinish400JSONResponse{Code: "invalid_attestation", Message: "could not parse the attestation"}, nil
+		slog.Warn("webauthn register finish: parse creation response", "error", err)
+		return PostAuthWebauthnRegisterFinish400JSONResponse{Code: "invalid_request", Message: "could not parse the registration response"}, nil
 	}
 	user, err := s.webAuthnUserFor(ctx, id)
 	if err != nil {
@@ -107,7 +108,11 @@ func (s *Server) PostAuthWebauthnRegisterFinish(ctx context.Context, request Pos
 	}
 	cred, err := s.webAuthn.CreateCredential(user, *sessionData, parsed)
 	if err != nil {
-		return PostAuthWebauthnRegisterFinish400JSONResponse{Code: "invalid_attestation", Message: "attestation verification failed"}, nil
+		// Log (never leak) the real cause: most "failed to verify" errors here
+		// are an origin / RP-ID mismatch or an expired challenge, NOT attestation
+		// per se. The client localizes by code; the operator diagnoses from this.
+		slog.Warn("webauthn register finish: credential verification failed", "error", err)
+		return PostAuthWebauthnRegisterFinish400JSONResponse{Code: "verification_failed", Message: "passkey registration could not be verified"}, nil
 	}
 	meta, err := s.webAuthnBackend.SaveCredential(ctx, id.UserID, cred, "")
 	if err != nil {

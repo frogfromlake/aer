@@ -86,6 +86,41 @@ func TestAnalysesStore_CRUDAndVisibility(t *testing.T) {
 	}
 }
 
+// Phase 148e — the owner name is LIVE-JOINED (never snapshotted): a freshly
+// seeded user (no name) falls back to the email, and renaming the owner
+// afterwards is reflected on the very same analysis. This is the property that
+// makes self-service name edits safe across saved/shared analyses.
+func TestAnalysesStore_OwnerNameLiveJoin(t *testing.T) {
+	s, ctx := setupAuthStore(t)
+	owner := seedUser(t, s, ctx, "owner@x.y", "active") // seeded without a name
+	as := NewAnalysesStore(s.db)
+
+	created, err := as.Create(ctx, owner, "A", "", "?s=1")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// No name yet → ownerName falls back to the email.
+	if created.OwnerName != "owner@x.y" {
+		t.Fatalf("expected email fallback, got %q", created.OwnerName)
+	}
+
+	// Rename the owner; the SAME analysis now reports the new display name.
+	if err := s.UpdateUserNames(ctx, owner, "Ada", "Lovelace"); err != nil {
+		t.Fatalf("update names: %v", err)
+	}
+	got, err := as.Get(ctx, created.ID, owner)
+	if err != nil || got == nil {
+		t.Fatalf("get: %+v err=%v", got, err)
+	}
+	if got.OwnerName != "Ada Lovelace" {
+		t.Fatalf("expected live-joined name 'Ada Lovelace', got %q", got.OwnerName)
+	}
+	items, err := as.ListVisible(ctx, owner)
+	if err != nil || len(items) != 1 || items[0].OwnerName != "Ada Lovelace" {
+		t.Fatalf("list must reflect the rename too, got %+v err=%v", items, err)
+	}
+}
+
 // SEC-016 — CountOwned backs the per-user row cap: it counts only the caller's
 // own analyses, and a malformed user id degrades to 0 (not an error).
 func TestAnalysesStore_CountOwned(t *testing.T) {

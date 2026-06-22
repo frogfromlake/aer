@@ -65,7 +65,11 @@ export interface paths {
         delete: operations["deleteAuthMe"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update the current user's display name (Phase 148e)
+         * @description Updates the authenticated user's first/last name. Names are self-service editable; the change propagates everywhere they are shown (avatar, identity card, saved-analyses owner column) because those read the name live by owner id. Requires a session.
+         */
+        patch: operations["patchAuthMe"];
         trace?: never;
     };
     "/auth/me/export": {
@@ -2976,6 +2980,10 @@ export interface components {
             id: string;
             /** Format: email */
             email: string;
+            /** @description Given name, set once at invite acceptance (Phase 148e). May be empty for a pre-names account; the UI then falls back to email-derived initials. */
+            firstName: string;
+            /** @description Family name, set once at invite acceptance (Phase 148e). */
+            lastName: string;
             /** @description RBAC role (ADR-040) — one of `admin`, `researcher`. */
             role: string;
             /** @description Account status — one of `invited`, `active`, `suspended`. */
@@ -2998,6 +3006,10 @@ export interface components {
         AcceptInviteRequest: {
             /** @description The single-use invite token from the invitation link. */
             token: string;
+            /** @description The invitee's given name, set once here (Phase 148e). Trimmed + required server-side; it becomes the stable identity label across the app. */
+            firstName: string;
+            /** @description The invitee's family name, set once here (Phase 148e). Trimmed + required. */
+            lastName: string;
             /** @description The password the invitee chooses. Minimum length re-checked server-side. */
             password: string;
             /** @description Must be true. Records the LICENSE §3.2.b responsible-use consent at activation. A false/absent value returns 400 `consent_required`. */
@@ -3026,6 +3038,10 @@ export interface components {
             id: string;
             /** Format: email */
             email: string;
+            /** @description Given name (Phase 148e). May be empty for a pre-names account. */
+            firstName: string;
+            /** @description Family name (Phase 148e). May be empty for a pre-names account. */
+            lastName: string;
             /** @description One of `admin`, `researcher`. */
             role: string;
             /** @description One of `invited`, `active`, `suspended`. */
@@ -3107,6 +3123,8 @@ export interface components {
             id: string;
             name: string;
             description: string;
+            /** @description The creator's display name (live-joined first + last name; falls back to the email when unset). Primary owner label; the email is secondary. */
+            ownerName: string;
             /**
              * Format: email
              * @description The creator's email.
@@ -3131,6 +3149,8 @@ export interface components {
             description: string;
             /** @description The serialized Workbench URL query */
             state: string;
+            /** @description The creator's display name (live-joined first + last name; falls back to the email when unset). */
+            ownerName: string;
             /** Format: email */
             ownerEmail: string;
             /** Format: date-time */
@@ -3349,6 +3369,71 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description A human-readable error message. */
+                        message: string;
+                        /** @description Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors. */
+                        gate?: string | null;
+                        /** @description Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal. */
+                        workingPaperAnchor?: string | null;
+                        /** @description Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling. */
+                        alternatives?: string[] | null;
+                    };
+                };
+            };
+        };
+    };
+    patchAuthMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Given name. Trimmed + required server-side. */
+                    firstName: string;
+                    /** @description Family name. Trimmed + required server-side. */
+                    lastName: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUser"];
+                };
+            };
+            /** @description The name fails validation (`invalid_name`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
             };
             /** @description No valid session. */
             401: {

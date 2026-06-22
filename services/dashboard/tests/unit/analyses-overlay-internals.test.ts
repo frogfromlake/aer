@@ -24,6 +24,7 @@ function row(over: Partial<AnalysisListItem> = {}): AnalysisListItem {
     id: 'id-1',
     name: 'Alpha',
     description: 'desc',
+    ownerName: 'Owner Name',
     ownerEmail: 'owner@aer.test',
     createdAt: '2026-05-01T00:00:00Z',
     updatedAt: '2026-05-02T00:00:00Z',

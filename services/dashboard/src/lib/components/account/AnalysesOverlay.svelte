@@ -21,6 +21,7 @@
   import { m } from '$lib/paraglide/messages.js';
   import AnalysisTable from './AnalysisTable.svelte';
   import AnalysisDrawer from './AnalysisDrawer.svelte';
+  import AnalysisSavePanel from './AnalysisSavePanel.svelte';
   import {
     filterAnalyses,
     sortAnalyses,
@@ -268,61 +269,38 @@
             bind:value={search}
             aria-label={m.account_analyses_search_label()}
           />
-          {#if canSaveCurrent}
+          <!-- The toolbar button only OPENS the save panel; once it is open the
+               panel's own Save button commits, so hide this to avoid two
+               save-looking buttons (operator finding). -->
+          {#if canSaveCurrent && saveStep === 'closed'}
             <Button variant="primary" onclick={beginSave}
               >{m.account_analyses_save_current()}</Button
             >
-          {:else}
+          {:else if !canSaveCurrent}
             <span class="save-hint" title={m.account_analyses_save_hint_title()}
               >{m.account_analyses_save_hint()}</span
             >
           {/if}
         </div>
 
-        {#if saveMsg}<AuthNotice variant={saveMsg.kind}>{saveMsg.text}</AuthNotice>{/if}
+        <!-- Errors stay inline, anchored to the action; success is a floating
+             toast (below) so it never reflows the table. -->
+        {#if saveMsg?.kind === 'error'}
+          <AuthNotice variant="error">{saveMsg.text}</AuthNotice>
+        {/if}
 
         {#if saveStep === 'open'}
-          <div class="save-form">
-            {#if showSaveChoice && loadedAnalysis}
-              <p class="muted">
-                {m.account_analyses_save_choice({ name: loadedAnalysis.name })}
-              </p>
-              <div class="row-actions">
-                <Button variant="primary" loading={saving} onclick={updateLoaded}
-                  >{m.account_analyses_save_update({ name: loadedAnalysis.name })}</Button
-                >
-                <Button variant="secondary" onclick={beginSaveAsNew}
-                  >{m.account_analyses_save_as_new()}</Button
-                >
-                <Button variant="secondary" onclick={cancelSave}>{m.common_cancel()}</Button>
-              </div>
-            {:else}
-              <p class="muted">{m.account_analyses_save_intro()}</p>
-              <form class="save-fields" onsubmit={saveAsNew} novalidate>
-                <input
-                  class="field"
-                  placeholder={m.account_analyses_save_name_placeholder()}
-                  bind:value={saveName}
-                  aria-label={m.account_analyses_save_name_label()}
-                />
-                <input
-                  class="field"
-                  placeholder={m.account_analyses_save_description_placeholder()}
-                  bind:value={saveDescription}
-                  aria-label={m.account_analyses_save_description_label()}
-                />
-                <div class="row-actions">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    loading={saving}
-                    disabled={!saveName.trim()}>{m.common_save()}</Button
-                  >
-                  <Button variant="secondary" onclick={cancelSave}>{m.common_cancel()}</Button>
-                </div>
-              </form>
-            {/if}
-          </div>
+          <AnalysisSavePanel
+            showChoice={showSaveChoice}
+            {loadedAnalysis}
+            bind:saveName
+            bind:saveDescription
+            {saving}
+            onUpdate={updateLoaded}
+            onSaveAsNewChoice={beginSaveAsNew}
+            onSubmit={saveAsNew}
+            onCancel={cancelSave}
+          />
         {/if}
 
         <!-- filters -->
@@ -379,6 +357,10 @@
             {onOpenRow}
           />
         </div>
+
+        {#if saveMsg?.kind === 'success'}
+          <div class="save-toast" role="status" aria-live="polite">{saveMsg.text}</div>
+        {/if}
       </section>
 
       <AnalysisDrawer analysis={selected} onClose={closeDrawer} onChanged={loadList} />
@@ -418,6 +400,8 @@
     min-width: 0;
     height: 100%;
     overflow: hidden;
+    /* Anchor for the floating success toast. */
+    position: relative;
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -457,8 +441,8 @@
     gap: var(--space-3);
     align-items: center;
   }
-  .search,
-  .field {
+  .search {
+    flex: 1;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -467,9 +451,6 @@
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
   }
-  .search {
-    flex: 1;
-  }
   .save-hint {
     flex-shrink: 0;
     font-size: var(--font-size-xs);
@@ -477,29 +458,45 @@
     max-width: 16rem;
     line-height: var(--line-height-base);
   }
-  .field {
-    width: 100%;
-  }
-  .search:focus-visible,
-  .field:focus-visible {
+  .search:focus-visible {
     outline: none;
     border-color: var(--color-accent);
     box-shadow: 0 0 0 var(--focus-ring-width)
       color-mix(in oklab, var(--color-accent) 40%, transparent);
   }
-  .save-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
+  /* Floating success toast — bottom-centre inside the panel, out of layout flow
+     so appearing/dismissing never reflows the table (operator finding). */
+  .save-toast {
+    position: absolute;
+    bottom: var(--space-4);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    max-width: calc(100% - 2 * var(--space-6));
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-bg-elevated);
+    border: 1px solid color-mix(in srgb, var(--color-status-validated) 55%, var(--color-border));
     border-radius: var(--radius-md);
+    box-shadow: var(--elevation-2);
+    color: var(--color-status-validated);
+    font-size: var(--font-size-sm);
+    text-align: center;
+    animation: save-toast-in var(--motion-duration-fast) var(--motion-ease-standard);
   }
-  .save-fields {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+  @keyframes save-toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, var(--space-2));
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .save-toast {
+      animation: none;
+    }
   }
   .filters {
     display: flex;
@@ -543,16 +540,5 @@
     gap: var(--space-4);
     overflow: hidden;
     min-height: 0;
-  }
-  .row-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-  .muted {
-    color: var(--color-fg-muted);
-    font-size: var(--font-size-sm);
-    margin: 0;
-    line-height: var(--line-height-base);
   }
 </style>

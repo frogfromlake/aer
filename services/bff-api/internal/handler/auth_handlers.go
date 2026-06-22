@@ -190,11 +190,57 @@ func (s *Server) GetAuthMe(ctx context.Context, _ GetAuthMeRequestObject) (GetAu
 	if !ok || id.Machine || id.UserID == "" {
 		return GetAuthMe401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
 	}
+	// Load the row for the display name (Phase 148e); the session Identity
+	// carries only id/email/role.
+	u, err := s.authBackend.GetUserByID(ctx, id.UserID)
+	if err != nil {
+		slog.Error("auth me: load user", "error", err)
+		return GetAuthMe500JSONResponse{Message: genericInternalError}, nil
+	}
+	if u == nil {
+		return GetAuthMe401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
+	}
 	return GetAuthMe200JSONResponse{
-		ID:     id.UserID,
-		Email:  openapi_types.Email(id.Email),
-		Role:   string(id.Role),
-		Status: "active",
+		ID:        u.ID,
+		Email:     openapi_types.Email(u.Email),
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Role:      u.Role,
+		Status:    u.Status,
+	}, nil
+}
+
+// PatchAuthMe updates the authenticated user's display name (Phase 148e).
+// Self-service: the user edits their own name. Read live everywhere it shows,
+// so the change propagates without a snapshot.
+func (s *Server) PatchAuthMe(ctx context.Context, request PatchAuthMeRequestObject) (PatchAuthMeResponseObject, error) {
+	id, ok := auth.IdentityFromContext(ctx)
+	if !ok || id.Machine || id.UserID == "" {
+		return PatchAuthMe401JSONResponse{Code: "unauthenticated", Message: "no active session"}, nil
+	}
+	if request.Body == nil {
+		return PatchAuthMe400JSONResponse{Code: "invalid_request", Message: "missing request body"}, nil
+	}
+	firstName, lastName := strings.TrimSpace(request.Body.FirstName), strings.TrimSpace(request.Body.LastName)
+	if firstName == "" || lastName == "" || len([]rune(firstName)) > 80 || len([]rune(lastName)) > 80 {
+		return PatchAuthMe400JSONResponse{Code: "invalid_name", Message: "a first and last name (1–80 characters each) are required"}, nil
+	}
+	if err := s.authBackend.UpdateUserNames(ctx, id.UserID, firstName, lastName); err != nil {
+		slog.Error("auth me: update names", "error", err)
+		return PatchAuthMe500JSONResponse{Message: genericInternalError}, nil
+	}
+	u, err := s.authBackend.GetUserByID(ctx, id.UserID)
+	if err != nil || u == nil {
+		slog.Error("auth me: reload after name update", "error", err)
+		return PatchAuthMe500JSONResponse{Message: genericInternalError}, nil
+	}
+	return PatchAuthMe200JSONResponse{
+		ID:        u.ID,
+		Email:     openapi_types.Email(u.Email),
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Role:      u.Role,
+		Status:    u.Status,
 	}, nil
 }
 
@@ -211,6 +257,13 @@ func (s *Server) PostAuthAcceptInvite(ctx context.Context, request PostAuthAccep
 	if !passwordOK(b.Password) {
 		return PostAuthAcceptInvite400JSONResponse{Code: "weak_password", Message: "password too short"}, nil
 	}
+	// Names are set once here (Phase 148e) and become the stable identity label.
+	// Trim + require non-empty + cap length server-side (never trust the client's
+	// minLength/maxLength alone).
+	firstName, lastName := strings.TrimSpace(b.FirstName), strings.TrimSpace(b.LastName)
+	if firstName == "" || lastName == "" || len([]rune(firstName)) > 80 || len([]rune(lastName)) > 80 {
+		return PostAuthAcceptInvite400JSONResponse{Code: "invalid_name", Message: "a first and last name (1–80 characters each) are required"}, nil
+	}
 	// Hash before the transaction so the CPU-bound argon2 work never holds the
 	// token+activate tx open.
 	pwHash, err := auth.HashPassword(b.Password, s.authConfig.Argon2)
@@ -220,7 +273,7 @@ func (s *Server) PostAuthAcceptInvite(ctx context.Context, request PostAuthAccep
 	}
 	// SEC-078 — consume the single-use token and activate atomically: a partial
 	// failure can no longer burn the token while leaving the account inactive.
-	userID, err := s.authBackend.ConsumeTokenAndActivate(ctx, auth.HashOpaqueToken(b.Token), pwHash)
+	userID, err := s.authBackend.ConsumeTokenAndActivate(ctx, auth.HashOpaqueToken(b.Token), pwHash, firstName, lastName)
 	if err != nil {
 		slog.Error("accept-invite: consume token and activate", "error", err)
 		return PostAuthAcceptInvite500JSONResponse{Message: genericInternalError}, nil
@@ -389,18 +442,22 @@ func (s *Server) PostAuthChangePassword(ctx context.Context, request PostAuthCha
 
 func loginUserResponse(u *storage.AuthUser) PostAuthLogin200JSONResponse {
 	return PostAuthLogin200JSONResponse{
-		ID:     u.ID,
-		Email:  openapi_types.Email(u.Email),
-		Role:   u.Role,
-		Status: u.Status,
+		ID:        u.ID,
+		Email:     openapi_types.Email(u.Email),
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Role:      u.Role,
+		Status:    u.Status,
 	}
 }
 
 func acceptInviteUserResponse(u *storage.AuthUser) PostAuthAcceptInvite200JSONResponse {
 	return PostAuthAcceptInvite200JSONResponse{
-		ID:     u.ID,
-		Email:  openapi_types.Email(u.Email),
-		Role:   u.Role,
-		Status: u.Status,
+		ID:        u.ID,
+		Email:     openapi_types.Email(u.Email),
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Role:      u.Role,
+		Status:    u.Status,
 	}
 }

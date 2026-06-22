@@ -24,20 +24,26 @@ function bufToB64url(buf: ArrayBuffer): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-type CeremonyResult = { ok: true } | { ok: false; message: string };
+// Failure is reported as a stable CODE, not a message: the UI localizes it
+// (the user reported the raw English/lowercase backend message leaking through).
+//   unsupported — this browser has no WebAuthn
+//   cancelled   — the user dismissed the OS prompt, or it timed out
+//   failed      — begin/finish round-trip failed (e.g. origin / RP-ID mismatch)
+export type CeremonyErrorCode = 'unsupported' | 'cancelled' | 'failed';
+type CeremonyResult = { ok: true } | { ok: false; code: CeremonyErrorCode };
 
 /** Registers a new passkey for the current user via the full ceremony. */
 export async function registerPasskey(): Promise<CeremonyResult> {
   if (typeof navigator === 'undefined' || !navigator.credentials) {
-    return { ok: false, message: 'This browser does not support passkeys.' };
+    return { ok: false, code: 'unsupported' };
   }
 
   const begin = await authApi.passkeyRegisterBegin();
-  if (!begin.ok) return { ok: false, message: begin.message };
+  if (!begin.ok) return { ok: false, code: 'failed' };
 
   // go-webauthn wraps the options under `publicKey`.
   const opts = (begin.data as { publicKey?: Record<string, unknown> }).publicKey;
-  if (!opts) return { ok: false, message: 'Malformed registration options.' };
+  if (!opts) return { ok: false, code: 'failed' };
 
   const user = opts.user as { id: string; name: string; displayName: string };
   const exclude = (opts.excludeCredentials as Array<Record<string, unknown>> | undefined) ?? [];
@@ -55,10 +61,10 @@ export async function registerPasskey(): Promise<CeremonyResult> {
   let credential: PublicKeyCredential;
   try {
     const c = await navigator.credentials.create({ publicKey });
-    if (!c) return { ok: false, message: 'Passkey creation was cancelled.' };
+    if (!c) return { ok: false, code: 'cancelled' };
     credential = c as PublicKeyCredential;
   } catch {
-    return { ok: false, message: 'Passkey creation was cancelled or failed.' };
+    return { ok: false, code: 'cancelled' };
   }
 
   const att = credential.response as AuthenticatorAttestationResponse;
@@ -74,5 +80,5 @@ export async function registerPasskey(): Promise<CeremonyResult> {
   };
 
   const finish = await authApi.passkeyRegisterFinish(body);
-  return finish.ok ? { ok: true } : { ok: false, message: finish.message };
+  return finish.ok ? { ok: true } : { ok: false, code: 'failed' };
 }

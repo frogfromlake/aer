@@ -30,8 +30,8 @@
   "levers_withheld_show_anyway": "Trotzdem anzeigen",
 
   "levers_degenerate_eyebrow": "Kein Signal",
-  "levers_degenerate_lead_one": "{count} Dimension ist im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt (offengelegt, nicht still gefiltert — ADR-039):",
-  "levers_degenerate_lead_other": "{count} Dimensionen sind im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt (offengelegt, nicht still gefiltert — ADR-039):",
+  "levers_degenerate_lead_one": "{count} Dimension ist im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt:",
+  "levers_degenerate_lead_other": "{count} Dimensionen sind im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt:",
   "levers_degenerate_value": "= {value} (konstant)",
   "levers_lowsignal_eyebrow": "Effektiv konstant",
   "levers_lowsignal_lead_one": "{count} Dimension ist im Scope nahezu konstant — weiter wählbar, trägt aber kaum Signal:",
@@ -91,7 +91,7 @@
   "levers_compare_help_raw": "roh",
   "levers_compare_help_pre": "(Z-Wert) und",
   "levers_compare_help_mid": "vergleichen Werte",
-  "levers_compare_help_body": "— was voraussetzt, dass die Metrik in jedem Kontext dasselbe misst. AĒR erlaubt dies erst, sobald für die Metrik eine Baseline + eine kontextübergreifende Äquivalenzstudie vorliegen (ADR-016 / WP-004);",
+  "levers_compare_help_body": "— was voraussetzt, dass die Metrik in jedem Kontext dasselbe misst. AĒR erlaubt dies erst, sobald für die Metrik eine Baseline + eine kontextübergreifende Äquivalenzstudie vorliegen (WP-004);",
   "levers_compare_help_post": "hat noch keine, daher bleiben diese deaktiviert, statt einen unbewiesenen Vergleich anzuzeigen.",
   "levers_compare_help_raw_always": "funktioniert immer.",
 

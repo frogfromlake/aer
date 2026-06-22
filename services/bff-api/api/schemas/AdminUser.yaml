@@ -3,6 +3,8 @@ description: A user row as seen by an admin (ADR-040, Phase 134).
 required:
   - id
   - email
+  - firstName
+  - lastName
   - role
   - status
   - createdAt
@@ -13,6 +15,12 @@ properties:
   email:
     type: string
     format: email
+  firstName:
+    type: string
+    description: Given name (Phase 148e). May be empty for a pre-names account.
+  lastName:
+    type: string
+    description: Family name (Phase 148e). May be empty for a pre-names account.
   role:
     type: string
     description: One of `admin`, `researcher`.

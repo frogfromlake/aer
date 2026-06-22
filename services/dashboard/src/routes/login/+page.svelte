@@ -15,6 +15,11 @@
   let password = $state('');
   let error = $state<string | null>(null);
   let submitting = $state(false);
+  // Hold the form back until the session check resolves. An already-signed-in
+  // visitor is redirected without the login form ever painting (otherwise it
+  // flashes for a frame before the redirect — e.g. arriving from the
+  // forgot-password "back to sign in" link while still logged in).
+  let checking = $state(true);
 
   function redirectTarget(): string {
     return safeRedirect(new URLSearchParams(window.location.search).get('redirect'));
@@ -25,7 +30,11 @@
     // never lingers in the history back-stack — otherwise the SideRail
     // back-arrow (Phase 127) would land on /login and bounce straight back here.
     const r = await refreshMe();
-    if (r.state === 'authenticated') await goto(redirectTarget(), { replaceState: true });
+    if (r.state === 'authenticated') {
+      await goto(redirectTarget(), { replaceState: true });
+      return; // keep `checking` true so the form never paints before the redirect
+    }
+    checking = false;
   });
 
   async function submit(event: SubmitEvent) {
@@ -48,39 +57,41 @@
 
 <svelte:head><title>{m.auth_login_doc_title()}</title></svelte:head>
 
-<AuthCard title={m.auth_login_title()} subtitle={m.auth_login_subtitle()}>
-  <form onsubmit={submit} novalidate>
-    {#if error}
-      <AuthNotice variant="error">{error}</AuthNotice>
-    {/if}
+{#if !checking}
+  <AuthCard title={m.auth_login_title()} subtitle={m.auth_login_subtitle()}>
+    <form onsubmit={submit} novalidate>
+      {#if error}
+        <AuthNotice variant="error">{error}</AuthNotice>
+      {/if}
 
-    <AuthField
-      id="email"
-      label={m.auth_field_email_label()}
-      type="email"
-      bind:value={email}
-      autocomplete="username"
-      placeholder={m.auth_field_email_placeholder()}
-      required
-      disabled={submitting}
-    />
-    <AuthField
-      id="password"
-      label={m.auth_field_password_label()}
-      type="password"
-      bind:value={password}
-      autocomplete="current-password"
-      required
-      disabled={submitting}
-    />
+      <AuthField
+        id="email"
+        label={m.auth_field_email_label()}
+        type="email"
+        bind:value={email}
+        autocomplete="username"
+        placeholder={m.auth_field_email_placeholder()}
+        required
+        disabled={submitting}
+      />
+      <AuthField
+        id="password"
+        label={m.auth_field_password_label()}
+        type="password"
+        bind:value={password}
+        autocomplete="current-password"
+        required
+        disabled={submitting}
+      />
 
-    <Button type="submit" variant="primary" loading={submitting}>{m.auth_login_submit()}</Button>
-  </form>
+      <Button type="submit" variant="primary" loading={submitting}>{m.auth_login_submit()}</Button>
+    </form>
 
-  {#snippet footer()}
-    <a class="link" href="/forgot-password">{m.auth_login_forgot_link()}</a>
-  {/snippet}
-</AuthCard>
+    {#snippet footer()}
+      <a class="link" href="/forgot-password">{m.auth_login_forgot_link()}</a>
+    {/snippet}
+  </AuthCard>
+{/if}
 
 <style>
   form {

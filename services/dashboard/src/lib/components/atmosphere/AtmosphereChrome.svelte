@@ -65,8 +65,8 @@
      ScopeBar so it is never occluded. */
   .coverage-card {
     position: absolute;
-    right: var(--space-6);
-    top: calc(var(--scope-bar-height) + var(--space-4));
+    right: var(--space-5);
+    top: calc(var(--scope-bar-height) + var(--space-5));
     width: 260px;
     z-index: 350;
     padding: var(--space-4);
@@ -108,7 +108,7 @@
   /* Bottom-left dataset quick-stats window. Offset right of the fixed side rail. */
   .atm-stats {
     position: absolute;
-    left: calc(var(--rail-width) + var(--space-5));
+    left: calc(var(--rail-width) + var(--space-6));
     bottom: var(--space-6);
     z-index: 350;
     display: flex;

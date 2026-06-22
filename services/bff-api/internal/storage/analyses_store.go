@@ -31,6 +31,7 @@ type AnalysisListItem struct {
 	ID          string
 	Name        string
 	Description string
+	OwnerName   string // live-joined display name (first+last), email fallback
 	OwnerEmail  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -44,6 +45,7 @@ type Analysis struct {
 	Name        string
 	Description string
 	State       string
+	OwnerName   string // live-joined display name (first+last), email fallback
 	OwnerEmail  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -63,11 +65,17 @@ const permissionCase = `
 	     WHEN s.can_edit THEN 'editable'
 	     ELSE 'readable' END`
 
+// ownerNameExpr is the live-joined owner display name (first + last, space-
+// joined and trimmed), falling back to the email when no name is set — so a
+// name change propagates to every analysis it owns, never snapshotted.
+const ownerNameExpr = `COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), u.email)`
+
 // ListVisible returns the analyses the user owns OR has been granted, newest
 // activity first, with the viewer's derived permission and the owner's email.
 func (s *AnalysesStore) ListVisible(ctx context.Context, userID string) ([]AnalysisListItem, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.id::text, a.name, a.description, u.email, a.created_at, a.updated_at,`+
+		SELECT a.id::text, a.name, a.description, u.email,
+		       `+ownerNameExpr+` AS owner_name, a.created_at, a.updated_at,`+
 		permissionCase+`, (a.owner_id = $1::uuid) AS owned
 		FROM saved_analyses a
 		JOIN users u ON a.owner_id = u.id
@@ -83,7 +91,7 @@ func (s *AnalysesStore) ListVisible(ctx context.Context, userID string) ([]Analy
 	var out []AnalysisListItem
 	for rows.Next() {
 		var it AnalysisListItem
-		if err := rows.Scan(&it.ID, &it.Name, &it.Description, &it.OwnerEmail,
+		if err := rows.Scan(&it.ID, &it.Name, &it.Description, &it.OwnerEmail, &it.OwnerName,
 			&it.CreatedAt, &it.UpdatedAt, &it.Permission, &it.Owned); err != nil {
 			return nil, fmt.Errorf("scan analysis: %w", err)
 		}
@@ -96,7 +104,8 @@ func (s *AnalysesStore) ListVisible(ctx context.Context, userID string) ([]Analy
 // or (nil, nil) when not visible / not found.
 func (s *AnalysesStore) Get(ctx context.Context, id, userID string) (*Analysis, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT a.id::text, a.name, a.description, a.state, u.email, a.created_at, a.updated_at,`+
+		SELECT a.id::text, a.name, a.description, a.state, u.email,
+		       `+ownerNameExpr+` AS owner_name, a.created_at, a.updated_at,`+
 		permissionCase+`, (a.owner_id = $1::uuid) AS owned
 		FROM saved_analyses a
 		JOIN users u ON a.owner_id = u.id
@@ -105,7 +114,7 @@ func (s *AnalysesStore) Get(ctx context.Context, id, userID string) (*Analysis, 
 		WHERE a.id = $2::uuid AND (a.owner_id = $1::uuid OR s.grantee_user_id = $1::uuid)`,
 		userID, id)
 	var a Analysis
-	if err := row.Scan(&a.ID, &a.Name, &a.Description, &a.State, &a.OwnerEmail,
+	if err := row.Scan(&a.ID, &a.Name, &a.Description, &a.State, &a.OwnerEmail, &a.OwnerName,
 		&a.CreatedAt, &a.UpdatedAt, &a.Permission, &a.Owned); err != nil {
 		if errors.Is(err, sql.ErrNoRows) || isInvalidUUIDErr(err) {
 			return nil, nil
@@ -124,10 +133,11 @@ func (s *AnalysesStore) Create(ctx context.Context, ownerID, name, description, 
 			VALUES ($1::uuid, $2, $3, $4)
 			RETURNING id, name, description, created_at, updated_at
 		)
-		SELECT ins.id::text, ins.name, ins.description, u.email, ins.created_at, ins.updated_at
+		SELECT ins.id::text, ins.name, ins.description, u.email,
+		       `+ownerNameExpr+` AS owner_name, ins.created_at, ins.updated_at
 		FROM ins JOIN users u ON u.id = $1::uuid`,
 		ownerID, name, description, state).Scan(
-		&it.ID, &it.Name, &it.Description, &it.OwnerEmail, &it.CreatedAt, &it.UpdatedAt)
+		&it.ID, &it.Name, &it.Description, &it.OwnerEmail, &it.OwnerName, &it.CreatedAt, &it.UpdatedAt)
 	if err != nil {
 		return AnalysisListItem{}, fmt.Errorf("create analysis: %w", err)
 	}

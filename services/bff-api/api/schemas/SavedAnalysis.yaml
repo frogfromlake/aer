@@ -1,11 +1,12 @@
 type: object
 description: A saved Workbench analysis with its serialized state (Phase 135).
-required: [id, name, description, state, ownerEmail, createdAt, updatedAt, permission, owned]
+required: [id, name, description, state, ownerName, ownerEmail, createdAt, updatedAt, permission, owned]
 properties:
   id: { type: string }
   name: { type: string }
   description: { type: string }
   state: { type: string, description: The serialized Workbench URL query, restored verbatim. }
+  ownerName: { type: string, description: "The creator's display name (live-joined first + last name; falls back to the email when unset)." }
   ownerEmail: { type: string, format: email }
   createdAt: { type: string, format: date-time }
   updatedAt: { type: string, format: date-time }

@@ -30,8 +30,8 @@
   "levers_withheld_show_anyway": "Show anyway",
 
   "levers_degenerate_eyebrow": "No signal",
-  "levers_degenerate_lead_one": "{count} dimension is constant across this scope — present but signal-free, so dropped from the picker (disclosed, not silently filtered — ADR-039):",
-  "levers_degenerate_lead_other": "{count} dimensions are constant across this scope — present but signal-free, so dropped from the picker (disclosed, not silently filtered — ADR-039):",
+  "levers_degenerate_lead_one": "{count} dimension is constant across this scope — present but signal-free, so dropped from the picker:",
+  "levers_degenerate_lead_other": "{count} dimensions are constant across this scope — present but signal-free, so dropped from the picker:",
   "levers_degenerate_value": "= {value} (constant)",
   "levers_lowsignal_eyebrow": "Effectively constant",
   "levers_lowsignal_lead_one": "{count} dimension is near-constant in this scope — still selectable, but it carries little signal:",
@@ -91,7 +91,7 @@
   "levers_compare_help_raw": "raw",
   "levers_compare_help_pre": "(z-score) and",
   "levers_compare_help_mid": "compare values",
-  "levers_compare_help_body": "— which asserts the metric measures the same thing in each. AĒR only allows that once a baseline + a cross-context equivalence study exist for the metric (ADR-016 / WP-004);",
+  "levers_compare_help_body": "— which asserts the metric measures the same thing in each. AĒR only allows that once a baseline + a cross-context equivalence study exist for the metric (WP-004);",
   "levers_compare_help_post": "has none yet, so these stay disabled rather than show an unproven comparison.",
   "levers_compare_help_raw_always": "always works.",
 

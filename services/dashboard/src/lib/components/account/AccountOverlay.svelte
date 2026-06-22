@@ -9,8 +9,8 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
-  import LocaleSwitch from '$lib/components/chrome/LocaleSwitch.svelte';
   import AdminPanel from '$lib/components/account/AdminPanel.svelte';
+  import AccountIdentityCard from '$lib/components/account/AccountIdentityCard.svelte';
   import AccountSessions from '$lib/components/account/AccountSessions.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { formatDate } from '$lib/localization/format';
@@ -81,6 +81,13 @@
     // coalesce to [] so `.length` / `{#each}` never see null.
     if (res.ok) passkeys = res.data.credentials ?? [];
   }
+  // Map the ceremony's error code to a localized message (the backend message
+  // is logged server-side, never shown — it leaked raw English before).
+  function passkeyErrorText(code: 'unsupported' | 'cancelled' | 'failed'): string {
+    if (code === 'unsupported') return m.account_passkeys_error_unsupported();
+    if (code === 'cancelled') return m.account_passkeys_error_cancelled();
+    return m.account_passkeys_error_failed();
+  }
   async function addPasskey() {
     pkBusy = true;
     pkMsg = null;
@@ -90,7 +97,7 @@
       pkMsg = { kind: 'success', text: m.account_passkeys_added_notice() };
       await loadPasskeys();
     } else {
-      pkMsg = { kind: 'error', text: res.message };
+      pkMsg = { kind: 'error', text: passkeyErrorText(res.code) };
     }
   }
   async function removePasskey(id: string) {
@@ -197,57 +204,48 @@
           aria-labelledby="account-tab-account"
           class="tabpanel"
         >
-          <section class="block">
-            <h3>{m.account_identity_heading()}</h3>
-            <dl class="identity">
-              <div>
-                <dt>{m.account_identity_email()}</dt>
-                <dd>{me?.email ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>{m.account_identity_role()}</dt>
-                <dd class="cap">{me?.role ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>{m.account_identity_status()}</dt>
-                <dd class="cap">{me?.status ?? '—'}</dd>
-              </div>
-            </dl>
-          </section>
+          <AccountIdentityCard {me} />
 
           <section class="block">
             <h3>{m.account_password_heading()}</h3>
             <form onsubmit={changePassword} novalidate>
               {#if pwMsg}<AuthNotice variant={pwMsg.kind}>{pwMsg.text}</AuthNotice>{/if}
-              <AuthField
-                id="cur"
-                label={m.account_password_current_label()}
-                type="password"
-                bind:value={currentPw}
-                autocomplete="current-password"
-                disabled={pwBusy}
-              />
-              <AuthField
-                id="new"
-                label={m.account_password_new_label()}
-                type="password"
-                bind:value={newPw}
-                autocomplete="new-password"
-                disabled={pwBusy}
-                hint={m.account_password_min_hint({ min: MIN_LEN })}
-              />
-              <AuthField
-                id="conf"
-                label={m.account_password_confirm_label()}
-                type="password"
-                bind:value={confirmPw}
-                autocomplete="new-password"
-                disabled={pwBusy}
-              />
-              <div class="actions">
+              <div class="pw-grid">
+                <AuthField
+                  id="cur"
+                  label={m.account_password_current_label()}
+                  type="password"
+                  bind:value={currentPw}
+                  autocomplete="current-password"
+                  disabled={pwBusy}
+                  compact
+                />
+                <AuthField
+                  id="new"
+                  label={m.account_password_new_label()}
+                  type="password"
+                  bind:value={newPw}
+                  autocomplete="new-password"
+                  disabled={pwBusy}
+                  hint={m.account_password_min_hint({ min: MIN_LEN })}
+                  compact
+                />
+                <AuthField
+                  id="conf"
+                  label={m.account_password_confirm_label()}
+                  type="password"
+                  bind:value={confirmPw}
+                  autocomplete="new-password"
+                  disabled={pwBusy}
+                  compact
+                />
+              </div>
+              <div class="actions pw-actions">
                 <Button type="submit" variant="primary" loading={pwBusy} disabled={!pwValid}
                   >{m.account_password_submit()}</Button
                 >
+                <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- static public auth route; same pattern as the SideRail surface links -->
+                <a class="forgot" href="/forgot-password">{m.account_password_forgot()}</a>
               </div>
             </form>
           </section>
@@ -315,17 +313,6 @@
               </div>
             </div>
           </section>
-
-          <section class="block">
-            <h3>{m.account_language_heading()}</h3>
-            <p class="muted">{m.account_language_intro()}</p>
-            <LocaleSwitch />
-          </section>
-
-          <section class="block actions">
-            <Button variant="secondary" onclick={() => doLogout()}>{m.chrome_user_signout()}</Button
-            >
-          </section>
         </div>
       {:else if activeTab === 'admin'}
         <div
@@ -365,7 +352,7 @@
     padding: var(--space-5);
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
   .tabs {
     display: flex;
@@ -433,13 +420,13 @@
   .block {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
     padding-top: var(--space-4);
     border-top: 1px solid var(--color-border);
   }
   .block h3 {
     margin: 0;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     font-weight: var(--font-weight-semibold);
     color: var(--color-fg);
   }
@@ -452,27 +439,31 @@
     display: flex;
     gap: var(--space-3);
   }
-  .identity {
+  /* Change-password fields sit three-up so the section stays shallow; they
+     stack on a narrow panel. */
+  .pw-grid {
     display: grid;
-    gap: var(--space-2);
-    margin: 0;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    align-items: start;
   }
-  .identity div {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-4);
+  @media (max-width: 600px) {
+    .pw-grid {
+      grid-template-columns: 1fr;
+    }
   }
-  .identity dt {
-    color: var(--color-fg-subtle);
+  /* Forgot-password — a quiet accent link beside the change-password submit. */
+  .pw-actions {
+    align-items: center;
+  }
+  .forgot {
     font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
   }
-  .identity dd {
-    margin: 0;
-    color: var(--color-fg);
-    font-size: var(--font-size-sm);
-  }
-  .cap {
-    text-transform: capitalize;
+  .forgot:hover,
+  .forgot:focus-visible {
+    text-decoration: underline;
   }
   .muted {
     color: var(--color-fg-muted);
@@ -510,9 +501,13 @@
   .link-danger:hover {
     text-decoration: underline;
   }
+  /* "Delete account" reads as its own divided sub-section; give it the same
+     breathing room as the top-level section dividers (space-5 above the rule
+     via the block gap + this margin, space-4 below it). */
   .danger {
+    margin-top: var(--space-4);
     border-top: 1px solid var(--color-border);
-    padding-top: var(--space-3);
+    padding-top: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);

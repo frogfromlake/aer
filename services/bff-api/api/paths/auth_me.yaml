@@ -21,6 +21,42 @@ get:
             $ref: '../schemas/AuthError.yaml'
     '500':
       $ref: '../responses/InternalServerError.yaml'
+patch:
+  tags: [Auth]
+  summary: Update the current user's display name (Phase 148e)
+  description: >
+    Updates the authenticated user's first/last name. Names are self-service
+    editable; the change propagates everywhere they are shown (avatar, identity
+    card, saved-analyses owner column) because those read the name live by owner
+    id. Requires a session.
+  operationId: patchAuthMe
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/UpdateProfileRequest.yaml'
+  responses:
+    '200':
+      description: The updated user.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthUser.yaml'
+    '400':
+      description: The name fails validation (`invalid_name`).
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '401':
+      description: No valid session.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AuthError.yaml'
+    '500':
+      $ref: '../responses/InternalServerError.yaml'
 delete:
   tags: [Auth]
   summary: Delete the current user's account (DSGVO right to erasure) (ADR-040)

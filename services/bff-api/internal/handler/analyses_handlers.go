@@ -65,6 +65,7 @@ type analysisListEntry = struct {
 	Name        string              `json:"name"`
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
+	OwnerName   string              `json:"ownerName"`
 	Permission  string              `json:"permission"`
 	UpdatedAt   time.Time           `json:"updatedAt"`
 }
@@ -77,6 +78,7 @@ func listEntry(it storage.AnalysisListItem) analysisListEntry {
 		Name:        it.Name,
 		Owned:       it.Owned,
 		OwnerEmail:  openapi_types.Email(it.OwnerEmail),
+		OwnerName:   it.OwnerName,
 		Permission:  it.Permission,
 		UpdatedAt:   it.UpdatedAt,
 	}
@@ -89,6 +91,7 @@ func fullAnalysis(a *storage.Analysis) GetAnalysis200JSONResponse {
 		Description: a.Description,
 		State:       a.State,
 		OwnerEmail:  openapi_types.Email(a.OwnerEmail),
+		OwnerName:   a.OwnerName,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 		Permission:  a.Permission,

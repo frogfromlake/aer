@@ -81,7 +81,13 @@
           >
             <td class="name">{a.name}</td>
             <td class="hide-sm desc">{a.description || '—'}</td>
-            <td>{a.owned ? m.account_analyses_owner_you() : a.ownerEmail}</td>
+            <td>
+              {#if a.owned}
+                {m.account_analyses_owner_you()}
+              {:else}
+                <span title={a.ownerEmail}>{a.ownerName}</span>
+              {/if}
+            </td>
             <td>{fmtDate(a.createdAt, locale())}</td>
             <td>{fmtDate(a.updatedAt, locale())}</td>
             <td>

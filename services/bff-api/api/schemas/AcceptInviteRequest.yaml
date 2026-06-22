@@ -6,12 +6,26 @@ description: >
   email — only the token does.
 required:
   - token
+  - firstName
+  - lastName
   - password
   - acceptResponsibleUse
 properties:
   token:
     type: string
     description: The single-use invite token from the invitation link.
+  firstName:
+    type: string
+    minLength: 1
+    maxLength: 80
+    description: >
+      The invitee's given name, set once here (Phase 148e). Trimmed + required
+      server-side; it becomes the stable identity label across the app.
+  lastName:
+    type: string
+    minLength: 1
+    maxLength: 80
+    description: The invitee's family name, set once here (Phase 148e). Trimmed + required.
   password:
     type: string
     minLength: 12

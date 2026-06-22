@@ -12,6 +12,8 @@
   import AuthField from '$lib/components/auth/AuthField.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import Button from '$lib/components/base/Button.svelte';
+  import { statusLabel } from '$lib/account/status-label';
+  import { displayName, hasName } from '$lib/identity/initials';
   import { m } from '$lib/paraglide/messages.js';
 
   const admin = $derived(isAdmin());
@@ -153,9 +155,12 @@
       </div>
       {#each users as u (u.id)}
         <div class="row" role="row">
-          <span role="cell" class="email">{u.email}</span>
+          <span role="cell" class="user-cell">
+            <span class="user-name">{displayName(u)}</span>
+            {#if hasName(u)}<span class="user-email">{u.email}</span>{/if}
+          </span>
           <span role="cell" class="cap">{u.role}</span>
-          <span role="cell" class="cap status-{u.status}">{u.status}</span>
+          <span role="cell" class="cap status-{u.status}">{statusLabel(u.status)}</span>
           <span role="cell" class="row-actions">
             {#if u.status === 'suspended'}
               <button type="button" class="mini" onclick={() => reactivate(u.id)}
@@ -309,6 +314,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* User identity cell — display name over the email (Phase 148e). */
+  .user-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-fg);
+  }
+  .user-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
   }
   .cap {
     text-transform: capitalize;

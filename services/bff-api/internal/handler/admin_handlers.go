@@ -58,13 +58,17 @@ func (s *Server) GetAdminUsers(ctx context.Context, _ GetAdminUsersRequestObject
 		out.Users = append(out.Users, struct {
 			CreatedAt time.Time           `json:"createdAt"`
 			Email     openapi_types.Email `json:"email"`
+			FirstName string              `json:"firstName"`
 			ID        string              `json:"id"`
+			LastName  string              `json:"lastName"`
 			Role      string              `json:"role"`
 			Status    string              `json:"status"`
 		}{
 			CreatedAt: r.CreatedAt,
 			Email:     openapi_types.Email(r.Email),
+			FirstName: r.FirstName,
 			ID:        r.ID,
+			LastName:  r.LastName,
 			Role:      r.Role,
 			Status:    r.Status,
 		})

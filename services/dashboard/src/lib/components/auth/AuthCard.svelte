@@ -14,9 +14,13 @@
     subtitle?: string;
     children: Snippet;
     footer?: Snippet;
+    /** Show the UI-language selector. Default on for the entry pages (login,
+     *  accept-invite); off for downstream pages reached with a language already
+     *  chosen (e.g. forgot-password). */
+    showLocale?: boolean;
   }
 
-  let { title, subtitle, children, footer }: Props = $props();
+  let { title, subtitle, children, footer, showLocale = true }: Props = $props();
 </script>
 
 <main class="auth-page">
@@ -43,9 +47,11 @@
       </footer>
     {/if}
 
-    <div class="locale-row">
-      <LocaleSwitch />
-    </div>
+    {#if showLocale}
+      <div class="locale-row">
+        <LocaleSwitch />
+      </div>
+    {/if}
   </section>
 </main>
 

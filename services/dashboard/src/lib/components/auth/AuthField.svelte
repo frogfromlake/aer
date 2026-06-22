@@ -12,6 +12,9 @@
     required?: boolean;
     disabled?: boolean;
     hint?: string;
+    /** Tighter type + padding for dense surfaces (e.g. the account overlay),
+     *  leaving the comfortable default for the standalone auth pages. */
+    compact?: boolean;
   }
 
   let {
@@ -23,11 +26,12 @@
     autocomplete,
     required = false,
     disabled = false,
-    hint
+    hint,
+    compact = false
   }: Props = $props();
 </script>
 
-<div class="field">
+<div class="field" class:compact>
   <label for={id}>{label}</label>
   <input
     {id}
@@ -50,10 +54,20 @@
     flex-direction: column;
     gap: var(--space-2);
   }
+  .field.compact {
+    gap: var(--space-1);
+  }
   label {
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     color: var(--color-fg-muted);
+  }
+  .field.compact label {
+    font-size: var(--font-size-xs);
+  }
+  .field.compact input {
+    font-size: var(--font-size-sm);
+    padding: var(--space-2) var(--space-3);
   }
   input {
     appearance: none;

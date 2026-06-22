@@ -59,7 +59,7 @@ func setupAuthStore(t *testing.T) (*AuthStore, context.Context) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	migDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..",
 		"infra", "postgres", "migrations")
-	for _, name := range []string{"000024_auth_schema.up.sql", "000025_webauthn.up.sql", "000026_saved_analyses.up.sql", "000028_saved_analyses_length_checks.up.sql"} {
+	for _, name := range []string{"000024_auth_schema.up.sql", "000025_webauthn.up.sql", "000026_saved_analyses.up.sql", "000028_saved_analyses_length_checks.up.sql", "000031_user_names.up.sql"} {
 		migSQL, err := os.ReadFile(filepath.Join(migDir, name))
 		if err != nil {
 			t.Fatalf("read migration %s: %v", name, err)
@@ -502,7 +502,7 @@ func TestAuthStore_ConsumeTokenAndActivate(t *testing.T) {
 		t.Fatalf("create token: %v", err)
 	}
 
-	got, err := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$activated")
+	got, err := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$activated", "Test", "User")
 	if err != nil || got != uid {
 		t.Fatalf("activate: got=%q err=%v", got, err)
 	}
@@ -511,11 +511,11 @@ func TestAuthStore_ConsumeTokenAndActivate(t *testing.T) {
 		t.Fatalf("expected active user with new password, got %+v", u)
 	}
 	// Single-use: the token is burned.
-	if again, _ := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$other"); again != "" {
+	if again, _ := s.ConsumeTokenAndActivate(ctx, "tok-inv", "$argon2id$other", "Test", "User"); again != "" {
 		t.Fatal("expected single-use invite token to be burned")
 	}
 	// Invalid token → empty, no error.
-	if bad, _ := s.ConsumeTokenAndActivate(ctx, "nope", "$argon2id$z"); bad != "" {
+	if bad, _ := s.ConsumeTokenAndActivate(ctx, "nope", "$argon2id$z", "Test", "User"); bad != "" {
 		t.Fatal("expected invalid token to yield empty")
 	}
 }

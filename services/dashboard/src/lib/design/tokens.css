@@ -34,6 +34,12 @@
   --color-accent: #7ddce5;
   --color-accent-muted: #3a7f87;
 
+  /* --- Identity avatar: dark AĒR-blue disc + AĒR-accent initials. Theme-stable
+     on purpose (reads on both the dark and light page backgrounds), so it is
+     set once in :root and never overridden per theme. --- */
+  --color-avatar-bg: #232f3d;
+  --color-avatar-fg: var(--color-accent);
+
   /* --- Semantic colors for validation status (not valence — §5.2) --- */
   /* These colors encode *methodological state*, never value judgment on content. */
   --color-status-unvalidated: #c8a85a; /* warm neutral — Tier 1 unvalidated */

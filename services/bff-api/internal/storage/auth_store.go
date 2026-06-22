@@ -42,12 +42,14 @@ func NewAuthStore(db *sql.DB) *AuthStore {
 type AuthUser struct {
 	ID           string
 	Email        string
+	FirstName    string
+	LastName     string
 	Role         string
 	Status       string
 	PasswordHash sql.NullString
 }
 
-const userColumns = `id::text, email, role, status, password_hash`
+const userColumns = `id::text, email, first_name, last_name, role, status, password_hash`
 
 // GetUserByEmail returns the user whose email matches case-insensitively, or
 // (nil, nil) if none exists.
@@ -66,7 +68,7 @@ func (s *AuthStore) GetUserByID(ctx context.Context, id string) (*AuthUser, erro
 
 func scanUser(row *sql.Row) (*AuthUser, error) {
 	var u AuthUser
-	if err := row.Scan(&u.ID, &u.Email, &u.Role, &u.Status, &u.PasswordHash); err != nil {
+	if err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Status, &u.PasswordHash); err != nil {
 		// No row, or a malformed UUID path parameter — both "not found".
 		if errors.Is(err, sql.ErrNoRows) || isInvalidUUIDErr(err) {
 			return nil, nil
@@ -92,6 +94,16 @@ func (s *AuthStore) UpdateUserPassword(ctx context.Context, id, passwordHash str
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1::uuid`,
 		id, passwordHash)
+	return err
+}
+
+// UpdateUserNames sets the user's display name (self-service edit, Phase 148e).
+// Read live everywhere the name shows, so the change propagates without a
+// snapshot.
+func (s *AuthStore) UpdateUserNames(ctx context.Context, id, firstName, lastName string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET first_name = $2, last_name = $3, updated_at = now() WHERE id = $1::uuid`,
+		id, firstName, lastName)
 	return err
 }
 
@@ -250,12 +262,12 @@ func (s *AuthStore) ConsumeToken(ctx context.Context, tokenHash, purpose string)
 // user in one transaction (SEC-078): a partial failure can no longer burn the
 // token while leaving the account un-activated. Returns ("", nil) when the
 // token is invalid / expired / already consumed (transaction rolled back).
-func (s *AuthStore) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error) {
+func (s *AuthStore) ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash, firstName, lastName string) (string, error) {
 	return s.consumeTokenTx(ctx, tokenHash, "invite", func(ctx context.Context, tx *sql.Tx, userID string) error {
 		_, err := tx.ExecContext(ctx,
-			`UPDATE users SET password_hash = $2, status = 'active',
+			`UPDATE users SET password_hash = $2, first_name = $3, last_name = $4, status = 'active',
 			        responsible_use_accepted_at = now(), updated_at = now()
-			 WHERE id = $1::uuid`, userID, passwordHash)
+			 WHERE id = $1::uuid`, userID, passwordHash, firstName, lastName)
 		return err
 	})
 }
@@ -386,6 +398,8 @@ func (s *AuthStore) DeleteUser(ctx context.Context, id string) (bool, error) {
 type AdminUserRow struct {
 	ID        string
 	Email     string
+	FirstName string
+	LastName  string
 	Role      string
 	Status    string
 	CreatedAt time.Time
@@ -411,7 +425,7 @@ func (s *AuthStore) CreateInvitedUser(ctx context.Context, email, role string) (
 // ListUsers returns all users, oldest first.
 func (s *AuthStore) ListUsers(ctx context.Context) ([]AdminUserRow, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id::text, email, role, status, created_at FROM users ORDER BY created_at`)
+		`SELECT id::text, email, first_name, last_name, role, status, created_at FROM users ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
@@ -420,7 +434,7 @@ func (s *AuthStore) ListUsers(ctx context.Context) ([]AdminUserRow, error) {
 	var out []AdminUserRow
 	for rows.Next() {
 		var u AdminUserRow
-		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.Status, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Status, &u.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan user row: %w", err)
 		}
 		out = append(out, u)

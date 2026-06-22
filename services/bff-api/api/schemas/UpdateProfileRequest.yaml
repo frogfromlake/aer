@@ -1,0 +1,20 @@
+type: object
+description: >
+  Self-service display-name update (Phase 148e). The authenticated user edits
+  their own first/last name; the change propagates everywhere the name is shown
+  (avatar, identity card, saved-analyses owner column) because those read it
+  live by owner id — never a snapshot.
+required:
+  - firstName
+  - lastName
+properties:
+  firstName:
+    type: string
+    minLength: 1
+    maxLength: 80
+    description: Given name. Trimmed + required server-side.
+  lastName:
+    type: string
+    minLength: 1
+    maxLength: 80
+    description: Family name. Trimmed + required server-side.

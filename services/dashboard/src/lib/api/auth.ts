@@ -27,11 +27,17 @@ export interface AuthUser {
   email: string;
   role: 'admin' | 'researcher';
   status: 'invited' | 'active' | 'suspended';
+  // Identity layer (Phase 148e). Set once at invite-accept; optional here until
+  // the backend contract ships, so the avatar/header fall back to the email.
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface AdminUser {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string;
   role: string;
   status: string;
   createdAt: string;
@@ -145,8 +151,20 @@ export async function me(): Promise<MeResult> {
   return { state: 'unknown' };
 }
 
-export const acceptInvite = (token: string, password: string, acceptResponsibleUse: boolean) =>
-  send<AuthUser>('POST', '/auth/accept-invite', { token, password, acceptResponsibleUse });
+export const acceptInvite = (
+  token: string,
+  firstName: string,
+  lastName: string,
+  password: string,
+  acceptResponsibleUse: boolean
+) =>
+  send<AuthUser>('POST', '/auth/accept-invite', {
+    token,
+    firstName,
+    lastName,
+    password,
+    acceptResponsibleUse
+  });
 
 export const forgotPassword = (email: string) =>
   send<void>('POST', '/auth/forgot-password', { email });
@@ -156,6 +174,11 @@ export const resetPassword = (token: string, password: string) =>
 
 export const changePassword = (currentPassword: string, newPassword: string) =>
   send<void>('POST', '/auth/change-password', { currentPassword, newPassword });
+
+// Self-service display-name edit (Phase 148e). Returns the updated user so the
+// caller can refresh the store; the change is read live everywhere it shows.
+export const updateProfile = (firstName: string, lastName: string) =>
+  send<AuthUser>('PATCH', '/auth/me', { firstName, lastName });
 
 // --- sessions (SEC-005) ----------------------------------------------------
 

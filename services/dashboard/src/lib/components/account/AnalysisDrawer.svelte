@@ -145,9 +145,9 @@
       {#if drawerMsg}<AuthNotice variant={drawerMsg.kind}>{drawerMsg.text}</AuthNotice>{/if}
 
       <div class="drawer-meta">
-        <span
+        <span title={a.owned ? undefined : a.ownerEmail}
           >{m.account_analyses_drawer_owner({
-            owner: a.owned ? m.account_analyses_owner_you() : a.ownerEmail
+            owner: a.owned ? m.account_analyses_owner_you() : a.ownerName
           })}</span
         >
         <span>{m.account_analyses_drawer_created({ date: fmtDate(a.createdAt, locale()) })}</span>

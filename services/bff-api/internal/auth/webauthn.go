@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -8,11 +9,19 @@ import (
 // registrable domain (e.g. "localhost" or "aer.example"); RPOrigins are the
 // full origins the browser will present (e.g. "https://localhost"). Returns nil
 // only on misconfiguration.
+//
+// AttestationPreference is pinned to "none": AĒR authenticates people, it does
+// not vet authenticator hardware, so it must never demand an attestation
+// statement. Platform authenticators (Windows Hello, Touch ID, Android) return
+// self-signed or "none" attestation; requiring "direct" would reject them at
+// the verification step. Pinning "none" also keeps the library default from
+// ever asking for attestation we have no verifier for.
 func NewWebAuthn(rpID, rpDisplayName string, rpOrigins []string) (*webauthn.WebAuthn, error) {
 	return webauthn.New(&webauthn.Config{
-		RPID:          rpID,
-		RPDisplayName: rpDisplayName,
-		RPOrigins:     rpOrigins,
+		RPID:                  rpID,
+		RPDisplayName:         rpDisplayName,
+		RPOrigins:             rpOrigins,
+		AttestationPreference: protocol.PreferNoAttestation,
 	})
 }
 

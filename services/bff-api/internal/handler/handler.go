@@ -241,10 +241,11 @@ type AuthBackend interface {
 	ConsumeToken(ctx context.Context, tokenHash, purpose string) (string, error)
 	// Transactional token flows (SEC-078): consume + apply co-commit so a
 	// partial failure cannot burn the single-use token.
-	ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash string) (string, error)
+	ConsumeTokenAndActivate(ctx context.Context, tokenHash, passwordHash, firstName, lastName string) (string, error)
 	ConsumeTokenAndResetPassword(ctx context.Context, tokenHash, passwordHash string) (string, error)
 	ActivateUser(ctx context.Context, id, passwordHash string) error
 	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
+	UpdateUserNames(ctx context.Context, id, firstName, lastName string) error
 	// Admin (Phase 134 / ADR-040).
 	CreateInvitedUser(ctx context.Context, email, role string) (string, error)
 	ListUsers(ctx context.Context) ([]storage.AdminUserRow, error)

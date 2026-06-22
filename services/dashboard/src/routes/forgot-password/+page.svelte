@@ -24,7 +24,7 @@
 
 <svelte:head><title>{m.auth_forgot_doc_title()}</title></svelte:head>
 
-<AuthCard title={m.auth_forgot_title()} subtitle={m.auth_forgot_subtitle()}>
+<AuthCard title={m.auth_forgot_title()} subtitle={m.auth_forgot_subtitle()} showLocale={false}>
   {#if sent}
     <AuthNotice variant="success">{m.auth_forgot_sent()}</AuthNotice>
   {:else}

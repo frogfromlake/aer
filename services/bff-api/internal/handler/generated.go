@@ -2031,6 +2031,12 @@ type PostAuthAcceptInviteJSONBody struct {
 	// AcceptResponsibleUse Must be true. Records the LICENSE §3.2.b responsible-use consent at activation. A false/absent value returns 400 `consent_required`.
 	AcceptResponsibleUse bool `json:"acceptResponsibleUse"`
 
+	// FirstName The invitee's given name, set once here (Phase 148e). Trimmed + required server-side; it becomes the stable identity label across the app.
+	FirstName string `json:"firstName"`
+
+	// LastName The invitee's family name, set once here (Phase 148e). Trimmed + required.
+	LastName string `json:"lastName"`
+
 	// Password The password the invitee chooses. Minimum length re-checked server-side.
 	Password string `json:"password"`
 
@@ -2055,6 +2061,15 @@ type PostAuthLoginJSONBody struct {
 
 	// Password Plaintext password, verified against the argon2id hash server-side.
 	Password string `json:"password"`
+}
+
+// PatchAuthMeJSONBody defines parameters for PatchAuthMe.
+type PatchAuthMeJSONBody struct {
+	// FirstName Given name. Trimmed + required server-side.
+	FirstName string `json:"firstName"`
+
+	// LastName Family name. Trimmed + required server-side.
+	LastName string `json:"lastName"`
 }
 
 // PostAuthResetPasswordJSONBody defines parameters for PostAuthResetPassword.
@@ -2885,6 +2900,9 @@ type PostAuthForgotPasswordJSONRequestBody PostAuthForgotPasswordJSONBody
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 
+// PatchAuthMeJSONRequestBody defines body for PatchAuthMe for application/json ContentType.
+type PatchAuthMeJSONRequestBody PatchAuthMeJSONBody
+
 // PostAuthResetPasswordJSONRequestBody defines body for PostAuthResetPassword for application/json ContentType.
 type PostAuthResetPasswordJSONRequestBody PostAuthResetPasswordJSONBody
 
@@ -2968,6 +2986,9 @@ type ServerInterface interface {
 	// The currently authenticated user (ADR-040)
 	// (GET /auth/me)
 	GetAuthMe(w http.ResponseWriter, r *http.Request)
+	// Update the current user's display name (Phase 148e)
+	// (PATCH /auth/me)
+	PatchAuthMe(w http.ResponseWriter, r *http.Request)
 	// Export all data AĒR holds about the current user (DSGVO) (ADR-040)
 	// (GET /auth/me/export)
 	GetAuthMeExport(w http.ResponseWriter, r *http.Request)
@@ -3259,6 +3280,12 @@ func (_ Unimplemented) DeleteAuthMe(w http.ResponseWriter, r *http.Request) {
 // The currently authenticated user (ADR-040)
 // (GET /auth/me)
 func (_ Unimplemented) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update the current user's display name (Phase 148e)
+// (PATCH /auth/me)
+func (_ Unimplemented) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4165,6 +4192,26 @@ func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchAuthMe operation middleware
+func (siw *ServerInterfaceWrapper) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchAuthMe(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7358,6 +7405,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/auth/me", wrapper.GetAuthMe)
 	})
 	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/auth/me", wrapper.PatchAuthMe)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/me/export", wrapper.GetAuthMeExport)
 	})
 	r.Group(func(r chi.Router) {
@@ -7523,8 +7573,14 @@ type GetAdminUsers200JSONResponse struct {
 		CreatedAt time.Time           `json:"createdAt"`
 		Email     openapi_types.Email `json:"email"`
 
+		// FirstName Given name (Phase 148e). May be empty for a pre-names account.
+		FirstName string `json:"firstName"`
+
 		// ID Opaque user id.
 		ID string `json:"id"`
+
+		// LastName Family name (Phase 148e). May be empty for a pre-names account.
+		LastName string `json:"lastName"`
 
 		// Role One of `admin`, `researcher`.
 		Role string `json:"role"`
@@ -7919,6 +7975,9 @@ type GetAnalyses200JSONResponse struct {
 		// OwnerEmail The creator's email.
 		OwnerEmail openapi_types.Email `json:"ownerEmail"`
 
+		// OwnerName The creator's display name (live-joined first + last name; falls back to the email when unset). Primary owner label; the email is secondary.
+		OwnerName string `json:"ownerName"`
+
 		// Permission The viewer's effective permission — `editable` or `readable`.
 		Permission string    `json:"permission"`
 		UpdatedAt  time.Time `json:"updatedAt"`
@@ -7987,6 +8046,9 @@ type PostAnalyses201JSONResponse struct {
 
 	// OwnerEmail The creator's email.
 	OwnerEmail openapi_types.Email `json:"ownerEmail"`
+
+	// OwnerName The creator's display name (live-joined first + last name; falls back to the email when unset). Primary owner label; the email is secondary.
+	OwnerName string `json:"ownerName"`
 
 	// Permission The viewer's effective permission — `editable` or `readable`.
 	Permission string    `json:"permission"`
@@ -8134,6 +8196,9 @@ type GetAnalysis200JSONResponse struct {
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
 
+	// OwnerName The creator's display name (live-joined first + last name; falls back to the email when unset).
+	OwnerName string `json:"ownerName"`
+
 	// Permission `editable` or `readable`.
 	Permission string `json:"permission"`
 
@@ -8216,6 +8281,9 @@ type PatchAnalysis200JSONResponse struct {
 	Name        string              `json:"name"`
 	Owned       bool                `json:"owned"`
 	OwnerEmail  openapi_types.Email `json:"ownerEmail"`
+
+	// OwnerName The creator's display name (live-joined first + last name; falls back to the email when unset).
+	OwnerName string `json:"ownerName"`
 
 	// Permission `editable` or `readable`.
 	Permission string `json:"permission"`
@@ -8762,8 +8830,14 @@ type PostAuthAcceptInviteResponseObject interface {
 type PostAuthAcceptInvite200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
+	// FirstName Given name, set once at invite acceptance (Phase 148e). May be empty for a pre-names account; the UI then falls back to email-derived initials.
+	FirstName string `json:"firstName"`
+
 	// ID Opaque user id (server-side UUID, surfaced as a string).
 	ID string `json:"id"`
+
+	// LastName Family name, set once at invite acceptance (Phase 148e).
+	LastName string `json:"lastName"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -8930,8 +9004,14 @@ type PostAuthLoginResponseObject interface {
 type PostAuthLogin200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
+	// FirstName Given name, set once at invite acceptance (Phase 148e). May be empty for a pre-names account; the UI then falls back to email-derived initials.
+	FirstName string `json:"firstName"`
+
 	// ID Opaque user id (server-side UUID, surfaced as a string).
 	ID string `json:"id"`
+
+	// LastName Family name, set once at invite acceptance (Phase 148e).
+	LastName string `json:"lastName"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -9110,8 +9190,14 @@ type GetAuthMeResponseObject interface {
 type GetAuthMe200JSONResponse struct {
 	Email openapi_types.Email `json:"email"`
 
+	// FirstName Given name, set once at invite acceptance (Phase 148e). May be empty for a pre-names account; the UI then falls back to email-derived initials.
+	FirstName string `json:"firstName"`
+
 	// ID Opaque user id (server-side UUID, surfaced as a string).
 	ID string `json:"id"`
+
+	// LastName Family name, set once at invite acceptance (Phase 148e).
+	LastName string `json:"lastName"`
 
 	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
 	Role string `json:"role"`
@@ -9157,6 +9243,91 @@ type GetAuthMe500JSONResponse struct {
 }
 
 func (response GetAuthMe500JSONResponse) VisitGetAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAuthMeRequestObject struct {
+	Body *PatchAuthMeJSONRequestBody
+}
+
+type PatchAuthMeResponseObject interface {
+	VisitPatchAuthMeResponse(w http.ResponseWriter) error
+}
+
+type PatchAuthMe200JSONResponse struct {
+	Email openapi_types.Email `json:"email"`
+
+	// FirstName Given name, set once at invite acceptance (Phase 148e). May be empty for a pre-names account; the UI then falls back to email-derived initials.
+	FirstName string `json:"firstName"`
+
+	// ID Opaque user id (server-side UUID, surfaced as a string).
+	ID string `json:"id"`
+
+	// LastName Family name, set once at invite acceptance (Phase 148e).
+	LastName string `json:"lastName"`
+
+	// Role RBAC role (ADR-040) — one of `admin`, `researcher`.
+	Role string `json:"role"`
+
+	// Status Account status — one of `invited`, `active`, `suspended`.
+	Status string `json:"status"`
+}
+
+func (response PatchAuthMe200JSONResponse) VisitPatchAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAuthMe400JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PatchAuthMe400JSONResponse) VisitPatchAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAuthMe401JSONResponse struct {
+	// Code Machine-readable auth error code, e.g. `invalid_credentials`, `unauthenticated`, `forbidden_role`, `forbidden_not_shared`, `invalid_token`, `consent_required`, `weak_password`.
+	Code string `json:"code"`
+
+	// Message Human-readable, non-leaking explanation.
+	Message string `json:"message"`
+}
+
+func (response PatchAuthMe401JSONResponse) VisitPatchAuthMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchAuthMe500JSONResponse struct {
+	// Alternatives Phase 115: concrete user-actionable alternatives when the 400 is a methodological refusal — e.g. drop normalization to Level 1, constrain scope to one cultural frame, use deviation labelling.
+	Alternatives *[]string `json:"alternatives,omitempty"`
+
+	// Gate Phase 115: when the 400 represents a methodological refusal (e.g. cross-frame equivalence gate), this field carries the machine identifier of the gate that fired. Same value space as `RefusalPayload.gate` (currently `metric_equivalence` is the only value used at this status). Absent for plain validation errors.
+	Gate *string `json:"gate,omitempty"`
+
+	// Message A human-readable error message.
+	Message string `json:"message"`
+
+	// WorkingPaperAnchor Phase 115: anchor into the methodological surface (e.g. `WP-004#section-5.2`) when the 400 is a methodological refusal.
+	WorkingPaperAnchor *string `json:"workingPaperAnchor,omitempty"`
+}
+
+func (response PatchAuthMe500JSONResponse) VisitPatchAuthMeResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -13444,6 +13615,9 @@ type StrictServerInterface interface {
 	// The currently authenticated user (ADR-040)
 	// (GET /auth/me)
 	GetAuthMe(ctx context.Context, request GetAuthMeRequestObject) (GetAuthMeResponseObject, error)
+	// Update the current user's display name (Phase 148e)
+	// (PATCH /auth/me)
+	PatchAuthMe(ctx context.Context, request PatchAuthMeRequestObject) (PatchAuthMeResponseObject, error)
 	// Export all data AĒR holds about the current user (DSGVO) (ADR-040)
 	// (GET /auth/me/export)
 	GetAuthMeExport(ctx context.Context, request GetAuthMeExportRequestObject) (GetAuthMeExportResponseObject, error)
@@ -14253,6 +14427,37 @@ func (sh *strictHandler) GetAuthMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthMeResponseObject); ok {
 		if err := validResponse.VisitGetAuthMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchAuthMe operation middleware
+func (sh *strictHandler) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
+	var request PatchAuthMeRequestObject
+
+	var body PatchAuthMeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchAuthMe(ctx, request.(PatchAuthMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchAuthMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchAuthMeResponseObject); ok {
+		if err := validResponse.VisitPatchAuthMeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

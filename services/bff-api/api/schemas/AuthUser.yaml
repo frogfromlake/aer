@@ -6,6 +6,8 @@ description: >
 required:
   - id
   - email
+  - firstName
+  - lastName
   - role
   - status
 properties:
@@ -15,6 +17,14 @@ properties:
   email:
     type: string
     format: email
+  firstName:
+    type: string
+    description: >
+      Given name, set once at invite acceptance (Phase 148e). May be empty for a
+      pre-names account; the UI then falls back to email-derived initials.
+  lastName:
+    type: string
+    description: Family name, set once at invite acceptance (Phase 148e).
   role:
     type: string
     description: RBAC role (ADR-040) — one of `admin`, `researcher`.

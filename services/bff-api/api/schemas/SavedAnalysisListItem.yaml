@@ -1,10 +1,11 @@
 type: object
 description: A saved Workbench analysis as shown in the list (no state blob) (Phase 135).
-required: [id, name, description, ownerEmail, createdAt, updatedAt, permission, owned]
+required: [id, name, description, ownerName, ownerEmail, createdAt, updatedAt, permission, owned]
 properties:
   id: { type: string }
   name: { type: string }
   description: { type: string }
+  ownerName: { type: string, description: "The creator's display name (live-joined first + last name; falls back to the email when unset). Primary owner label; the email is secondary." }
   ownerEmail: { type: string, format: email, description: The creator's email. }
   createdAt: { type: string, format: date-time }
   updatedAt: { type: string, format: date-time }

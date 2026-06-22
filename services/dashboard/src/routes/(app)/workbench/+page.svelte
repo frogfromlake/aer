@@ -36,8 +36,11 @@
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import PillarSwitch from '$lib/components/chrome/PillarSwitch.svelte';
-  // Phase 122k §14b finding 2 — global WorkbenchScopeBar retired; the
-  // per-panel `PanelMetaStrip` surfaces scope info inside each panel.
+  // Phase 122k §14b finding 2 — the global scope-BUILDING WorkbenchScopeBar was
+  // retired; per-panel scope lives in `PanelMetaStrip`. Phase 148e brings back
+  // the shared top ScopeBar purely as chrome (surface/layer breadcrumb, active
+  // Pillar, UI-language globe) so the Workbench matches the other surfaces.
+  import ScopeBar from '$lib/components/chrome/ScopeBar.svelte';
   import ScopeEditor from '$lib/components/workbench/ScopeEditor.svelte';
   import AlephShell from '$lib/components/workbench/AlephShell.svelte';
   import EpistemeShell from '$lib/components/workbench/EpistemeShell.svelte';
@@ -205,6 +208,20 @@
   <title>{m.workbench_page_title({ pillar: activePillar.label })}</title>
 </svelte:head>
 
+<!-- Phase 148e — shared chrome scope bar (surface/layer chip + active Pillar +
+     UI-language globe), consistent with Atmosphere and Reflection. -->
+<ScopeBar>
+  <!-- Show the active Pillar only once a real scope is configured; while the
+       create-mode ScopeEditor is open (no pillar state yet) the aux slot stays
+       empty so the chip doesn't claim a stance the user hasn't chosen. -->
+  {#if hasScope}
+    <span class="wb-stance" title={activePillar.blurb}>
+      <span class="wb-stance-eyebrow">{m.chrome_pillar_eyebrow()}</span>
+      <span class="wb-stance-name">{activePillar.label}</span>
+    </span>
+  {/if}
+</ScopeBar>
+
 <!-- Phase 135 — the initial (no-scope) Workbench is transparent so the
      layout's persistent globe shows through (the create-mode ScopeEditor's own
      scrim dims it); a configured scope switches to the opaque work area. -->
@@ -265,7 +282,8 @@
     position: fixed;
     inset: 0;
     left: var(--rail-width);
-    top: 0;
+    /* Reserve the shared scope-bar strip (Phase 148e). */
+    top: var(--scope-bar-height);
     right: 0;
     z-index: 1;
     overflow-y: auto;
@@ -274,6 +292,29 @@
     flex-direction: column;
     padding: var(--space-5);
     gap: var(--space-4);
+  }
+
+  /* Active Pillar (analytical stance) shown in the scope bar's aux slot — an
+     "Pillar/Säule" eyebrow makes the proper name (Aleph/Episteme/Rhizome)
+     legible; the blurb rides along as the title tooltip. */
+  .wb-stance {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .wb-stance-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-subtle);
+  }
+  .wb-stance-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-fg);
   }
   /* Initial (no-scope) entry: let the layout's persistent globe show through;
      the ScopeEditor's own scrim provides the glassy dim. */

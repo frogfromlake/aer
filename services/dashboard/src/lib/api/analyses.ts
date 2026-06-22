@@ -10,6 +10,9 @@ export interface AnalysisListItem {
   id: string;
   name: string;
   description: string;
+  /** Live-joined owner display name (first + last; email fallback) — primary
+   *  owner label, with ownerEmail as the secondary detail. */
+  ownerName: string;
   ownerEmail: string;
   createdAt: string;
   updatedAt: string;

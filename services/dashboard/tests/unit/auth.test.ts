@@ -18,7 +18,8 @@ import {
   passkeyList,
   passkeyRegisterBegin,
   passkeyRegisterFinish,
-  resetPassword
+  resetPassword,
+  updateProfile
 } from '../../src/lib/api/auth';
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -157,14 +158,16 @@ describe('no-body and id-path wrappers', () => {
 describe('session + DSGVO + admin + passkey wrappers route to the right method/path', () => {
   // Each wrapper is a distinct function the rest of the app calls; pin its
   // verb + path + body shape so a contract drift surfaces here.
-  it('acceptInvite POSTs token/password/acceptResponsibleUse', async () => {
+  it('acceptInvite POSTs token/firstName/lastName/password/acceptResponsibleUse', async () => {
     resolveWith(200, { id: 'u', email: 'a@b.de', role: 'researcher', status: 'active' });
-    await acceptInvite('tok', 'pw', true);
+    await acceptInvite('tok', 'Ada', 'Lovelace', 'pw', true);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('/api/v1/auth/accept-invite');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({
       token: 'tok',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
       password: 'pw',
       acceptResponsibleUse: true
     });
@@ -184,6 +187,22 @@ describe('session + DSGVO + admin + passkey wrappers route to the right method/p
     const [url, init] = fetchMock.mock.calls[2]!;
     expect(url).toBe('/api/v1/auth/change-password');
     expect(JSON.parse(init.body)).toEqual({ currentPassword: 'old', newPassword: 'new' });
+  });
+
+  it('updateProfile PATCHes /auth/me with the names (Phase 148e)', async () => {
+    resolveWith(200, {
+      id: 'u',
+      email: 'a@b.de',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      role: 'researcher',
+      status: 'active'
+    });
+    await updateProfile('Ada', 'Lovelace');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('/api/v1/auth/me');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ firstName: 'Ada', lastName: 'Lovelace' });
   });
 
   it('exportMyData GETs /auth/me/export; deleteMyAccount DELETEs /auth/me', async () => {

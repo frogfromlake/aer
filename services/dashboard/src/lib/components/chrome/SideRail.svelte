@@ -25,12 +25,15 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { urlState, toggleOverlay } from '$lib/state/url.svelte';
+  import { user } from '$lib/state/auth.svelte';
   import { getPillar } from '$lib/presentations';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import { m } from '$lib/paraglide/messages.js';
+  import UserAvatar from '$lib/components/base/UserAvatar.svelte';
   import type { PillarId } from '$lib/state/url-internals';
 
   const url = $derived(urlState());
+  const me = $derived(user());
   const activePillarId = $derived<PillarId>(url.activePillar ?? 'aleph');
   const activePillar = $derived(getPillar(activePillarId));
   const selectedCount = $derived(url.selectedProbes.length);
@@ -49,20 +52,6 @@
   // opens it on its default (Account) tab.
   function openAccount() {
     toggleOverlay('account');
-  }
-
-  // Phase 127 — in-app AĒR back/forward, the unified navigation the operator
-  // asked for (Reflection in particular had no in-page way back and forth). The
-  // app mutates history directly via `history.pushState` (url.svelte `pushUrl`),
-  // so a reliable enabled/disabled state is not derivable from SvelteKit's
-  // navigation hooks; the arrows therefore always defer to the browser's own
-  // back/forward stack (which DOES account for those pushState entries) and the
-  // browser no-ops at either end — exactly like its native toolbar buttons.
-  function goBack() {
-    if (typeof history !== 'undefined') history.back();
-  }
-  function goForward() {
-    if (typeof history !== 'undefined') history.forward();
   }
 
   interface SurfaceEntry {
@@ -171,30 +160,6 @@
     {/each}
   </ul>
 
-  <!-- History back/forward — Phase 127. Always-available AĒR arrows mirroring
-       the browser's own back/forward (see goBack/goForward for why a reliable
-       disabled state is not derivable). -->
-  <div class="rail-history" role="group" aria-label={m.chrome_nav_history_label()}>
-    <button
-      type="button"
-      class="rail-history-btn"
-      onclick={goBack}
-      aria-label={m.chrome_nav_back()}
-      title={m.chrome_nav_back_title()}
-    >
-      <span aria-hidden="true">←</span>
-    </button>
-    <button
-      type="button"
-      class="rail-history-btn"
-      onclick={goForward}
-      aria-label={m.chrome_nav_forward()}
-      title={m.chrome_nav_forward_title()}
-    >
-      <span aria-hidden="true">→</span>
-    </button>
-  </div>
-
   <!-- Scope card — "Where am I": current selection + active Pillar. -->
   <div class="rail-scope">
     <span class="rail-scope-h">{m.chrome_section_where_am_i()}</span>
@@ -240,8 +205,13 @@
       <span class="rail-mini-glyph" aria-hidden="true">★</span>
       <span class="rail-mini-label">{m.chrome_library_label()}</span>
     </button>
-    <button type="button" class="rail-mini" onclick={openAccount} title={m.chrome_user_account()}>
-      <span class="rail-mini-glyph" aria-hidden="true">◐</span>
+    <button
+      type="button"
+      class="rail-mini rail-account"
+      onclick={openAccount}
+      title={m.chrome_user_account()}
+    >
+      <UserAvatar firstName={me?.firstName} lastName={me?.lastName} email={me?.email} size={26} />
       <span class="rail-mini-label">{m.chrome_user_account()}</span>
     </button>
   </div>
@@ -354,41 +324,6 @@
     outline: none;
   }
 
-  /* History back/forward — a quiet two-button row under the surface anchors. */
-  .rail-history {
-    display: flex;
-    gap: 6px;
-  }
-  .rail-history-btn {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-1) 0;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    color: var(--color-fg-muted);
-    font-size: 1rem;
-    line-height: 1;
-    cursor: pointer;
-    transition:
-      background var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-  .rail-history-btn:hover,
-  .rail-history-btn:focus-visible {
-    background: var(--color-surface-hover);
-    color: var(--color-fg);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .rail-history-btn {
-      transition: none;
-    }
-  }
-
   /* Scope card — "Where am I". */
   .rail-scope {
     margin-top: var(--space-1);
@@ -442,7 +377,7 @@
   .rail-bottom {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
   }
   .rail-mini {
     display: flex;
@@ -479,6 +414,12 @@
   }
   .rail-mini-label {
     flex: 1 1 auto;
+  }
+
+  /* Account button — same label treatment as the other mini-buttons, set apart
+     only by an elevated ground; the avatar carries the accent. */
+  .rail-account {
+    background: var(--color-bg-elevated);
   }
 
   @media (prefers-reduced-motion: reduce) {
