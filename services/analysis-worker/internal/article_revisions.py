@@ -44,6 +44,18 @@ from internal.wayback.client import synthesise_republication_hash
 
 logger = structlog.get_logger()
 
+# Phase 148c — cap the per-article revision chain. A live-ticker / continuously
+# updated page (stable URL, ever-changing content — weather tickers, live-blogs)
+# accumulates dozens-to-hundreds of distinct Wayback CDX content-versions;
+# backfilling and then diffing/enriching every one costs CPU for zero analytical
+# value (it is not discourse). Past this cap we keep the chronologically-first N
+# and stop — the article then surfaces as the `live_ticker` Negative-Space class
+# in the UI (revision count >= the matching frontend floor) and is excluded from
+# the analytical reading rather than silently dropped (DISCLOSE-NEVER-COERCE,
+# WP-007 §4.3). Provisional engineering default; real articles in the 2026-06-21
+# validation topped out at 8 revisions, so 20 leaves ample headroom.
+MAX_CDX_REVISIONS_PER_ARTICLE = int(os.getenv("MAX_CDX_REVISIONS_PER_ARTICLE", "20"))
+
 ARTICLE_REVISIONS_TABLE = "aer_gold.article_revisions"
 
 # When the publisher's sitemap-lastmod is at least this far ahead of the
@@ -160,6 +172,14 @@ def _build_chain(
         seen_hashes.add(content_hash)
 
     chain.sort(key=lambda r: r["snapshot_at"])
+    # Phase 148c — bound a live-ticker's chain (see MAX_CDX_REVISIONS_PER_ARTICLE).
+    if len(chain) > MAX_CDX_REVISIONS_PER_ARTICLE:
+        logger.info(
+            "article_revisions.chain_capped",
+            kept=MAX_CDX_REVISIONS_PER_ARTICLE,
+            dropped=len(chain) - MAX_CDX_REVISIONS_PER_ARTICLE,
+        )
+        chain = chain[:MAX_CDX_REVISIONS_PER_ARTICLE]
     return chain
 
 

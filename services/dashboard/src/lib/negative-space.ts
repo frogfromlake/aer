@@ -28,7 +28,8 @@ export const NS_CLASSES = [
   'analytical_capability_absence',
   'k_anonymity_suppression',
   'equivalence_refusal',
-  'thin_content'
+  'thin_content',
+  'live_ticker'
 ] as const;
 
 export type NSClass = (typeof NS_CLASSES)[number];
@@ -122,6 +123,16 @@ export const NS_CLASS_DEFINITIONS: Record<NSClass, NSClassDef> = {
       'The article body is below the prose-length floor (a live-blog / photo / listing-page stub) — collected and disclosed, never silently dropped or counted as full prose (WP-007 §4.3).',
     wpAnchor: '/reflection/wp/wp-007?section=4.3',
     scope: 'article'
+  },
+  live_ticker: {
+    key: 'live_ticker',
+    abbr: 'LT',
+    label: 'Live Ticker',
+    color: '#8f8a95',
+    description:
+      'A live-ticker / continuously-updated page (a stable URL re-captured past the revision cap) — its endless versions are bounded and the article is excluded from the analytical reading, disclosed rather than silently dropped (WP-007 §4.3).',
+    wpAnchor: '/reflection/wp/wp-007?section=4.3',
+    scope: 'article'
   }
 };
 
@@ -158,7 +169,8 @@ const NS_CLASS_LABELS: Record<NSClass, () => string> = {
   analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_label(),
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_label(),
   equivalence_refusal: () => m.domain_ns_equivalence_refusal_label(),
-  thin_content: () => m.domain_ns_thin_content_label()
+  thin_content: () => m.domain_ns_thin_content_label(),
+  live_ticker: () => m.domain_ns_live_ticker_label()
 };
 
 const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
@@ -168,7 +180,8 @@ const NS_CLASS_DESCRIPTIONS: Record<NSClass, () => string> = {
   analytical_capability_absence: () => m.domain_ns_analytical_capability_absence_desc(),
   k_anonymity_suppression: () => m.domain_ns_k_anonymity_suppression_desc(),
   equivalence_refusal: () => m.domain_ns_equivalence_refusal_desc(),
-  thin_content: () => m.domain_ns_thin_content_desc()
+  thin_content: () => m.domain_ns_thin_content_desc(),
+  live_ticker: () => m.domain_ns_live_ticker_desc()
 };
 
 export function nsPolicyNote(policy: string | null | undefined): string {
@@ -200,6 +213,8 @@ export interface NSRow {
   hasHeadlineChange?: boolean | null | undefined;
   /** Body word count (Silver `word_count`). Drives the Thin-Content class. */
   wordCount?: number | null | undefined;
+  /** Revision-chain length (Wayback CDX captures). Drives the Live-Ticker class. */
+  chainLength?: number | null | undefined;
 }
 
 /** Below this body word count an article reads as a stub (live-blog / photo /
@@ -207,6 +222,14 @@ export interface NSRow {
  *  rather than silently dropped or counted as full prose (WP-007 §4.3). A
  *  provisional engineering default — NOT a validated linguistic threshold. */
 export const THIN_CONTENT_WORD_FLOOR = 50;
+
+/** At or above this revision-chain length an article is a live-ticker /
+ *  continuously-updated page — its chain was capped by the worker at this value,
+ *  so this MUST match `MAX_CDX_REVISIONS_PER_ARTICLE` in the analysis worker. It
+ *  is then disclosed as Live-Ticker Negative Space and excluded from the
+ *  analytical reading rather than silently dropped (WP-007 §4.3). Provisional
+ *  engineering default; real articles in validation topped out at 8 revisions. */
+export const LIVE_TICKER_REVISION_FLOOR = 20;
 
 /**
  * classifyNegativeSpace returns the PER-ARTICLE NS-classes a row belongs to (a
@@ -220,6 +243,9 @@ export const THIN_CONTENT_WORD_FLOOR = 50;
  *     per-revision query, not the list row).
  *   • Thin-Content — `wordCount < THIN_CONTENT_WORD_FLOOR` (a stub/non-article
  *     body, disclosed rather than dropped or counted as full prose; WP-007 §4.3).
+ *   • Live-Ticker — `chainLength >= LIVE_TICKER_REVISION_FLOOR` (a continuously-
+ *     updated page whose revision chain hit the worker cap; excluded + disclosed,
+ *     not silently dropped; WP-007 §4.3).
  *
  * The source-/query-level classes (structural-metadata, analytical-capability,
  * k-anonymity, equivalence-refusal) are NOT row-derivable; they are surfaced by
@@ -231,5 +257,7 @@ export function classifyNegativeSpace(row: NSRow): NSClass[] {
   if (row.hasHeadlineChange === true) out.push('silent_edit');
   if (typeof row.wordCount === 'number' && row.wordCount < THIN_CONTENT_WORD_FLOOR)
     out.push('thin_content');
+  if (typeof row.chainLength === 'number' && row.chainLength >= LIVE_TICKER_REVISION_FLOOR)
+    out.push('live_ticker');
   return out;
 }

@@ -7,6 +7,7 @@ import {
   getNSClassDef,
   classifyNegativeSpace,
   THIN_CONTENT_WORD_FLOOR,
+  LIVE_TICKER_REVISION_FLOOR,
   type NSClass
 } from '../../src/lib/negative-space';
 
@@ -14,7 +15,7 @@ import {
 // pin both so a drift is a deliberate, reviewed change.
 
 describe('NS class vocabulary', () => {
-  it('defines exactly the seven shipped classes', () => {
+  it('defines exactly the eight shipped classes', () => {
     expect([...NS_CLASSES]).toEqual([
       'structural_metadata_absence',
       'temporal_provenance_absence',
@@ -22,7 +23,8 @@ describe('NS class vocabulary', () => {
       'analytical_capability_absence',
       'k_anonymity_suppression',
       'equivalence_refusal',
-      'thin_content'
+      'thin_content',
+      'live_ticker'
     ]);
   });
 
@@ -48,6 +50,9 @@ describe('NS class vocabulary', () => {
     const tc = getNSClassDef('thin_content');
     expect(tc?.label).toBe('Thin Content');
     expect(tc?.description).toMatch(/WP-007/);
+    const lt = getNSClassDef('live_ticker');
+    expect(lt?.label).toBe('Live Ticker');
+    expect(lt?.description).toMatch(/WP-007/);
     expect(getNSClassDef('nope')).toBeNull();
     expect(getNSClassDef(null)).toBeNull();
   });
@@ -78,6 +83,18 @@ describe('classifyNegativeSpace (per-article)', () => {
     // Disclose only what we measure — an unknown count must not flag.
     expect(classifyNegativeSpace({ wordCount: null })).toEqual([]);
     expect(classifyNegativeSpace({})).toEqual([]);
+  });
+
+  it('flags Live-Ticker at or above the revision floor, never below or unknown', () => {
+    expect(classifyNegativeSpace({ chainLength: LIVE_TICKER_REVISION_FLOOR })).toEqual([
+      'live_ticker'
+    ]);
+    expect(classifyNegativeSpace({ chainLength: LIVE_TICKER_REVISION_FLOOR + 5 })).toEqual([
+      'live_ticker'
+    ]);
+    expect(classifyNegativeSpace({ chainLength: LIVE_TICKER_REVISION_FLOOR - 1 })).toEqual([]);
+    expect(classifyNegativeSpace({ chainLength: 3 })).toEqual([]);
+    expect(classifyNegativeSpace({ chainLength: null })).toEqual([]);
   });
 
   it('a row can belong to multiple classes', () => {
