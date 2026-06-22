@@ -121,7 +121,12 @@
     ariaLabel={m.levers_topn_aria()}
     rowClass="config-row"
   >
-    <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
+    <div
+      class="config-inline"
+      title={m.levers_topn_title()}
+      onclick={(e) => e.stopPropagation()}
+      role="presentation"
+    >
       <input
         type="range"
         min="5"

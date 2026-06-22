@@ -101,6 +101,7 @@
   "levers_topn_eyebrow": "Top N",
   "levers_topn_aria": "Top-Kanten",
   "levers_topn_slider_aria": "Top-N-Schieberegler",
+  "levers_topn_title": "Die N stärksten Verbindungen (Kanten) nach Co-Occurrence-Anzahl. Die Knotenzahl ergibt sich daraus, wie viele Entitäten diese Kanten verbinden — es ist keine Knotenanzahl.",
   "levers_spread_eyebrow": "Spreizung",
   "levers_spread_aria": "Graph-Spreizung",
   "levers_spread_slider_aria": "Schieberegler für die Graph-Spreizung (Knotenabstoßung)",

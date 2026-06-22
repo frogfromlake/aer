@@ -5400,3 +5400,30 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 **Per-dimension content + provenance** for the fields this lights up (`reading_time_minutes`, `comment_count`, `external_citation_count` provenance already registered in `metric_provenance.yaml`; their rich dual-register content + any newly-visible categorical fields' content authored here, EN+DE, when they become visible).
 
 ---
+
+## Deferred: Node-First Co-occurrence — decouple node count from edge count [P2]
+
+*Status: **DEFERRED** (decision 2026-06-22). Placed outside Iteration 13 (Deployment & Infrastructure) on purpose — this is an analytical **feature** (a Phase-131 Configurable-Cells descendant on the Workbench), not deploy-readiness, and it is not deploy-blocking (the current network works well). Re-open as a post-deploy feature so it does not muddy the 148b→148c→148d→149→150 deploy sequence.*
+
+**The ask (operator, observing the live cell).** The co-occurrence `topN` lever controls **edges**, not nodes: the BFF returns the top-N strongest co-occurrence *pairs* (`ORDER BY sum(cooccurrence_count) DESC LIMIT topN`) and derives nodes as the union of incident entities — so `topN=6000` yields ~6000 edges but only ~777 nodes (hub structure: a few hundred frequent entities form thousands of pairwise links). The operator wants to drive toward **~5000 nodes** directly.
+
+**Feasibility — confirmed (2026-06-21):** (a) the data exists — distinct entities: tagesschau 4791, franceinfo 3843, all-sources 8958, so 5000 nodes is real (near the ceiling for a single source, comfortable across a probe); (b) the renderer already scales — `CoOccurrenceNetworkAtScale.svelte` (sigma.js / WebGL + ForceAtlas2-in-a-worker, auto-routed above ~500 edges) handles thousands of nodes; (c) the only real gap is the **query model** (edge-first → node-derived). `aer_gold.entities` has no per-entity count column, but `GROUP BY entity_text` ranking is trivial in ClickHouse.
+
+**Design — decouple into two levers (matches the operator's intuition).**
+1. **Nodes lever (NEW, `nodeTopN`):** top-N entities by **mention frequency** (`GROUP BY entity_text, count() … LIMIT nodeTopN`), scoped to the selected sources/window, up to ~5000. Directly controls the node count — and incidentally retires the Top-N-means-edges confusion entirely.
+2. **Edges lever (the existing `topN`, reframed):** co-occurrence edges **among the selected node set**, with a **strength config** (`minWeight` threshold and/or strongest-K) — the operator's "strongest-only vs. all, with a strength control". Edges are always fetched for **layout** (clustering); the existing `showEdges` toggle only hides the *lines*.
+
+**Clustering is preserved** — ForceAtlas2 is edge-driven, so the edges (kept for layout even when lines are hidden) still pull connected nodes into clusters exactly as today. **Caveat to disclose:** with 5000 nodes, entities that are frequent but rarely co-occur float as **isolated nodes** (no edge in the thresholded set); the strength config trades clustering completeness against performance.
+
+**Semantic shift (methodology-relevant, WP-001/WP-007).** Edge-first answers *"what is most strongly connected"*; node-first-by-frequency answers *"what dominates the discourse, and how it relates"* — a **new analytical mode**, not "more of the same". Needs its own `how-to-read` note and provenance framing. **Disclosure (ADR-039):** "top N of M entities by frequency" is a truncation → Negative Space; isolated-node share disclosed.
+
+**Scope when re-opened.**
+* **BFF:** a top-entities-by-frequency query (new) + invert the edge query to fetch edges *restricted to the selected node set*; new `nodeTopN` param + OpenAPI contract + storage tests; an edge cap among the node set so the layout/payload stays bounded.
+* **Frontend:** a **Nodes** lever + the reframed **Edge-strength** lever, URL/state wiring, levers + `how-to-read` + i18n EN+DE; reuse the existing `CoOccurrenceNetworkAtScale` renderer (no new render path).
+* **Perf:** 5000 nodes in sigma/WebGL is fine; the edge set among them must be `minWeight`/top-K capped for layout speed.
+
+**Open design decisions (operator, at re-open).** Two separate levers vs. one combined? Edge filter = `minWeight` vs. strongest-K vs. both? Default node count? Node ranking by raw frequency vs. degree?
+
+**Re-open trigger.** After deployment stabilises (post-Phase-150), OR when richer relational/dominance analysis becomes the priority. No code until then; the current edge-first network stays the shipped behaviour.
+
+---

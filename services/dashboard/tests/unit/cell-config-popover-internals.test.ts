@@ -26,10 +26,10 @@ describe('clampBins', () => {
 });
 
 describe('clampTopN', () => {
-  it('rounds and clamps into the 1–500 range', () => {
+  it('rounds and clamps into the 1–6000 range (matches the edge cap MaxCoOccurrenceTopN)', () => {
     expect(clampTopN(250.5)).toBe(251);
     expect(clampTopN(0)).toBe(1);
-    expect(clampTopN(10_000)).toBe(500);
+    expect(clampTopN(10_000)).toBe(6000);
   });
 
   it('returns null for a non-finite input', () => {

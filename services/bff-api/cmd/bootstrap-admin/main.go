@@ -105,6 +105,12 @@ func run() error {
 	// accept-invite page reads it via tokenFromHash(window.location.hash); a
 	// `?token=` link would surface as "missing invite token". This must match the
 	// other link builders (issueActionLink / dispatchPasswordReset).
+	// No local base-URL fallback by design: there are three possible hosts
+	// (make fe-dev → http://localhost:5173, make frontend-up → https://localhost,
+	// prod → the real domain), so any hardcoded default would be wrong for two of
+	// them and would mask the prod requirement. Locally BFF_PUBLIC_BASE_URL stays
+	// empty and the link prints as a bare path — the operator prefixes the host
+	// for their context. In prod, BFF_PUBLIC_BASE_URL is set to the real origin.
 	link := v.GetString("BFF_PUBLIC_BASE_URL") + "/accept-invite#token=" + raw
 	fmt.Println("\nAccept-invite link (deliver to the admin; sets their password + consent):")
 	fmt.Println("  " + link)

@@ -8,7 +8,10 @@ import type { CellChannelBinding } from '$lib/state/url-internals';
 // Slider clamps — return the rounded, range-clamped value, or null for a
 // non-finite input (the caller then leaves the override untouched). The ranges
 // match CellConfigPopover's historical clamps (wider than the slider min/max so
-// a programmatic value is still accepted): bins 1–200, topN 1–500, force 0–100.
+// a programmatic value is still accepted): bins 1–200, topN 1–6000, force 0–100.
+// topN ceiling matches the co-occurrence edge cap (storage MaxCoOccurrenceTopN =
+// 6000 / computeTopNMax) so the popover never silently clamps below what the
+// ConfigValueLevers slider + the BFF allow.
 export function clampBins(raw: number): number | null {
   if (!Number.isFinite(raw)) return null;
   return Math.min(200, Math.max(1, Math.round(raw)));
@@ -16,7 +19,7 @@ export function clampBins(raw: number): number | null {
 
 export function clampTopN(raw: number): number | null {
   if (!Number.isFinite(raw)) return null;
-  return Math.min(500, Math.max(1, Math.round(raw)));
+  return Math.min(6000, Math.max(1, Math.round(raw)));
 }
 
 export function clampForce(raw: number): number | null {

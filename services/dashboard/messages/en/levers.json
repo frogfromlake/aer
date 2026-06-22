@@ -101,6 +101,7 @@
   "levers_topn_eyebrow": "Top N",
   "levers_topn_aria": "Top edges",
   "levers_topn_slider_aria": "Top N slider",
+  "levers_topn_title": "The N strongest connections (edges) by co-occurrence count. The node count follows from how many entities those edges connect — it is not a node count.",
   "levers_spread_eyebrow": "Spread",
   "levers_spread_aria": "Graph spread",
   "levers_spread_slider_aria": "Graph spread (node repulsion) slider",
