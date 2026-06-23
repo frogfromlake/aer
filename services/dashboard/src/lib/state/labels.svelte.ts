@@ -39,6 +39,15 @@ export function metricLabel(name: string): string {
   return metricLabels[name] ?? humanizeMachineName(name);
 }
 
+// Whether `name` is a REAL analytical metric registered from `/metrics/available`
+// (as opposed to a categorical field that landed in `Panel.metric` for a
+// metric-agnostic view). Reactive on the registry. Gates metric-keyed methodology
+// fetches so a field-as-metric (e.g. `author` on a Distribution) never fires
+// `/metrics/author/provenance` → 404.
+export function isRegisteredMetric(name: string): boolean {
+  return name.length > 0 && name in metricLabels;
+}
+
 // Localized labels for the fixed categorical-field set (same fields as the
 // Task-C metadata catalogue). Paraglide reads the UI-locale rune per call.
 const FIELD_LABELS: Record<string, () => string> = {

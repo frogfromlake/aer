@@ -3,18 +3,19 @@
   // Guide under the ladder; replaces the standalone CellMethodology block).
   //
   // The WHOLE section is one collapsible (default collapsed) with an explicit
-  // "click to expand" hint, so the deep provenance never crowds the ladder. Its
-  // header is the toggle (METHODIK · subject · view + Tier badge + limitations
-  // pill); expanding reveals the per-metric blocks, each independently collapsible
-  // and DEFAULT COLLAPSED, in reading order:
-  //   1. <view> × <metric>  (per-cell methodology prose)
-  //   2. What this metric measures  (dual register)
+  // "click to expand" hint, so the deep methodology never crowds the ladder.
+  // Expanding reveals independently-collapsible blocks (DEFAULT COLLAPSED):
+  //   0. How this view works — the reviewed howto_<presentation>.methodological
+  //      register, shown for EVERY view so the section is never empty.
+  //   1. <view> × <metric>  (per-cell methodology prose, metric subjects)
+  //   2. What this metric measures  (dual register, metric subjects)
   //   3. Provenance  (tier / validation / algorithm / extractor hash)
   //   4. Known limitations
-  //   + Working-Paper + full-provenance-page links.
-  // `Panel.metric` is overloaded, so fetches are gated by `panelSubjectKind`
-  // (metric → provenance/content; field → the curated field description; none →
-  // nothing). This is the same fetch/gating contract the old CellMethodology had.
+  //   • or, for a field subject: the curated field description.
+  //   + Working-Paper + (metric-only) full-provenance-page links.
+  // `Panel.metric` is overloaded, so the METRIC-keyed fetches are gated by
+  // `panelSubjectKind` (metric → provenance/content; field/none → skipped, no
+  // 404); the view methodology is fetched for every view.
   import { createQuery } from '@tanstack/svelte-query';
   import { m } from '$lib/paraglide/messages.js';
   import {
@@ -36,7 +37,12 @@
   import type { Presentation } from '$lib/state/url-internals';
   import { page } from '$app/state';
   import { urlState } from '$lib/state/url.svelte';
-  import { metricLabel, fieldLabel, fieldDescription } from '$lib/state/labels.svelte';
+  import {
+    metricLabel,
+    fieldLabel,
+    fieldDescription,
+    isRegisteredMetric
+  } from '$lib/state/labels.svelte';
   import { locale } from '$lib/state/locale.svelte';
 
   interface Props {
@@ -58,8 +64,13 @@
   const subjectKind = $derived(panelSubjectKind(getPresentation(viewMode)));
   const isMetricSubject = $derived(subjectKind === 'metric');
   const isFieldSubject = $derived(subjectKind === 'field');
+  // A metric subject whose `Panel.metric` is a real registered metric. A
+  // metric-agnostic view can leave a categorical FIELD in `Panel.metric` (e.g.
+  // `author` on a Distribution): that is a metric subject by presentation but has
+  // no provenance, so the metric-keyed fetches must NOT fire (else 404 + a broken,
+  // empty methodology). Such a view falls back to its view-level methodology only.
+  const isRealMetric = $derived(isMetricSubject && isRegisteredMetric(metricName));
   const fieldDesc = $derived(isFieldSubject ? fieldDescription(metricName) : null);
-  const subjectLabel = $derived(isFieldSubject ? fieldLabel(metricName) : metricLabel(metricName));
 
   const provenanceQ = createQuery<
     QueryOutcome<MetricProvenanceDto>,
@@ -71,7 +82,7 @@
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
       staleTime: o.staleTime,
-      enabled: isMetricSubject && metricName.length > 0
+      enabled: isRealMetric && metricName.length > 0
     };
   });
 
@@ -85,11 +96,11 @@
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
       staleTime: o.staleTime,
-      enabled: isMetricSubject && metricName.length > 0
+      enabled: isRealMetric && metricName.length > 0
     };
   });
 
-  const hasViewModeContent = $derived(isMetricSubject && hasCellMethodologyContent(viewMode));
+  const hasViewModeContent = $derived(isRealMetric && hasCellMethodologyContent(viewMode));
   const cellContent_id = $derived(cellContentId(viewMode, metricName));
   const viewModeContentQ = createQuery<
     QueryOutcome<ContentResponseDto>,
@@ -105,6 +116,23 @@
     };
   });
 
+  // The view-level methodology — the reviewed `howto_<presentation>.methodological`
+  // register, which exists for EVERY presentation. Shown for every view (even the
+  // channel-driven / 'none' ones with no single-metric provenance), so the
+  // methodology section is never empty. TanStack dedupes this with the
+  // ReadingGuide's own howto fetch (same queryKey) — no extra network call.
+  const viewMethodologyQ = createQuery<
+    QueryOutcome<ContentResponseDto>,
+    Error,
+    QueryOutcome<ContentResponseDto>
+  >(() => {
+    const o = contentQuery(ctx, 'view_mode', `howto_${viewMode}`, locale());
+    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  });
+  const viewMethodology = $derived<ContentResponseDto | null>(
+    viewMethodologyQ.data?.kind === 'success' ? viewMethodologyQ.data.data : null
+  );
+
   const provenance = $derived<MetricProvenanceDto | null>(
     provenanceQ.data?.kind === 'success' ? provenanceQ.data.data : null
   );
@@ -117,6 +145,12 @@
 
   const badgeTier = $derived(pickBadgeTier(provenance));
   const hasLimitations = $derived((provenance?.knownLimitations.length ?? 0) > 0);
+  // The visible subject chip: the metric or field for those subjects; for a
+  // metric-agnostic ('none') view there is no single subject, so the header just
+  // names the view.
+  const headerSubject = $derived(
+    isRealMetric ? metricLabel(metricName) : isFieldSubject ? fieldLabel(metricName) : null
+  );
 
   // Working-paper anchor enriched with referrer params so the WP page deep-links
   // back to the cell the reader came from.
@@ -134,17 +168,22 @@
     return p.toString();
   });
   const rawWpHref = $derived(
-    parseWorkingPaperHref(metricContent?.workingPaperAnchors?.[0] ?? null)
+    parseWorkingPaperHref(
+      metricContent?.workingPaperAnchors?.[0] ?? viewMethodology?.workingPaperAnchors?.[0] ?? null
+    )
   );
   const wpHref = $derived(
     rawWpHref ? `${rawWpHref}${rawWpHref.includes('?') ? '&' : '?'}${referrerParams}` : null
   );
 </script>
 
-{#if isMetricSubject || isFieldSubject}
+{#if viewMethodology || isMetricSubject || isFieldSubject}
   <section
     class="measure-detail epistemic-weight"
-    aria-label={m.workbench_meth_aria_label({ metric: subjectLabel, view: viewLabel })}
+    aria-label={m.workbench_meth_aria_label({
+      metric: headerSubject ?? viewLabel,
+      view: viewLabel
+    })}
   >
     <button
       type="button"
@@ -156,11 +195,13 @@
       <span class="md-chevron" class:expanded={mdExpanded} aria-hidden="true">›</span>
       <span class="md-title">{m.workbench_meth_title()}</span>
       <span class="md-cell-id">
-        <code class="md-metric">{subjectLabel}</code>
-        <span class="md-sep" aria-hidden="true">·</span>
+        {#if headerSubject}
+          <code class="md-metric">{headerSubject}</code>
+          <span class="md-sep" aria-hidden="true">·</span>
+        {/if}
         <span class="md-view">{viewLabel}</span>
       </span>
-      {#if isMetricSubject}
+      {#if isRealMetric}
         <Badge tier={badgeTier} />
       {/if}
       {#if hasLimitations}
@@ -173,20 +214,29 @@
 
     {#if mdExpanded}
       <div class="md-body" id="md-body-{metricName}-{viewMode}">
+        <!-- The view-level methodology (reviewed howto.<presentation>.methodological)
+             — present for EVERY view, so the section is never empty. -->
+        {#if viewMethodology}
+          <details class="meth-block" data-section="view-method">
+            <summary class="meth-block-summary">{m.workbench_meth_view_method()}</summary>
+            <p class="cell-method-text">{viewMethodology.registers.methodological.long}</p>
+          </details>
+        {/if}
+
         {#if isFieldSubject}
           <details class="meth-block" data-section="field">
             <summary class="meth-block-summary">{m.workbench_meth_what_field_means()}</summary>
             <p class="cell-method-text">{fieldDesc ?? m.workbench_meth_field_no_desc()}</p>
           </details>
-        {:else if provenanceQ.isPending || metricContentQ.isPending}
+        {:else if isRealMetric && (provenanceQ.isPending || metricContentQ.isPending)}
           <p class="muted" aria-busy="true">{m.workbench_meth_loading()}</p>
-        {:else}
+        {:else if isRealMetric}
           {#if viewModeContent}
             <details class="meth-block" data-section="cell-method">
               <summary class="meth-block-summary"
                 >{m.workbench_meth_cell_method_heading({
                   view: viewLabel,
-                  metric: subjectLabel
+                  metric: headerSubject ?? viewLabel
                 })}</summary
               >
               <p class="cell-method-text">{viewModeContent.registers.methodological.long}</p>
@@ -232,16 +282,20 @@
               </ul>
             </details>
           {/if}
+        {/if}
 
+        {#if wpHref || isRealMetric}
           <div class="meth-links">
             {#if wpHref}
               <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
               <a class="meth-link" href={wpHref}>{m.workbench_meth_link_working_paper()}</a>
             {/if}
-            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
-            <a class="meth-link" href="/reflection/metric/{metricName}">
-              {m.workbench_meth_link_provenance_page()}
-            </a>
+            {#if isRealMetric}
+              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
+              <a class="meth-link" href="/reflection/metric/{metricName}">
+                {m.workbench_meth_link_provenance_page()}
+              </a>
+            {/if}
           </div>
         {/if}
       </div>

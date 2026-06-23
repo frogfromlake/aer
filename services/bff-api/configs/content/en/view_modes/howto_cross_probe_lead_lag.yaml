@@ -1,0 +1,32 @@
+entityId: howto_cross_probe_lead_lag
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Whether one probe's publication rhythm leads or follows another's — read the peak: a peak right of zero means the compared probe follows the reference."
+    long: >
+      Cross-probe lead-lag asks "do two cultures' publication rhythms move together, and
+      does one consistently come first?". The curve is the lagged cross-correlation of the
+      two probes' hourly publication activity: the reference probe versus the compared probe
+      shifted by a lag of τ hours. Read the peak — a peak at τ>0 means the compared probe
+      FOLLOWS the reference by that many hours; at τ<0 it LEADS; at τ=0 they move in step.
+      The height of the peak (Pearson r) is the strength of the coupling; a flat curve means
+      the two rhythms are unrelated in the overlapping window.
+  methodological:
+    short: "Lagged cross-correlation of two probes' hourly publication counts; gated on a temporal Level-1 equivalence grant (WP-004), refused otherwise."
+    long: >
+      The server correlates the two probes' hourly publication-activity series at each lag τ
+      over their overlapping window, returning a Pearson r per lag plus the peak. This is a
+      comparison of publication RHYTHM on a culture-independent time axis, not of any intensive
+      metric, so it is gated on the temporal Level-1 equivalence grant (WP-004 §6.3, Appendix B)
+      seeded by migration — an ungranted probe pair returns a refusal rather than an
+      uninterpretable curve. Only hours where BOTH probes published contribute to a lag's
+      correlation; the disclosed bucket count at lag 0 is the effective sample. The reading is
+      descriptive (temporal coupling), never causal: a lead is not evidence that one probe drives
+      the other.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-004 §6.3"
+  - "WP-004 Appendix B"

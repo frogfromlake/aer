@@ -53,23 +53,23 @@
   const lockMeta = $derived(lock ? DISCOURSE_FUNCTIONS.find((d) => d.id === lock) : null);
 
   // Phase 148e — probe selection scales to dozens: a search field narrows the
-  // UNSELECTED pool while selected probes stay pinned first and are never
-  // filtered out. Always available (it scales regardless of how many probes
-  // exist) and keeps the pill aesthetic.
+  // pool. Probes keep their NATURAL order and a probe is shown when it is either
+  // selected (always — search never hides a chosen probe) or matches the query.
+  // Selecting a probe therefore never reorders the list (Phase 148f fix: no more
+  // "jump to front" when a non-first probe is picked). No selection-dependent
+  // ordering, so no special case for any probe count.
   let probeSearch = $state('');
-  const selectedProbes = $derived(probeList.filter((p) => group.probeIds.includes(p.probeId)));
-  const unselectedMatches = $derived.by(() => {
+  const visibleProbes = $derived.by(() => {
     const q = probeSearch.trim().toLowerCase();
     return probeList.filter(
       (p) =>
-        !group.probeIds.includes(p.probeId) &&
-        (q === '' ||
-          p.displayName.toLowerCase().includes(q) ||
-          p.probeId.toLowerCase().includes(q) ||
-          p.language.toLowerCase().includes(q))
+        group.probeIds.includes(p.probeId) ||
+        q === '' ||
+        p.displayName.toLowerCase().includes(q) ||
+        p.probeId.toLowerCase().includes(q) ||
+        p.language.toLowerCase().includes(q)
     );
   });
-  const visibleProbes = $derived([...selectedProbes, ...unselectedMatches]);
 </script>
 
 <article

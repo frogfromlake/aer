@@ -248,6 +248,7 @@
   "workbench_meth_loading": "Methodik wird geladen…",
   "workbench_meth_known_limitations": "Bekannte Einschränkungen",
   "workbench_meth_what_metric_measures": "Was diese Metrik misst",
+  "workbench_meth_view_method": "Methodik der Darstellung",
   "workbench_meth_what_field_means": "Was dieses Feld bedeutet",
   "workbench_meth_field_no_desc": "Ein vom Herausgeber deklariertes Metadatenfeld. Noch keine kuratierte Beschreibung.",
   "workbench_meth_provenance": "Provenienz",

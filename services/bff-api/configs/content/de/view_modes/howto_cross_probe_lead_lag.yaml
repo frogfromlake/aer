@@ -1,0 +1,33 @@
+entityId: howto_cross_probe_lead_lag
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Ob der Publikationsrhythmus einer Sonde dem einer anderen vorausgeht oder folgt — lies die Spitze: eine Spitze rechts von null heißt, die verglichene Sonde folgt der Referenz."
+    long: >
+      Der Cross-Probe-Lead-Lag fragt: „Bewegen sich die Publikationsrhythmen zweier Kulturen
+      gemeinsam, und kommt eine konsequent zuerst?". Die Kurve ist die verzögerte Kreuzkorrelation
+      der stündlichen Publikationsaktivität beider Sonden: die Referenzsonde gegen die um τ Stunden
+      verschobene Vergleichssonde. Lies die Spitze — eine Spitze bei τ>0 heißt, die Vergleichssonde
+      FOLGT der Referenz um so viele Stunden; bei τ<0 geht sie VORAUS; bei τ=0 laufen sie im
+      Gleichschritt. Die Höhe der Spitze (Pearson r) ist die Stärke der Kopplung; eine flache Kurve
+      bedeutet, dass die beiden Rhythmen im überlappenden Fenster unzusammenhängend sind.
+  methodological:
+    short: "Verzögerte Kreuzkorrelation der stündlichen Publikationszahlen zweier Sonden; freigeschaltet über eine temporale Level-1-Äquivalenz-Freigabe (WP-004), sonst verweigert."
+    long: >
+      Der Server korreliert die stündlichen Publikationsaktivitäts-Reihen der beiden Sonden bei
+      jeder Verzögerung τ über ihr überlappendes Fenster und liefert ein Pearson r je Verzögerung
+      plus die Spitze. Das ist ein Vergleich des Publikations-RHYTHMUS auf einer kulturunabhängigen
+      Zeitachse, nicht irgendeiner intensiven Metrik, daher über die temporale Level-1-Äquivalenz-
+      Freigabe (WP-004 §6.3, Appendix B) per Migration freigeschaltet — ein nicht freigegebenes
+      Sondenpaar liefert eine Verweigerung statt einer uninterpretierbaren Kurve. Nur Stunden, in
+      denen BEIDE Sonden publiziert haben, tragen zur Korrelation einer Verzögerung bei; die
+      ausgewiesene Bucket-Zahl bei Verzögerung 0 ist die effektive Stichprobe. Die Lesart ist
+      deskriptiv (zeitliche Kopplung), niemals kausal: ein Vorlauf ist kein Beleg, dass eine Sonde
+      die andere treibt.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-004 §6.3"
+  - "WP-004 Appendix B"
