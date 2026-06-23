@@ -29,7 +29,7 @@
     onToggleSource: (sourceName: string) => void;
     onSetLock: (df: DiscourseFunction | null) => void;
     onSelectAll: (probeId: string) => void;
-    onClearAll: () => void;
+    onClearAll: (probeId: string) => void;
     onRemove: () => void;
   }
 
@@ -51,6 +51,25 @@
   }: Props = $props();
 
   const lockMeta = $derived(lock ? DISCOURSE_FUNCTIONS.find((d) => d.id === lock) : null);
+
+  // Phase 148e — probe selection scales to dozens: a search field narrows the
+  // UNSELECTED pool while selected probes stay pinned first and are never
+  // filtered out. Always available (it scales regardless of how many probes
+  // exist) and keeps the pill aesthetic.
+  let probeSearch = $state('');
+  const selectedProbes = $derived(probeList.filter((p) => group.probeIds.includes(p.probeId)));
+  const unselectedMatches = $derived.by(() => {
+    const q = probeSearch.trim().toLowerCase();
+    return probeList.filter(
+      (p) =>
+        !group.probeIds.includes(p.probeId) &&
+        (q === '' ||
+          p.displayName.toLowerCase().includes(q) ||
+          p.probeId.toLowerCase().includes(q) ||
+          p.language.toLowerCase().includes(q))
+    );
+  });
+  const visibleProbes = $derived([...selectedProbes, ...unselectedMatches]);
 </script>
 
 <article
@@ -93,13 +112,28 @@
       <h3 class="step-title">{m.workbench_scope_group_step_probes_title()}</h3>
       <span class="step-hint">{m.workbench_scope_group_step_probes_hint()}</span>
     </header>
-    <div class="probe-grid">
-      {#if probesPending}
-        <p class="muted" aria-busy="true">{m.workbench_scope_group_probes_loading()}</p>
-      {:else if probeList.length === 0}
-        <p class="muted">{m.workbench_scope_group_probes_empty()}</p>
-      {:else}
-        {#each probeList as probe (probe.probeId)}
+    {#if probesPending}
+      <p class="muted" aria-busy="true">{m.workbench_scope_group_probes_loading()}</p>
+    {:else if probeList.length === 0}
+      <p class="muted">{m.workbench_scope_group_probes_empty()}</p>
+    {:else}
+      <div class="probe-toolbar">
+        <span class="probe-count"
+          >{m.workbench_scope_group_probe_count({
+            selected: group.probeIds.length,
+            total: probeList.length
+          })}</span
+        >
+        <input
+          class="probe-search"
+          type="search"
+          placeholder={m.workbench_scope_group_probe_search()}
+          aria-label={m.workbench_scope_group_probe_search_label()}
+          bind:value={probeSearch}
+        />
+      </div>
+      <div class="probe-grid">
+        {#each visibleProbes as probe (probe.probeId)}
           {@const checked = group.probeIds.includes(probe.probeId)}
           <label class="probe-chip" class:checked>
             <input
@@ -112,8 +146,11 @@
             <span class="probe-lang">{probe.language.toUpperCase()}</span>
           </label>
         {/each}
-      {/if}
-    </div>
+        {#if visibleProbes.length === 0}
+          <p class="muted">{m.workbench_scope_group_probe_no_match()}</p>
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <!-- 2. DF restriction -->
@@ -274,7 +311,36 @@
     font-style: italic;
   }
 
-  /* ---------- Step 1 — probe grid ---------- */
+  /* ---------- Step 1 — probe search + grid ---------- */
+  .probe-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-1);
+  }
+  .probe-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+  }
+  .probe-search {
+    margin-left: auto;
+    flex: 0 1 16rem;
+    min-width: 8rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-ui);
+  }
+  .probe-search:focus-visible {
+    outline: none;
+    border-color: #7dc7e5;
+    box-shadow: 0 0 0 var(--focus-ring-width) color-mix(in oklab, #7dc7e5 40%, transparent);
+  }
   .probe-grid {
     display: flex;
     flex-wrap: wrap;

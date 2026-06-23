@@ -139,6 +139,26 @@ export function clearSourcesInGroup(scopes: ScopeGroup[], groupIndex: number): S
   );
 }
 
+/** Clear ONLY the given probe's sources from a group, leaving every other
+ *  probe's selected sources intact — the per-probe mirror of
+ *  selectAllSourcesInGroup (the "Clear all" button is scoped to its own probe
+ *  section, not the whole group). Returns the input unchanged on a no-op. */
+export function clearSourcesForProbeInGroup(
+  scopes: ScopeGroup[],
+  groupIndex: number,
+  probeId: string,
+  sourcesForProbe: SourcesForProbe
+): ScopeGroup[] {
+  const group = scopes[groupIndex];
+  if (!group) return scopes;
+  const probeSourceNames = new Set(sourcesForProbe(probeId).map((s) => s.name));
+  const remaining = group.sourceIds.filter((sid) => !probeSourceNames.has(sid));
+  if (remaining.length === group.sourceIds.length) return scopes; // no-op
+  return scopes.map((g, i) =>
+    i === groupIndex ? { probeIds: [...group.probeIds], sourceIds: remaining } : g
+  );
+}
+
 /** Prune a group's sources to those still matching a new DF lock. Returns the
  *  input array unchanged when nothing is pruned (so a no-op lock change does
  *  not churn the draft state). */

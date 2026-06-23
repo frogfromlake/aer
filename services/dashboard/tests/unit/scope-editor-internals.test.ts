@@ -7,6 +7,7 @@ import {
   toggleSourceInGroup,
   selectAllSourcesInGroup,
   clearSourcesInGroup,
+  clearSourcesForProbeInGroup,
   pruneSourcesToLock,
   resolvePanelLock,
   type DossierSource,
@@ -144,6 +145,23 @@ describe('clearSourcesInGroup', () => {
     const next = clearSourcesInGroup(scopes, 0);
     expect(next[0]?.sourceIds).toEqual([]);
     expect(next[0]?.probeIds).toEqual(['probe-a']);
+  });
+});
+
+describe('clearSourcesForProbeInGroup', () => {
+  it("clears only the given probe's sources, keeping the other probe's", () => {
+    const scopes: ScopeGroup[] = [
+      { probeIds: ['probe-a', 'probe-b'], sourceIds: ['a-ea', 'a-pl', 'b-ea'] }
+    ];
+    const next = clearSourcesForProbeInGroup(scopes, 0, 'probe-a', sourcesForProbe);
+    expect(next[0]?.sourceIds).toEqual(['b-ea']); // probe-b's source survives
+    expect(next[0]?.probeIds).toEqual(['probe-a', 'probe-b']);
+  });
+
+  it('returns the input unchanged when the probe has no selected sources (no-op)', () => {
+    const scopes: ScopeGroup[] = [{ probeIds: ['probe-a', 'probe-b'], sourceIds: ['b-ea'] }];
+    const next = clearSourcesForProbeInGroup(scopes, 0, 'probe-a', sourcesForProbe);
+    expect(next).toBe(scopes);
   });
 });
 

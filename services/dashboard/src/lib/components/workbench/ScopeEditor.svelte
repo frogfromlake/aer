@@ -26,7 +26,7 @@
     toggleProbeInGroup,
     toggleSourceInGroup,
     selectAllSourcesInGroup,
-    clearSourcesInGroup,
+    clearSourcesForProbeInGroup,
     pruneSourcesToLock,
     resolvePanelLock
   } from '$lib/workbench/scope-editor-internals';
@@ -208,8 +208,8 @@
     );
   }
 
-  function clearAllSources(groupIndex: number) {
-    draftScopes = clearSourcesInGroup(draftScopes, groupIndex);
+  function clearSourcesForProbe(groupIndex: number, probeId: string) {
+    draftScopes = clearSourcesForProbeInGroup(draftScopes, groupIndex, probeId, sourcesForProbe);
   }
 
   function addGroup() {
@@ -320,7 +320,7 @@
           onToggleSource={(sourceName) => toggleSource(groupIndex, sourceName)}
           onSetLock={(df) => setGroupLock(groupIndex, df)}
           onSelectAll={(probeId) => selectAllSourcesForProbe(groupIndex, probeId)}
-          onClearAll={() => clearAllSources(groupIndex)}
+          onClearAll={(probeId) => clearSourcesForProbe(groupIndex, probeId)}
           onRemove={() => removeGroup(groupIndex)}
         />
       {/each}
@@ -374,7 +374,10 @@
     /* §10 finding — generous canvas. ~50% larger than before. */
     width: min(84rem, 100%);
     max-height: 92vh;
-    overflow-y: auto;
+    /* Phase 148e — the editor itself does NOT scroll; only the middle .groups
+       region does, so the header and the Cancel/Create footer stay pinned in
+       view however long the scope gets. */
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -392,6 +395,7 @@
     gap: var(--space-4);
     border-bottom: 1px solid var(--color-border);
     padding-bottom: var(--space-4);
+    flex-shrink: 0;
   }
 
   .header-eyebrow {
@@ -440,20 +444,27 @@
     border-color: var(--color-border-strong);
   }
 
-  /* ---------- Groups ---------- */
+  /* ---------- Groups (the one scrolling region) ---------- */
   .groups {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
+    /* a little room so the cards' right edge doesn't kiss the scrollbar */
+    padding-right: var(--space-2);
+    margin-right: calc(-1 * var(--space-2));
   }
 
-  /* ---------- Footer ---------- */
+  /* ---------- Footer (pinned; never scrolls out of view) ---------- */
   .editor-footer {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     border-top: 1px solid var(--color-border);
     padding-top: var(--space-4);
+    flex-shrink: 0;
   }
 
   .footer-spacer {
