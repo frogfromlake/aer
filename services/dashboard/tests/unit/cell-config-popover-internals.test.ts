@@ -32,6 +32,13 @@ describe('clampTopN', () => {
     expect(clampTopN(10_000)).toBe(6000);
   });
 
+  it('clamps to the view-dependent ceiling when a max is passed', () => {
+    // Metadata-field views cap at 200, all-others at 500 (computeTopNMax).
+    expect(clampTopN(10_000, 200)).toBe(200);
+    expect(clampTopN(10_000, 500)).toBe(500);
+    expect(clampTopN(150, 200)).toBe(150);
+  });
+
   it('returns null for a non-finite input', () => {
     expect(clampTopN(Number.NaN)).toBeNull();
   });

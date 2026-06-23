@@ -27,12 +27,17 @@
     HIDDEN_READOUT,
     type ReadoutState
   } from '$lib/presentations/cell-readout';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import CellExport from './CellExport.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
   import CellReadout from './CellReadout.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
+
+  const probeLabels = useProbeLabels(() => ctx);
 
   // Phase 122d.1 — drill-down: click a bucket point to open the article
   // list filtered to that source's revisions in the bucket's window.
@@ -46,6 +51,17 @@
   const activeResolution = $derived<RevisionActivityResolution>(
     resolution === 'weekly' || resolution === 'monthly' ? resolution : 'daily'
   );
+
+  // Phase 148e — unified cell title. Eyebrow = presentation; no metric subject;
+  // scope = resolved probe/source label (no raw probe id leak); the active
+  // calendar grain rides the tail as a muted qualifier.
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_revision_timeline_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [{ label: activeResolution }],
+    idSeed: `rev-tl-title-${scopeId}`
+  });
 
   const revisionQ = createQuery<
     QueryOutcome<RevisionActivityResponseDto>,
@@ -234,17 +250,13 @@
 </script>
 
 <section class="rev-cell" aria-labelledby="rev-tl-title-{scopeId}" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="rev-tl-title-{scopeId}" class="cell-title">
-      <span>{m.cells_revtl_title()}</span>
-      <span class="muted">
-        — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code>
-      </span>
-    </h3>
-    {#if points.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if points.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   {#if revisionQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_revtl_loading()}</p>
@@ -253,7 +265,7 @@
   {:else if revisionQ.isError || revisionQ.data?.kind === 'network-error'}
     <p class="muted">{m.cells_revtl_error()}</p>
   {:else if points.length === 0}
-    <p class="muted">{m.cells_revtl_empty()}</p>
+    <CellEmptyState />
   {:else}
     <p class="click-hint" aria-hidden="true">
       <span class="click-hint-icon">↻</span>
@@ -271,7 +283,6 @@
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
-    <HowToRead presentation="revision_timeline" facts={{}} />
   {/if}
 </section>
 
@@ -297,23 +308,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
   }
   .plot-host {
     width: 100%;
@@ -341,11 +335,6 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
   .click-hint {
     font-size: var(--font-size-xs);

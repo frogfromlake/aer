@@ -14,9 +14,11 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
-  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, fieldLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -36,6 +38,22 @@
   const metric = $derived(channels?.x); // the numeric metric (crossMetric lever)
   const activeTopN = $derived(topN ?? 20);
   const ready = $derived(!!field && !!metric);
+
+  // Phase 148e — unified cell title. Pair subject (field × metric); the metric
+  // side is stripped to its subject noun (model lives in the axis / how-to-read,
+  // not the title). Scope resolved (no raw probe id leak).
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_cross_tab_label(),
+    subject: {
+      kind: 'pair',
+      left: fieldLabel(field),
+      op: '×',
+      right: metric ? metricSubjectAndModel(metric).subject : '—'
+    },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    idSeed: `ct-title-${field}`
+  });
 
   const ctQ = createQuery<QueryOutcome<CrossTabDto>, Error, QueryOutcome<CrossTabDto>>(() => {
     const o = crossTabQuery(ctx, field, metric ?? '', {
@@ -151,21 +169,15 @@
 </script>
 
 <section class="ct-cell" aria-labelledby="ct-title-{field}" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="ct-title-{field}" class="cell-title">
-      <code>{fieldLabel(field)}</code> × <code>{metric ? metricLabel(metric) : '—'}</code>
-      <span class="muted"
-        >— {m.cells_ct_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
-      >
-    </h3>
-    {#if data && rows.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if data && rows.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="muted">{m.cells_ct_silver()}</p>
-  {:else if !field}
+  {#if !field}
     <p class="muted">{m.cells_ct_need_field()}</p>
   {:else if !metric}
     <p class="muted">{m.cells_ct_need_metric()}</p>
@@ -194,7 +206,6 @@
         : m.cells_ct_note_distinct_other()}{#if data.distinctValues > data.categories.length}
         · {m.cells_ct_note_showing_top({ count: data.categories.length })}{/if}
     </p>
-    <HowToRead presentation="cross_tab" facts={howToReadFacts} />
   {/if}
 </section>
 
@@ -203,25 +214,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
   }
   .plot-host {
     width: 100%;
@@ -244,10 +236,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

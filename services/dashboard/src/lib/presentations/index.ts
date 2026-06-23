@@ -2,6 +2,7 @@
 // placement, metric→presentation support) exposed as one import surface.
 export {
   cellContentId,
+  hasCellMethodologyContent,
   CROSS_PROBE_DEFAULT_METRIC,
   DEFAULT_METRIC_NAME,
   defaultPresentationForPillar,
@@ -25,5 +26,7 @@ export {
   isMetadataMetric,
   isPureCountMetric,
   metricSupportsPresentation,
-  presentationsForMetric
+  panelSubjectKind,
+  presentationsForMetric,
+  type PanelSubjectKind
 } from './metric-presentation';

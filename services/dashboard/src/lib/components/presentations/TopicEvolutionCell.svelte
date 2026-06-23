@@ -30,9 +30,12 @@
   import type { PresentationCellProps } from '$lib/presentations';
   import { type ExportPayload } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
-  import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
   import {
     OUTLIER_COLOUR,
@@ -142,6 +145,33 @@
     const onChange = () => (reducedMotion = mq.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
+  });
+
+  // Phase 148e — unified cell title. Topics subject; Tier 2 tier chip plus a
+  // conditional reduced-motion badge. Placed after `reducedMotion` so the
+  // $derived reads it without a use-before-declare warning.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_topic_evolution_label(),
+    subject: { kind: 'topics', label: m.cells_topicevo_title() },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [
+      {
+        label: m.cells_topicevo_tier_badge(),
+        tone: 'tier',
+        title: m.cells_topicevo_tier_badge_title()
+      },
+      ...(reducedMotion
+        ? [
+            {
+              label: m.cells_topicevo_reduced_motion_badge(),
+              tone: 'layer' as const,
+              title: m.cells_topicevo_reduced_motion_badge_title()
+            }
+          ]
+        : [])
+    ],
+    idSeed: 'topic-evo-title'
   });
 
   let host: HTMLDivElement | undefined = $state();
@@ -305,25 +335,13 @@
 </script>
 
 <section class="topic-cell" aria-labelledby="topic-evo-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="topic-evo-title" class="cell-title">
-      <span class="primary">{m.cells_topicevo_title()}</span>
-      <span class="muted"
-        >— {m.cells_topicevo_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
-      >
-      <span class="tier-badge" title={m.cells_topicevo_tier_badge_title()}
-        >{m.cells_topicevo_tier_badge()}</span
-      >
-      {#if reducedMotion}
-        <span class="reduced-motion-badge" title={m.cells_topicevo_reduced_motion_badge_title()}
-          >{m.cells_topicevo_reduced_motion_badge()}</span
-        >
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if plotRows.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
       {/if}
-    </h3>
-    {#if plotRows.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+    {/snippet}
+  </CellTitleBar>
 
   {#if buckets.length === 0}
     <p class="muted">{m.cells_topicevo_no_window()}</p>
@@ -334,7 +352,7 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_topicevo_error()}</p>
   {:else if plotRows.length === 0}
-    <p class="muted">{m.cells_topicevo_empty()}</p>
+    <CellEmptyState />
   {:else}
     {#if isJointCorpus}
       {@const note = methodologyNotes.epistemeJointCorpusEvolution(sources.length)}
@@ -401,7 +419,6 @@
         </div>
       </dl>
     </footer>
-    <HowToRead presentation="topic_evolution" facts={{ renderedCount: legendEntries.length }} />
   {/if}
 </section>
 
@@ -410,50 +427,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-    flex-wrap: wrap;
-  }
-
-  .cell-title .primary {
-    font-family: var(--font-mono);
-  }
-
-  .tier-badge {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: rgba(224, 160, 80, 0.15);
-    border: 1px solid #e0a050;
-    color: #e0a050;
-    cursor: help;
-  }
-
-  .reduced-motion-badge {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-strong);
-    color: var(--color-fg-muted);
-    cursor: help;
   }
 
   .plot-host {
@@ -541,11 +514,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

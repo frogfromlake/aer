@@ -21,7 +21,7 @@
   import type { Panel } from '$lib/state/url-internals';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import CellConfigPopover from './CellConfigPopover.svelte';
-  import CellMethodology from './CellMethodology.svelte';
+  import ReadingGuide from '$lib/components/presentations/ReadingGuide.svelte';
 
   interface Props {
     unit: CellRenderUnit;
@@ -89,6 +89,19 @@
 
   const Cell = $derived(CellComponent);
   const cfg = $derived(resolveCellConfig(panel, unit.key));
+
+  // Phase 148f — when a cell overrides the panel's dimension it is off-comparison,
+  // so it gets its OWN "How to read" (a ReadingGuide over the cell's resolved
+  // config, not the panel default) rendered below the cell.
+  const cellPanel = $derived<Panel>({
+    ...panel,
+    metric: cfg.metric,
+    ...(cfg.bins !== undefined ? { bins: cfg.bins } : {}),
+    ...(cfg.topN !== undefined ? { topN: cfg.topN } : {}),
+    ...(cfg.channels !== undefined ? { channels: cfg.channels } : {}),
+    ...(cfg.showBand !== undefined ? { showBand: cfg.showBand } : {}),
+    ...(cfg.scales !== undefined ? { scales: cfg.scales } : {})
+  });
 
   // Resolve Source IDs back to SourceMeta for the Cell contract. Probe-scope
   // (no sourceIds) passes all dossier sources so per-source cells can iterate.
@@ -186,16 +199,6 @@
       <span class="cell-group-summary">{unit.facetValue}</span>
     </header>
   {/if}
-  {#if cfg.dimensionOverridden}
-    <!-- ADR-038 — per-cell dimension peek. This cell shows a DIFFERENT dimension
-         than the panel, so it is deliberately off-comparison. A loud banner makes
-         that unmistakable (cf. the soft `custom` badge for shape-only overrides). -->
-    <p class="cell-peek-banner" role="note">
-      {m.workbench_cell_peek_banner_pre()} <code>{metricLabel(cfg.metric)}</code>
-      {m.workbench_cell_peek_banner_mid()}
-      <code>{metricLabel(panel.metric)}</code>{m.workbench_cell_peek_banner_post()}
-    </p>
-  {/if}
   <Cell
     {ctx}
     scopeProbeId={unit.probeId ?? dossier.probeId}
@@ -229,13 +232,23 @@
     {selection}
   />
   {#if cfg.dimensionOverridden}
-    <!-- Phase 135 — this cell peeks a DIFFERENT metric than the panel (ADR-038),
-         so it carries its OWN methodology keyed on the cell's effective metric.
-         Cells that match the panel are covered by the panel-level methodology. -->
-    <CellMethodology
-      metricName={cfg.metric}
-      viewMode={presentation.id}
-      viewLabel={presentation.label}
+    <!-- ADR-038 / Phase 148f — this cell peeks a DIFFERENT dimension than the
+         panel, so it is off-comparison. The (desaturated) banner marks that, and
+         the cell carries its OWN "How to read" over its effective config (not the
+         panel default). Cells that match the panel are covered by the panel guide. -->
+    <p class="cell-peek-banner" role="note">
+      {m.workbench_cell_peek_banner_pre()} <code>{metricLabel(cfg.metric)}</code>
+      {m.workbench_cell_peek_banner_mid()}
+      <code>{metricLabel(panel.metric)}</code>{m.workbench_cell_peek_banner_post()}
+    </p>
+    <ReadingGuide
+      panel={cellPanel}
+      {presentation}
+      {ctx}
+      {dossier}
+      {windowStart}
+      {windowEnd}
+      variant="cell"
     />
   {/if}
 </div>
@@ -372,16 +385,22 @@
 
   /* ADR-038 — per-cell dimension-peek banner: loud, because it marks an
      off-comparison cell (distinct from the soft `custom` shape-override badge). */
+  /* Phase 148f — desaturated: the warm-neutral "unvalidated" token (a muted gold)
+     instead of the loud amber, so the off-comparison cell reads as a calm
+     methodological note (still visible via the solid left border), not an alarm. */
   .cell-peek-banner {
-    margin: 0 0 var(--space-2);
+    margin: var(--space-3) 0 0;
     padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-warning, #e8a850);
-    border-left-width: 3px;
+    border: 1px solid color-mix(in srgb, var(--color-status-unvalidated) 45%, var(--color-border));
+    border-left: 3px solid var(--color-status-unvalidated);
     border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-warning, #e8a850) 12%, transparent);
+    background: color-mix(in srgb, var(--color-status-unvalidated) 8%, transparent);
     font-size: var(--font-size-xs);
     color: var(--color-fg);
     line-height: var(--line-height-loose);
+  }
+  .cell-peek-banner code {
+    font-family: var(--font-mono);
   }
   .cell-peek-banner code {
     font-family: var(--font-mono);

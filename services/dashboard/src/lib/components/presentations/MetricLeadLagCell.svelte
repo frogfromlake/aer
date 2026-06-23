@@ -21,9 +21,11 @@
   import { fmtValue, HIDDEN_READOUT, type ReadoutState } from '$lib/presentations/cell-readout';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
-  import { metricLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -39,6 +41,23 @@
 
   const xMetric = $derived(channels?.x ?? 'word_count');
   const yMetric = $derived(channels?.y ?? DEFAULT_METRIC_NAME);
+
+  // Phase 148e — unified cell title. Pair subject (x → y), each side stripped to
+  // its subject noun (per-axis model lives in the axis label / how-to-read).
+  // Scope resolved via the shared probe-label hook — fixes the raw scopeId leak
+  // (Bug A) the old inline title rendered.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_metric_lead_lag_label(),
+    subject: {
+      kind: 'pair',
+      left: metricSubjectAndModel(xMetric).subject,
+      op: '→',
+      right: metricSubjectAndModel(yMetric).subject
+    },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    idSeed: 'metric-leadlag-title'
+  });
 
   const llQ = createQuery<
     QueryOutcome<CorrelationLeadLagDto>,
@@ -239,22 +258,15 @@
 </script>
 
 <section class="leadlag-cell" aria-labelledby="metric-leadlag-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="metric-leadlag-title" class="cell-title">
-      <span>{m.cells_leadlag_title()}</span>
-      <span class="muted">
-        — <code>{metricLabel(xMetric)}</code> → <code>{metricLabel(yMetric)}</code> ·
-        <strong class="scope-name">{scopeId}</strong>
-      </span>
-    </h3>
-    {#if result && definedPoints.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if result && definedPoints.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="muted">{m.cells_mll_silver()}</p>
-  {:else if llQ.isPending}
+  {#if llQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_mll_computing()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
@@ -273,7 +285,6 @@
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
-    <HowToRead presentation="metric_lead_lag" facts={howToReadFacts} />
   {/if}
 </section>
 
@@ -282,24 +293,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-    flex-wrap: wrap;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
   }
   .leadlag-takeaway {
     font-size: var(--font-size-sm);
@@ -323,13 +316,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .muted code {
-    font-family: var(--font-mono);
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

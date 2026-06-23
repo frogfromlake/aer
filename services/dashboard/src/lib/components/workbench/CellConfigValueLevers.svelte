@@ -11,10 +11,24 @@
   // when the chosen value equals the panel default (so a cell that matches its
   // siblings is never falsely flagged "custom").
   import { m } from '$lib/paraglide/messages.js';
+  import { dimensionLabel } from '$lib/state/labels.svelte';
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import { setCellOverride } from '$lib/workbench/panel-mutators';
   import { resolveCellConfig } from '$lib/workbench/panel-queries';
-  import { DEFAULT_BINS, DEFAULT_FORCE_STRENGTH, DEFAULT_TOPN } from '$lib/workbench/cell-levers';
+  import {
+    DEFAULT_BINS,
+    DEFAULT_FORCE_STRENGTH,
+    DEFAULT_TOPN,
+    BINS_MIN,
+    BINS_MAX,
+    BINS_STEP,
+    TOPN_MIN,
+    TOPN_STEP,
+    FORCE_MIN,
+    FORCE_MAX,
+    FORCE_STEP
+  } from '$lib/workbench/cell-levers';
+  import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
   import {
     clampBins,
     clampForce,
@@ -35,6 +49,9 @@
     dimensionNoun: string;
     /** Dimensions valid for THIS cell's own source. */
     cellDimensionOptions: readonly string[];
+    /** Whether the active presentation groups by a metadata field — drives the
+     *  view-dependent Top N ceiling (mirrors the panel-level lever). */
+    viewUsesMetadataField: boolean;
   }
   let {
     panelPath,
@@ -43,8 +60,15 @@
     configParams,
     dimensionPeekable,
     dimensionNoun,
-    cellDimensionOptions
+    cellDimensionOptions,
+    viewUsesMetadataField
   }: Props = $props();
+
+  // Top N ceiling — identical derivation to the panel-level ConfigValueLevers so
+  // the per-cell slider never opens to a different range than the panel (a
+  // co-occurrence cell reaches 6000, a metadata-field view clamps at 200).
+  const isCooccurrenceView = $derived((panel.view ?? '') === 'cooccurrence_network');
+  const topNMax = $derived(computeTopNMax({ isCooccurrenceView, viewUsesMetadataField }));
 
   const cfg = $derived(resolveCellConfig(panel, cellKey));
   const override = $derived(panel.cellOverrides?.[cellKey]);
@@ -101,7 +125,7 @@
     setCellOverride(panelPath, cellKey, { bins: v === panelBins ? undefined : v });
   }
   function setTopN(n: number) {
-    const v = clampTopN(n);
+    const v = clampTopN(n, topNMax);
     if (v === null) return;
     setCellOverride(panelPath, cellKey, { topN: v === panelTopN ? undefined : v });
   }
@@ -113,8 +137,12 @@
   function setBand(next: boolean) {
     setCellOverride(panelPath, cellKey, { showBand: next === panelBand ? undefined : next });
   }
+  // Phase 148f — a metric-overridden cell's scale baseline is FREE (not the panel
+  // default), so clearing the override reverts to free, and choosing free clears
+  // it (no phantom "custom"); choosing shared is a real, persisted override.
+  const scaleBaseline = $derived<'shared' | 'free'>(cfg.dimensionOverridden ? 'free' : panelScale);
   function setScale(next: 'shared' | 'free') {
-    setCellOverride(panelPath, cellKey, { scales: next === panelScale ? undefined : next });
+    setCellOverride(panelPath, cellKey, { scales: next === scaleBaseline ? undefined : next });
   }
 </script>
 
@@ -134,9 +162,11 @@
       aria-label={m.workbench_ccp_cell_dimension_select_label()}
       title={m.workbench_ccp_cell_dimension_select_title()}
     >
-      <option value="">{m.workbench_ccp_dimension_inherit({ metric: panel.metric })}</option>
+      <option value=""
+        >{m.workbench_ccp_dimension_inherit({ metric: dimensionLabel(panel.metric) })}</option
+      >
       {#each dimensionOptions as d (d)}
-        <option value={d}>{d}</option>
+        <option value={d}>{dimensionLabel(d)}</option>
       {/each}
     </select>
   </div>
@@ -151,9 +181,9 @@
     <div class="ccp-inline">
       <input
         type="range"
-        min="5"
-        max="120"
-        step="1"
+        min={BINS_MIN}
+        max={BINS_MAX}
+        step={BINS_STEP}
         value={effBins}
         oninput={(e) => (liveBins = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {
@@ -176,9 +206,9 @@
     <div class="ccp-inline">
       <input
         type="range"
-        min="5"
-        max="500"
-        step="5"
+        min={TOPN_MIN}
+        max={topNMax}
+        step={TOPN_STEP}
         value={effTopN}
         oninput={(e) => (liveTopN = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {
@@ -201,9 +231,9 @@
     <div class="ccp-inline">
       <input
         type="range"
-        min="0"
-        max="100"
-        step="1"
+        min={FORCE_MIN}
+        max={FORCE_MAX}
+        step={FORCE_STEP}
         value={effForce}
         oninput={(e) => (liveForce = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {

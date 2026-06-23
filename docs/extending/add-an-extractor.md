@@ -32,6 +32,7 @@ Pick by the question your extractor answers:
 | `services/analysis-worker/main.py` | Register in the extractor list | 1 min |
 | `services/analysis-worker/tests/test_extractor_<your>.py` | Pytest unit tests with deterministic inputs | 1–2 h |
 | `services/bff-api/configs/metric_provenance.yaml` | Tier classification, algorithm description, known limitations, version hash anchor | 30 min |
+| `services/bff-api/configs/content/{en,de}/metrics/<name>.yaml` | Dual-register content entry (semantic + methodological prose, `displayLabel`) — what the Reading Guide's MEASURE step + the methodology block render. See "Dashboard reading content" below. | 30 min |
 | `infra/clickhouse/seed/metric_validity_scaffold.sql` | Initial `metric_validity` row with `validation_status='unvalidated'` | 5 min |
 | Documentation: CLAUDE.md "Registered extractors" | One-paragraph description | 5 min |
 
@@ -230,6 +231,18 @@ VALUES
 `context_key='*:*:*'` means "applies to all language × source-type × discourse-function contexts". For metrics that *are* language-bound (sentiment), use specific context keys: `'de:rss:epistemic_authority'`.
 
 The scaffold is the architecturally honest default. The metric goes live as `unvalidated` and consumers see the limitation. Promoting to `validated` is an out-of-band scientific workflow (Workflow 2 in the Scientific Operations Guide), not an engineering action.
+
+---
+
+## Dashboard reading content (Phase 148f)
+
+The Workbench **Reading Guide** (the six-question "How to read" surface — `what · measure · sample · encoding · compare · limits`) is *compositional*: it explains each configuration dimension from one grounded fragment, so you never author per-combination prose. When you add an extractor, you only supply the one fragment that names *your* metric/field — the rest composes automatically. Where things live:
+
+- **A new metric.** Its MEASURE prose + tier come from the catalogue entry `services/bff-api/configs/content/{en,de}/metrics/<name>.yaml` (dual register) and `metric_provenance.yaml` (tier, limitations) — both already in the table above. Nothing in the dashboard needs editing: `metricLabel`/provenance resolve by name.
+- **A new metadata field** (publisher-declared structural metadata, not an analytical metric). Field reading prose lives in Paraglide, not the content catalogue: add `metadata_field_label_<name>` + `metadata_field_desc_<name>` to `services/dashboard/messages/{en,de}/metadata.json`, and register the field in `FIELD_LABELS`/`FIELD_DESCRIPTIONS` in `src/lib/state/labels.svelte.ts`. (There is intentionally **no** `field` content-catalogue entityType yet — fields are a fixed set; Paraglide is the SoT.)
+- **A new presentation/view.** Add its `rg_*` reading fragments to `messages/{en,de}/cells.json` and — critically — classify it in **`panelSubjectKind`** (`src/lib/presentations/metric-presentation.ts`): `'metric'` if the view binds a real metric, `'field'` if it groups by a metadata field, `'none'` if it is channel-driven / multivariate. This is what stops the methodology block from fetching `/metrics/{x}/provenance` for a non-metric subject (which would 404). Also add a `howto_<presentation>` content-catalogue entry for its WHAT template.
+
+The composer + types live in `src/lib/presentations/reading-guide.ts` (pure, unit-tested in `tests/unit/reading-guide.test.ts`).
 
 ---
 

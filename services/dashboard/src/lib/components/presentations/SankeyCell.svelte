@@ -12,9 +12,11 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { fieldLabel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -30,6 +32,16 @@
   // fieldChain is the ORDERED categorical field chain for the alluvial.
   const fields = $derived<string[]>([...(fieldChain ?? [])]);
   const enoughFields = $derived(fields.length >= 2);
+
+  // Phase 148e — unified cell title. No metric subject (the presentation eyebrow
+  // carries it); scope resolved (fixes the raw probe id leak).
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_sankey_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    idSeed: 'sankey-title'
+  });
 
   const skQ = createQuery<QueryOutcome<SankeyDto>, Error, QueryOutcome<SankeyDto>>(() => {
     const o = sankeyQuery(ctx, fields, {
@@ -193,19 +205,15 @@
 </script>
 
 <section class="sankey-cell" aria-labelledby="sankey-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="sankey-title" class="cell-title">
-      {m.cells_sankey_title()}
-      <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
-    </h3>
-    {#if data && data.links.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if data && data.links.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="muted">{m.cells_sankey_silver()}</p>
-  {:else if !enoughFields}
+  {#if !enoughFields}
     <p class="muted">{m.cells_sankey_need_fields()}</p>
   {:else if skQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_sankey_loading()}</p>
@@ -222,7 +230,6 @@
       role="img"
       aria-label={m.cells_sankey_plot_aria({ fields: fields.join(', ') })}
     ></div>
-    <HowToRead presentation="sankey" facts={howToReadFacts} />
   {/if}
 </section>
 
@@ -231,22 +238,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
   }
   .plot-host {
     width: 100%;
@@ -264,10 +255,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

@@ -46,8 +46,11 @@
   } from '$lib/presentations/cell-readout';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -56,7 +59,6 @@
     windowStart,
     windowEnd,
     sources,
-    dataLayer = 'gold',
     topN,
     channels,
     forceStrength,
@@ -76,6 +78,18 @@
   // Phase 131 — configurable top-edge cap (default 60, BFF-clamped to [1,500])
   // and visual-channel binding (node size, node colour).
   const TOP_N = $derived(topN ?? 60);
+
+  // Phase 148e — unified cell title. Relational presentation (no metric
+  // subject); scope resolves the raw probe/source id to its display label.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_cooccurrence_network_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [{ label: m.cells_net_topn_qualifier({ count: TOP_N }) }],
+    idSeed: 'net-title'
+  });
+
   const netSize = $derived(channels?.netSize ?? 'total_count');
   // Phase 125 — per-article metric(s) aggregated onto nodes. Size and colour can
   // bind to DIFFERENT metrics (ISSUE 7): `netMetric` drives the size channel,
@@ -575,8 +589,8 @@
   const labeledNodeCount = $derived(graphData?.labeledNodeCount ?? 0);
   const relabelActive = $derived(displayLanguage === 'viewer' && !!viewerLang);
   // Phase 125b — how-to-read facts + export payload come from the shared module
-  // (same contract as the at-scale renderer). `howToReadFacts` still feeds the
-  // <HowToRead> component below.
+  // (same contract as the at-scale renderer). `howToReadFacts` feeds the
+  // export payload (composeHowToRead).
   const howToReadFacts = $derived(
     buildHowToReadFacts({
       topN: TOP_N,
@@ -616,26 +630,18 @@
 </script>
 
 <section class="net-cell" aria-labelledby="net-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="net-title" class="cell-title">
-      {m.cells_net_title()}
-      <span class="muted"
-        >{m.cells_net_subtitle({ count: TOP_N })}<strong class="scope-name">{scopeId}</strong></span
-      >
-    </h3>
-    {#if nodes.length > 0}
-      <div class="header-actions">
-        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-        <button class="reset-btn" onclick={resetView} title={m.cells_net_reset_zoom()}>⊙</button>
-      </div>
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if nodes.length > 0}
+        <div class="header-actions">
+          <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+          <button class="reset-btn" onclick={resetView} title={m.cells_net_reset_zoom()}>⊙</button>
+        </div>
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="notice">
-      {m.cells_net_silver_notice()}
-    </p>
-  {:else if graphQ.isPending}
+  {#if graphQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_net_loading()}</p>
   {:else if graphQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={graphQ.data} {ctx} />
@@ -660,7 +666,7 @@
         >{m.cells_net_pipeline_gap_body_c()}
       </aside>
     {:else}
-      <p class="muted">{m.cells_net_empty()}</p>
+      <CellEmptyState />
     {/if}
   {:else if nodes.length > 0}
     {#if isMergedScope}
@@ -875,7 +881,6 @@
         <span class="metric-legend-note">{m.cells_net_legend_grey_note()}</span>
       </div>
     {/if}
-    <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
   {:else}
     <p class="muted" aria-busy="true">{m.cells_net_laying_out()}</p>
   {/if}
@@ -983,22 +988,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
   }
 
   .header-actions {
@@ -1298,21 +1287,4 @@
   /* Pre-Phase-122d.1 N-stacked-source-list styles removed —
    * the entity-click article list now opens in `ArticleListModal`
    * with source tabs, so the graph stays visible behind it. */
-
-  .notice {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-    margin: 0;
-    padding: var(--space-4);
-    background: var(--color-bg-elevated);
-    border: 1px dashed var(--color-border-strong);
-    border-radius: var(--radius-md);
-    max-width: 36rem;
-  }
-
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
-  }
 </style>

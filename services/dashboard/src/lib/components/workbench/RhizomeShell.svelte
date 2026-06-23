@@ -29,7 +29,7 @@
     type PresentationCellProps
   } from '$lib/presentations';
   import PanelControls from './PanelControls.svelte';
-  import CellMethodology from './CellMethodology.svelte';
+  import MeasureDetail from './MeasureDetail.svelte';
   import WindowHost from './WindowHost.svelte';
 
   interface Props {
@@ -169,7 +169,7 @@
       </div>
     </div>
 
-    <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+    <MeasureDetail {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
   {:else if dossierQ.isError}
     <p class="muted">{m.workbench_rhizome_dossier_failed()}</p>
   {/if}

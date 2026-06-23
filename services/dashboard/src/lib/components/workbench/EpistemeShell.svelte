@@ -29,7 +29,7 @@
   import { metricLabel } from '$lib/state/labels.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
-  import CellMethodology from './CellMethodology.svelte';
+  import MeasureDetail from './MeasureDetail.svelte';
   import WindowHost from './WindowHost.svelte';
 
   interface Props {
@@ -207,7 +207,7 @@
       </button>
     </div>
 
-    <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+    <MeasureDetail {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
   {:else if dossierQ.isError}
     <p class="muted">{m.workbench_episteme_dossier_failed()}</p>
   {/if}

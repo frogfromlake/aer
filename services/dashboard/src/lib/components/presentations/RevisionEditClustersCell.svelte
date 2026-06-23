@@ -19,12 +19,17 @@
   import type { PresentationCellProps } from '$lib/presentations';
   import { type ExportPayload, type ExportRow } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import CellExport from './CellExport.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { formatDate } from '$lib/localization/format';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
+
+  const probeLabels = useProbeLabels(() => ctx);
 
   // Coincidence threshold — the minimum distinct co-editing sources. Held
   // at the BFF default (2) for now; a future PanelControls lever can expose
@@ -34,6 +39,21 @@
   const activeResolution = $derived<RevisionActivityResolution>(
     resolution === 'weekly' || resolution === 'monthly' ? resolution : 'daily'
   );
+
+  // Phase 148e — unified cell title. Eyebrow = presentation; no metric subject;
+  // scope = resolved probe/source label (this fixes the raw-probe-id leak); the
+  // active calendar grain + the ≥N-sources threshold ride the tail as muted
+  // qualifiers.
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_revision_edit_clusters_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [
+      { label: activeResolution },
+      { label: m.cells_revec_subtitle_sources({ count: MIN_SOURCES }) }
+    ],
+    idSeed: `rev-ec-title-${scopeId}`
+  });
 
   let drilldown = $state<{ source: string; bucketStart: string; bucketEnd: string } | null>(null);
 
@@ -136,18 +156,13 @@
 </script>
 
 <section class="rev-cell" aria-labelledby="rev-ec-title-{scopeId}" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="rev-ec-title-{scopeId}" class="cell-title">
-      <span>{m.cells_revec_title()}</span>
-      <span class="muted">
-        — <strong class="scope-name">{scopeId}</strong> · <code>{activeResolution}</code> ·
-        {m.cells_revec_subtitle_sources({ count: MIN_SOURCES })}
-      </span>
-    </h3>
-    {#if clusters.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if clusters.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   {#if clustersQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_revec_loading()}</p>
@@ -156,7 +171,7 @@
   {:else if clustersQ.isError || clustersQ.data?.kind === 'network-error'}
     <p class="muted">{m.cells_revec_error()}</p>
   {:else if clusters.length === 0}
-    <p class="muted">{m.cells_revec_empty({ count: MIN_SOURCES })}</p>
+    <CellEmptyState />
   {:else}
     <p class="click-hint" aria-hidden="true">
       {m.cells_revec_click_hint({ count: MIN_SOURCES })}
@@ -194,7 +209,6 @@
         </li>
       {/each}
     </ul>
-    <HowToRead presentation="revision_edit_clusters" facts={{}} />
   {/if}
 </section>
 
@@ -220,32 +234,10 @@
     flex-direction: column;
     gap: var(--space-3);
   }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
-  }
   .muted {
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
   .click-hint {
     font-size: var(--font-size-xs);

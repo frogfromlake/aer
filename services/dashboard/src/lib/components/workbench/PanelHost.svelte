@@ -36,7 +36,7 @@
     updatePanel
   } from '$lib/workbench/panel-mutators';
   import type { DiscourseFunction } from '$lib/discourse-function';
-  import CellMethodology from './CellMethodology.svelte';
+  import ReadingGuide from '$lib/components/presentations/ReadingGuide.svelte';
   import PanelControls from './PanelControls.svelte';
   import PanelMetaStrip from './PanelMetaStrip.svelte';
   import PanelToolbar from './PanelToolbar.svelte';
@@ -117,6 +117,14 @@
   }
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
+
+  // Phase 148f — whether any cell overrides the panel's dimension (metric peek),
+  // so the panel guide's title can note that those cells are excepted.
+  const panelHasDimensionOverride = $derived(
+    Object.values(panel.cellOverrides ?? {}).some(
+      (ov) => ov.metric !== undefined && ov.metric !== panel.metric
+    )
+  );
 
   // ── Shared dimension availability (ADR-038) ──────────────────────────────────
   // PanelHost owns the availability queries (TanStack must live in a component)
@@ -270,13 +278,17 @@
     {noSharedDimension}
   />
 
-  <!-- Phase 135 — panel-level methodology (provenance + view-mode notes) for the
-       panel's own metric + presentation. One per panel; cells that override the
-       metric carry their own. Collapsed by default. -->
-  <CellMethodology
-    metricName={panel.metric}
-    viewMode={presentation.id}
-    viewLabel={presentation.label}
+  <!-- Phase 148f — panel-level Reading Guide: the six-question viridis ladder +
+       the folded-in deep methodology (MEASURE detail). The single "How to read"
+       surface for the panel; its title notes when overridden cells are excepted. -->
+  <ReadingGuide
+    {panel}
+    {presentation}
+    {ctx}
+    {dossier}
+    {windowStart}
+    {windowEnd}
+    hasOverriddenCells={panelHasDimensionOverride}
   />
 </article>
 

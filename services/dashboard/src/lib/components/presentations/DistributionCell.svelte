@@ -39,9 +39,11 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
-  import { metricLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -79,6 +81,30 @@
   let silverAggType = $derived<SilverAggregationType>(
     (GOLD_TO_SILVER[metricName] as SilverAggregationType | undefined) ?? 'word_count'
   );
+
+  // Phase 148e — unified cell title. Eyebrow = presentation; subject = metric
+  // (model split into its own dimmed slot); scope = resolved probe/source label
+  // (no raw probe id leak); silver layer surfaces as a tail badge.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleMetricName = $derived(dataLayer === 'silver' ? silverAggType : metricName);
+  const titleSubjectModel = $derived(metricSubjectAndModel(titleMetricName));
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_distribution_label(),
+    subject: { kind: 'single', label: titleSubjectModel.subject },
+    model: titleSubjectModel.model,
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers:
+      dataLayer === 'silver'
+        ? [
+            {
+              label: m.cells_dist_silver_badge(),
+              tone: 'layer',
+              title: m.cells_dist_silver_badge_aria()
+            }
+          ]
+        : [],
+    idSeed: `dist-title-${metricName}`
+  });
 
   // Phase 133 A — integer-valued metrics (counts, cyclic ordinals) render
   // their histogram bin edges + axis ticks as integers. The equal-width bins
@@ -352,22 +378,13 @@
 </script>
 
 <section class="dist-cell" aria-labelledby="dist-title-{metricName}" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="dist-title-{metricName}" class="cell-title">
-      <code>{metricLabel(dataLayer === 'silver' ? silverAggType : metricName)}</code>
-      <span class="muted"
-        >— {m.cells_dist_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
-      >
-      {#if dataLayer === 'silver'}
-        <span class="layer-badge silver" aria-label={m.cells_dist_silver_badge_aria()}
-          >{m.cells_dist_silver_badge()}</span
-        >
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if activeDist && activeDist.summary.count > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
       {/if}
-    </h3>
-    {#if activeDist && activeDist.summary.count > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+    {/snippet}
+  </CellTitleBar>
 
   {#if dataLayer === 'silver' && scope !== 'source'}
     <p class="muted">{m.cells_dist_silver_narrow()}</p>
@@ -452,10 +469,6 @@
         <dd>{fmt(s.max)}</dd>
       </div>
     </dl>
-    <HowToRead
-      presentation="distribution"
-      facts={{ bins: activeBins, scales: axisScaleState, configOverridden }}
-    />
   {/if}
 </section>
 
@@ -464,40 +477,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-
-  .cell-title code {
-    font-family: var(--font-mono);
-  }
-
-  .layer-badge {
-    font-size: 10px;
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-pill);
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .layer-badge.silver {
-    background: rgba(126, 196, 160, 0.15);
-    border: 1px solid #7ec4a0;
-    color: #7ec4a0;
   }
 
   .plot-host {
@@ -556,11 +535,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

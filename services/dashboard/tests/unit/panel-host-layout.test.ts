@@ -115,6 +115,25 @@ describe('cellDimensionOptions', () => {
   it('uses the field key under field-driven views', () => {
     expect(cellDimensionOptions(metadataDto(), ['s1'], true)).toEqual(['author', 'section']);
   });
+
+  it('excludes degenerate (no-signal / constant) dimensions', () => {
+    // word_count is degenerate (constant) for this scope → not offerable per-cell.
+    expect(
+      cellDimensionOptions(
+        metricDto({ degenerate: [{ metricName: 'word_count', value: 0 }] }),
+        ['s1'],
+        false
+      )
+    ).toEqual(['image_count', 'sentiment_score_sentiws']);
+    // section is a degenerate field → dropped under a field-driven view.
+    expect(
+      cellDimensionOptions(
+        metadataDto({ degenerate: [{ field: 'section', value: 'Politics' }] }),
+        ['s1'],
+        true
+      )
+    ).toEqual(['author']);
+  });
 });
 
 describe('scalarMetricOptionsFromAvailable', () => {
@@ -204,6 +223,27 @@ describe('effectiveCellScale', () => {
         panelScales: 'shared'
       })
     ).toBe('free');
+  });
+
+  it('a per-cell metric override defaults to free (Phase 148f), but an explicit scale wins', () => {
+    // metric override, no explicit scale → free (incomparable to the panel).
+    expect(
+      effectiveCellScale({
+        cellKey: 'c0',
+        shareForbidden: false,
+        cellOverrides: co({ c0: { metric: 'word_count' } }),
+        panelScales: 'shared'
+      })
+    ).toBe('free');
+    // explicit scale override on top of a metric override → the user's choice wins.
+    expect(
+      effectiveCellScale({
+        cellKey: 'c0',
+        shareForbidden: false,
+        cellOverrides: co({ c0: { metric: 'word_count', scales: 'shared' } }),
+        panelScales: 'shared'
+      })
+    ).toBe('shared');
   });
 
   it('otherwise the cell override wins, then the panel default, then shared', () => {

@@ -48,7 +48,8 @@ const FILE_LENGTH_ALLOWLIST = [
   ['**/AtmosphereSurface.svelte', 657], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers (+15 Phase 144 banner/tooltip plurals)
   ['**/SideRail.svelte', 539], // markup-dominated; Phase 144 LocaleSwitch mount + message-call wrapping — within the ±20-30 tolerance band
   ['**/PanelCellGrid.svelte', 533], // markup-dominated; Phase 144 facet-disclosure note + Task-B fieldLabel relabels (3 LOC over 530) — within the ±20-30 tolerance band
-  ['**/SourceCard.svelte', 537] // markup-dominated; Phase 144 message-call wrapping of the card stats/registers/footer (+7 over 530) — within the ±20-30 tolerance band
+  ['**/SourceCard.svelte', 537], // markup-dominated; Phase 144 message-call wrapping of the card stats/registers/footer (+7 over 530) — within the ±20-30 tolerance band
+  ['**/panel-queries.ts', 532] // Phase 148f free-axis default for metric-overridden cells (resolveCellConfig.scales wraps +2 over 530) — within the ±20-30 tolerance band
 ];
 
 export default ts.config(

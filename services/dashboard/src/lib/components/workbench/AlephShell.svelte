@@ -32,7 +32,7 @@
   import { urlState } from '$lib/state/url.svelte';
   import { metricLabel } from '$lib/state/labels.svelte';
   import PanelControls from './PanelControls.svelte';
-  import CellMethodology from './CellMethodology.svelte';
+  import MeasureDetail from './MeasureDetail.svelte';
   import WindowHost from './WindowHost.svelte';
 
   interface Props {
@@ -274,7 +274,7 @@
         </div>
       </div>
 
-      <CellMethodology {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+      <MeasureDetail {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
     {/if}
   {:else if dossierQ.isError}
     <p class="muted">{m.workbench_aleph_dossier_failed()}</p>

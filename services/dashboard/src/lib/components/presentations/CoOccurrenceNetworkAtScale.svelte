@@ -43,8 +43,11 @@
   } from '$lib/presentations/cooccurrence-network-shared';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -69,6 +72,17 @@
   // Top-N and confused the density model.)
   const AT_SCALE_CEILING = 6000;
   const AT_SCALE_TOP_N = $derived(Math.min(AT_SCALE_CEILING, topN ?? AT_SCALE_CEILING));
+
+  // Phase 148e — unified cell title. Relational presentation (no metric
+  // subject); scope resolves the raw probe/source id to its display label.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_cooccurrence_network_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [{ label: m.cells_net_atscale_qualifier() }],
+    idSeed: 'atscale-title'
+  });
   // Spread (forceStrength 0..100) — shared lever with the SVG cell; mapped to FA2
   // repulsion/gravity below so the layout responds the same way in both.
   const spread = $derived(forceStrength ?? 50);
@@ -509,19 +523,15 @@
 </script>
 
 <section class="atscale-cell" aria-labelledby="atscale-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="atscale-title" class="cell-title">
-      {m.cells_net_title()}
-      <span class="muted"
-        >{m.cells_net_subtitle_atscale()}<strong class="scope-name">{scopeId}</strong></span
-      >
-    </h3>
-    {#if data && renderedNodeCount > 0}
-      <div class="header-actions">
-        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-      </div>
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if data && renderedNodeCount > 0}
+        <div class="header-actions">
+          <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+        </div>
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   <p class="atscale-hint" role="note">
     {m.cells_net_atscale_hint_a()}<strong>{m.cells_net_atscale_hint_zoom()}</strong
@@ -537,16 +547,14 @@
     {/if}
   </p>
 
-  {#if dataLayer === 'silver'}
-    <p class="muted">{m.cells_net_silver_notice_atscale()}</p>
-  {:else if graphQ.isPending}
+  {#if graphQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_net_loading_atscale()}</p>
   {:else if refusal}
     <RefusalSurface {refusal} {ctx} />
   {:else if isNetworkError}
     <p class="muted">{m.cells_net_load_error_atscale()}</p>
   {:else if data && data.nodes.length === 0}
-    <p class="muted">{m.cells_net_empty_atscale()}</p>
+    <CellEmptyState />
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -611,8 +619,6 @@
       <span class="metric-legend-note">{m.cells_net_legend_grey_note()}</span>
     </div>
   {/if}
-
-  <HowToRead presentation="cooccurrence_network" facts={howToReadFacts} />
 </section>
 
 <ArticleListModal
@@ -665,21 +671,9 @@
     height: 100%;
     min-height: 70vh;
   }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    margin: 0;
-    font-size: var(--font-size-md);
-  }
   .muted {
     color: var(--color-fg-muted, #888);
     font-size: var(--font-size-xs);
-  }
-  .scope-name {
-    color: var(--color-fg);
   }
   .atscale-hint {
     margin: 0;

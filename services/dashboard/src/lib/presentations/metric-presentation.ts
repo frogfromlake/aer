@@ -155,3 +155,34 @@ const SCALAR_METADATA_METRIC_NAMES: ReadonlySet<string> = new Set([
 export function isMetadataMetric(metricName: string): boolean {
   return SCALAR_METADATA_METRIC_NAMES.has(metricName);
 }
+
+// ---------------------------------------------------------------------------
+// Panel subject kind (Phase 148f) — what `Panel.metric` actually denotes.
+//
+// `Panel.metric` is overloaded: for a metric-driven view it is a metric; for a
+// field-driven view (`usesMetadataField`) it holds a categorical FIELD name
+// (e.g. `author`); for every channel-driven / multivariate / metric-agnostic
+// view it is left UNRECONCILED by the view-switch logic (panel-controls-derive)
+// and may be a stale value from a previously-active view. So `Panel.metric` is
+// untrusted: classification is driven by the PRESENTATION flags, never by the
+// string. Consumers (CellMethodology fetch-gating, the reading guide's MEASURE
+// note) use this to decide whether to fetch metric provenance/content, field
+// content, or neither — which is why field-driven views no longer 404 on
+// `/metrics/{field}/provenance`.
+// ---------------------------------------------------------------------------
+export type PanelSubjectKind = 'metric' | 'field' | 'none';
+
+/** Classify what the panel's subject (`Panel.metric`) denotes for a given
+ *  presentation. `'metric'` only when the view reliably binds a real metric
+ *  (`usesMetric`); `'field'` for field-grouped views (`usesMetadataField`);
+ *  `'none'` otherwise (channel-driven / multivariate / topic / revision /
+ *  co-occurrence — their real subject lives in channels/fieldChain/topics, not
+ *  in `Panel.metric`, so no single-metric methodology is fetched). */
+export function panelSubjectKind(pres: {
+  usesMetric?: boolean;
+  usesMetadataField?: boolean;
+}): PanelSubjectKind {
+  if (pres.usesMetadataField) return 'field';
+  if (pres.usesMetric) return 'metric';
+  return 'none';
+}

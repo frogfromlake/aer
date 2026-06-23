@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cellContentId,
+  hasCellMethodologyContent,
   DEFAULT_METRIC_NAME,
   defaultPresentationForPillar,
   getPillar,
@@ -91,6 +92,37 @@ describe('view-mode registry', () => {
     expect(cellContentId('cooccurrence_network', DEFAULT_METRIC_NAME)).toBe(
       'cooccurrence_network_sentiment_score_sentiws'
     );
+  });
+
+  it('flags exactly the view_modes that ship per-metric methodology content', () => {
+    // True for the metric-bearing views (a `<view>_<metric>.yaml` exists)…
+    for (const v of [
+      'distribution',
+      'time_series',
+      'topic_distribution',
+      'topic_evolution',
+      'cooccurrence_network'
+    ] as const) {
+      expect(hasCellMethodologyContent(v)).toBe(true);
+    }
+    // …false for channel-driven / metric-agnostic views (no such entry → would
+    // 404 if fetched). metric_scatter is the reported regression.
+    for (const v of [
+      'metric_scatter',
+      'categorical_distribution',
+      'correlation_matrix',
+      'cross_tab',
+      'parallel_coordinates',
+      'metric_lead_lag',
+      'sankey',
+      'cross_probe_lead_lag',
+      'revision_activity',
+      'revision_timeline',
+      'revision_discourse_shift',
+      'revision_edit_clusters'
+    ] as const) {
+      expect(hasCellMethodologyContent(v)).toBe(false);
+    }
   });
 
   it('marks per-source vs per-scope layout for downstream rendering', () => {

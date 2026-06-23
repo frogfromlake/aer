@@ -69,6 +69,9 @@
       ? m.workbench_ccp_dimension_noun_group_by()
       : m.workbench_ccp_dimension_noun_metric()
   );
+  // Drives the view-dependent Top N ceiling in the value levers (mirrors the
+  // panel-level lever's `viewUsesMetadataField`).
+  const viewUsesMetadataField = $derived(presentation.usesMetadataField ?? false);
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -125,6 +128,7 @@
       {dimensionPeekable}
       {dimensionNoun}
       {cellDimensionOptions}
+      {viewUsesMetadataField}
     />
     <CellConfigChannelLevers {panelPath} {cellKey} {panel} {configParams} {scalarMetricOptions} />
   </div>

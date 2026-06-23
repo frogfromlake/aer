@@ -134,7 +134,10 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
     settleSeconds: panel.settleSeconds,
     showBand: ov?.showBand ?? panel.showBand,
     showEdges: ov?.showEdges ?? panel.showEdges,
-    scales: ov?.scales ?? panel.scales,
+    // Phase 148f — metric-overridden cells default to a FREE axis (incomparable).
+    scales:
+      ov?.scales ??
+      (ov?.metric !== undefined && ov.metric !== panel.metric ? 'free' : panel.scales),
     displayLanguage: ov?.displayLanguage ?? panel.displayLanguage,
     channels: mergeCellChannels(panel.channels, ov?.channels),
     metric,

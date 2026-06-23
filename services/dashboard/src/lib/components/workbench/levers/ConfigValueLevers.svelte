@@ -8,7 +8,19 @@
   // read-out on every oninput tick so a drag doesn't fire ~100 URL writes.
   // Sibling ConfigChannelLevers owns the select / multi-select channel levers.
   import type { Panel } from '$lib/state/url-internals';
-  import { DEFAULT_BINS, DEFAULT_FORCE_STRENGTH, DEFAULT_TOPN } from '$lib/workbench/cell-levers';
+  import {
+    DEFAULT_BINS,
+    DEFAULT_FORCE_STRENGTH,
+    DEFAULT_TOPN,
+    BINS_MIN,
+    BINS_MAX,
+    BINS_STEP,
+    TOPN_MIN,
+    TOPN_STEP,
+    FORCE_MIN,
+    FORCE_MAX,
+    FORCE_STEP
+  } from '$lib/workbench/cell-levers';
   import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
@@ -98,9 +110,9 @@
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
-        min="5"
-        max="120"
-        step="1"
+        min={BINS_MIN}
+        max={BINS_MAX}
+        step={BINS_STEP}
         value={activeBins}
         oninput={(e) => (liveBins = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {
@@ -129,9 +141,9 @@
     >
       <input
         type="range"
-        min="5"
+        min={TOPN_MIN}
         max={topNMax}
-        step="5"
+        step={TOPN_STEP}
         value={activeTopN}
         oninput={(e) => (liveTopN = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {
@@ -155,9 +167,9 @@
     <div class="config-inline" onclick={(e) => e.stopPropagation()} role="presentation">
       <input
         type="range"
-        min="0"
-        max="100"
-        step="1"
+        min={FORCE_MIN}
+        max={FORCE_MAX}
+        step={FORCE_STEP}
         value={activeForceStrength}
         oninput={(e) => (liveForce = Number((e.currentTarget as HTMLInputElement).value))}
         onchange={(e) => {

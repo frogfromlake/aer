@@ -323,6 +323,29 @@ export function cellContentId(presentation: Presentation, metricName: string): s
   return `${presentation}_${metricName}`;
 }
 
+// The view_modes that ship a per-metric methodology entry
+// (`<presentation>_<metric>.yaml`) in the content catalogue. The remaining
+// presentations are channel-driven (scatter, lead-lag, sankey, parallel-
+// coordinates, cross-tab) or metric-agnostic (revision_*), so `cellContentId`
+// would resolve to an entry that does not exist — CellMethodology gates its
+// per-metric view-mode content fetch on this set so it never fires a 404 for a
+// cell that has no per-metric methodology. SoT for the entries:
+// services/bff-api/configs/content/{en,de}/view_modes/.
+const VIEW_MODES_WITH_PER_METRIC_CONTENT: ReadonlySet<Presentation> = new Set([
+  'distribution',
+  'time_series',
+  'topic_distribution',
+  'topic_evolution',
+  'cooccurrence_network'
+]);
+
+/** Whether a `view_mode/<presentation>_<metric>` methodology entry exists in the
+ *  content catalogue for this presentation (so the per-metric fetch is worth
+ *  making). False for channel-driven / metric-agnostic views. */
+export function hasCellMethodologyContent(presentation: Presentation): boolean {
+  return VIEW_MODES_WITH_PER_METRIC_CONTENT.has(presentation);
+}
+
 /** Default metric the lane uses when a presentation requires a metric
  *  but none is otherwise specified. Matches the Phase 106 baseline so
  *  switching presentations on a lane with no explicit metric still

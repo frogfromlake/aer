@@ -22,9 +22,11 @@
   import { type ExportRow, type ExportPayload } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
-  import { metricLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -115,6 +117,25 @@
     }
   );
   const rLabel = $derived(regression ? regression.r.toFixed(2) : null);
+
+  // Phase 148e — unified cell title. Pair subject (x × y), each side stripped to
+  // its subject noun (a per-axis model lives in the axis label / how-to-read, not
+  // the title); scope resolved (no raw probe id); Pearson r rides the tail.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_metric_scatter_label(),
+    subject: {
+      kind: 'pair',
+      left: metricSubjectAndModel(xMetric).subject,
+      op: '×',
+      right: metricSubjectAndModel(yMetric).subject
+    },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: rLabel
+      ? [{ label: m.cells_scatter_r_badge({ r: rLabel }), title: m.cells_scatter_r_badge_title() }]
+      : [],
+    idSeed: 'scatter-title'
+  });
 
   // Phase 124 — report the x and y (value) extents so PanelHost can union them
   // into the shared domains for a multi-cell scatter panel.
@@ -322,25 +343,15 @@
 </script>
 
 <section class="scatter-cell" aria-labelledby="scatter-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="scatter-title" class="cell-title">
-      {m.cells_scatter_title()}
-      <span class="muted"
-        >— <code>{metricLabel(xMetric)}</code> × <code>{metricLabel(yMetric)}</code> ·
-        <strong class="scope-name">{scopeId}</strong>{#if rLabel}
-          · <span class="r-badge" title={m.cells_scatter_r_badge_title()}
-            >{m.cells_scatter_r_badge({ r: rLabel })}</span
-          >{/if}</span
-      >
-    </h3>
-    {#if points.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if points.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="notice">{m.cells_scatter_silver()}</p>
-  {:else if scatterQ.isPending}
+  {#if scatterQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_scatter_loading()}</p>
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
@@ -362,7 +373,6 @@
       role="img"
       aria-label={m.cells_scatter_plot_aria({ x: metricLabel(xMetric), y: metricLabel(yMetric) })}
     ></div>
-    <HowToRead presentation="metric_scatter" facts={howToReadFacts} />
   {/if}
 </section>
 
@@ -371,27 +381,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
   }
 
   .plot-host {
@@ -421,31 +410,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .muted code {
-    font-family: var(--font-mono);
-  }
-
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
-  }
-
-  .r-badge {
-    font-family: var(--font-mono);
-    color: #e0a050;
-    font-weight: var(--font-weight-medium);
-  }
-
-  .notice {
-    font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
-    margin: 0;
-    padding: var(--space-4);
-    background: var(--color-bg-elevated);
-    border: 1px dashed var(--color-border-strong);
-    border-radius: var(--radius-md);
-    max-width: 36rem;
   }
 </style>

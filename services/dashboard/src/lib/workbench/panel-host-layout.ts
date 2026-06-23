@@ -60,6 +60,9 @@ export function droppedSources(avail: DimensionAvail | null): string[] {
 
 // Per-cell dimension peek list: every intersection dimension plus any partial at
 // least one of the open cell's own sources carries (same KIND as the view).
+// Phase 148f — degenerate (constant, no-signal) dimensions are excluded, mirroring
+// the panel-level metric/field picker (`panel-controls-derive`): a constant field
+// like `image_count` carries no signal, so it must not be offerable per-cell.
 export function cellDimensionOptions(
   data: ScopeAvailableMetricsDto | ScopeAvailableMetadataDto | null,
   openCellSources: string[],
@@ -68,14 +71,17 @@ export function cellDimensionOptions(
   if (!data || openCellSources.length === 0) return [];
   const srcSet = new Set(openCellSources);
   const names = [...data.available];
+  const exclude = new Set<string>();
   if (fieldDriven) {
     for (const p of (data as ScopeAvailableMetadataDto).partial)
       if (p.sources.some((s) => srcSet.has(s))) names.push(p.field);
+    for (const d of (data as ScopeAvailableMetadataDto).degenerate ?? []) exclude.add(d.field);
   } else {
     for (const p of (data as ScopeAvailableMetricsDto).partial)
       if (p.sources.some((s) => srcSet.has(s))) names.push(p.metricName);
+    for (const d of (data as ScopeAvailableMetricsDto).degenerate ?? []) exclude.add(d.metricName);
   }
-  return [...new Set(names)].sort();
+  return [...new Set(names)].filter((n) => !exclude.has(n)).sort();
 }
 
 // Scalar metric options for the per-cell scatter-axis pickers: the all-source
@@ -138,7 +144,14 @@ export function effectiveCellScale(i: {
   if (i.shareForbidden) return 'free';
   const ov = i.cellOverrides?.[i.cellKey];
   if (ov?.channels?.x !== undefined || ov?.channels?.y !== undefined) return 'free';
-  return ov?.scales ?? i.panelScales ?? 'shared';
+  // An explicit per-cell scale override wins (the user can turn sharing back on).
+  if (ov?.scales !== undefined) return ov.scales;
+  // Phase 148f — a per-cell METRIC override measures a different metric than the
+  // panel, so its values are not comparable on the shared axis: default to free
+  // (overridable above). `ov.metric` is only present when it differs (the mutator
+  // clears it when equal to the panel metric).
+  if (ov?.metric !== undefined) return 'free';
+  return i.panelScales ?? 'shared';
 }
 
 // The cells that actually share the axis — only these feed AND read the union, so

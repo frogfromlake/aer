@@ -23,8 +23,9 @@
   import type { PresentationCellProps } from '$lib/presentations';
   import { type ExportPayload } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
-  import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
+  import CellEmptyState from './CellEmptyState.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import {
     normaliseTopics,
     languagesOf,
@@ -34,6 +35,8 @@
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import { m } from '$lib/paraglide/messages.js';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -44,6 +47,23 @@
     probeIds = [],
     sources = []
   }: PresentationCellProps = $props();
+
+  // Phase 148e — unified cell title. Topics subject; the BERTopic model stays
+  // in the provenance footer (not the title); Tier 2 surfaces as a tier chip.
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_topic_distribution_label(),
+    subject: { kind: 'topics', label: m.cells_topicdist_title() },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    qualifiers: [
+      {
+        label: m.cells_topicdist_tier_badge(),
+        tone: 'tier',
+        title: m.cells_topicdist_tier_badge_title()
+      }
+    ],
+    idSeed: 'topic-dist-title'
+  });
 
   const OUTLIER_FILL = 'rgba(150, 150, 150, 0.45)';
   const OUTLIER_STROKE = 'rgba(150, 150, 150, 0.85)';
@@ -271,20 +291,13 @@
 </script>
 
 <section class="topic-cell" aria-labelledby="topic-dist-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="topic-dist-title" class="cell-title">
-      <span class="primary">{m.cells_topicdist_title()}</span>
-      <span class="muted"
-        >— {m.cells_topicdist_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
-      >
-      <span class="tier-badge" title={m.cells_topicdist_tier_badge_title()}
-        >{m.cells_topicdist_tier_badge()}</span
-      >
-    </h3>
-    {#if rows.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if rows.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   {#if isLatestSweep && sweepRange && rows.length > 0}
     <p class="sweep-caption" title={m.cells_topicdist_sweep_caption_title()}>
@@ -299,7 +312,7 @@
   {:else if isNetworkError}
     <p class="muted">{m.cells_topicdist_error()}</p>
   {:else if rows.length === 0}
-    <p class="muted">{m.cells_topicdist_empty()}</p>
+    <CellEmptyState />
   {:else}
     {#if isJointCorpus}
       {@const note = methodologyNotes.epistemeJointCorpusDistribution(sources.length)}
@@ -364,7 +377,6 @@
         {/if}
       </dl>
     </footer>
-    <HowToRead presentation="topic_distribution" facts={{ renderedCount: rows.length }} />
   {/if}
 </section>
 
@@ -373,38 +385,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-
-  .cell-title .primary {
-    font-family: var(--font-mono);
-  }
-
-  .tier-badge {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-semibold);
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: rgba(224, 160, 80, 0.15);
-    border: 1px solid #e0a050;
-    color: #e0a050;
-    cursor: help;
   }
 
   .plot-host {
@@ -477,11 +457,5 @@
     font-size: var(--font-size-xs);
     font-family: var(--font-mono);
     color: var(--color-fg-subtle);
-  }
-
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

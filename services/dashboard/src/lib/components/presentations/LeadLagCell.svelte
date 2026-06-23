@@ -14,13 +14,7 @@
   // banner so the cell never asserts an ungranted claim.
   import { createQuery } from '@tanstack/svelte-query';
   import { onDestroy } from 'svelte';
-  import {
-    probeLeadLagQuery,
-    probesQuery,
-    type ProbeLeadLagDto,
-    type ProbeDto,
-    type QueryOutcome
-  } from '$lib/api/queries';
+  import { probeLeadLagQuery, type ProbeLeadLagDto, type QueryOutcome } from '$lib/api/queries';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
@@ -28,9 +22,11 @@
   import { type ExportPayload, type ExportRow } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import { fmtValue, HIDDEN_READOUT, type ReadoutState } from '$lib/presentations/cell-readout';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   let { ctx, probeIds, windowStart, windowEnd }: PresentationCellProps = $props();
@@ -44,21 +40,21 @@
   const comparedId = $derived(probeIds?.[1] ?? null);
   const hasPair = $derived(referenceId !== null && comparedId !== null);
 
-  // Probe display labels (shortName) for the title + lead-lag sentence.
-  const probesQ = createQuery<QueryOutcome<ProbeDto[]>, Error, QueryOutcome<ProbeDto[]>>(() => {
-    const o = probesQuery(ctx);
-    return { queryKey: [...o.queryKey], queryFn: o.queryFn, staleTime: o.staleTime };
+  // Probe display labels (shortName) for the title + lead-lag sentence. Phase
+  // 148e — the inline resolver that used to live here is now the shared
+  // `useProbeLabels` hook every probe-scoped cell uses.
+  const probeLabels = useProbeLabels(() => ctx);
+  const referenceLabel = $derived(probeLabels.labelFor(referenceId));
+  const comparedLabel = $derived(probeLabels.labelFor(comparedId));
+
+  // Unified cell title — relational pair, no metric subject (the presentation
+  // eyebrow carries it); scope is the probe pair joined by `vs`.
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_cross_probe_lead_lag_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'pair', left: referenceLabel, right: comparedLabel, relation: 'vs' },
+    idSeed: 'leadlag-title'
   });
-  function labelFor(id: string | null): string {
-    if (!id) return '—';
-    if (probesQ.data?.kind === 'success') {
-      const p = probesQ.data.data.find((x) => x.probeId === id);
-      if (p) return p.shortName ?? p.displayName ?? id;
-    }
-    return id;
-  }
-  const referenceLabel = $derived(labelFor(referenceId));
-  const comparedLabel = $derived(labelFor(comparedId));
 
   const leadLagQ = createQuery<QueryOutcome<ProbeLeadLagDto>, Error, QueryOutcome<ProbeLeadLagDto>>(
     () => {
@@ -253,18 +249,13 @@
 </script>
 
 <section class="leadlag-cell" aria-labelledby="leadlag-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="leadlag-title" class="cell-title">
-      <span>{m.cells_leadlag_title()}</span>
-      <span class="muted">
-        — <strong class="scope-name">{referenceLabel}</strong> vs
-        <strong class="scope-name">{comparedLabel}</strong>
-      </span>
-    </h3>
-    {#if result && definedPoints.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if result && definedPoints.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   {#if !hasPair}
     <p class="muted">{m.cells_leadlag_need_pair()}</p>
@@ -291,7 +282,6 @@
       onmouseleave={() => (readout = HIDDEN_READOUT)}
     ></div>
     <CellReadout {readout} />
-    <HowToRead presentation="cross_probe_lead_lag" facts={{ renderedCount: bucketsAtZero }} />
   {/if}
 </section>
 
@@ -300,21 +290,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-    flex-wrap: wrap;
   }
   .leadlag-takeaway {
     font-size: var(--font-size-sm);
@@ -341,10 +316,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

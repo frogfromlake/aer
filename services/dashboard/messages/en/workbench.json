@@ -248,6 +248,8 @@
   "workbench_meth_loading": "Loading methodology…",
   "workbench_meth_known_limitations": "Known limitations",
   "workbench_meth_what_metric_measures": "What this metric measures",
+  "workbench_meth_what_field_means": "What this field means",
+  "workbench_meth_field_no_desc": "A metadata field declared by the publisher. No curated description yet.",
   "workbench_meth_provenance": "Provenance",
   "workbench_meth_provenance_tier": "Tier",
   "workbench_meth_provenance_validation": "Validation",

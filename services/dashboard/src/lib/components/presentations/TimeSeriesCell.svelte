@@ -15,9 +15,11 @@
   import type { PresentationCellProps } from '$lib/presentations';
   import { type ExportPayload } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
-  import HowToRead from './HowToRead.svelte';
   import CellExport from './CellExport.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -46,6 +48,21 @@
   // down so the charts AND the export query stay consistent.
   const url = $derived(urlState());
   const effectiveResolution = $derived(resolution ?? url.resolution ?? 'hourly');
+
+  // Phase 148e — the cell title sits once at the cell level (eyebrow = Time
+  // series, subject = metric with the model in its own dimmed slot, resolution
+  // in the qualifier tail). Scope is `none` here: each SourceLineChart lane
+  // carries its own scope pill (the source, or the ∪ union for a merged chart),
+  // so the cell never double-renders the scope.
+  const titleSubjectModel = $derived(metricSubjectAndModel(metricName));
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_time_series_label(),
+    subject: { kind: 'single', label: titleSubjectModel.subject },
+    model: titleSubjectModel.model,
+    scope: { kind: 'none' },
+    qualifiers: [{ label: effectiveResolution }],
+    idSeed: 'ts-title'
+  });
 
   // Phase 122i revision (C6). Soft methodology note when the Aleph
   // time-series cell aggregates over multiple sources — the chart
@@ -152,14 +169,14 @@
 </script>
 
 <div class="cell-body" bind:this={bodyEl}>
-  {#if dataLayer !== 'silver' && sources.length > 0 && exportRows.length > 0}
-    <div class="ts-export-row">
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    </div>
-  {/if}
-  {#if dataLayer === 'silver'}
-    <p class="notice">{m.cells_ts_silver()}</p>
-  {:else if sources.length === 0}
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if dataLayer !== 'silver' && sources.length > 0 && exportRows.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
+  {#if sources.length === 0}
     <p class="empty">{m.cells_ts_no_sources()}</p>
   {:else if composition === 'merged'}
     {#if showMergedNote}
@@ -170,7 +187,6 @@
     {/if}
     <SourceLineChart
       sourceNames={[...sourceNames]}
-      emicDesignation={null}
       {ctx}
       {windowStart}
       {windowEnd}
@@ -179,10 +195,6 @@
       resolution={effectiveResolution}
       {normalization}
       yDomain={sharedY}
-    />
-    <HowToRead
-      presentation="time_series"
-      facts={{ showBand: bandShown, scales: axisScaleState, configOverridden }}
     />
   {:else if composition === 'overlay'}
     <!-- Phase 122k §14c finding 2 — Overlay: per-source independent
@@ -197,14 +209,10 @@
       resolution={effectiveResolution}
       {normalization}
     />
-    <!-- Overlay has no ±1σ band (OverlayLineChart plots per-source lines only),
-         so the note must not claim one. -->
-    <HowToRead presentation="time_series" facts={{ showBand: false, configOverridden }} />
   {:else}
     {#each sources as source (source.name)}
       <SourceLineChart
         sourceName={source.name}
-        emicDesignation={source.emicDesignation}
         {ctx}
         {windowStart}
         {windowEnd}
@@ -215,10 +223,6 @@
         yDomain={sharedY}
       />
     {/each}
-    <HowToRead
-      presentation="time_series"
-      facts={{ showBand: bandShown, scales: axisScaleState, configOverridden }}
-    />
   {/if}
 </div>
 
@@ -229,24 +233,9 @@
     gap: var(--space-6);
   }
 
-  .ts-export-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: calc(-1 * var(--space-4));
-  }
-
-  .empty,
-  .notice {
+  .empty {
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-
-  .notice {
-    padding: var(--space-4);
-    background: var(--color-bg-elevated);
-    border: 1px dashed var(--color-border-strong);
-    border-radius: var(--radius-md);
-    max-width: 36rem;
   }
 </style>

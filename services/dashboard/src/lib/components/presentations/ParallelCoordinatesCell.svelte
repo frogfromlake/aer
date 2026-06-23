@@ -14,8 +14,10 @@
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import CellExport from './CellExport.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -32,6 +34,16 @@
 
   const metrics = $derived<string[]>([...(metricSet ?? [])]);
   const enoughMetrics = $derived(metrics.length >= 2);
+
+  // Phase 148e — unified cell title. No metric subject (the presentation eyebrow
+  // carries it); scope resolved (no raw probe id leak).
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_parallel_coordinates_label(),
+    subject: { kind: 'none' },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    idSeed: 'pc-title'
+  });
 
   const pcQ = createQuery<QueryOutcome<ParallelCoordsDto>, Error, QueryOutcome<ParallelCoordsDto>>(
     () => {
@@ -194,19 +206,15 @@
 </script>
 
 <section class="pc-cell" aria-labelledby="pc-title" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="pc-title" class="cell-title">
-      {m.cells_pc_title()}
-      <span class="muted">— <strong class="scope-name">{scopeId}</strong></span>
-    </h3>
-    {#if data && data.rows.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if data && data.rows.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
-  {#if dataLayer === 'silver'}
-    <p class="muted">{m.cells_pc_silver()}</p>
-  {:else if !enoughMetrics}
+  {#if !enoughMetrics}
     <p class="muted">{m.cells_pc_need_metrics()}</p>
   {:else if pcQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_pc_loading()}</p>
@@ -226,7 +234,6 @@
       role="img"
       aria-label={m.cells_pc_plot_aria({ count: metrics.length })}
     ></div>
-    <HowToRead presentation="parallel_coordinates" facts={howToReadFacts} />
   {/if}
 </section>
 
@@ -235,22 +242,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
   }
   .plot-host {
     width: 100%;
@@ -273,10 +264,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>

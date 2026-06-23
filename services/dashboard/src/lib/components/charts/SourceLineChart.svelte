@@ -23,7 +23,6 @@
     // over the joint corpus — exactly what Merged composition promises.
     sourceName?: string;
     sourceNames?: readonly string[];
-    emicDesignation: string | null | undefined;
     ctx: FetchContext;
     /** RFC 3339 bounds, or `undefined` for the whole dataset (no time filter).
      *  The x-axis derives its domain from the returned data, so an absent
@@ -48,7 +47,6 @@
   let {
     sourceName,
     sourceNames,
-    emicDesignation,
     ctx,
     windowStart,
     windowEnd,
@@ -142,20 +140,14 @@
 </script>
 
 <div class="source-lane" aria-labelledby="sl-title-{displayName}">
+  <!-- Phase 148e — per-lane scope pill only; the presentation eyebrow + metric
+       subject live once at the TimeSeriesCell level (CellTitleBar). The emic
+       designation slot was removed (it doubled the source name — BUG B); the
+       per-source emic register lives in the SourceCard, not the cell title. -->
   <h3 id="sl-title-{displayName}" class="source-lane-title">
-    {#if isMergedMulti}
-      <code
-        >{resolvedSources.length === 1
-          ? m.cells_chart_merged_heading_one({ count: resolvedSources.length })
-          : m.cells_chart_merged_heading_other({ count: resolvedSources.length })}</code
-      >
-      <span class="emic-note">— {resolvedSources.join(' ∪ ')}</span>
-    {:else}
-      <code>{resolvedSources[0] ?? ''}</code>
-      {#if emicDesignation}
-        <span class="emic-note">— {emicDesignation}</span>
-      {/if}
-    {/if}
+    <span class="lane-scope">
+      {isMergedMulti ? resolvedSources.join(' ∪ ') : (resolvedSources[0] ?? '')}
+    </span>
   </h3>
 
   {#if metricsQ.isPending}
@@ -197,9 +189,6 @@
   }
 
   .source-lane-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg-muted);
     margin: 0;
     display: flex;
     align-items: baseline;
@@ -207,15 +196,15 @@
     flex-wrap: wrap;
   }
 
-  .source-lane-title code {
-    font-family: var(--font-mono);
+  /* Per-lane scope pill — mirrors CellTitleBar's `.ct-scope` (viridis-25). */
+  .lane-scope {
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--color-viridis-25) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-viridis-25) 55%, transparent);
     color: var(--color-fg);
-  }
-
-  .emic-note {
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    font-style: italic;
-    color: var(--color-fg-subtle);
   }
 
   .chart-placeholder {

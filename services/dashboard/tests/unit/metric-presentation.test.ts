@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getPresentation,
   isPureCountMetric,
   metricSupportsPresentation,
+  panelSubjectKind,
   presentationsForMetric
 } from '../../src/lib/presentations';
+import type { Presentation } from '../../src/lib/state/url-internals';
 
 describe('metric → presentation compatibility map (Phase 130 / ADR-035)', () => {
   it('treats an unknown / scalar metric as distribution + time_series', () => {
@@ -57,5 +60,39 @@ describe('pure-count classification (Brief §1.3 merged-cross-probe guard)', () 
     expect(isPureCountMetric('language_confidence')).toBe(false);
     // unknown metrics default to non-pure-count (conservative: refuse merge)
     expect(isPureCountMetric('some_future_metric')).toBe(false);
+  });
+});
+
+describe('panelSubjectKind (Phase 148f) — what Panel.metric denotes per view', () => {
+  const kindOf = (id: Presentation) => panelSubjectKind(getPresentation(id));
+
+  it("classifies metric-driven views as 'metric'", () => {
+    expect(kindOf('distribution')).toBe('metric');
+    expect(kindOf('time_series')).toBe('metric');
+  });
+
+  it("classifies field-grouped views as 'field' (no metric provenance to fetch)", () => {
+    expect(kindOf('categorical_distribution')).toBe('field');
+    expect(kindOf('cross_tab')).toBe('field');
+  });
+
+  it("classifies channel-driven / multivariate / metric-agnostic views as 'none'", () => {
+    for (const id of [
+      'metric_scatter',
+      'cooccurrence_network',
+      'topic_distribution',
+      'topic_evolution',
+      'correlation_matrix',
+      'parallel_coordinates',
+      'sankey',
+      'metric_lead_lag',
+      'cross_probe_lead_lag',
+      'revision_activity',
+      'revision_timeline',
+      'revision_discourse_shift',
+      'revision_edit_clusters'
+    ] as const) {
+      expect(kindOf(id)).toBe('none');
+    }
   });
 });

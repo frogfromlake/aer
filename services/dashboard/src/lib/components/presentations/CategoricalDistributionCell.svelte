@@ -26,9 +26,11 @@
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
-  import HowToRead from './HowToRead.svelte';
+  import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { fieldLabel } from '$lib/state/labels.svelte';
+  import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
+  import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
   let {
     ctx,
@@ -46,6 +48,16 @@
   // the number of bars; default 20, BFF-clamped to [1, 200].
   const field = $derived(metricName);
   const activeTopN = $derived(topN ?? 20);
+
+  // Phase 148e — unified cell title. Eyebrow = presentation; subject = the
+  // categorical field; scope = resolved probe/source label (no raw probe id).
+  const probeLabels = useProbeLabels(() => ctx);
+  const titleSpec = $derived<CellTitleSpec>({
+    presentation: m.domain_presentation_categorical_distribution_label(),
+    subject: { kind: 'single', label: fieldLabel(field) },
+    scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
+    idSeed: `cat-title-${field}`
+  });
 
   const distQ = createQuery<
     QueryOutcome<CategoricalDistributionResponseDto>,
@@ -188,17 +200,13 @@
 </script>
 
 <section class="cat-cell" aria-labelledby="cat-title-{field}" bind:this={cellEl}>
-  <header class="cell-header">
-    <h3 id="cat-title-{field}" class="cell-title">
-      <code>{fieldLabel(field)}</code>
-      <span class="muted"
-        >— {m.cells_cat_subtitle()} · <strong class="scope-name">{scopeId}</strong></span
-      >
-    </h3>
-    {#if data && data.categories.length > 0}
-      <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
-    {/if}
-  </header>
+  <CellTitleBar spec={titleSpec}>
+    {#snippet actions()}
+      {#if data && data.categories.length > 0}
+        <CellExport {getNode} payload={exportPayload} filenameParts={exportFilenameParts} />
+      {/if}
+    {/snippet}
+  </CellTitleBar>
 
   {#if distQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_cat_loading()}</p>
@@ -229,15 +237,6 @@
         : m.cells_cat_note_distinct_other()}{#if data.distinctValues > data.categories.length}
         · {m.cells_cat_note_showing_top({ count: data.categories.length })}{/if}
     </p>
-    <HowToRead
-      presentation="categorical_distribution"
-      facts={{
-        topN: activeTopN,
-        renderedCount: data.categories.length,
-        distinctValues: data.distinctValues,
-        configOverridden
-      }}
-    />
   {/if}
 </section>
 
@@ -246,23 +245,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-  .cell-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .cell-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-fg);
-    margin: 0;
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .cell-title code {
-    font-family: var(--font-mono);
   }
   .plot-host {
     width: 100%;
@@ -285,10 +267,5 @@
     font-size: var(--font-size-sm);
     color: var(--color-fg-muted);
     margin: 0;
-  }
-  .scope-name {
-    color: var(--color-fg);
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-mono);
   }
 </style>
