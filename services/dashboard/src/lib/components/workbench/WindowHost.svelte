@@ -227,7 +227,7 @@
       <!-- Phase 127 — analysis-lifecycle actions on the far left (Save keeps its
            accent/primary look, New its ghost look); the +Panel action sits to
            the right of the spacer, just left of the panels-per-row group. -->
-      <button
+    <button
         type="button"
         class="window-action window-action-primary"
         onclick={() => openOverlay('analyses', 'save')}

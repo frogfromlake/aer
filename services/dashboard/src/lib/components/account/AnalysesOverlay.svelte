@@ -16,7 +16,6 @@
   import * as api from '$lib/api/analyses';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { setCleanBaseline } from '$lib/workbench/dirty.svelte';
-  import Button from '$lib/components/base/Button.svelte';
   import AuthNotice from '$lib/components/auth/AuthNotice.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import AnalysisTable from './AnalysisTable.svelte';
@@ -260,7 +259,9 @@
           >
         </header>
 
-        <!-- toolbar -->
+        <!-- toolbar — search only. Saving is initiated from the Workbench's
+             "Save current view" action (which opens this overlay in save mode);
+             a second save trigger here was redundant + confusing (operator). -->
         <div class="toolbar">
           <input
             class="search"
@@ -269,18 +270,6 @@
             bind:value={search}
             aria-label={m.account_analyses_search_label()}
           />
-          <!-- The toolbar button only OPENS the save panel; once it is open the
-               panel's own Save button commits, so hide this to avoid two
-               save-looking buttons (operator finding). -->
-          {#if canSaveCurrent && saveStep === 'closed'}
-            <Button variant="primary" onclick={beginSave}
-              >{m.account_analyses_save_current()}</Button
-            >
-          {:else if !canSaveCurrent}
-            <span class="save-hint" title={m.account_analyses_save_hint_title()}
-              >{m.account_analyses_save_hint()}</span
-            >
-          {/if}
         </div>
 
         <!-- Errors stay inline, anchored to the action; success is a floating
@@ -450,13 +439,6 @@
     padding: var(--space-2) var(--space-3);
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
-  }
-  .save-hint {
-    flex-shrink: 0;
-    font-size: var(--font-size-xs);
-    color: var(--color-fg-subtle);
-    max-width: 16rem;
-    line-height: var(--line-height-base);
   }
   .search:focus-visible {
     outline: none;

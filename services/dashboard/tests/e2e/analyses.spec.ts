@@ -21,6 +21,7 @@ const analysesPayload = {
       id: 'an-owned',
       name: 'Owned editable view',
       description: 'My saved workbench deep link',
+      ownerName: 'E2E Owner',
       ownerEmail: 'e2e@aer.test',
       createdAt: '2026-05-01T10:00:00Z',
       updatedAt: '2026-05-10T10:00:00Z',
@@ -31,6 +32,7 @@ const analysesPayload = {
       id: 'an-shared',
       name: 'Shared read-only view',
       description: 'Shared with me by a colleague',
+      ownerName: 'A. Colleague',
       ownerEmail: 'colleague@aer.test',
       createdAt: '2026-04-01T10:00:00Z',
       updatedAt: '2026-04-05T10:00:00Z',
@@ -83,12 +85,14 @@ test.describe('Phase 141 — AnalysesOverlay characterization', () => {
     const dialog = page.getByRole('dialog', { name: 'Saved analyses' });
     await expect(dialog).toBeVisible();
 
-    // Toolbar: search box + (off the Workbench) the "configure first" hint
-    // instead of the "Save current view" button.
+    // Toolbar: search box only. Phase 148e removed the in-overlay save trigger
+    // (saving is initiated from the Workbench action), so neither the "Save
+    // current view" button nor the "configure first" hint render here.
     await expect(dialog.getByRole('searchbox', { name: 'Search saved analyses' })).toBeVisible();
-    await expect(
-      dialog.getByText('Configure an analysis in the Workbench to save it')
-    ).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Save current view' })).toHaveCount(0);
+    await expect(dialog.getByText('Configure an analysis in the Workbench to save it')).toHaveCount(
+      0
+    );
 
     // Filter fieldsets (each <fieldset> exposes its <legend> as a group).
     await expect(dialog.getByRole('group', { name: 'Show' })).toBeVisible();
@@ -102,11 +106,11 @@ test.describe('Phase 141 — AnalysesOverlay characterization', () => {
     await expect(dialog.getByRole('button', { name: /^Updated/ })).toBeVisible();
 
     // Both rows render: owned shows "You" + Owner badge; shared shows the owner
-    // email + the Read-only badge.
+    // display name (email rides on the cell title) + the Read-only badge.
     await expect(dialog.getByRole('cell', { name: 'Owned editable view' })).toBeVisible();
     await expect(dialog.getByRole('cell', { name: 'Shared read-only view' })).toBeVisible();
     await expect(dialog.getByRole('cell', { name: 'You' })).toBeVisible();
-    await expect(dialog.getByRole('cell', { name: 'colleague@aer.test' })).toBeVisible();
+    await expect(dialog.getByRole('cell', { name: 'A. Colleague' })).toBeVisible();
 
     const ownedRow = dialog.getByRole('row', { name: 'Open Owned editable view' });
     await expect(ownedRow.getByText('Owner')).toBeVisible();

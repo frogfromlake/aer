@@ -121,6 +121,8 @@
   "account_analyses_col_created": "Erstellt",
   "account_analyses_col_updated": "Aktualisiert",
   "account_analyses_col_access": "Zugriff",
+  "account_analyses_scroll_hint": "Shift gedrückt halten, um horizontal zu scrollen",
+  "account_analyses_reset_columns": "Spalten zurücksetzen",
   "account_analyses_owner_you": "Sie",
   "account_analyses_open_row": "{name} öffnen",
   "account_analyses_access_owner": "Eigentümer",
