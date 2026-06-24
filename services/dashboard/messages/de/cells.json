@@ -467,5 +467,6 @@
   "cells_net_atscale_hint_b": " · ziehen zum Verschieben · Knoten anklicken für seine Artikel. Farbe = erkanntes ",
   "cells_net_atscale_hint_cluster": "Themencluster",
   "cells_net_atscale_hint_c": " (der beschriftete Knoten benennt jede Region). Das Layout setzt sich automatisch (Settle = die maximale Wartezeit); Entitäten legt fest, wie viele Knoten erscheinen, Spread wie weit sie auffächern.",
-  "cells_net_atscale_density": "· {nodes} Knoten · {edges} Kanten"
+  "cells_net_atscale_density": "· {nodes} Knoten · {edges} Kanten",
+  "cells_net_atscale_corpus_limit": "· {rendered} von {requested} angefordert — der Bereich enthält {rendered} verbundene Entitäten"
 }

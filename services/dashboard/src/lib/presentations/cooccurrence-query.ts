@@ -51,6 +51,15 @@ export const COOCCURRENCE_EDGE_MAX = 6000;
 export const COOCCURRENCE_EDGE_MIN = 5;
 export const COOCCURRENCE_DEFAULT_MAXNODES = 200;
 
+/** Node-count-scaled default for the layout settle cap (seconds): ~1 s per 100
+ *  entities, clamped to [12, 120]. Used by BOTH the settle lever (so its
+ *  displayed default is truthful) and the at-scale renderer (so the layout uses
+ *  the same value) — they read the panel's maxNodes, so they always agree. The
+ *  layout auto-stops earlier on convergence; this is only the upper bound. */
+export function autoSettleSeconds(maxNodes: number): number {
+  return Math.min(120, Math.max(12, Math.round((maxNodes > 0 ? maxNodes : 200) / 100)));
+}
+
 /** Effective edge cap for a node-first graph: an explicit user density when set,
  *  otherwise the auto baseline (nodes × density), always clamped to the BFF range.
  *  This is what keeps "more nodes → more edges" coherent: the node lever recomputes

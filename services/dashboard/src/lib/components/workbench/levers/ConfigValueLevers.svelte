@@ -25,7 +25,7 @@
     FORCE_STEP
   } from '$lib/workbench/cell-levers';
   import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
-  import { effectiveEdgeCap } from '$lib/presentations/cooccurrence-query';
+  import { effectiveEdgeCap, autoSettleSeconds } from '$lib/presentations/cooccurrence-query';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
@@ -52,7 +52,9 @@
   const activeShowEdges = $derived(boundPanel.showEdges ?? false);
   const activeShowLabels = $derived(boundPanel.showLabels ?? true);
   const activeForceStrength = $derived(boundPanel.forceStrength ?? DEFAULT_FORCE_STRENGTH);
-  const activeSettle = $derived(boundPanel.settleSeconds ?? 12);
+  // Phase 148g — when the user hasn't set it, the displayed default is the same
+  // node-count-scaled value the renderer uses (truthful, not a static 12 s).
+  const activeSettle = $derived(boundPanel.settleSeconds ?? autoSettleSeconds(activeMaxNodes));
 
   // Live slider read-outs — null = not mid-drag, fall back to the committed value.
   let liveBins = $state<number | null>(null);
@@ -96,7 +98,7 @@
   }
   function setSettle(n: number) {
     if (!Number.isFinite(n)) return;
-    const clamped = Math.min(60, Math.max(3, Math.round(n)));
+    const clamped = Math.min(120, Math.max(3, Math.round(n)));
     if (clamped === activeSettle) return;
     updatePanel(panelPath, (p) => ({ ...p, settleSeconds: clamped }));
   }
@@ -256,7 +258,7 @@
       <input
         type="range"
         min="3"
-        max="60"
+        max="120"
         step="1"
         value={activeSettle}
         oninput={(e) => (liveSettle = Number((e.currentTarget as HTMLInputElement).value))}

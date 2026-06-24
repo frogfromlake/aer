@@ -117,7 +117,7 @@
   "levers_settle_eyebrow": "Settle",
   "levers_settle_aria": "Layout settle time",
   "levers_settle_slider_aria": "Layout settle time in seconds",
-  "levers_settle_title": "Seconds the large-scale layout runs before it freezes. Raise it to give a big map more time to relax into clusters.",
+  "levers_settle_title": "Upper bound (seconds) for the layout — it auto-stops earlier once the map has settled. Raise it to give a big map more time to relax into clusters.",
   "levers_settle_value": "{seconds}s",
   "levers_connections_eyebrow": "Connections",
   "levers_connections_aria": "Connection lines",

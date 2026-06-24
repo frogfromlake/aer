@@ -117,7 +117,7 @@
   "levers_settle_eyebrow": "Beruhigung",
   "levers_settle_aria": "Beruhigungszeit des Layouts",
   "levers_settle_slider_aria": "Beruhigungszeit des Layouts in Sekunden",
-  "levers_settle_title": "Sekunden, die das großmaßstäbliche Layout läuft, bevor es einfriert. Erhöhen Sie sie, um einer großen Karte mehr Zeit zu geben, sich in Cluster zu entspannen.",
+  "levers_settle_title": "Obergrenze (Sekunden) für das Layout — es stoppt automatisch früher, sobald sich die Karte gesetzt hat. Erhöhen Sie sie, um einer großen Karte mehr Zeit zum Entspannen in Cluster zu geben.",
   "levers_settle_value": "{seconds}s",
   "levers_connections_eyebrow": "Verbindungen",
   "levers_connections_aria": "Verbindungslinien",

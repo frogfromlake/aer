@@ -5,6 +5,7 @@ import {
   isCrossLanguageMerge,
   coOccurrenceQueryForScope,
   effectiveEdgeCap,
+  autoSettleSeconds,
   COOCCURRENCE_EDGE_DENSITY,
   COOCCURRENCE_EDGE_MAX
 } from '../../src/lib/presentations/cooccurrence-query';
@@ -64,6 +65,15 @@ describe('effectiveEdgeCap (node↔edge coupling)', () => {
   });
   it('never returns below the minimum', () => {
     expect(effectiveEdgeCap(0)).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('autoSettleSeconds', () => {
+  it('scales ~1s per 100 nodes, clamped to [12, 120]', () => {
+    expect(autoSettleSeconds(200)).toBe(12); // 2 → clamped up
+    expect(autoSettleSeconds(5000)).toBe(50);
+    expect(autoSettleSeconds(10000)).toBe(100);
+    expect(autoSettleSeconds(20000)).toBe(120); // clamped down
   });
 });
 

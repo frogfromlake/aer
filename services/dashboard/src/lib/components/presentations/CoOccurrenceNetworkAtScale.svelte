@@ -17,6 +17,7 @@
     isCrossLanguageMerge,
     scopeLanguages,
     effectiveEdgeCap,
+    autoSettleSeconds,
     COOCCURRENCE_DEFAULT_MAXNODES
   } from '$lib/presentations/cooccurrence-query';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
@@ -115,10 +116,11 @@
   const edgesShown = $derived(showEdges ?? false);
   // Phase 148g — node labels on/off (default ON). All labels at the same distance.
   const labelsShown = $derived(showLabels ?? true);
-  // Layout settle time (seconds) — user-controlled (PanelControls). The FA2
-  // worker runs this long, then freezes. Default 12 s; large maps benefit from
-  // more (the lever goes to 60 s).
-  const settleSec = $derived(settleSeconds ?? 12);
+  // Layout settle time (seconds) — the SAFETY CAP for the FA2 worker (it auto-
+  // stops earlier once the map converges). User-set via PanelControls (up to
+  // 120 s); when unset the default scales with the node count (computed in the
+  // render effect, where the count is known), so a 10k-node map is not starved by
+  // a 12 s default.
 
   const viewerLang = $derived(
     displayLanguage === 'viewer' ? pickViewerLabelLanguage(locale()) : undefined
@@ -246,7 +248,6 @@
     // a pure render toggle handled by the edge reducer + a refresh effect, so
     // hiding lines never reshuffles the map).
     const spr = spread;
-    const settle = settleSec;
     const nc = netColor;
     // `sources` is a FRESH array on every parent re-render (PanelHost rebuilds it
     // via `sourcesForUnit`), so reading it TRACKED would re-run this expensive
@@ -299,14 +300,39 @@
 
       const graph = new Graph({ multi: false, type: 'undirected' });
       const n = nodes.length;
-      // RANDOM seed in a box scaled by √n. A symmetric (spiral/ring) seed tends
-      // to be *preserved* by FA2 as a ring; random starts let the layout break
-      // symmetry and relax into genuine theme clusters.
       const seedR = Math.max(150, 16 * Math.sqrt(n));
+      // Phase 148g — CLUSTER seed for fast convergence at scale. When theme
+      // clusters are known (the default colour mode), give each community a RANDOM
+      // centre (random, not a ring — a symmetric seed would be preserved as a ring)
+      // and start its nodes jittered around it. FA2 then refines pre-formed
+      // clusters instead of untangling 10k nodes from pure chaos, so the layout
+      // settles in a fraction of the iterations. No communities (other colour
+      // modes) → the original random-disc seed.
+      // Plain object (not Map) — a non-reactive local cache; the Svelte
+      // reactivity lint rightly forbids a mutable Map in component scope.
+      const commCentre: Record<number, [number, number]> = {};
+      if (communities) {
+        for (const node of nodes) {
+          if (node.community != null && commCentre[node.community] === undefined) {
+            commCentre[node.community] = [
+              (Math.random() - 0.5) * 2 * seedR,
+              (Math.random() - 0.5) * 2 * seedR
+            ];
+          }
+        }
+      }
+      const jitter = seedR * 0.15;
       nodes.forEach((node) => {
+        const centre = node.community != null ? commCentre[node.community] : undefined;
+        const sx = centre
+          ? centre[0] + (Math.random() - 0.5) * 2 * jitter
+          : (Math.random() - 0.5) * 2 * seedR;
+        const sy = centre
+          ? centre[1] + (Math.random() - 0.5) * 2 * jitter
+          : (Math.random() - 0.5) * 2 * seedR;
         graph.addNode(node.id, {
-          x: (Math.random() - 0.5) * 2 * seedR,
-          y: (Math.random() - 0.5) * 2 * seedR,
+          x: sx,
+          y: sy,
           size: nodeRadius(node.sizeNorm, 2, 14),
           color: nodeFillColor(node, colorCtx),
           label: node.displayName,
@@ -484,6 +510,10 @@
       // a small fraction of the layout scale for two consecutive checks, the map
       // has settled — stop immediately (no waiting). The Settle lever is the
       // SAFETY CAP ("run until settled, but at most N seconds").
+      // Explicit lever value, else the node-count-scaled default — the SAME
+      // autoSettleSeconds(maxNodes) the lever displays, so the shown value is
+      // truthful. The auto-stop ends earlier on convergence; this is the cap.
+      const settle = settleSeconds ?? autoSettleSeconds(MAX_NODES_EFF);
       const capMs = Math.max(2000, Math.min(120000, settle * 1000));
       stopTimer = setTimeout(stopLayout, capMs);
       const convEps = 0.004 * seedR;
@@ -607,6 +637,18 @@
           edges: data.edges.length
         })}</span
       >
+      {#if renderedNodeCount < MAX_NODES_EFF}
+        <!-- Phase 148g — honest corpus-limit disclosure: fewer entities rendered
+             than the lever requested means the scope simply HAS that many distinct
+             connected entities (the node-list LIMIT was not reached). Read live
+             from Gold, so it grows with the corpus. -->
+        <span class="muted corpus-limit"
+          >{m.cells_net_atscale_corpus_limit({
+            rendered: renderedNodeCount,
+            requested: MAX_NODES_EFF
+          })}</span
+        >
+      {/if}
     {/if}
   </p>
 

@@ -467,5 +467,6 @@
   "cells_net_atscale_hint_b": " · drag to pan · click a node for its articles. Colour = detected ",
   "cells_net_atscale_hint_cluster": "theme cluster",
   "cells_net_atscale_hint_c": " (the labelled node names each region). The layout settles automatically (Settle = the max wait); Entities sets how many nodes appear, Spread how far they fan out.",
-  "cells_net_atscale_density": "· {nodes} nodes · {edges} edges"
+  "cells_net_atscale_density": "· {nodes} nodes · {edges} edges",
+  "cells_net_atscale_corpus_limit": "· {rendered} of {requested} requested — the scope holds {rendered} connected entities"
 }
