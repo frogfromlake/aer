@@ -28,7 +28,8 @@
     selectAllSourcesInGroup,
     clearSourcesForProbeInGroup,
     pruneSourcesToLock,
-    resolvePanelLock
+    resolvePanelLock,
+    materializeWholeProbeSources
   } from '$lib/workbench/scope-editor-internals';
   import ScopeGroupCard from './ScopeGroupCard.svelte';
   import { createQuery } from '@tanstack/svelte-query';
@@ -235,14 +236,25 @@
     // the panel unlocked. A future Phase 122k.2 lifts the lock into
     // per-ScopeGroup schema so multi-group DF mixes round-trip.
     const resolvedLock = resolvePanelLock(perGroupLock);
+    // Phase 148g — make per-probe "whole-probe" intent explicit before commit:
+    // in a multi-probe group where only some probes have a source selection, the
+    // unselected probes get all their sources materialised, so the flat
+    // `sourceIds` resolution downstream keeps every probe (otherwise a single
+    // narrowed probe would silently drop the others).
+    const committedScopes = materializeWholeProbeSources(
+      draftScopes,
+      perGroupLock,
+      sourcesForProbe
+    );
     // Phase 122k §11 — only the Workbench-page auto-open path
     // participates in draft persistence. Other Apply paths (+Panel,
     // Edit-Scope) deliberately don't save, so a +Panel apply never
-    // leaks a draft into a subsequent back-nav restore.
+    // leaks a draft into a subsequent back-nav restore. Persist the RAW draft
+    // (pre-materialisation) so re-opening shows the user's actual selections.
     if (enableDraftPersistence) {
       saveDraft({ scopes: draftScopes, perGroupLock });
     }
-    onApply(draftScopes, resolvedLock);
+    onApply(committedScopes, resolvedLock);
   }
 
   function cancel() {

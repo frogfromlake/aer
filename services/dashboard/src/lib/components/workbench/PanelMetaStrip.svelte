@@ -37,11 +37,12 @@
 
   let { panel, dossier, panelPath, ctx, onEditScope }: Props = $props();
 
-  // Phase 148e — collapsed by default (chart-first): the panel opens on its cell,
-  // not on the full probes/sources chip body. The compact PanelScopeChips still
-  // surfaces the scope summary below, so the Phase-123c intent (don't hide scope)
-  // holds; this strip just starts in its compact header form, one click to expand.
-  let expanded = $state(false);
+  // Phase 148g — expanded by default. This strip is the per-panel quick-edit
+  // scope surface (probe/source chips with remove affordances); keeping it open
+  // makes what the panel observes immediately legible and the scope directly
+  // editable, which the operator wants visible without an extra click. The
+  // summary header stays as the collapse toggle.
+  let expanded = $state(true);
 
   // Phase 123c — probe display-name resolution for the scope chips. Falls back
   // to the raw id while the list loads or for an unknown probe.
@@ -103,10 +104,17 @@
 
   function removeProbe(probeId: string) {
     const remainingScopes = panel.scopes
-      .map((g) => ({
-        probeIds: g.probeIds.filter((p) => p !== probeId),
-        sourceIds: g.sourceIds
-      }))
+      .map((g) => {
+        const probeIds = g.probeIds.filter((p) => p !== probeId);
+        // Prune sources orphaned by the removed probe: a group's `sourceIds`
+        // names sources across ALL its probes, so dropping a probe must drop the
+        // sources that belonged only to it — otherwise they linger in scope and
+        // the cells keep querying a removed probe's sources (Phase 148g). An
+        // emptied list falls back to "whole remaining probe(s)".
+        const remainingSources = new Set(probeIds.flatMap(probeSources));
+        const sourceIds = g.sourceIds.filter((s) => remainingSources.has(s));
+        return { probeIds, sourceIds };
+      })
       .filter((g) => g.probeIds.length > 0);
     if (remainingScopes.length === 0) {
       // Removing the last probe leaves the panel scopeless — re-open the

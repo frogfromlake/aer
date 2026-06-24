@@ -196,3 +196,41 @@ export function resolvePanelLock(
     ? ((Array.from(uniqueLocks)[0] as DiscourseFunction | null | undefined) ?? null)
     : null;
 }
+
+/** Materialise the per-probe "whole-probe" intent inside a multi-probe group
+ *  before the scope is committed.
+ *
+ *  A ScopeGroup carries a FLAT `sourceIds` list shared by all its probes, but
+ *  every consumer resolves a non-empty list as "exactly these sources" for the
+ *  whole group. So a group like `{probeIds:[X,Y], sourceIds:[x1]}` — the user
+ *  picked one source of X and left Y untouched — wrongly renders as just `x1`,
+ *  dropping all of Y. The editor's intent is per-probe: a probe with NO selected
+ *  source means "all of that probe's sources".
+ *
+ *  This makes that intent explicit at commit time: for any group that has SOME
+ *  narrowing (`sourceIds` non-empty), every in-scope probe that contributes no
+ *  source of its own has ALL its (DF-lock-matching) sources appended. A group
+ *  with no narrowing (empty `sourceIds` = whole group) is left untouched, so the
+ *  common "all sources" case still round-trips as an empty list (and stays live
+ *  to a probe's future sources). Per-group lock is respected, mirroring
+ *  `selectAllSourcesInGroup`. Pure; unit-tested. */
+export function materializeWholeProbeSources(
+  scopes: ScopeGroup[],
+  perGroupLock: (DiscourseFunction | null)[],
+  sourcesForProbe: SourcesForProbe
+): ScopeGroup[] {
+  return scopes.map((group, i) => {
+    if (group.sourceIds.length === 0) return group; // whole group — leave live
+    const lock = perGroupLock[i] ?? null;
+    const sourceIds = [...group.sourceIds];
+    for (const probeId of group.probeIds) {
+      const probeSources = sourcesForProbe(probeId).filter((s) => sourceMatchesDf(s, lock));
+      if (probeSources.length === 0) continue; // sources not loaded — cannot materialise
+      const hasSelection = probeSources.some((s) => sourceIds.includes(s.name));
+      if (hasSelection) continue; // this probe already narrowed — keep its selection
+      for (const s of probeSources) if (!sourceIds.includes(s.name)) sourceIds.push(s.name);
+    }
+    if (sourceIds.length === group.sourceIds.length) return group;
+    return { probeIds: [...group.probeIds], sourceIds };
+  });
+}

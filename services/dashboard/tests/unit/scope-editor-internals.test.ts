@@ -10,6 +10,7 @@ import {
   clearSourcesForProbeInGroup,
   pruneSourcesToLock,
   resolvePanelLock,
+  materializeWholeProbeSources,
   type DossierSource,
   type SourcesForProbe
 } from '../../src/lib/workbench/scope-editor-internals';
@@ -198,5 +199,41 @@ describe('resolvePanelLock', () => {
   it('handles the single-group case', () => {
     expect(resolvePanelLock(['power_legitimation'])).toBe('power_legitimation');
     expect(resolvePanelLock([null])).toBeNull();
+  });
+});
+
+describe('materializeWholeProbeSources (Phase 148g)', () => {
+  it('materialises an unselected probe to all its sources when another probe is narrowed', () => {
+    // probe-a narrowed to a-ea; probe-b untouched → b gets all its sources.
+    const scopes: ScopeGroup[] = [{ probeIds: ['probe-a', 'probe-b'], sourceIds: ['a-ea'] }];
+    const out = materializeWholeProbeSources(scopes, [null], sourcesForProbe);
+    expect(out[0]!.sourceIds).toEqual(['a-ea', 'b-ea', 'b-ci']);
+    expect(out[0]!.probeIds).toEqual(['probe-a', 'probe-b']);
+  });
+
+  it('leaves a whole-group (empty sourceIds) untouched — stays live to future sources', () => {
+    const scopes: ScopeGroup[] = [{ probeIds: ['probe-a', 'probe-b'], sourceIds: [] }];
+    expect(materializeWholeProbeSources(scopes, [null], sourcesForProbe)).toEqual(scopes);
+  });
+
+  it('is a no-op when every probe already has a selection', () => {
+    const scopes: ScopeGroup[] = [
+      { probeIds: ['probe-a', 'probe-b'], sourceIds: ['a-ea', 'b-ci'] }
+    ];
+    const out = materializeWholeProbeSources(scopes, [null], sourcesForProbe);
+    expect(out[0]!.sourceIds).toEqual(['a-ea', 'b-ci']);
+  });
+
+  it('respects the per-group DF lock when materialising the unselected probe', () => {
+    // lock = epistemic_authority → probe-b contributes only its EA source.
+    const scopes: ScopeGroup[] = [{ probeIds: ['probe-a', 'probe-b'], sourceIds: ['a-ea'] }];
+    const out = materializeWholeProbeSources(scopes, ['epistemic_authority'], sourcesForProbe);
+    expect(out[0]!.sourceIds).toEqual(['a-ea', 'b-ea']);
+  });
+
+  it('does not materialise a probe whose sources are not yet loaded', () => {
+    const scopes: ScopeGroup[] = [{ probeIds: ['probe-a', 'probe-unloaded'], sourceIds: ['a-ea'] }];
+    const out = materializeWholeProbeSources(scopes, [null], sourcesForProbe);
+    expect(out[0]!.sourceIds).toEqual(['a-ea']);
   });
 });
