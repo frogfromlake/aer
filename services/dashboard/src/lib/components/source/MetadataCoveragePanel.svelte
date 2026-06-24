@@ -23,6 +23,7 @@
     type QueryOutcome
   } from '$lib/api/queries';
   import { m } from '$lib/paraglide/messages.js';
+  import { sourceLabel } from '$lib/state/labels.svelte';
 
   interface Props {
     probeId: string;
@@ -164,7 +165,7 @@
           <details class="mc-source-details">
             <summary class="mc-source-summary">
               <span class="mc-summary-glyph" aria-hidden="true">›</span>
-              <h3 class="mc-source-name">{src.name}</h3>
+              <h3 class="mc-source-name">{sourceLabel(src.name)}</h3>
               <span class="mc-summary-meta" title={m.source_coverage_summary_meta_title()}>
                 {(ordered.length === 1
                   ? m.source_coverage_summary_meta_one

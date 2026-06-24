@@ -31,6 +31,7 @@
   import PanelControls from './PanelControls.svelte';
   import MeasureDetail from './MeasureDetail.svelte';
   import WindowHost from './WindowHost.svelte';
+  import { registerSourceLabels } from '$lib/state/labels.svelte';
 
   interface Props {
     probeIds: string[];
@@ -81,6 +82,11 @@
   const dossier = $derived<ProbeDossierDto | null>(
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
+
+  // Phase 148g — seed the global source-label resolver (emic designation).
+  $effect(() => {
+    if (dossier) registerSourceLabels(dossier.sources);
+  });
 
   // Phase 122i / ADR-034 — Multi-Panel state path. See AlephShell for the
   // dual-path rationale.

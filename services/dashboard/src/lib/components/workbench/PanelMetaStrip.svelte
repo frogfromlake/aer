@@ -21,6 +21,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { getFunctionDef } from '$lib/discourse-function';
+  import { sourceLabel, registerSourceLabels } from '$lib/state/labels.svelte';
   import FunctionBadge from '$lib/components/base/FunctionBadge.svelte';
 
   interface Props {
@@ -54,6 +55,13 @@
   function probeLabel(probeId: string): string {
     return probeList.find((p) => p.probeId === probeId)?.displayName ?? probeId;
   }
+
+  // Register this probe's source display labels (WP-001 emic designation) into
+  // the global resolver so the chips below — and every other source-name surface
+  // in the Workbench — show "Tagesschau", not the raw "tagesschau" (Phase 148g).
+  $effect(() => {
+    registerSourceLabels(dossier.sources);
+  });
 
   // Phase 123c (B) parity — the threaded `dossier` covers ONLY one probe, so its
   // `sources` list is just that probe's. A multi-probe panel must resolve every
@@ -243,10 +251,10 @@
                   type="button"
                   class="chip"
                   onclick={() => removeSource(name)}
-                  aria-label={m.workbench_meta_remove_source_label({ name })}
+                  aria-label={m.workbench_meta_remove_source_label({ name: sourceLabel(name) })}
                   title={m.workbench_meta_remove_source_title()}
                 >
-                  {name}
+                  {sourceLabel(name)}
                   <span class="chip-x" aria-hidden="true">×</span>
                 </button>
               </li>

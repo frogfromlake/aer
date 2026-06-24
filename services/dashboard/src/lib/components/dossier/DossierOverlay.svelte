@@ -316,7 +316,19 @@
     justify-content: space-between;
     gap: var(--space-3);
     border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-3);
+    /* Phase 148g — keep the title + close button reachable while the catalogue
+       scrolls. `.dossier-overlay` is the scroll container (padded by --space-5);
+       the negative margins + re-added padding make this a full-width sticky bar
+       that covers the container's padding so scrolled rows never peek around it,
+       and the top corners stay rounded to match the dialog. */
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg-elevated);
+    margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
+    padding: var(--space-5) var(--space-5) var(--space-3);
+    border-top-left-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
   }
   .overlay-titles .eyebrow {
     font-family: var(--font-mono);

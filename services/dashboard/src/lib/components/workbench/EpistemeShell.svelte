@@ -26,7 +26,7 @@
     type PresentationCellProps
   } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
-  import { metricLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, registerSourceLabels } from '$lib/state/labels.svelte';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import PanelControls from './PanelControls.svelte';
   import MeasureDetail from './MeasureDetail.svelte';
@@ -93,6 +93,11 @@
   const dossier = $derived<ProbeDossierDto | null>(
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
+
+  // Phase 148g — seed the global source-label resolver (emic designation).
+  $effect(() => {
+    if (dossier) registerSourceLabels(dossier.sources);
+  });
 
   // Phase 122i / ADR-034 — Multi-Panel state path. See AlephShell for
   // the dual-path rationale.

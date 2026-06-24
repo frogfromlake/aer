@@ -185,10 +185,12 @@
   {:else if probeBadgeLabel}
     <!-- Phase 123c (B) — per-probe accent for the cross-probe split fan-out. The
          badge carries the probe's display label so the reader knows which probe
-         each source-cell belongs to. -->
+         each source-cell belongs to. Phase 148g: the source name is dropped here
+         — it is already shown (resolved to its emic designation) in the cell
+         title + scope strip, so repeating the raw scopeId only added a
+         mis-cased duplicate. -->
     <header class="cell-group-eyebrow">
       <span class="cell-group-badge">{probeBadgeLabel}</span>
-      <span class="cell-group-summary">{unit.scopeId}</span>
     </header>
   {:else if unit.facetField && unit.facetValue !== undefined}
     <!-- Phase 125a — faceting / small-multiples. Each sub-cell is the same view

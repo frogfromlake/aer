@@ -103,7 +103,7 @@
     onclick={() => (cardExpanded = !cardExpanded)}
   >
     <span class="chevron" class:expanded={cardExpanded} aria-hidden="true">›</span>
-    <h3 id="sc-title-{source.name}" class="source-name">{source.name}</h3>
+    <h3 id="sc-title-{source.name}" class="source-name">{source.emicDesignation ?? source.name}</h3>
     <span class="type-badge">{source.type}</span>
     {#if source.silverEligible}
       <span

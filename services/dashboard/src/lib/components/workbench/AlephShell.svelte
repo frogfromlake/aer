@@ -30,7 +30,7 @@
     type PresentationCellProps
   } from '$lib/presentations';
   import { urlState } from '$lib/state/url.svelte';
-  import { metricLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, registerSourceLabels } from '$lib/state/labels.svelte';
   import PanelControls from './PanelControls.svelte';
   import MeasureDetail from './MeasureDetail.svelte';
   import WindowHost from './WindowHost.svelte';
@@ -89,6 +89,12 @@
   const dossier = $derived<ProbeDossierDto | null>(
     dossierQ.data?.kind === 'success' ? dossierQ.data.data : null
   );
+
+  // Phase 148g — seed the global source-label resolver so cell titles (and every
+  // other source-name surface) render the emic designation, not the raw id.
+  $effect(() => {
+    if (dossier) registerSourceLabels(dossier.sources);
+  });
 
   // Phase 122i / ADR-034 — Multi-Panel state path. When the URL carries a
   // `?aleph=<encoded>` payload, render the Multi-Panel Workbench via the

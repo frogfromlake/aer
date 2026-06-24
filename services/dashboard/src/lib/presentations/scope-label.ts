@@ -8,10 +8,13 @@
 // so the whole Workbench resolves scope labels identically.
 //
 // Resolution rule (mirrors the BFF Probe schema fallback): a probe id maps to
-// `shortName ?? displayName ?? id`. A source name (or any id with no probe
-// match) is returned verbatim — source names are already human-readable in the
-// institutional-web probes, and the per-source emic designation lives in the
-// SourceCard, not the cell title (Phase 148e decision 5b).
+// `shortName ?? displayName ?? id`. A source name resolves through the injected
+// `sourceLabel` resolver to its WP-001 emic designation ("Tagesschau", "Élysée"),
+// falling back to the raw name. Phase 148g overrides the earlier 148e decision
+// (raw source names in titles) — the operator wants the display name everywhere.
+// The resolver is injected (not imported) so this module stays pure + testable;
+// the default is identity, preserving the verbatim behaviour for callers that
+// pass none.
 
 export interface ProbeLabelLike {
   probeId: string;
@@ -22,10 +25,14 @@ export interface ProbeLabelLike {
 /**
  * Resolve a single scope id to its display label. Probe ids resolve through the
  * probe registry's `shortName ?? displayName ?? id` fallback; anything else
- * (source names, unknown ids) returns verbatim.
+ * (a source name) resolves through `sourceLabel` (default: verbatim).
  */
-export function resolveScopeLabel(scopeId: string, probes: ReadonlyArray<ProbeLabelLike>): string {
+export function resolveScopeLabel(
+  scopeId: string,
+  probes: ReadonlyArray<ProbeLabelLike>,
+  sourceLabel: (name: string) => string = (s) => s
+): string {
   const p = probes.find((x) => x.probeId === scopeId);
   if (p) return p.shortName ?? p.displayName ?? scopeId;
-  return scopeId;
+  return sourceLabel(scopeId);
 }

@@ -16,6 +16,7 @@
 import { createQuery } from '@tanstack/svelte-query';
 import { probesQuery, type ProbeDto, type QueryOutcome, type FetchContext } from '$lib/api/queries';
 import { resolveScopeLabel } from './scope-label';
+import { sourceLabel } from '$lib/state/labels.svelte';
 
 export interface ProbeLabels {
   /** Resolve a scope id to its display label; null/empty → an em-dash. */
@@ -31,7 +32,7 @@ export function useProbeLabels(getCtx: () => FetchContext): ProbeLabels {
     labelFor(scopeId: string | null | undefined): string {
       if (!scopeId) return '—';
       const probes = q.data?.kind === 'success' ? q.data.data : [];
-      return resolveScopeLabel(scopeId, probes);
+      return resolveScopeLabel(scopeId, probes, sourceLabel);
     }
   };
 }

@@ -48,6 +48,34 @@ export function isRegisteredMetric(name: string): boolean {
   return name.length > 0 && name in metricLabels;
 }
 
+// Reactive registry of SOURCE display labels (the WP-001 emic designation —
+// "Tagesschau", "Élysée") keyed by the canonical source name ("tagesschau",
+// "elysee"). The emic designation lives only on the probe DOSSIER source objects
+// (source_classifications in the DB), not in the probe registry, so it is
+// registered here as dossiers load — exactly like metric labels are registered
+// from /metrics/available. Any UI that shows a source name resolves through
+// `sourceLabel(name)` so the raw machine id never leaks (Phase 148g).
+const sourceLabels = $state<Record<string, string>>({});
+
+// Register (or refresh) source display labels from a dossier's source list.
+// Safe to call repeatedly; only a non-empty emic designation overwrites, so a
+// source without one keeps the previous (or falls back to its raw name).
+export function registerSourceLabels(
+  sources: ReadonlyArray<{ name: string; emicDesignation?: string | null }>
+): void {
+  for (const s of sources) {
+    if (s.emicDesignation) sourceLabels[s.name] = s.emicDesignation;
+  }
+}
+
+// The display label for a source machine name. Reactive on the registry. Falls
+// back to the raw name (NOT humanized: the emic designation is authoritative —
+// e.g. "franceinfo" is genuinely lower-case branding, so a humanize would lie).
+export function sourceLabel(name: string): string {
+  if (!name) return '';
+  return sourceLabels[name] ?? name;
+}
+
 // Localized labels for the fixed categorical-field set (same fields as the
 // Task-C metadata catalogue). Paraglide reads the UI-locale rune per call.
 const FIELD_LABELS: Record<string, () => string> = {

@@ -31,6 +31,7 @@
     resolvePanelLock,
     materializeWholeProbeSources
   } from '$lib/workbench/scope-editor-internals';
+  import { registerSourceLabels } from '$lib/state/labels.svelte';
   import ScopeGroupCard from './ScopeGroupCard.svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import { onMount, onDestroy } from 'svelte';
@@ -176,6 +177,14 @@
           delete dossierFetchInFlight[probeId];
         });
     }
+  });
+
+  // Phase 148g — seed the global source-label resolver from EVERY selected
+  // probe's cached sources, so the editor's emic designations ("Tagesschau",
+  // "Élysée") are available app-wide (cell titles, PanelMetaStrip pills) even
+  // for probes whose own dossier was not separately fetched by a shell.
+  $effect(() => {
+    for (const sources of Object.values(dossierSourcesByProbe)) registerSourceLabels(sources);
   });
 
   // Source-resolver: returns the cached sources for a probe, or [] while its
