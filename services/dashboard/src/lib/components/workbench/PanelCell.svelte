@@ -212,9 +212,11 @@
     sources={sourcesForUnit(unit)}
     {dataLayer}
     probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
+    sourceIds={[...unit.sourceIds]}
     composition={panel.composition}
     bins={cfg.bins}
     topN={cfg.topN}
+    maxNodes={cfg.maxNodes}
     channels={cfg.channels}
     metricSet={panel.metricSet}
     fieldChain={panel.fieldChain}
@@ -225,6 +227,7 @@
     resolution={panel.resolution}
     normalization={panel.normalization}
     forceStrength={cfg.forceStrength}
+    showLabels={cfg.showLabels}
     displayLanguage={cfg.displayLanguage}
     cellKey={unit.key}
     reportExtent={sharedAxisApplies ? reportExtent : undefined}

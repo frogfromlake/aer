@@ -198,15 +198,13 @@
   const fanoutProbeOrder = $derived<readonly string[]>(fanout?.probeOrder ?? []);
   const isMultiProbeFanout = $derived(fanoutProbeOrder.length > 1);
 
-  // Phase 125b + co-occurrence redesign — the at-scale (WebGL) renderer auto-
-  // engages on a SINGLE cell once Top-N crosses ~500 edges (where d3-force/SVG
-  // stops being comfortable). Co-occurrence is always single-cell. Lazy-loaded.
-  const AT_SCALE_TOPN_THRESHOLD = 500;
+  // Phase 148g — the WebGL (sigma) renderer is now the SINGLE co-occurrence
+  // renderer for every node/edge count: it scales to 10000 nodes, carries the
+  // legend + per-source/probe borders + cursor tooltip, and removes the old
+  // SVG↔WebGL divergence. It engages on any single co-occurrence cell (the SVG
+  // CoOccurrenceNetworkCell path is retired). Lazy-loaded.
   const atScaleActive = $derived(
-    (presentation.supportsAtScale ?? false) &&
-      expandedUnits.length === 1 &&
-      !facetActive &&
-      (panel.topN ?? 60) > AT_SCALE_TOPN_THRESHOLD
+    (presentation.supportsAtScale ?? false) && expandedUnits.length === 1 && !facetActive
   );
   let AtScaleComponent = $state<Component<PresentationCellProps> | null>(null);
   $effect(() => {
@@ -408,10 +406,14 @@
           windowEnd={effectiveWindowEnd}
           metricName={cfg.metric}
           sources={sourcesForUnit(unit)}
+          probeIds={unit.probeIds.length > 1 ? [...unit.probeIds] : []}
+          sourceIds={[...unit.sourceIds]}
           {dataLayer}
           topN={cfg.topN}
+          maxNodes={cfg.maxNodes}
           forceStrength={cfg.forceStrength}
           showEdges={cfg.showEdges}
+          showLabels={cfg.showLabels}
           settleSeconds={cfg.settleSeconds}
           channels={cfg.channels}
           displayLanguage={cfg.displayLanguage}

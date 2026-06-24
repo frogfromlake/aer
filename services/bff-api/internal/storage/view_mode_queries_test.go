@@ -154,7 +154,7 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 	})
 
 	res, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau"},
-		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "")
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "", 0)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -184,6 +184,104 @@ func TestGetEntityCoOccurrence_AggregatesAndRanks(t *testing.T) {
 	}
 }
 
+// Phase 148g — node-FIRST breadth mode: maxNodes selects the top-N entities by
+// summed weight; edges are restricted to pairs among them; TotalCount is the
+// entity's FULL summed weight (not just the returned edges).
+func TestGetEntityCoOccurrence_NodeFirstBreadth(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	w0 := mustParse(t, "2026-04-24T10:00:00Z")
+	w1 := mustParse(t, "2026-04-24T11:00:00Z")
+	// Totals by summed weight: Berlin=6, Merkel=6, Scholz=1, Habeck=1.
+	seedCooc(t, ctx, s, [][]any{
+		{w0, w1, "tagesschau", "a1", "Berlin", "LOC", "Merkel", "PER", uint32(5), uint64(1)},
+		{w0, w1, "tagesschau", "a2", "Berlin", "LOC", "Scholz", "PER", uint32(1), uint64(1)},
+		{w0, w1, "tagesschau", "a3", "Merkel", "PER", "Habeck", "PER", uint32(1), uint64(1)},
+	})
+	qs := mustParse(t, "2026-04-24T00:00:00Z")
+	qe := mustParse(t, "2026-04-25T00:00:00Z")
+
+	// node-first, maxNodes=2 → universe {Berlin, Merkel}; only the Berlin–Merkel
+	// edge survives (Scholz/Habeck excluded from the universe).
+	res, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau"}, qs, qe, 10, "", "", 0, false, "", 2)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(res.Nodes) != 2 {
+		t.Fatalf("node-first maxNodes=2: want 2 nodes, got %d: %+v", len(res.Nodes), res.Nodes)
+	}
+	nodeBy := map[string]CoOccurrenceNode{}
+	for _, n := range res.Nodes {
+		nodeBy[n.Text] = n
+	}
+	if _, ok := nodeBy["Berlin"]; !ok {
+		t.Fatalf("Berlin must be in the top-2 node universe: %+v", res.Nodes)
+	}
+	if _, ok := nodeBy["Merkel"]; !ok {
+		t.Fatalf("Merkel must be in the top-2 node universe: %+v", res.Nodes)
+	}
+	if _, ok := nodeBy["Scholz"]; ok {
+		t.Fatalf("Scholz must be excluded by the maxNodes=2 universe: %+v", res.Nodes)
+	}
+	// TotalCount is the FULL summed weight (Berlin=6), not just the returned edge.
+	if nodeBy["Berlin"].TotalCount != 6 {
+		t.Errorf("Berlin TotalCount: want 6 (full summed weight), got %d", nodeBy["Berlin"].TotalCount)
+	}
+	if len(res.Edges) != 1 || res.Edges[0].A != "Berlin" || res.Edges[0].B != "Merkel" {
+		t.Fatalf("node-first edges: want [Berlin–Merkel], got %+v", res.Edges)
+	}
+
+	// Sanity: edge-first (maxNodes=0) on the same seed surfaces all 4 entities.
+	resEdge, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau"}, qs, qe, 10, "", "", 0, false, "", 0)
+	if err != nil {
+		t.Fatalf("edge-first query: %v", err)
+	}
+	if len(resEdge.Nodes) != 4 || len(resEdge.Edges) != 3 {
+		t.Fatalf("edge-first: want 4 nodes / 3 edges, got %d / %d", len(resEdge.Nodes), len(resEdge.Edges))
+	}
+}
+
+// Phase 148g — node-first CONNECTIVITY: per-node top-K keeps each node's
+// strongest edge(s), so a weak peripheral pair is NOT starved by the dominant
+// hub edges (the old "global top-N edges" left them isolated → central blob).
+func TestGetEntityCoOccurrence_NodeFirstConnectivity(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	w0 := mustParse(t, "2026-04-24T10:00:00Z")
+	w1 := mustParse(t, "2026-04-24T11:00:00Z")
+	// A dominant hub (Berlin) + a weak peripheral pair (Habeck–Baerbock). A global
+	// top-1-edge selection would keep only Berlin–Merkel and strand the others.
+	seedCooc(t, ctx, s, [][]any{
+		{w0, w1, "tagesschau", "a1", "Berlin", "LOC", "Merkel", "PER", uint32(100), uint64(1)},
+		{w0, w1, "tagesschau", "a2", "Berlin", "LOC", "Scholz", "PER", uint32(50), uint64(1)},
+		{w0, w1, "tagesschau", "a3", "Habeck", "PER", "Baerbock", "PER", uint32(5), uint64(1)},
+	})
+	// maxNodes=5 (all), topN=5 → K = round(5/5) = 1 (per-node top-1).
+	res, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau"},
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"),
+		5, "", "", 0, false, "", 5)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(res.Nodes) != 5 {
+		t.Fatalf("want all 5 entities, got %d: %+v", len(res.Nodes), res.Nodes)
+	}
+	// EVERY node must keep at least one edge — no isolated nodes (the blob fix).
+	for _, n := range res.Nodes {
+		if n.Degree < 1 {
+			t.Errorf("node %q is isolated (degree 0) — per-node top-K must connect it", n.Text)
+		}
+	}
+	// The weak peripheral pair survives precisely because it is each other's top-1.
+	var habeckBaerbock bool
+	for _, e := range res.Edges {
+		if (e.A == "Baerbock" && e.B == "Habeck") || (e.A == "Habeck" && e.B == "Baerbock") {
+			habeckBaerbock = true
+		}
+	}
+	if !habeckBaerbock {
+		t.Errorf("the weak Habeck–Baerbock edge must survive per-node top-K, got edges %+v", res.Edges)
+	}
+}
+
 // Phase 131a — per-edge source presence + pipeline-gap diagnostic.
 func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 	s, ctx := setupTestStore(t)
@@ -196,7 +294,7 @@ func TestGetEntityCoOccurrence_EdgePresenceAcrossSources(t *testing.T) {
 	})
 
 	res, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau", "bundesregierung"},
-		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "")
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "", 0)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -231,7 +329,7 @@ func TestGetEntityCoOccurrence_ArticlesInScopePipelineGap(t *testing.T) {
 	}
 
 	res, err := s.GetEntityCoOccurrence(ctx, []string{"tagesschau"},
-		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "")
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "", 0)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -272,7 +370,7 @@ func TestGetEntityCoOccurrence_ViewerLanguageRelabel(t *testing.T) {
 	}
 
 	res, err := s.GetEntityCoOccurrence(ctx, []string{"franceinfo"},
-		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "de", "", 0, false, "")
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "de", "", 0, false, "", 0)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -321,7 +419,7 @@ func TestGetEntityCoOccurrence_NoViewerLanguageNoRelabel(t *testing.T) {
 	}
 
 	res, err := s.GetEntityCoOccurrence(ctx, []string{"franceinfo"},
-		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "")
+		mustParse(t, "2026-04-24T00:00:00Z"), mustParse(t, "2026-04-25T00:00:00Z"), 10, "", "", 0, false, "", 0)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}

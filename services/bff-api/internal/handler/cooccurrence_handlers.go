@@ -55,8 +55,14 @@ func (s *Server) GetEntityCoOccurrence(ctx context.Context, request GetEntityCoO
 	// Phase 122d.2 — Negative-Space overlay: compute per-edge NS-support
 	// (contributing articles with no real publication date) when requested.
 	nsOverlay := request.Params.NegativeSpaceOverlay != nil && *request.Params.NegativeSpaceOverlay == "ghost"
+	// Phase 148g — node-first breadth control (top-N entities by weight; edges
+	// among them). 0/absent = legacy edge-first.
+	maxNodes := 0
+	if request.Params.MaxNodes != nil {
+		maxNodes = *request.Params.MaxNodes
+	}
 
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight, nsOverlay, colorMetric)
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, nodeMetric, minWeight, nsOverlay, colorMetric, maxNodes)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetEntityCoOccurrence", "error", err)
 		return GetEntityCoOccurrence500JSONResponse{Message: genericInternalError}, nil
@@ -320,15 +326,24 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 			Alternatives: &alts,
 		}, nil
 	}
-	if len(languages) > 1 {
+	// Cross-language merge is refused BY DEFAULT (entity nodes are surface forms;
+	// merging across languages would conflate identity — ADR-034). Phase 148g
+	// turns the hard refusal into an explicit USER opt-in: with
+	// allowCrossLanguage=true the union renders as one graph WITHOUT merging node
+	// identity across languages (the honest "two discourse spheres, stitched at
+	// shared actors" view — the caller surfaces that disclosure). QID-based
+	// cross-language node merging is a separate future step.
+	allowCrossLanguage := body.AllowCrossLanguage != nil && *body.AllowCrossLanguage
+	if len(languages) > 1 && !allowCrossLanguage {
 		gate := "cross_language_merge_unsupported"
 		anchor := "ADR-034#cross-language"
 		alts := []string{
+			"confirm the cross-language view (allowCrossLanguage) — nodes are NOT merged across languages",
 			"narrow the scope to a single language",
 			"split composition: each Cell renders one language",
 		}
 		return PostEntityCoOccurrenceQuery422JSONResponse{
-			Message:            fmt.Sprintf("cross-language merge not supported (scope spans %d languages: %s)", len(languages), strings.Join(languages, ", ")),
+			Message:            fmt.Sprintf("cross-language merge not supported without confirmation (scope spans %d languages: %s)", len(languages), strings.Join(languages, ", ")),
 			Gate:               &gate,
 			WorkingPaperAnchor: &anchor,
 			Alternatives:       &alts,
@@ -347,11 +362,16 @@ func (s *Server) PostEntityCoOccurrenceQuery(ctx context.Context, request PostEn
 	if body.ViewerLanguage != nil {
 		viewerLanguage = *body.ViewerLanguage
 	}
+	// Phase 148g — node-first breadth control on the merged path too (0 = edge-first).
+	maxNodes := 0
+	if body.MaxNodes != nil {
+		maxNodes = *body.MaxNodes
+	}
 
-	// The POST multi-scope path is the merged-graph (SVG) renderer only — the
-	// at-scale WebGL view is single-cell (GET). No minWeight here (topN<=500
-	// already bounds it).
-	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0, false, "")
+	// The POST multi-scope path serves both the merged SVG renderer and (Phase
+	// 148g) the merged at-scale view. No minWeight here (topN already bounds the
+	// edge set; node-first breadth is controlled by maxNodes).
+	res, err := s.db.GetEntityCoOccurrence(ctx, sources, start, end, topN, viewerLanguage, "", 0, false, "", maxNodes)
 	if err != nil {
 		slog.Error("handler failure", "op", "PostEntityCoOccurrenceQuery", "error", err)
 		return PostEntityCoOccurrenceQuery500JSONResponse{Message: genericInternalError}, nil

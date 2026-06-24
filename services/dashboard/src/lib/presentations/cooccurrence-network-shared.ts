@@ -17,6 +17,7 @@ export type NetColorChannel =
   | 'label'
   | 'presence'
   | 'source_overlay'
+  | 'probe_overlay'
   | 'metric'
   | 'community';
 
@@ -76,6 +77,19 @@ export const SOURCE_PALETTE = [
   '#3c5da0',
   '#a07b3c'
 ];
+// Phase 148g — a probe palette DISTINCT from SOURCE_PALETTE so the per-probe node
+// FILL never reads as the per-source BORDER (the two encode different levels of
+// the same provenance; the cross-probe merge shows both at once).
+export const PROBE_PALETTE = [
+  '#4f9d69',
+  '#9d4f8a',
+  '#c98a2b',
+  '#3f6fb0',
+  '#b0503f',
+  '#5fa8a0',
+  '#8a6db0',
+  '#a0894e'
+];
 export const SHARED_COLOR = '#9aa1ab';
 export const UNKNOWN_PROVENANCE_COLOR = '#3b3f47';
 const METRIC_LO = [82, 131, 184];
@@ -132,6 +146,36 @@ export function buildSourceColorMap(sourceNames: readonly string[]): Record<stri
 export function sourceColor(presence: string[], sourceColorMap: Record<string, string>): string {
   if (presence.length === 0) return UNKNOWN_PROVENANCE_COLOR;
   if (presence.length === 1) return sourceColorMap[presence[0]!] ?? UNKNOWN_PROVENANCE_COLOR;
+  return SHARED_COLOR;
+}
+
+/** Phase 148g — per-probe colour map, assigned by index over the scope's probe
+ *  ids so a cross-probe merge keeps stable probe colours. */
+export function buildProbeColorMap(probeIds: readonly string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  probeIds.forEach((id, i) => {
+    map[id] = PROBE_PALETTE[i % PROBE_PALETTE.length] ?? PROBE_PALETTE[0]!;
+  });
+  return map;
+}
+
+/** Phase 148g — probe-provenance colour for the node FILL on a cross-probe merge:
+ *  map the node's source presence to the owning probe(s); a single probe → its
+ *  colour; ≥2 distinct probes → shared grey (an actor bridging the spheres); none
+ *  resolvable → the "no provenance" colour. Mirrors {@link sourceColor} one level
+ *  up the provenance hierarchy (source → probe). */
+export function probeColor(
+  presence: string[],
+  sourceProbeMap: Record<string, string>,
+  probeColorMap: Record<string, string>
+): string {
+  const probes = new Set<string>();
+  for (const src of presence) {
+    const pid = sourceProbeMap[src];
+    if (pid) probes.add(pid);
+  }
+  if (probes.size === 0) return UNKNOWN_PROVENANCE_COLOR;
+  if (probes.size === 1) return probeColorMap[[...probes][0]!] ?? UNKNOWN_PROVENANCE_COLOR;
   return SHARED_COLOR;
 }
 
@@ -302,6 +346,11 @@ export interface NodeColorContext {
   metricExtent: MetricExtent | null;
   maxPresence: number;
   sourceColorMap: Record<string, string>;
+  /** Phase 148g — source-name → owning-probe-id, for the 'probe_overlay' fill on a
+   *  cross-probe merge. Empty when no probe data is available. */
+  sourceProbeMap?: Record<string, string>;
+  /** Phase 148g — probe-id → fill colour for 'probe_overlay'. */
+  probeColorMap?: Record<string, string>;
 }
 
 /** Node fill bound to the active colour channel. A node with no metric value is
@@ -323,6 +372,9 @@ export function nodeFillColor(n: ColorableNode, ctx: NodeColorContext): string {
     return rampBlueAmber(t);
   }
   if (ctx.netColor === 'source_overlay') return sourceColor(n.presence, ctx.sourceColorMap);
+  if (ctx.netColor === 'probe_overlay') {
+    return probeColor(n.presence, ctx.sourceProbeMap ?? {}, ctx.probeColorMap ?? {});
+  }
   return labelColor(n.label);
 }
 

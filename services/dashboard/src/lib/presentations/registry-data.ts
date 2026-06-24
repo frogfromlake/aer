@@ -48,17 +48,22 @@ export const PRESENTATIONS: readonly PresentationDefinition[] = [
     usesMetric: false,
     usesResolution: false,
     configurableParams: [
-      'topN',
+      'maxNodes',
       'networkChannels',
       'forceStrength',
       'settleTime',
+      'showLabels',
       'showEdges',
       'displayLanguage'
     ],
     supportsAtScale: true,
     negativeSpacePolicy: 'overlay',
+    // Phase 148g — the WebGL renderer is the SINGLE co-occurrence renderer; it is
+    // always selected via `supportsAtScale` (the old d3-force SVG cell is retired).
+    // `loadComponent` points here too so the default-renderer slot resolves to the
+    // same component (it is never actually rendered for co-occurrence).
     loadComponent: async () =>
-      (await import('$lib/components/presentations/CoOccurrenceNetworkCell.svelte')).default
+      (await import('$lib/components/presentations/CoOccurrenceNetworkAtScale.svelte')).default
   },
   // Phase 131 — Aleph-pillar paired-metric scatter. Synchronic (no time
   // axis): each point is one article positioned by two metrics, with optional

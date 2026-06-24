@@ -64,6 +64,7 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.resolution !== undefined) c.r = p.resolution;
   if (p.normalization !== undefined) c.n = p.normalization;
   if (p.topN !== undefined) c.tN = p.topN;
+  if (p.maxNodes !== undefined) c.mn = p.maxNodes;
   if (p.locked === true) c.L = 1;
   if (p.lockedReason !== undefined) c.lr = p.lockedReason;
   if (p.lockedFunction !== undefined) c.lf = p.lockedFunction;
@@ -92,6 +93,7 @@ function compactPanel(p: Panel): CompactPanel {
     if (cb) c.ch = cb;
   }
   if (p.showBand === false) c.sb = 0;
+  if (p.showLabels === false) c.sl = 0;
   if (p.showEdges === true) c.se = 1;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
   if (p.settleSeconds !== undefined) c.st = p.settleSeconds;
@@ -149,8 +151,10 @@ function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
   const c: CompactCellOverride = {};
   if (ov.bins !== undefined) c.bn = ov.bins;
   if (ov.topN !== undefined) c.tN = ov.topN;
+  if (ov.maxNodes !== undefined) c.mn = ov.maxNodes;
   if (ov.forceStrength !== undefined) c.fs = ov.forceStrength;
   if (ov.showBand !== undefined) c.sb = ov.showBand ? 1 : 0;
+  if (ov.showLabels !== undefined) c.sl = ov.showLabels ? 1 : 0;
   if (ov.showEdges !== undefined) c.se = ov.showEdges ? 1 : 0;
   if (ov.scales !== undefined) c.sc = ov.scales === 'free' ? 1 : 0;
   if (ov.displayLanguage !== undefined) c.dl = ov.displayLanguage === 'viewer' ? 1 : 0;
@@ -166,8 +170,10 @@ function expandCellOverride(c: CompactCellOverride): CellOverride {
   const ov: CellOverride = {};
   if (typeof c.bn === 'number') ov.bins = c.bn;
   if (typeof c.tN === 'number') ov.topN = c.tN;
+  if (typeof c.mn === 'number') ov.maxNodes = c.mn;
   if (typeof c.fs === 'number') ov.forceStrength = c.fs;
   if (c.sb === 0 || c.sb === 1) ov.showBand = c.sb === 1;
+  if (c.sl === 0 || c.sl === 1) ov.showLabels = c.sl === 1;
   if (c.se === 0 || c.se === 1) ov.showEdges = c.se === 1;
   if (c.sc === 0 || c.sc === 1) ov.scales = c.sc === 1 ? 'free' : 'shared';
   if (c.dl === 0 || c.dl === 1) ov.displayLanguage = c.dl === 1 ? 'viewer' : 'source';
@@ -205,6 +211,7 @@ function expandPanel(c: CompactPanel): Panel {
   if (c.r !== undefined) p.resolution = c.r;
   if (c.n !== undefined) p.normalization = c.n;
   if (c.tN !== undefined) p.topN = c.tN;
+  if (c.mn !== undefined) p.maxNodes = c.mn;
   if (c.L === 1) p.locked = true;
   if (c.lr !== undefined) p.lockedReason = c.lr;
   if (c.lf !== undefined) p.lockedFunction = c.lf;
@@ -238,6 +245,7 @@ function expandPanel(c: CompactPanel): Panel {
     if (cb) p.channels = cb;
   }
   if (c.sb === 0) p.showBand = false;
+  if (c.sl === 0) p.showLabels = false;
   if (c.se === 1) p.showEdges = true;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
   if (typeof c.st === 'number') p.settleSeconds = c.st;
@@ -361,6 +369,7 @@ function isCompactCellOverride(v: unknown): v is CompactCellOverride {
   if (v.tN !== undefined && (typeof v.tN !== 'number' || !Number.isFinite(v.tN))) return false;
   if (v.fs !== undefined && (typeof v.fs !== 'number' || !Number.isFinite(v.fs))) return false;
   if (v.sb !== undefined && v.sb !== 0 && v.sb !== 1) return false;
+  if (v.sl !== undefined && v.sl !== 0 && v.sl !== 1) return false;
   if (v.sc !== undefined && v.sc !== 0 && v.sc !== 1) return false;
   if (v.dl !== undefined && v.dl !== 0 && v.dl !== 1) return false;
   // `ch` is expanded defensively (each field type-checked in expandChannels),

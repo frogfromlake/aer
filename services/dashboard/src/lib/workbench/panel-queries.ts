@@ -103,10 +103,12 @@ const COOCCURRENCE_VIEWS: ReadonlySet<Presentation> = new Set(['cooccurrence_net
 export interface ResolvedCellConfig {
   bins: number | undefined;
   topN: number | undefined;
+  maxNodes: number | undefined;
   forceStrength: number | undefined;
   settleSeconds: number | undefined;
   showBand: boolean | undefined;
   showEdges: boolean | undefined;
+  showLabels: boolean | undefined;
   scales: ScaleMode | undefined;
   displayLanguage: 'source' | 'viewer' | undefined;
   channels: CellChannelBinding | undefined;
@@ -130,10 +132,12 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
   return {
     bins: ov?.bins ?? panel.bins,
     topN: ov?.topN ?? panel.topN,
+    maxNodes: ov?.maxNodes ?? panel.maxNodes,
     forceStrength: ov?.forceStrength ?? panel.forceStrength,
     settleSeconds: panel.settleSeconds,
     showBand: ov?.showBand ?? panel.showBand,
     showEdges: ov?.showEdges ?? panel.showEdges,
+    showLabels: ov?.showLabels ?? panel.showLabels,
     // Phase 148f — metric-overridden cells default to a FREE axis (incomparable).
     scales:
       ov?.scales ??

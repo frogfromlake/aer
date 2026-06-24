@@ -31,6 +31,14 @@ export const BINS_MAX = 120;
 export const BINS_STEP = 1;
 export const TOPN_MIN = 5;
 export const TOPN_STEP = 5;
+// Phase 148g — node-first breadth lever ("Entities"), the PRIMARY co-occurrence
+// control: how many entities the map shows, up to the BFF's 10000-entity ceiling.
+// The edge cap is a coupled density (see effectiveEdgeCap), so the node lever is
+// always meaningful; min 50 (a graph below that is not a "network").
+export const MAXNODES_MIN = 50;
+export const MAXNODES_MAX = 10000;
+export const MAXNODES_STEP = 50;
+export const DEFAULT_MAXNODES = 200;
 export const FORCE_MIN = 0;
 export const FORCE_MAX = 100;
 export const FORCE_STEP = 1;
@@ -51,6 +59,8 @@ export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label:
   { id: 'label', label: () => m.levers_netcolor_label() },
   { id: 'presence', label: () => m.levers_netcolor_presence() },
   { id: 'source_overlay', label: () => m.levers_netcolor_source_overlay() },
+  // Phase 148g — colour by owning probe (cross-probe merge fill).
+  { id: 'probe_overlay', label: () => m.levers_netcolor_probe_overlay() },
   { id: 'uniform', label: () => m.levers_netcolor_uniform() },
   // Phase 125 — colour by a per-article metric.
   { id: 'metric', label: () => m.levers_netcolor_metric() }

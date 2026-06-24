@@ -30,6 +30,20 @@ get:
     - $ref: '../parameters/windowStart.yaml'
     - $ref: '../parameters/windowEnd.yaml'
     - $ref: '../parameters/topN.yaml'
+    - name: maxNodes
+      in: query
+      required: false
+      description: >
+        Phase 148g — node-FIRST breadth control. When set, the graph is built
+        from the top-N most-frequent entities (by total mention count) in scope,
+        then the strongest `topN` edges AMONG those entities are drawn — surfacing
+        the breadth of the discourse (up to 10000 distinct entities) instead of
+        only the densest hubs. Omit for the legacy edge-first behaviour (nodes are
+        a by-product of the top-N edges). Clamped to [1, 10000].
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10000
     - $ref: '../parameters/minWeight.yaml'
     - $ref: '../parameters/viewerLanguage.yaml'
     - name: nodeMetric

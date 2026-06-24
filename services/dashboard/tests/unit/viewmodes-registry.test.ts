@@ -49,7 +49,10 @@ describe('view-mode registry', () => {
     const byId = Object.fromEntries(listPresentations().map((p) => [p.id, p]));
     expect(byId['distribution']?.configurableParams).toContain('bins');
     expect(byId['time_series']?.configurableParams).toContain('band');
-    expect(byId['cooccurrence_network']?.configurableParams).toContain('topN');
+    // Phase 148g — the density slider was retired; the node-count lever (maxNodes)
+    // is the single co-occurrence scale control (edge density follows automatically).
+    expect(byId['cooccurrence_network']?.configurableParams).toContain('maxNodes');
+    expect(byId['cooccurrence_network']?.configurableParams).not.toContain('topN');
     expect(byId['cooccurrence_network']?.configurableParams).toContain('networkChannels');
     expect(byId['metric_scatter']?.configurableParams).toContain('scatterAxes');
     // The scatter cell ignores the single-metric picker (channels drive it).

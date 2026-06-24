@@ -49,6 +49,8 @@ export type CellParamKind =
   | 'bins'
   | 'band'
   | 'topN'
+  // Phase 148g — co-occurrence node-first breadth (top-N entities by weight).
+  | 'maxNodes'
   | 'networkChannels'
   | 'scatterAxes'
   | 'forceStrength'
@@ -56,6 +58,8 @@ export type CellParamKind =
   // view is far more readable for a dense map; relational structure still reads
   // from clustering + node placement.
   | 'showEdges'
+  // Phase 148g — co-occurrence node labels on/off (default on; uniform distance).
+  | 'showLabels'
   // Co-occurrence redesign — large-scale layout settle time (seconds): how long
   // ForceAtlas2 runs before freezing. Lets the user give a big map more time to
   // relax into clusters.
@@ -201,6 +205,11 @@ export interface PresentationCellProps {
    *  include all probes in BFF queries via the `probeIds` parameter so
    *  the backend unions their sources. Absent = single-probe scope. */
   probeIds?: string[];
+  /** Phase 148g — the merged unit's explicit source allowlist (per ScopeGroup),
+   *  threaded to the co-occurrence cell so a cross-probe merge unions exactly the
+   *  scoped sources via the multi-scope POST. Empty/undefined = all sources of the
+   *  scope's probes. */
+  sourceIds?: readonly string[] | undefined;
   /** Phase 122i revision (D1). Cells that historically fanned out per
    *  source (`TimeSeriesCell`) need to know whether the panel intends
    *  `merged` (one chart over the unioned scope) or `split` (one chart
@@ -216,6 +225,10 @@ export interface PresentationCellProps {
   bins?: number | undefined;
   /** Co-occurrence network top-edge cap (default 60 when absent). */
   topN?: number | undefined;
+  /** Phase 148g — co-occurrence node-first breadth: the top-N most-frequent
+   *  entities (by weight) to show, edges drawn among them. 0/undefined keeps the
+   *  legacy edge-first behaviour (nodes are a by-product of the top-N edges). */
+  maxNodes?: number | undefined;
   /** Visual-channel binding — scatter axes/size/colour, network size/colour. */
   channels?: import('$lib/state/url-internals').CellChannelBinding | undefined;
   /** Phase 125 — the N-metric set for multivariate cells (correlation_matrix,
@@ -245,6 +258,9 @@ export interface PresentationCellProps {
   /** Co-occurrence — show/hide edge (connection) lines; undefined = shown.
    *  Network cells only. */
   showEdges?: boolean | undefined;
+  /** Phase 148g — co-occurrence node labels on/off; undefined = on. All labels
+   *  render at the same distance (no LOD mix). Network cell only. */
+  showLabels?: boolean | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
    *  the time-series cell previously read the global URL resolution, ignoring
    *  the panel control. */

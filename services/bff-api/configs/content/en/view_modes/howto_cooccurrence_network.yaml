@@ -3,40 +3,48 @@ entityType: view_mode
 locale: en
 registers:
   semantic:
-    short: "Nodes are entities; an edge means two entities were named in the same article. Read clusters as recurring framings, bridge nodes as connectors."
+    short: "Nodes are entities; an edge means two entities were named in the same article. Read clusters as recurring framings, bridge nodes as connectors. A merged scope pools every source — and, on confirmation, every probe — into one whole-discourse map."
     long: >
       A co-occurrence network answers "which actors, places, and concepts are spoken about
       together?". Read tight clusters as recurring framings and bridge nodes as entities that
-      link otherwise-separate conversations. Two visual channels are bound independently to the
+      link otherwise-separate conversations. A merged scope pools all of its sources — and,
+      across probes, the whole selected discourse — into ONE graph, so you see how a topic is
+      co-framed across the corpus rather than one source at a time. One lever sets the scale —
+      "Entities" — the N most-frequent entities (up to 10000) for a fine-grained map; the
+      connection density follows automatically, so the graph stays connected at any breadth (hide
+      the lines for a pure entity cloud). Two visual channels are bound independently to the
       graph: node SIZE and node COLOUR. Size can encode total co-occurrence weight, node degree
-      (how many distinct partners an entity has), or a per-article metric (e.g. how long the
-      articles mentioning that entity tend to be). Colour can encode the detected theme cluster
-      (community), entity type, cross-source presence, a uniform tone, or a per-article metric
-      (e.g. the mean sentiment of the articles that name the entity). When a metric drives a
-      channel, a larger or warmer node is a HIGHER mean for that entity — never a count of
-      mentions. Drag nodes to untangle the layout, click one to read its underlying articles.
+      (how many distinct partners an entity has), or a per-article metric. Colour can encode the
+      detected theme cluster (community), entity type, cross-source presence, the owning PROBE,
+      a uniform tone, or a per-article metric. "Source overlay" / "Probe overlay" colour the node
+      FILL by source / probe, with a legend naming each, so you can place every node in its origin
+      at a glance. Drag nodes to untangle the layout, click one to read its underlying articles.
   methodological:
-    short: "Top-N entity pairs by co-occurrence weight, force-directed; node size/colour bind to a chosen graph dimension OR a per-article metric mean."
+    short: "Node-first force-directed graph: the top-maxNodes entities by weight (≤10000), each keeping its strongest edges (per-node top-K) so every node stays connected; node size/colour bind to a graph dimension OR a per-article metric mean; cross-language merge is a confirmed, non-identity-merging union."
     long: >
-      The note is composed from a per-presentation template plus the live top-N cap and the bound
-      size/colour channels. Edges are the top-N entity pairs by summed co-occurrence count in the
-      window (server-clamped to [1, 6000]; the cell default is 60); a sparse graph reflects corpus
-      sparseness, not an analytical conclusion, and is flagged when it collapses below eight nodes.
-      Node SIZE binds to total_count (summed co-occurrence weight), degree, or a per-article
-      metric; node COLOUR binds to community (Louvain theme cluster), entity type, presence (the
-      count of distinct sources an entity appears in), source_overlay (a per-source palette in a
-      merged scope), a uniform tone, or a per-article metric — size and colour may bind to
-      DIFFERENT metrics. When a per-article metric is bound, the value shown for an entity is the
-      MEAN of that metric over every article in scope where the entity appears (BFF nodeMetric /
-      nodeColorMetric): node colour = sentiment means "the average sentiment of the articles that
-      name this actor"; node size = word count means "those articles' average length". An entity
-      with no article carrying the metric reads as a grey "no data" node, never a coerced zero
-      (disclose-never-coerce, WP-003 §3.2). Colour carries no intrinsic valence — it is a
-      categorical or scaled encoding only. Entities come from per-language NER, so co-mention
-      weights are comparable WITHIN one language; a cross-language merged scope is refused at the
-      BFF (NER tag sets and frequencies are not commensurable across pipelines) — inspect each
-      language in its own split cell (ADR-034, WP-004 §3.4).
-contentVersion: "v2026-06-a"
+      The note is composed from a per-presentation template plus the live caps and the bound
+      size/colour channels. The graph is NODE-FIRST (BFF maxNodes, ≤10000): it is built from the
+      top entities by summed co-occurrence weight, and each node keeps its strongest edges
+      (PER-NODE top-K, where K tracks the node count) — so EVERY node retains its strongest link
+      and the graph stays connected, instead of a flat global edge cap concentrating every line on
+      a few hubs and leaving the rest as an isolated central cloud. Connection density therefore
+      follows breadth automatically (the single "Entities" lever); the lines can be hidden for a
+      pure entity cloud. A sparse graph reflects corpus sparseness, not a conclusion, and is
+      flagged below eight nodes. Node SIZE binds to total_count, degree, or
+      a per-article metric; node COLOUR binds to community (Louvain), entity type, presence,
+      source_overlay (per-source palette), probe_overlay (per-probe fill; a legend names each),
+      a uniform tone, or a per-article metric — size and colour may bind to DIFFERENT metrics. A
+      per-article metric shows the MEAN over every in-scope article naming the entity (BFF
+      nodeMetric / nodeColorMetric); an entity with no such article is a grey "no data" node, never
+      a coerced zero (disclose-never-coerce, WP-003 §3.2). Colour carries no intrinsic valence.
+      Entities come from per-language NER, so co-mention weights are comparable WITHIN one language.
+      A CROSS-LANGUAGE merged scope is no longer hard-refused: it is offered behind an explicit
+      user confirmation and renders the union WITHOUT merging node identity across languages — the
+      two discourse spheres stay separate and meet only where an actor is spelled identically in
+      both (e.g. proper names); differing surface forms ("Frankreich"/"France") stay distinct until
+      a future Wikidata-QID merge. Per-article metric channels are not carried on a cross-probe
+      merge (cross-cultural metric comparison needs an equivalence grant — ADR-034, WP-004 §3.4).
+contentVersion: "v2026-06-c"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-06-24"
 workingPaperAnchors:

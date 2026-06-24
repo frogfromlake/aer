@@ -146,7 +146,7 @@
     <span class="ctrl-eyebrow">{m.levers_network_colour_eyebrow()}</span>
     <select
       class="config-select"
-      value={activeChannels.netColor ?? 'label'}
+      value={activeChannels.netColor ?? 'community'}
       onchange={(e) => setChannel('netColor', (e.currentTarget as HTMLSelectElement).value)}
       onclick={(e) => e.stopPropagation()}
       aria-label={m.levers_network_colour_select_aria()}

@@ -183,6 +183,9 @@ export function entityCoOccurrenceQuery(
     nodeColorMetric?: string;
     minWeight?: number;
     negativeSpaceOverlay?: 'ghost';
+    // Phase 148g — node-first breadth control (top-N entities by weight, edges
+    // among them). Omit for legacy edge-first behaviour.
+    maxNodes?: number;
   }
 ): QueryOptions<CoOccurrenceGraphDto> {
   const qs = new URLSearchParams();
@@ -204,6 +207,8 @@ export function entityCoOccurrenceQuery(
   // Phase 125b — min co-occurrence weight (edge density floor for the at-scale
   // renderer). Omitted when 0 (no thinning).
   if (params.minWeight && params.minWeight > 0) qs.set('minWeight', String(params.minWeight));
+  // Phase 148g — node-first breadth (top-N entities by weight; edges among them).
+  if (params.maxNodes && params.maxNodes > 0) qs.set('maxNodes', String(params.maxNodes));
   // Phase 122d.2 — Negative-Space overlay: edges carry `nsSupport` (count of
   // contributing articles with no real publication date) when requested.
   if (params.negativeSpaceOverlay) qs.set('negativeSpaceOverlay', params.negativeSpaceOverlay);
@@ -243,6 +248,12 @@ export interface CoOccurrenceMultiParams {
   topN?: number;
   // Phase 123b — cross-lingual relabel viewer language (omit to keep source form).
   viewerLanguage?: string | undefined;
+  // Phase 148g — node-first breadth (top-N entities by weight; edges among them).
+  maxNodes?: number | undefined;
+  // Phase 148g — explicit user opt-in to a cross-language merge (>1 manifest
+  // language). Default/false → the BFF refuses with 422; true → the union renders
+  // as one graph WITHOUT merging node identity across languages.
+  allowCrossLanguage?: boolean | undefined;
 }
 
 export function entityCoOccurrenceQueryMulti(
@@ -263,6 +274,8 @@ export function entityCoOccurrenceQueryMulti(
           windowStart: params.start,
           windowEnd: params.end,
           ...(params.topN !== undefined ? { topN: params.topN } : {}),
+          ...(params.maxNodes && params.maxNodes > 0 ? { maxNodes: params.maxNodes } : {}),
+          ...(params.allowCrossLanguage ? { allowCrossLanguage: true } : {}),
           ...(params.viewerLanguage ? { viewerLanguage: params.viewerLanguage } : {})
         })
       }),

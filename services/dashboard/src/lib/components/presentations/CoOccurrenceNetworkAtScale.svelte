@@ -11,11 +11,14 @@
   // only when a user actually opens the at-scale view (Brief §7 bundle budget).
   import { untrack } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
+  import { type CoOccurrenceGraphDto, type QueryOutcome } from '$lib/api/queries';
   import {
-    entityCoOccurrenceQuery,
-    type CoOccurrenceGraphDto,
-    type QueryOutcome
-  } from '$lib/api/queries';
+    coOccurrenceQueryForScope,
+    isCrossLanguageMerge,
+    scopeLanguages,
+    effectiveEdgeCap,
+    COOCCURRENCE_DEFAULT_MAXNODES
+  } from '$lib/presentations/cooccurrence-query';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import ArticleListModal from '$lib/components/article/ArticleListModal.svelte';
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
@@ -32,6 +35,7 @@
     buildNetworkNodes,
     buildNetworkEdges,
     buildSourceColorMap,
+    buildProbeColorMap,
     computeCommunities,
     communityHeads,
     nodeFillColor,
@@ -39,6 +43,8 @@
     nodeRadius,
     buildHowToReadFacts,
     buildExportPayload,
+    SHARED_COLOR,
+    UNKNOWN_PROVENANCE_COLOR,
     type MetricExtent,
     type NodeColorContext
   } from '$lib/presentations/cooccurrence-network-shared';
@@ -57,10 +63,14 @@
     windowStart,
     windowEnd,
     sources,
+    probeIds,
+    sourceIds,
     dataLayer = 'gold',
     topN,
+    maxNodes,
     forceStrength,
     showEdges,
+    showLabels,
     settleSeconds,
     channels,
     displayLanguage,
@@ -71,8 +81,10 @@
   // cell and capped at the BFF ceiling — the renderer auto-switches into this
   // WebGL view once Top-N crosses ~500. (Min-weight was retired: it overlapped
   // Top-N and confused the density model.)
-  const AT_SCALE_CEILING = 6000;
-  const AT_SCALE_TOP_N = $derived(Math.min(AT_SCALE_CEILING, topN ?? AT_SCALE_CEILING));
+  // Phase 148g — node-first is always on (default 200 entities); the edge cap is
+  // the coupled density (explicit topN, else auto = nodes × density).
+  const MAX_NODES_EFF = $derived(maxNodes ?? COOCCURRENCE_DEFAULT_MAXNODES);
+  const AT_SCALE_TOP_N = $derived(effectiveEdgeCap(MAX_NODES_EFF, topN));
 
   // Phase 148e — unified cell title. Relational presentation (no metric
   // subject); scope resolves the raw probe/source id to its display label.
@@ -81,15 +93,28 @@
     presentation: m.domain_presentation_cooccurrence_network_label(),
     subject: { kind: 'none' },
     scope: { kind: 'single', label: probeLabels.labelFor(scopeId) },
-    qualifiers: [{ label: m.cells_net_atscale_qualifier() }],
+    // Phase 148g — no "large-scale view" qualifier: this is the only co-occurrence
+    // renderer now, so the distinction is meaningless to the reader.
+    qualifiers: [],
     idSeed: 'atscale-title'
   });
+  // Phase 148g — cross-probe merge gate. A >1-probe scope merges via the
+  // multi-scope POST; a cross-language scope needs the user's confirmation first.
+  // (Breadth = MAX_NODES_EFF above.)
+  const scopeProbeIds = $derived(probeIds ?? []);
+  const langOf = (id: string): string | undefined => probeLabels.languageFor(id);
+  const crossLanguage = $derived(isCrossLanguageMerge(scopeProbeIds, langOf));
+  const mergeLanguages = $derived(scopeLanguages(scopeProbeIds, langOf));
+  let crossLangConfirmed = $state(false);
+  const crossLangBlocked = $derived(crossLanguage && !crossLangConfirmed);
   // Spread (forceStrength 0..100) — shared lever with the SVG cell; mapped to FA2
   // repulsion/gravity below so the layout responds the same way in both.
   const spread = $derived(forceStrength ?? 50);
   // Connection lines on/off — default HIDDEN (a nodes-only theme map reads far
   // cleaner; clustering + colour carry the structure). Toggle in PanelControls.
   const edgesShown = $derived(showEdges ?? false);
+  // Phase 148g — node labels on/off (default ON). All labels at the same distance.
+  const labelsShown = $derived(showLabels ?? true);
   // Layout settle time (seconds) — user-controlled (PanelControls). The FA2
   // worker runs this long, then freezes. Default 12 s; large maps benefit from
   // more (the lever goes to 60 s).
@@ -114,22 +139,26 @@
     Error,
     QueryOutcome<CoOccurrenceGraphDto>
   >(() => {
-    const o = entityCoOccurrenceQuery(ctx, {
+    const o = coOccurrenceQueryForScope(ctx, {
       scope,
       scopeId,
+      probeIds: scopeProbeIds,
+      sourceIds: sourceIds ?? [],
       start: windowStart,
       end: windowEnd,
       topN: AT_SCALE_TOP_N,
+      maxNodes: MAX_NODES_EFF,
       ...(viewerLang ? { viewerLanguage: viewerLang } : {}),
       negativeSpaceOverlay: 'ghost' as const,
       ...(sizeMetricReq ? { nodeMetric: sizeMetricReq } : {}),
-      ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {})
+      ...(colorMetricReq ? { nodeColorMetric: colorMetricReq } : {}),
+      ...(crossLanguage ? { allowCrossLanguage: crossLangConfirmed } : {})
     });
     return {
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
       staleTime: o.staleTime,
-      enabled: dataLayer !== 'silver'
+      enabled: dataLayer !== 'silver' && !crossLangBlocked
     };
   });
 
@@ -141,6 +170,11 @@
   const isMergedScope = $derived(resolvedSourceCount > 1 || sources.length > 1);
   // Kriesel default — colour by detected theme cluster (Louvain community).
   const netColor = $derived(channels?.netColor ?? 'community');
+  // Phase 148g — reactive colour-legend maps (the colorCtx in the render effect is
+  // untracked, so the legend computes these independently). Source/probe legends
+  // render only for the matching colour mode.
+  const legendSourceColors = $derived(buildSourceColorMap(sources.map((s) => s.name)));
+  const legendProbeColors = $derived(buildProbeColorMap(scopeProbeIds));
   const metricExtent = $derived.by<MetricExtent | null>(() =>
     data ? computeMetricExtent(data) : null
   );
@@ -172,7 +206,10 @@
     sigmaInstance = null;
   }
 
-  let pointer = $state({ x: 0, y: 0 });
+  // Phase 148g — VIEWPORT pointer (clientX/Y) for the CellReadout, which is
+  // position:fixed + clamps against the window. (Container-relative coords placed
+  // the readout box far up-left by the container's offset — the original bug.)
+  let pointerClient = $state({ x: 0, y: 0 });
   let readout = $state<ReadoutState>(HIDDEN_READOUT);
 
   /** A readout row for a node's bound-metric MEAN (3dp), with a clock/weekday
@@ -222,7 +259,10 @@
       // ISSUE 7 — colour channel uses the COLOUR metric's extent.
       metricExtent: mColorExt,
       maxPresence: 1,
-      sourceColorMap: buildSourceColorMap(srcNames)
+      sourceColorMap: buildSourceColorMap(srcNames),
+      // Phase 148g — per-probe FILL ('probe_overlay'); border keeps per-source.
+      sourceProbeMap: untrack(() => probeLabels.sourceProbeMap()),
+      probeColorMap: buildProbeColorMap(untrack(() => scopeProbeIds))
     };
     if (!host || !d || d.nodes.length === 0) {
       teardown();
@@ -307,9 +347,19 @@
       renderedNodeCount = graph.order;
 
       sigmaInstance = new Sigma(graph, container, {
-        // Semantic LOD: only label the bigger nodes until the user zooms in,
-        // so a thousand-node map is not a wall of text.
-        labelRenderedSizeThreshold: 8,
+        // Phase 148g — UNIFORM labels: threshold 0 labels every node regardless of
+        // size, and a very high labelDensity defeats sigma's grid declutter (which
+        // otherwise caps labels-per-cell and reveals more only on zoom — the "some
+        // labelled, some not" bug). The label TOGGLE (renderLabels) turns them all
+        // on/off together. (labelGridCellSize stays default — 0 would divide by zero.)
+        labelRenderedSizeThreshold: 0,
+        labelDensity: 1e7,
+        renderLabels: labelsShown,
+        // white labels read best on the dark graph canvas.
+        labelColor: { color: '#ffffff' },
+        // Phase 148g — suppress sigma's native node-hover box (an empty white
+        // panel on our dark canvas); the cursor-following CellReadout is our tooltip.
+        defaultDrawNodeHover: () => {},
         defaultEdgeColor: 'rgba(180,200,220,0.4)',
         minCameraRatio: 0.05,
         maxCameraRatio: 12,
@@ -342,8 +392,8 @@
         const a = graph.getNodeAttributes(node);
         readout = {
           visible: true,
-          x: pointer.x,
-          y: pointer.y,
+          x: pointerClient.x,
+          y: pointerClient.y,
           title: String(a.label ?? node),
           rows: [
             { label: m.cells_net_readout_type(), value: String(a.nerLabel ?? '') },
@@ -481,6 +531,17 @@
     sigmaInstance?.refresh();
   });
 
+  // Phase 148g — labels toggle: flip sigma's renderLabels live (no rebuild).
+  // Read `labelsShown` UNCONDITIONALLY first so the effect tracks it even on the
+  // initial run when `sigmaInstance` is still null — otherwise the `?.` short-
+  // circuits before the argument is read, the dep is never registered, and the
+  // toggle only takes effect on the next full map rebuild (the reported bug).
+  $effect(() => {
+    const show = labelsShown;
+    sigmaInstance?.setSetting('renderLabels', show);
+    sigmaInstance?.refresh();
+  });
+
   // ── how-to-read + export (shared contract) ────────────────────────────────
   const linkedNodeCount = $derived(data?.linkedNodeCount ?? 0);
   const labeledNodeCount = $derived(data?.labeledNodeCount ?? 0);
@@ -549,7 +610,17 @@
     {/if}
   </p>
 
-  {#if graphQ.isPending}
+  {#if crossLangBlocked}
+    <!-- Phase 148g — cross-language merge confirmation (mirrors the SVG cell).
+         Nodes are NOT merged across languages; ask before rendering the union. -->
+    <aside class="cross-lang-confirm" role="note" aria-label={m.cells_net_crosslang_aria()}>
+      <strong>{m.cells_net_crosslang_strong()}</strong>
+      {m.cells_net_crosslang_body({ languages: mergeLanguages.join(', ') })}
+      <button class="confirm-btn" onclick={() => (crossLangConfirmed = true)}>
+        {m.cells_net_crosslang_confirm()}
+      </button>
+    </aside>
+  {:else if graphQ.isPending}
     <p class="muted" aria-busy="true">{m.cells_net_loading_atscale()}</p>
   {:else if refusal}
     <RefusalSurface {refusal} {ctx} />
@@ -563,10 +634,19 @@
       class="sigma-host"
       bind:this={host}
       onpointermove={(e) => {
-        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
+        pointerClient = { x: e.clientX, y: e.clientY };
+        // Let the readout follow the cursor while a node stays hovered.
+        if (readout.visible) readout = { ...readout, x: e.clientX, y: e.clientY };
       }}
     ></div>
+    {#if crossLanguage}
+      <!-- Phase 148g — persistent cross-language disclosure (two spheres stitched
+           at identically-spelled actors; not merged across languages). -->
+      <aside class="crosslang-note" role="note">
+        <strong>{m.cells_net_crosslang_disclosure_strong()}</strong
+        >{m.cells_net_crosslang_disclosure_body({ languages: mergeLanguages.join(', ') })}
+      </aside>
+    {/if}
     {#if relabelActive}
       <p class="muted coverage-note">
         {m.cells_net_coverage_atscale({
@@ -579,6 +659,54 @@
   {/if}
 
   <CellReadout {readout} />
+
+  {#if data && renderedNodeCount > 0}
+    <!-- Phase 148g — colour legend (parity with the SVG cell): swatches for the
+         active provenance colour mode (source / probe), or a note for the theme
+         cluster. The metric ramp keeps its own legend below. -->
+    {#if netColor === 'source_overlay'}
+      <ul class="colour-legend" aria-label={m.cells_net_source_legend_aria()}>
+        {#each sources as src (src.name)}
+          <li>
+            <span
+              class="legend-swatch"
+              style:background={legendSourceColors[src.name] ?? UNKNOWN_PROVENANCE_COLOR}
+              aria-hidden="true"
+            ></span>
+            <span>{src.emicDesignation ?? src.name}</span>
+          </li>
+        {/each}
+        <li>
+          <span class="legend-swatch" style:background={SHARED_COLOR} aria-hidden="true"></span>
+          <span>{m.cells_net_legend_shared()}</span>
+        </li>
+        <li>
+          <span class="legend-swatch" style:background={UNKNOWN_PROVENANCE_COLOR} aria-hidden="true"
+          ></span>
+          <span>{m.cells_net_legend_provenance_unavailable()}</span>
+        </li>
+      </ul>
+    {:else if netColor === 'probe_overlay'}
+      <ul class="colour-legend" aria-label={m.cells_net_source_legend_aria()}>
+        {#each scopeProbeIds as pid (pid)}
+          <li>
+            <span
+              class="legend-swatch"
+              style:background={legendProbeColors[pid] ?? UNKNOWN_PROVENANCE_COLOR}
+              aria-hidden="true"
+            ></span>
+            <span>{probeLabels.labelFor(pid)}</span>
+          </li>
+        {/each}
+        <li>
+          <span class="legend-swatch" style:background={SHARED_COLOR} aria-hidden="true"></span>
+          <span>{m.cells_net_legend_shared()}</span>
+        </li>
+      </ul>
+    {:else if netColor === 'community'}
+      <p class="muted colour-legend-note">{m.cells_net_legend_community_note()}</p>
+    {/if}
+  {/if}
 
   {#if sizeMetricReq || colorMetricReq}
     <!-- Metric-channel legend — parity with the SVG cell (ISSUE 8). -->
@@ -745,6 +873,62 @@
   }
   .coverage-note {
     margin: 0;
+  }
+  /* Phase 148g — categorical colour legend (source / probe swatches). */
+  .colour-legend {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  .colour-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .colour-legend .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  }
+  .colour-legend-note {
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  /* Phase 148g — cross-language merge confirmation + persistent disclosure. */
+  .cross-lang-confirm,
+  .crosslang-note {
+    display: block;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-fg);
+    line-height: 1.5;
+    background: color-mix(in srgb, var(--color-accent, #b08968) 9%, var(--color-surface));
+    border-left: 3px solid var(--color-accent, #b08968);
+  }
+  .crosslang-note {
+    margin-top: var(--space-2);
+  }
+  .cross-lang-confirm .confirm-btn {
+    display: inline-block;
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-accent, #b08968);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-fg);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  .cross-lang-confirm .confirm-btn:hover {
+    background: color-mix(in srgb, var(--color-accent, #b08968) 18%, transparent);
   }
   .entity-panel {
     margin-top: var(--space-2);

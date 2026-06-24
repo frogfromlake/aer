@@ -3,44 +3,53 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Knoten sind Entitäten; eine Kante heißt, zwei Entitäten wurden im selben Artikel genannt. Lies Cluster als Rahmungen, Brückenknoten als Verbinder."
+    short: "Knoten sind Entitäten; eine Kante heißt, zwei Entitäten wurden im selben Artikel genannt. Lies Cluster als Rahmungen, Brückenknoten als Verbinder. Ein merged-Bereich bündelt jede Quelle — und nach Bestätigung jede Sonde — zu einer Gesamt-Diskurs-Karte."
     long: >
       Ein Ko-Okkurrenz-Netzwerk beantwortet „Welche Akteure, Orte und Konzepte werden zusammen
       besprochen?“. Lies dichte Cluster als wiederkehrende Rahmungen und Brückenknoten als
-      Entitäten, die sonst getrennte Gespräche verbinden. Zwei visuelle Kanäle sind unabhängig an
-      den Graphen gebunden: Knotengröße und Knotenfarbe. Die Größe kann das Gesamt-Ko-Okkurrenz-
-      gewicht, den Knotengrad (mit wie vielen verschiedenen Partnern eine Entität verbunden ist)
-      oder eine Artikel-Kennzahl kodieren (etwa wie lang die Artikel sind, die diese Entität
-      nennen). Die Farbe kann den erkannten Themencluster (Community), den Entitätstyp, die
-      quellenübergreifende Präsenz, einen einheitlichen Ton oder eine Artikel-Kennzahl kodieren
-      (etwa das mittlere Sentiment der Artikel, die die Entität nennen). Treibt eine Kennzahl einen
-      Kanal, bedeutet ein größerer oder wärmerer Knoten einen HÖHEREN Mittelwert für diese Entität
-      — nie eine Anzahl von Nennungen. Ziehe Knoten zum Entwirren, klicke einen für die
-      zugrunde liegenden Artikel.
+      Entitäten, die sonst getrennte Gespräche verbinden. Ein merged-Bereich bündelt alle seine
+      Quellen — und über Sonden hinweg den ganzen ausgewählten Diskurs — in EINEN Graphen, sodass
+      du siehst, wie ein Thema quer durch den Korpus mitgerahmt wird statt Quelle für Quelle. Ein
+      Regler setzt die Skala — „Entitäten“ — die N häufigsten Entitäten (bis 10000) für eine
+      feingranulare Karte; die Verbindungsdichte folgt automatisch, sodass der Graph bei jeder
+      Breite zusammenhängend bleibt (für eine reine Knotenwolke die Linien ausblenden). Zwei
+      visuelle Kanäle sind unabhängig gebunden: Knotengröße und Knotenfarbe. Die Größe kann
+      Gesamt-Ko-Okkurrenzgewicht, Knotengrad oder eine Artikel-Kennzahl kodieren. Die Farbe kann
+      den Themencluster (Community), den Entitätstyp, die quellenübergreifende Präsenz, die
+      zugehörige SONDE, einen einheitlichen Ton oder eine Artikel-Kennzahl kodieren.
+      „Quellen-Overlay“ / „Sonden-Overlay“ färben die FÜLLUNG nach Quelle / Sonde, eine Legende
+      benennt sie — so ordnest du jeden Knoten auf einen Blick seiner Herkunft zu. Ziehe Knoten zum
+      Entwirren, klicke einen für die zugrunde liegenden Artikel.
   methodological:
-    short: "Top-N-Entitätspaare nach Ko-Okkurrenzgewicht, kräftegerichtet; Knotengröße/-farbe binden an eine Graph-Dimension ODER den Mittelwert einer Artikel-Kennzahl."
+    short: "Knoten-zuerst, kräftegerichtet: top-maxNodes Entitäten nach Gewicht (≤10000), jede behält ihre stärksten Kanten (per-Knoten-Top-K) → jeder Knoten bleibt verbunden; Größe/Farbe binden an eine Graph-Dimension ODER einen Kennzahl-Mittelwert; sprachübergreifender Merge: bestätigt, ohne Identitäts-Merge."
     long: >
-      Die Notiz wird aus einer Vorlage je Darstellung plus dem aktuellen Top-N-Limit und den
-      gebundenen Größen-/Farbkanälen komponiert. Kanten sind die Top-N-Entitätspaare nach
-      summierter Ko-Okkurrenz im Fenster (serverseitig auf [1, 6000] begrenzt; Zell-Standard 60);
-      ein dünner Graph spiegelt Korpus-Dünnheit wider, keine analytische Schlussfolgerung, und
-      wird markiert, sobald er unter acht Knoten fällt. Die Knotengröße bindet an total_count
-      (summiertes Ko-Okkurrenzgewicht), den Knotengrad oder eine Artikel-Kennzahl; die Knotenfarbe
-      bindet an Community (Louvain-Themencluster), Entitätstyp, Präsenz (Anzahl distinkter Quellen,
-      in denen eine Entität erscheint), source_overlay (eine Quellpalette im merged-Bereich), einen
+      Die Notiz wird aus einer Vorlage je Darstellung plus den aktuellen Limits und den gebundenen
+      Größen-/Farbkanälen komponiert. Der Graph ist KNOTEN-ZUERST (BFF maxNodes, ≤10000): gebaut aus
+      den gewichtsstärksten Entitäten, und jeder Knoten behält seine stärksten Kanten (PER-KNOTEN
+      Top-K, wobei K mit der Knotenzahl skaliert) — so behält JEDER Knoten seine stärkste Verbindung
+      und der Graph bleibt zusammenhängend, statt dass ein flacher globaler Kantendeckel alle Linien
+      auf wenige Hubs konzentriert und den Rest als isolierte zentrale Wolke zurücklässt. Die
+      Verbindungsdichte folgt also automatisch der Breite (der eine „Entitäten“-Regler); die Linien
+      lassen sich für eine reine Knotenwolke ausblenden. Ein dünner Graph spiegelt Korpus-Dünnheit,
+      keine Schlussfolgerung, und wird unter acht Knoten markiert. Die Knotengröße bindet an
+      total_count, Knotengrad oder eine Artikel-Kennzahl; die Knotenfarbe an Community (Louvain),
+      Entitätstyp, Präsenz, source_overlay (Quellpalette), probe_overlay (Sonden-Füllung), einen
       einheitlichen Ton oder eine Artikel-Kennzahl — Größe und Farbe dürfen an VERSCHIEDENE
-      Kennzahlen binden. Ist eine Artikel-Kennzahl gebunden, ist der für eine Entität gezeigte Wert
-      der MITTELWERT dieser Kennzahl über alle Artikel im Bereich, in denen die Entität erscheint
-      (BFF nodeMetric / nodeColorMetric): Knotenfarbe = Sentiment heißt „das durchschnittliche
-      Sentiment der Artikel, die diesen Akteur nennen“; Knotengröße = Wortzahl heißt „die
-      durchschnittliche Länge dieser Artikel“. Eine Entität ohne einen Artikel, der die Kennzahl
-      trägt, erscheint als grauer „keine Daten“-Knoten, nie als erzwungene Null
-      (disclose-never-coerce, WP-003 §3.2). Farbe trägt keine eigene Valenz — sie ist nur eine
-      kategoriale oder skalierte Kodierung. Entitäten stammen aus sprach-spezifischem NER, also
-      sind Ko-Nennungsgewichte INNERHALB einer Sprache vergleichbar; ein mehrsprachiger
-      merged-Bereich wird in der BFF verweigert (NER-Tag-Mengen und Frequenzen sind über Pipelines
-      nicht kommensurabel) — prüfe jede Sprache in ihrer eigenen Split-Zelle (ADR-034, WP-004 §3.4).
-contentVersion: "v2026-06-a"
+      Kennzahlen binden.
+      Eine Artikel-Kennzahl zeigt den MITTELWERT über alle Artikel im Bereich, die die Entität
+      nennen (BFF nodeMetric / nodeColorMetric); eine Entität ohne solchen Artikel ist ein grauer
+      „keine Daten“-Knoten, nie eine erzwungene Null (disclose-never-coerce, WP-003 §3.2). Farbe
+      trägt keine eigene Valenz. Entitäten stammen aus sprach-spezifischem NER, also sind
+      Ko-Nennungsgewichte INNERHALB einer Sprache vergleichbar. Ein SPRACHÜBERGREIFENDER
+      merged-Bereich wird nicht mehr hart verweigert: er wird hinter einer ausdrücklichen
+      Nutzerbestätigung angeboten und rendert die Vereinigung OHNE Knoten-Identität
+      sprachübergreifend zu mergen — die zwei Diskurs-Sphären bleiben getrennt und berühren sich nur
+      dort, wo ein Akteur in beiden gleich geschrieben wird (z. B. Eigennamen); abweichende
+      Schreibweisen („Frankreich“/„France“) bleiben distinkt bis zu einem künftigen
+      Wikidata-QID-Merge. Artikel-Kennzahl-Kanäle werden auf einem sonden­übergreifenden Merge nicht
+      mitgeführt (kulturübergreifender Kennzahl-Vergleich braucht eine Äquivalenz-Freigabe — ADR-034,
+      WP-004 §3.4).
+contentVersion: "v2026-06-c"
 lastReviewedBy: "Engineering Team"
 lastReviewedDate: "2026-06-24"
 workingPaperAnchors:

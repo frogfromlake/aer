@@ -162,6 +162,9 @@ export type NetworkColorChannel =
   | 'presence'
   | 'uniform'
   | 'source_overlay'
+  // Phase 148g — colour nodes by their owning PROBE (the cross-probe merge fill;
+  // border keeps per-source provenance). An actor bridging probes reads grey.
+  | 'probe_overlay'
   // Phase 125 — colour nodes by `CellChannelBinding.netMetric` (mean per-article
   // metric over the mentioning articles).
   | 'metric'
@@ -203,9 +206,11 @@ export interface CellChannelBinding {
 export interface CellOverride {
   bins?: number;
   topN?: number;
+  maxNodes?: number;
   forceStrength?: number;
   showBand?: boolean;
   showEdges?: boolean;
+  showLabels?: boolean;
   scales?: ScaleMode;
   displayLanguage?: 'source' | 'viewer';
   channels?: CellChannelBinding;
@@ -228,9 +233,11 @@ export type CellChannelPatch = {
 export type CellOverridePatch = {
   bins?: number | undefined;
   topN?: number | undefined;
+  maxNodes?: number | undefined;
   forceStrength?: number | undefined;
   showBand?: boolean | undefined;
   showEdges?: boolean | undefined;
+  showLabels?: boolean | undefined;
   scales?: ScaleMode | undefined;
   displayLanguage?: 'source' | 'viewer' | undefined;
   channels?: CellChannelPatch | undefined;
@@ -246,6 +253,10 @@ export interface Panel {
   resolution?: Resolution;
   normalization?: Normalization;
   topN?: number;
+  // Phase 148g — co-occurrence node-FIRST breadth cap (top-N entities by weight;
+  // edges among them). 0/undefined = edge-first (nodes are a by-product of topN
+  // edges). Up to 10000 for the at-scale fine-grained map.
+  maxNodes?: number;
   // Phase 131 — per-cell configuration. Each cell declares which of these it
   // consumes (registry `configurableParams`); PanelControls surfaces only
   // the relevant levers. All optional so a Panel without explicit config
@@ -261,6 +272,9 @@ export interface Panel {
   // shown (default true). A nodes-only view is far more readable for a dense
   // map; the relational structure still reads from clustering + node placement.
   showEdges?: boolean;
+  // Phase 148g — co-occurrence node labels on/off (default ON). All labels render
+  // at the same zoom distance (no LOD mix) so the map is never half-labelled.
+  showLabels?: boolean;
   // Phase 131 (BUG1.7) — co-occurrence force-layout spread (0..100). Higher =
   // stronger node repulsion = more spread-out graph (less single-cluster
   // crowding). Layout-only, not a metric. Default 50.
@@ -484,9 +498,11 @@ export interface CompactChannelBinding {
 export interface CompactCellOverride {
   bn?: number; // bins
   tN?: number; // topN
+  mn?: number; // maxNodes (Phase 148g)
   fs?: number; // forceStrength
   sb?: 0 | 1; // showBand (0 = false, 1 = true)
   se?: 0 | 1; // showEdges (0 = false, 1 = true)
+  sl?: 0 | 1; // showLabels (0 = false, 1 = true) — Phase 148g
   sc?: 0 | 1; // scales (0 = shared, 1 = free)
   dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
   ch?: CompactChannelBinding; // visual-channel binding
@@ -502,6 +518,7 @@ export interface CompactPanel {
   r?: Resolution;
   n?: Normalization;
   tN?: number;
+  mn?: number; // maxNodes (Phase 148g)
   L?: 1;
   lr?: 'df_entry';
   lf?: string;
@@ -510,6 +527,7 @@ export interface CompactPanel {
   ch?: CompactChannelBinding; // visual-channel binding
   sb?: 0; // showBand=false (default true → omitted)
   se?: 1; // showEdges=true (default hidden → omitted)
+  sl?: 0; // showLabels=false (default true → omitted) — Phase 148g
   fs?: number; // forceStrength (network spread)
   st?: number; // settleSeconds (large-scale FA2 settle time)
   dl?: 1; // displayLanguage='viewer' (default 'source' → omitted)

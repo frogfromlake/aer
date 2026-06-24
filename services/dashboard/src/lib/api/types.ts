@@ -6530,6 +6530,8 @@ export interface operations {
                 end?: string;
                 /** @description Maximum number of co-occurrence edges to return, ranked by aggregated weight. Server clamps values outside [1, 6000] to the nearest bound. The default SVG renderer requests a small value (~60); the large-scale WebGL renderer (maximized single-cell view, Phase 125b) requests a high value. */
                 topN?: number;
+                /** @description Phase 148g — node-FIRST breadth control. When set, the graph is built from the top-N most-frequent entities (by total mention count) in scope, then the strongest `topN` edges AMONG those entities are drawn — surfacing the breadth of the discourse (up to 10000 distinct entities) instead of only the densest hubs. Omit for the legacy edge-first behaviour (nodes are a by-product of the top-N edges). Clamped to [1, 10000]. */
+                maxNodes?: number;
                 /** @description Phase 125b — minimum co-occurrence weight (summed `cooccurrence_count`) for an edge to be included. The primary control against the quadratic edge "hairball" in the large-scale view: raise it to keep only the strongest pairs. 0 / absent disables the threshold. The node set is derived from the surviving edges, so this thins both edges and nodes. */
                 minWeight?: number;
                 /** @description Optional viewer-language code (e.g. `de`, `en`, `fr`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved Wikidata QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`. Nodes without a QID, or QIDs lacking a label in this language, keep their source surface form. Absent (the default) disables relabelling — nothing changes silently. This swaps in the per-language label Wikidata publishes for a QID; it is never a machine translation. */
@@ -6639,10 +6641,17 @@ export interface operations {
                      */
                     windowEnd?: string;
                     /**
-                     * @description Maximum number of co-occurrence edges to return. Server clamps values outside [1, 6000] to the nearest bound (same ceiling as the GET endpoint and the cooccurrence-network config UI).
+                     * @description Maximum number of co-occurrence EDGES (the strongest entity-pair connections) to return. Server clamps values outside [1, 6000] to the nearest bound (same ceiling as the GET endpoint and the cooccurrence config UI). Controls graph DENSITY; see `maxNodes` for BREADTH.
                      * @default 50
                      */
                     topN?: number;
+                    /** @description Phase 148g — node-FIRST breadth control. When set, the graph is built from the top-N most-frequent entities (by total mention count) in scope, then the strongest `topN` edges AMONG those entities are drawn. This surfaces the breadth of the discourse (up to 10000 distinct entities) instead of only the densest hubs the edge-first selection concentrates on. Omit for the legacy edge-first behaviour (nodes are then a by-product of the top-N edges). Clamped to [1, 10000]. */
+                    maxNodes?: number;
+                    /**
+                     * @description Phase 148g — explicit opt-in to a CROSS-LANGUAGE merge. When the scope union spans more than one Language Capability Manifest language the merge is refused by default (422 cross_language_merge_unsupported) because entity nodes are surface forms — "Frankreich" (de) and "France" (fr) are distinct nodes, joined only where a name is spelled identically in both languages. Setting this true is the user's confirmed opt-in: the union renders as one graph WITHOUT merging node identity across languages (the honest "two discourse spheres, stitched at shared actors" view; QID-based cross-language merging is a separate future step). The disclosure of this caveat is the caller's responsibility.
+                     * @default false
+                     */
+                    allowCrossLanguage?: boolean;
                     /** @description Optional viewer-language code (e.g. `de`) for the cross-lingual relabel toggle (Phase 123b). When present, each node's resolved QID is looked up in `aer_gold.wikidata_labels` and the display label in that language is attached as `viewerLabel`; unlinked nodes (and QIDs lacking a label in this language) keep their source surface form. Absent = no relabelling. Swaps in the per-language Wikidata label, never a machine translation. */
                     viewerLanguage?: string;
                 };

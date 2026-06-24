@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SOURCE_PALETTE,
+  PROBE_PALETTE,
   SHARED_COLOR,
   UNKNOWN_PROVENANCE_COLOR,
   communityColor,
   labelColor,
   buildSourceColorMap,
+  buildProbeColorMap,
   sourceColor,
+  probeColor,
   resolvedSourceCount,
   computeMetricExtent,
   computeMetricColorExtent,
@@ -134,6 +137,39 @@ describe('sourceColor', () => {
 
   it('returns the shared colour when ≥2 sources are present', () => {
     expect(sourceColor(['tagesschau', 'zeit'], map)).toBe(SHARED_COLOR);
+  });
+});
+
+describe('buildProbeColorMap / probeColor', () => {
+  const probeColorMap = buildProbeColorMap(['probe-0-de', 'probe-1-fr']);
+  // tagesschau+bundesregierung → probe-0; franceinfo+elysee → probe-1.
+  const sourceProbeMap = {
+    tagesschau: 'probe-0-de',
+    bundesregierung: 'probe-0-de',
+    franceinfo: 'probe-1-fr',
+    elysee: 'probe-1-fr'
+  };
+
+  it('assigns a stable, distinct colour per probe by index', () => {
+    expect(probeColorMap['probe-0-de']).toBe(PROBE_PALETTE[0]);
+    expect(probeColorMap['probe-1-fr']).toBe(PROBE_PALETTE[1]);
+    expect(probeColorMap['probe-0-de']).not.toBe(probeColorMap['probe-1-fr']);
+  });
+
+  it('colours a node by its single owning probe', () => {
+    expect(probeColor(['tagesschau'], sourceProbeMap, probeColorMap)).toBe(PROBE_PALETTE[0]);
+    expect(probeColor(['franceinfo'], sourceProbeMap, probeColorMap)).toBe(PROBE_PALETTE[1]);
+  });
+
+  it('greys a bridge actor present in sources of >1 probe', () => {
+    expect(probeColor(['tagesschau', 'franceinfo'], sourceProbeMap, probeColorMap)).toBe(
+      SHARED_COLOR
+    );
+  });
+
+  it('returns unknown-provenance when no source resolves to a probe', () => {
+    expect(probeColor(['mystery'], sourceProbeMap, probeColorMap)).toBe(UNKNOWN_PROVENANCE_COLOR);
+    expect(probeColor([], sourceProbeMap, probeColorMap)).toBe(UNKNOWN_PROVENANCE_COLOR);
   });
 });
 

@@ -109,7 +109,7 @@ type Store interface {
 	GetMetricDistribution(ctx context.Context, metricName string, sources []string, start, end time.Time, bins int, metadataFilter *storage.MetadataFilter) (storage.DistributionResult, error)
 	GetMetricHeatmap(ctx context.Context, metricName string, sources []string, xDim, yDim storage.HeatmapDimension, start, end time.Time) ([]storage.HeatmapCell, error)
 	GetMetricCorrelation(ctx context.Context, metricNames []string, sources []string, start, end time.Time, metadataFilter *storage.MetadataFilter) (storage.CorrelationResult, error)
-	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string, nodeMetric string, minWeight int, nsOverlay bool, colorMetric string) (storage.CoOccurrenceResult, error)
+	GetEntityCoOccurrence(ctx context.Context, sources []string, start, end time.Time, topN int, viewerLanguage string, nodeMetric string, minWeight int, nsOverlay bool, colorMetric string, maxNodes int) (storage.CoOccurrenceResult, error)
 	// Phase 131: paired-metric scatter over aer_gold.metrics (visual-channel binding).
 	GetMetricScatter(ctx context.Context, xMetric, yMetric string, sizeMetric, colorMetric *string, sources []string, start, end time.Time, maxPoints int, metadataFilter *storage.MetadataFilter) (storage.ScatterResult, error)
 	// Phase 120: BERTopic topic-distribution endpoint over aer_gold.topic_assignments.

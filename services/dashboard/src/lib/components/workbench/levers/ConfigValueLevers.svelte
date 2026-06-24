@@ -11,17 +11,21 @@
   import {
     DEFAULT_BINS,
     DEFAULT_FORCE_STRENGTH,
-    DEFAULT_TOPN,
     BINS_MIN,
     BINS_MAX,
     BINS_STEP,
     TOPN_MIN,
     TOPN_STEP,
+    MAXNODES_MIN,
+    MAXNODES_MAX,
+    MAXNODES_STEP,
+    DEFAULT_MAXNODES,
     FORCE_MIN,
     FORCE_MAX,
     FORCE_STEP
   } from '$lib/workbench/cell-levers';
   import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
+  import { effectiveEdgeCap } from '$lib/presentations/cooccurrence-query';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
@@ -40,19 +44,25 @@
   const topNMax = $derived(computeTopNMax({ isCooccurrenceView, viewUsesMetadataField }));
 
   const activeBins = $derived(boundPanel.bins ?? DEFAULT_BINS);
-  const activeTopN = $derived(boundPanel.topN ?? DEFAULT_TOPN);
+  const activeMaxNodes = $derived(boundPanel.maxNodes ?? DEFAULT_MAXNODES);
+  // Phase 148g — the edge cap is a coupled DENSITY: unset, it auto-tracks the node
+  // count (effectiveEdgeCap), so "more nodes → more edges" holds by default.
+  const activeTopN = $derived(boundPanel.topN ?? effectiveEdgeCap(activeMaxNodes));
   const activeShowBand = $derived(boundPanel.showBand ?? true);
   const activeShowEdges = $derived(boundPanel.showEdges ?? false);
+  const activeShowLabels = $derived(boundPanel.showLabels ?? true);
   const activeForceStrength = $derived(boundPanel.forceStrength ?? DEFAULT_FORCE_STRENGTH);
   const activeSettle = $derived(boundPanel.settleSeconds ?? 12);
 
   // Live slider read-outs — null = not mid-drag, fall back to the committed value.
   let liveBins = $state<number | null>(null);
   let liveTopN = $state<number | null>(null);
+  let liveMaxNodes = $state<number | null>(null);
   let liveForce = $state<number | null>(null);
   let liveSettle = $state<number | null>(null);
   const displayBins = $derived(liveBins ?? activeBins);
   const displayTopN = $derived(liveTopN ?? activeTopN);
+  const displayMaxNodes = $derived(liveMaxNodes ?? activeMaxNodes);
   const displayForce = $derived(liveForce ?? activeForceStrength);
   const displaySettle = $derived(liveSettle ?? activeSettle);
 
@@ -67,6 +77,16 @@
     const clamped = Math.min(topNMax, Math.max(1, Math.round(n)));
     if (clamped === activeTopN) return;
     updatePanel(panelPath, (p) => ({ ...p, topN: clamped }));
+  }
+  function setMaxNodes(n: number) {
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(MAXNODES_MAX, Math.max(MAXNODES_MIN, Math.round(n)));
+    if (clamped === activeMaxNodes) return;
+    // Phase 148g — the node lever is the SOLE co-occurrence control: the renderer
+    // derives the edge budget from the node count (effectiveEdgeCap) and the BFF
+    // keeps each node's strongest edges (per-node top-K), so connection density
+    // tracks breadth automatically — no separate density slider to balance.
+    updatePanel(panelPath, (p) => ({ ...p, maxNodes: clamped }));
   }
   function setForceStrength(n: number) {
     if (!Number.isFinite(n)) return;
@@ -95,6 +115,16 @@
       const o = { ...p };
       if (next) o.showEdges = true;
       else delete o.showEdges;
+      return o;
+    });
+  }
+  function setShowLabels(next: boolean) {
+    if (next === activeShowLabels) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      // Default is ON, so store only the OFF state (URL stays clean by default).
+      if (next) delete o.showLabels;
+      else o.showLabels = false;
       return o;
     });
   }
@@ -157,6 +187,37 @@
   </LeverRow>
 {/if}
 
+{#if configParams.includes('maxNodes')}
+  <LeverRow
+    eyebrow={m.levers_maxnodes_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_maxnodes_aria()}
+    rowClass="config-row"
+  >
+    <div
+      class="config-inline"
+      title={m.levers_maxnodes_title()}
+      onclick={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      <input
+        type="range"
+        min={MAXNODES_MIN}
+        max={MAXNODES_MAX}
+        step={MAXNODES_STEP}
+        value={activeMaxNodes}
+        oninput={(e) => (liveMaxNodes = Number((e.currentTarget as HTMLInputElement).value))}
+        onchange={(e) => {
+          setMaxNodes(Number((e.currentTarget as HTMLInputElement).value));
+          liveMaxNodes = null;
+        }}
+        aria-label={m.levers_maxnodes_slider_aria()}
+      />
+      <output class="config-value">{displayMaxNodes}</output>
+    </div>
+  </LeverRow>
+{/if}
+
 {#if configParams.includes('forceStrength')}
   <LeverRow
     eyebrow={m.levers_spread_eyebrow()}
@@ -208,6 +269,24 @@
       />
       <output class="config-value">{m.levers_settle_value({ seconds: displaySettle })}</output>
     </div>
+  </LeverRow>
+{/if}
+
+{#if configParams.includes('showLabels')}
+  <LeverRow
+    eyebrow={m.levers_labels_toggle_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_labels_toggle_aria()}
+    rowClass="config-row"
+  >
+    <LeverButton
+      role="switch"
+      active={activeShowLabels}
+      onclick={() => setShowLabels(!activeShowLabels)}
+      title={m.levers_labels_toggle_title()}
+    >
+      {activeShowLabels ? m.levers_labels_toggle_shown() : m.levers_labels_toggle_hidden()}
+    </LeverButton>
   </LeverRow>
 {/if}
 

@@ -20,6 +20,16 @@ import (
 // higher needs a streaming/binary transport, not just a larger cap.
 const MaxCoOccurrenceTopN = 6000
 
+// Phase 148g — node-first connectivity bounds. maxEdgesPerNode caps the per-node
+// top-K (a density ceiling so a small, dense scope cannot explode the edge set);
+// maxNodeFirstEdges is the total-edge payload backstop for the node-first path
+// (per-node top-1 over the 10000-node ceiling is ≲10000 edges, so 12000 never
+// truncates the connectivity guarantee while bounding the JSON payload).
+const (
+	maxEdgesPerNode   = 8
+	maxNodeFirstEdges = 12000
+)
+
 // ClampCoOccurrenceTopN bounds topN to [1, MaxCoOccurrenceTopN]. It is the
 // single source of truth shared by the GET handler, the POST handler, and the
 // query itself, so the topN contract can no longer drift across layers
@@ -142,10 +152,23 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	minWeight int,
 	nsOverlay bool,
 	colorMetric string,
+	maxNodes int,
 ) (CoOccurrenceResult, error) {
 	topN = ClampCoOccurrenceTopN(topN)
 	if minWeight < 0 {
 		minWeight = 0
+	}
+	// Phase 148g — node-FIRST breadth mode. When maxNodes>0 the graph is built
+	// from the top-`maxNodes` entities by summed co-occurrence weight (the
+	// breadth of the discourse), and edges are restricted to pairs AMONG that
+	// entity universe — so raising the node cap surfaces more distinct entities
+	// instead of only denser edges among the same hubs. Clamped to [0, 10000];
+	// 0 keeps the legacy edge-first behaviour (nodes = a by-product of top-N edges).
+	if maxNodes < 0 {
+		maxNodes = 0
+	}
+	if maxNodes > 10000 {
+		maxNodes = 10000
 	}
 
 	args := []any{start, end}
@@ -161,6 +184,10 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		}
 		clauses = append(clauses, fmt.Sprintf("source IN (%s)", strings.Join(placeholders, ", ")))
 	}
+	// Window+source args only ($1,$2,sources…), before the minWeight/NS-overlay
+	// args are appended below — used by the node-first node-list query, which
+	// references only those placeholders.
+	baseArgs := append([]any{}, args...)
 
 	// Phase 125b — min-weight edge threshold (the primary defence against the
 	// quadratic edge "hairball" at scale): keep only pairs whose summed
@@ -199,22 +226,84 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		)
 	}
 
-	query := fmt.Sprintf(`
-		SELECT
-			entity_a_text  AS A,
-			entity_b_text  AS B,
-			any(entity_a_label) AS ALabel,
-			any(entity_b_label) AS BLabel,
-			sum(cooccurrence_count) AS Weight,
-			uniqExact(article_id) AS ArticleCount,
+	whereStr := strings.Join(clauses, " AND ")
+
+	// Node-first: restrict edges to pairs whose BOTH endpoints are in the
+	// top-`maxNodes` entity universe (by summed weight). The subquery reuses the
+	// SAME window/source placeholders ($1,$2,sources…) — positional args are
+	// referenced by number, so no extra args are bound. `maxNodes` is an int
+	// clamped above, so it is safe to inline.
+	nodeUniverseFilter := ""
+	if maxNodes > 0 {
+		nodeUniverse := fmt.Sprintf(`SELECT et FROM (
+				SELECT entity_a_text AS et, cooccurrence_count AS w FROM aer_gold.entity_cooccurrences FINAL WHERE %s
+				UNION ALL
+				SELECT entity_b_text AS et, cooccurrence_count AS w FROM aer_gold.entity_cooccurrences FINAL WHERE %s
+			) GROUP BY et ORDER BY sum(w) DESC LIMIT %d`, whereStr, whereStr, maxNodes)
+		nodeUniverseFilter = fmt.Sprintf(" AND entity_a_text IN (%s) AND entity_b_text IN (%s)", nodeUniverse, nodeUniverse)
+	}
+
+	var query string
+	if maxNodes > 0 {
+		// Node-FIRST connectivity (Phase 148g). The earlier "global top-N edges
+		// among the node set" concentrated every edge on the few high-weight hubs,
+		// leaving the rest of the breadth nodes edge-less — the force layout then
+		// pulled those isolated nodes into a central "blob of unrelated themes".
+		// Instead, keep PER-NODE the top-K strongest edges (K scales with the
+		// chosen density): an edge survives if it is in the top-K of EITHER
+		// endpoint, so EVERY node keeps its strongest link(s) and the graph stays
+		// connected. Edge count then scales ~ nodes × K (not a flat hub-heavy cap),
+		// bounded by maxNodeFirstEdges as a payload backstop.
+		edgesPerNode := (topN + maxNodes/2) / maxNodes // round(topN / maxNodes)
+		if edgesPerNode < 1 {
+			edgesPerNode = 1
+		}
+		if edgesPerNode > maxEdgesPerNode {
+			edgesPerNode = maxEdgesPerNode
+		}
+		query = fmt.Sprintf(`
+			SELECT A, B, ALabel, BLabel, Weight, ArticleCount, NsArticleCount
+			FROM (
+				SELECT A, B, ALabel, BLabel, Weight, ArticleCount, NsArticleCount,
+					row_number() OVER (PARTITION BY A ORDER BY Weight DESC, B ASC) AS rnA,
+					row_number() OVER (PARTITION BY B ORDER BY Weight DESC, A ASC) AS rnB
+				FROM (
+					SELECT
+						entity_a_text  AS A,
+						entity_b_text  AS B,
+						any(entity_a_label) AS ALabel,
+						any(entity_b_label) AS BLabel,
+						sum(cooccurrence_count) AS Weight,
+						uniqExact(article_id) AS ArticleCount,
+						%s
+					FROM aer_gold.entity_cooccurrences FINAL
+					WHERE %s%s
+					GROUP BY A, B
+					%s
+				)
+			)
+			WHERE least(rnA, rnB) <= %d
+			ORDER BY Weight DESC, A ASC, B ASC
+			LIMIT %d
+		`, nsCol, whereStr, nodeUniverseFilter, havingClause, edgesPerNode, maxNodeFirstEdges)
+	} else {
+		query = fmt.Sprintf(`
+			SELECT
+				entity_a_text  AS A,
+				entity_b_text  AS B,
+				any(entity_a_label) AS ALabel,
+				any(entity_b_label) AS BLabel,
+				sum(cooccurrence_count) AS Weight,
+				uniqExact(article_id) AS ArticleCount,
+				%s
+			FROM aer_gold.entity_cooccurrences FINAL
+			WHERE %s
+			GROUP BY A, B
 			%s
-		FROM aer_gold.entity_cooccurrences FINAL
-		WHERE %s
-		GROUP BY A, B
-		%s
-		ORDER BY Weight DESC, A ASC, B ASC
-		LIMIT %d
-	`, nsCol, strings.Join(clauses, " AND "), havingClause, topN)
+			ORDER BY Weight DESC, A ASC, B ASC
+			LIMIT %d
+		`, nsCol, whereStr, havingClause, topN)
+	}
 
 	var rows []struct {
 		A              string
@@ -243,10 +332,43 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 		}
 	}
 
-	// Derive incident nodes from the edge set so degree / totalCount are
-	// consistent with the topN truncation. Otherwise a node would appear
-	// here with weight totals that include edges the client never sees.
 	acc := map[string]*nodeAccumulator{}
+
+	// Node-FIRST: seed the node set with the top-`maxNodes` entities (by summed
+	// weight) so the graph shows the BREADTH of the discourse — including entities
+	// with no edge among the returned top-N edges (they render as standalone nodes)
+	// — instead of only the edge-incident hubs. TotalCount is the entity's full
+	// summed weight (why it was selected); degree comes from the returned edges.
+	if maxNodes > 0 {
+		nodeListQuery := fmt.Sprintf(`
+			SELECT et AS Text, any(lbl) AS Label, sum(w) AS Total FROM (
+				SELECT entity_a_text AS et, entity_a_label AS lbl, cooccurrence_count AS w FROM aer_gold.entity_cooccurrences FINAL WHERE %s
+				UNION ALL
+				SELECT entity_b_text AS et, entity_b_label AS lbl, cooccurrence_count AS w FROM aer_gold.entity_cooccurrences FINAL WHERE %s
+			)
+			GROUP BY et
+			ORDER BY Total DESC, et ASC
+			LIMIT %d
+		`, whereStr, whereStr, maxNodes)
+		var nodeRows []struct {
+			Text  string
+			Label string
+			Total uint64
+		}
+		if err := s.conn.Select(ctx, &nodeRows, nodeListQuery, baseArgs...); err != nil {
+			slog.Error("Failed to query node-first node list", "error", err)
+			return CoOccurrenceResult{}, err
+		}
+		for _, r := range nodeRows {
+			acc[r.Text] = &nodeAccumulator{label: r.Label, total: int64(r.Total)} //nolint:gosec // bounded by aggregation
+		}
+	}
+
+	// Derive incident nodes / degrees from the edge set. In edge-first mode this
+	// also creates the nodes and sums their weight; in node-first mode the nodes +
+	// TotalCount are already seeded above (all edge endpoints are within the seeded
+	// universe), so the edges only add DEGREE — summing weight again would
+	// double-count.
 	for _, e := range edges {
 		if _, ok := acc[e.A]; !ok {
 			acc[e.A] = &nodeAccumulator{label: e.ALabel}
@@ -255,9 +377,11 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 			acc[e.B] = &nodeAccumulator{label: e.BLabel}
 		}
 		acc[e.A].degree++
-		acc[e.A].total += e.Weight
 		acc[e.B].degree++
-		acc[e.B].total += e.Weight
+		if maxNodes == 0 {
+			acc[e.A].total += e.Weight
+			acc[e.B].total += e.Weight
+		}
 	}
 
 	// Derive per-node source presence when multiple sources are in scope.
