@@ -16,6 +16,19 @@ get:
       description: The canonical metric name (e.g., "word_count").
       schema:
         type: string
+    - name: locale
+      in: query
+      required: false
+      description: >
+        Language of the prose fields (algorithmDescription, knownLimitations).
+        Tier, extractor hash and validation status are locale-neutral. Defaults
+        to "en"; a missing German translation falls back to English.
+      schema:
+        type: string
+        enum:
+          - en
+          - de
+        default: en
   responses:
     '200':
       description: The provenance metadata for the requested metric.

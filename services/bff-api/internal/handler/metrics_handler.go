@@ -289,6 +289,14 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 		return GetMetricProvenance404JSONResponse{Message: "no provenance entry registered for metric"}, nil
 	}
 
+	// Locale selects the prose fields (algorithm description, known limitations);
+	// tier, extractor hash and validation status are locale-neutral. Defaults to
+	// English; a missing German variant falls back to English (entry helpers).
+	locale := string(GetMetricProvenanceParamsLocaleEn)
+	if request.Params.Locale != nil {
+		locale = string(*request.Params.Locale)
+	}
+
 	status, err := s.db.GetMetricValidationStatus(ctx, request.MetricName)
 	if err != nil {
 		slog.Error("handler failure", "op", "GetMetricProvenance.GetMetricValidationStatus", "error", err)
@@ -303,8 +311,8 @@ func (s *Server) GetMetricProvenance(ctx context.Context, request GetMetricProve
 	resp := GetMetricProvenance200JSONResponse{
 		MetricName:           request.MetricName,
 		TierClassification:   MetricProvenanceTierClassification(entry.TierClassification),
-		AlgorithmDescription: entry.AlgorithmDescription,
-		KnownLimitations:     entry.KnownLimitations,
+		AlgorithmDescription: entry.AlgorithmFor(locale),
+		KnownLimitations:     entry.LimitationsFor(locale),
 		ValidationStatus:     MetricProvenanceValidationStatus(status),
 		ExtractorVersionHash: entry.ExtractorVersionHash,
 	}

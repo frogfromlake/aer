@@ -10,11 +10,38 @@ import (
 // MetricProvenanceEntry holds the static methodological provenance for a
 // single metric. Dynamic fields (validation_status, cultural_context_notes)
 // are resolved at request time against ClickHouse.
+//
+// The prose fields (algorithm description, known limitations) carry an optional
+// German variant (`*_de`); tier, extractor hash and validation status are
+// locale-neutral machine facts. When a `_de` variant is absent the English text
+// is served (graceful fallback), so partial translation degrades to English
+// rather than to an empty surface — mirroring the content-catalogue EN-fallback
+// (ADR-041/042).
 type MetricProvenanceEntry struct {
-	TierClassification   int      `yaml:"tier_classification"`
-	AlgorithmDescription string   `yaml:"algorithm_description"`
-	KnownLimitations     []string `yaml:"known_limitations"`
-	ExtractorVersionHash string   `yaml:"extractor_version_hash"`
+	TierClassification     int      `yaml:"tier_classification"`
+	AlgorithmDescription   string   `yaml:"algorithm_description"`
+	AlgorithmDescriptionDe string   `yaml:"algorithm_description_de"`
+	KnownLimitations       []string `yaml:"known_limitations"`
+	KnownLimitationsDe     []string `yaml:"known_limitations_de"`
+	ExtractorVersionHash   string   `yaml:"extractor_version_hash"`
+}
+
+// AlgorithmFor returns the algorithm description in the requested locale,
+// falling back to English when no German variant is authored.
+func (e MetricProvenanceEntry) AlgorithmFor(locale string) string {
+	if locale == "de" && e.AlgorithmDescriptionDe != "" {
+		return e.AlgorithmDescriptionDe
+	}
+	return e.AlgorithmDescription
+}
+
+// LimitationsFor returns the known-limitations list in the requested locale,
+// falling back to English when no German variant is authored.
+func (e MetricProvenanceEntry) LimitationsFor(locale string) []string {
+	if locale == "de" && len(e.KnownLimitationsDe) > 0 {
+		return e.KnownLimitationsDe
+	}
+	return e.KnownLimitations
 }
 
 // MetricProvenanceMap is the parsed in-memory representation of

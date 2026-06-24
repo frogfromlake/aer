@@ -30,8 +30,14 @@ word_count:
   algorithm_description: >
     Deterministic whitespace token count over the cleaned text of a single
     document. Implemented by WordCountExtractor in the analysis worker.
+  algorithm_description_de: >
+    Deterministische Zählung der durch Leerzeichen getrennten Tokens über den
+    bereinigten Text eines einzelnen Dokuments. Implementiert durch den
+    WordCountExtractor im Analysis-Worker.
   known_limitations:
     - "Whitespace tokenisation — agglutinative or logographic languages are not split on word boundaries; for the current Probe 0 (German institutional RSS) this has no observable effect (WP-002 §3)."
+  known_limitations_de:
+    - "Leerzeichen-Tokenisierung — agglutinierende oder logografische Sprachen werden nicht an Wortgrenzen getrennt; für die aktuelle Sonde 0 (deutschsprachige institutionelle RSS-Feeds) hat dies keinen beobachtbaren Effekt (WP-002 §3)."
   extractor_version_hash: v1
   wp_reference: WP-002 §3
 
@@ -43,12 +49,25 @@ sentiment_score_sentiws:
     SentimentExtractor. Phase 117 renamed `sentiment_score` →
     `sentiment_score_sentiws` to make ADR-016's dual-metric pattern lexically
     explicit; the read-side alias in the BFF still rewrites the old name.
+  algorithm_description_de: >
+    Lexikonbasierter Polaritätswert mit SentiWS v2.0. Die Polaritätswerte pro
+    Token werden über den bereinigten Text des Dokuments gemittelt.
+    Implementiert durch den SentimentExtractor. Phase 117 hat
+    `sentiment_score` → `sentiment_score_sentiws` umbenannt, um das
+    Dual-Metric-Muster von ADR-016 lexikalisch explizit zu machen; der
+    leseseitige Alias in der BFF schreibt den alten Namen weiterhin um.
   known_limitations:
     - "Negation blindness — SentiWS does not propagate negation scope; 'nicht gut' scores as positive because 'gut' matches the lexicon (WP-002 §3)."
     - "Compound word failure — German noun compounds outside the lexicon score as neutral; 'Umweltkatastrophe' is not decomposed into 'Katastrophe' before lookup (WP-002 §3)."
     - "Genre drift — the lexicon was calibrated on news and product reviews, not institutional discourse; polarity weights may not transfer to formal government communication (WP-002 §3)."
     - "No compositionality — intensifiers ('sehr gut') and diminishers ('kaum relevant') are not handled; each token is scored independently (WP-002 §3)."
     - "No irony or sarcasm detection — ironic usage is scored at face value, producing inverted measurements (WP-002 §3)."
+  known_limitations_de:
+    - "Negationsblindheit — SentiWS propagiert keinen Negationsscope; „nicht gut“ wird als positiv bewertet, weil „gut“ im Lexikon matcht (WP-002 §3)."
+    - "Versagen bei Komposita — deutsche Substantivkomposita außerhalb des Lexikons werden als neutral bewertet; „Umweltkatastrophe“ wird vor dem Lookup nicht in „Katastrophe“ zerlegt (WP-002 §3)."
+    - "Genre-Drift — das Lexikon wurde auf Nachrichten und Produktrezensionen kalibriert, nicht auf institutionellem Diskurs; die Polaritätsgewichte übertragen sich möglicherweise nicht auf formelle Regierungskommunikation (WP-002 §3)."
+    - "Keine Kompositionalität — Verstärker („sehr gut“) und Abschwächer („kaum relevant“) werden nicht behandelt; jedes Token wird unabhängig bewertet (WP-002 §3)."
+    - "Keine Ironie- oder Sarkasmuserkennung — ironischer Gebrauch wird wörtlich genommen und erzeugt invertierte Messungen (WP-002 §3)."
   extractor_version_hash: sentiws-2.0
   wp_reference: WP-002 §3
 
@@ -58,10 +77,19 @@ language_confidence:
     langdetect port of Google's compact language detector with a fixed
     random seed. Returns the detector's top-ranked language and its
     confidence score per document. Implemented by LanguageDetectionExtractor.
+  algorithm_description_de: >
+    langdetect-Portierung von Googles kompaktem Sprachdetektor mit festem
+    Zufallsseed. Liefert pro Dokument die erstplatzierte Sprache des Detektors
+    und deren Konfidenzwert. Implementiert durch den
+    LanguageDetectionExtractor.
   known_limitations:
     - "Short-text degradation — detection reliability drops below approximately 50 tokens per document; headlines and captions may receive incorrect labels (WP-002 §3)."
     - "Code-switching blindness — returns a single language label per document even when multiple languages are present, with the dominant proportion winning (WP-002 §3)."
     - "Fixed-seed determinism — reproducibility is guaranteed across runs but accuracy is not improved; the same incorrect classification is reproducibly returned for ambiguous inputs."
+  known_limitations_de:
+    - "Kurztext-Degradation — die Erkennungszuverlässigkeit sinkt unterhalb von etwa 50 Tokens pro Dokument; Überschriften und Bildunterschriften können falsche Labels erhalten (WP-002 §3)."
+    - "Code-Switching-Blindheit — gibt pro Dokument ein einziges Sprachlabel zurück, selbst wenn mehrere Sprachen vorhanden sind, wobei der dominierende Anteil gewinnt (WP-002 §3)."
+    - "Fester-Seed-Determinismus — die Reproduzierbarkeit über Läufe hinweg ist garantiert, die Genauigkeit wird jedoch nicht verbessert; für ambige Eingaben wird dieselbe falsche Klassifikation reproduzierbar zurückgegeben."
   extractor_version_hash: langdetect-1.0.9
   wp_reference: WP-002 §3
 
@@ -70,7 +98,15 @@ publication_hour:
   algorithm_description: >
     Hour-of-day (0–23) derived deterministically from the document
     timestamp. Implemented by TemporalDistributionExtractor.
-  known_limitations: []
+  algorithm_description_de: >
+    Tagesstunde (0–23), deterministisch aus dem Dokument-Zeitstempel
+    abgeleitet. Implementiert durch den TemporalDistributionExtractor.
+  known_limitations:
+    - "UTC, not local clock — the hour is derived from the published timestamp in UTC, so it does not reflect the publisher's local clock (German sources are UTC+1/+2); comparing absolute hour-of-day across sources in different timezones conflates timezone offset with editorial timing (WP-004 §3.4)."
+    - "Cyclic domain — this is a distribution over a bounded repeating domain (0–23 hours), not a series along the corpus time axis; a mean over the hour is not meaningful, read the shape of the distribution instead (WP-002 §3)."
+  known_limitations_de:
+    - "UTC, nicht Lokalzeit — die Stunde wird aus dem Veröffentlichungszeitstempel in UTC abgeleitet und spiegelt daher nicht die lokale Uhrzeit des Herausgebers wider (deutsche Quellen liegen bei UTC+1/+2); der Vergleich der absoluten Tagesstunde über Quellen in unterschiedlichen Zeitzonen vermengt den Zeitzonen-Offset mit der redaktionellen Zeitplanung (WP-004 §3.4)."
+    - "Zyklische Domäne — dies ist eine Verteilung über eine begrenzte, sich wiederholende Domäne (0–23 Stunden), keine Reihe entlang der Korpus-Zeitachse; ein Mittelwert über die Stunde ist nicht aussagekräftig, lesen Sie stattdessen die Form der Verteilung (WP-002 §3)."
   extractor_version_hash: v1
   wp_reference: WP-005 §3
 
@@ -79,7 +115,16 @@ publication_weekday:
   algorithm_description: >
     ISO weekday (1=Monday, 7=Sunday) derived deterministically from the
     document timestamp. Implemented by TemporalDistributionExtractor.
-  known_limitations: []
+  algorithm_description_de: >
+    ISO-Wochentag (1 = Montag, 7 = Sonntag), deterministisch aus dem
+    Dokument-Zeitstempel abgeleitet. Implementiert durch den
+    TemporalDistributionExtractor.
+  known_limitations:
+    - "UTC, not local clock — the weekday is derived from the published timestamp in UTC, so it does not reflect the publisher's local clock; a late-night local publication can fall on a different UTC weekday, and comparing weekday across sources in different timezones conflates timezone offset with editorial timing (WP-004 §3.4)."
+    - "Cyclic domain — this is a distribution over a bounded repeating domain (1–7 ISO weekday), not a series along the corpus time axis; a mean over the weekday is not meaningful, read the shape of the distribution instead (WP-002 §3)."
+  known_limitations_de:
+    - "UTC, nicht Lokalzeit — der Wochentag wird aus dem Veröffentlichungszeitstempel in UTC abgeleitet und spiegelt daher nicht die lokale Uhrzeit des Herausgebers wider; eine späte lokale Veröffentlichung kann auf einen anderen UTC-Wochentag fallen, und der Vergleich des Wochentags über Quellen in unterschiedlichen Zeitzonen vermengt den Zeitzonen-Offset mit der redaktionellen Zeitplanung (WP-004 §3.4)."
+    - "Zyklische Domäne — dies ist eine Verteilung über eine begrenzte, sich wiederholende Domäne (1–7 ISO-Wochentag), keine Reihe entlang der Korpus-Zeitachse; ein Mittelwert über den Wochentag ist nicht aussagekräftig, lesen Sie stattdessen die Form der Verteilung (WP-002 §3)."
   extractor_version_hash: v1
   wp_reference: WP-005 §3
 
@@ -99,11 +144,30 @@ sentiment_score_bert_multilingual:
     description rather than in tier_classification because the OpenAPI
     TierClassification enum is [1, 2, 3]; 2.5 collapses to 2 by design,
     not by accident.
+  algorithm_description_de: >
+    Mehrsprachiger BERT-Sentiment-Klassifikator. Das Modell liefert ein
+    3-Klassen-Softmax (negativ / neutral / positiv); die Metrik ist der Skalar
+    P(positiv) − P(negativ), geklippt auf [-1, +1]. Implementiert durch den
+    MultilingualBertSentimentExtractor gegen das im shared.multilingual_bert-
+    Block des Language Capability Manifests registrierte Modell (derzeit
+    cardiffnlp/twitter-xlm-roberta-base-sentiment, gepinnt per HuggingFace-
+    Commit-Revision). ADR-023 ist die architektonische Begründung für die Wahl
+    eines einzigen mehrsprachigen Defaults statt pro-Sprach-Modellen — die
+    Sentimentabdeckung skaliert O(1) pro neuer Sprache. Die
+    Tier-2.5-Verfeinerungs-Distinktion (News-Domäne vs. mehrsprachig) lebt in
+    dieser Beschreibung statt in tier_classification, weil das OpenAPI-
+    TierClassification-Enum [1, 2, 3] ist; 2.5 wird per Design auf 2 reduziert,
+    nicht versehentlich.
   known_limitations:
     - "Domain transfer — the model was trained on Twitter; institutional editorial RSS prose is out of distribution. The gap between this metric and the per-language news-domain refinement (sentiment_score_bert_de_news for German) is itself the WP-002 §3.2 domain-transfer signal — neither metric is the ground truth (WP-002 §3.2)."
     - "Model-revision binding — calibration is tied to a specific HuggingFace commit revision. Bumping the revision shifts every language's baseline simultaneously; the Phase 119 determinism CI gate detects byte-level drift but not semantic drift across revisions."
     - "Multilingual cross-language calibration drift — a score of 0.4 in German is not necessarily comparable to 0.4 in French; the multilingual model has different per-language calibration. Cross-cultural comparison requires the metric_equivalence registry (ADR-016) to grant a deviation level (z-score / percentile) before the BFF will normalise across language frames."
     - "Tier-2 reproducibility — outputs are reproducible across runs in the same process with seeded determinism flags, but not bit-for-bit deterministic across CUDA backends. CPU-only deployment is the calibrated baseline."
+  known_limitations_de:
+    - "Domänentransfer — das Modell wurde auf Twitter trainiert; institutionelle redaktionelle RSS-Prosa liegt außerhalb der Trainingsverteilung. Die Lücke zwischen dieser Metrik und der News-domänenspezifischen Verfeinerung pro Sprache (sentiment_score_bert_de_news für Deutsch) ist selbst das WP-002-§3.2-Domänentransfer-Signal — keine der beiden Metriken ist die Grundwahrheit (WP-002 §3.2)."
+    - "Bindung an die Modellrevision — die Kalibrierung ist an eine bestimmte HuggingFace-Commit-Revision gebunden. Ein Anheben der Revision verschiebt die Baseline jeder Sprache gleichzeitig; das Phase-119-Determinismus-CI-Gate erkennt Byte-Level-Drift, aber nicht semantische Drift über Revisionen hinweg."
+    - "Mehrsprachige sprachübergreifende Kalibrierungsverschiebung — ein Score von 0,4 im Deutschen ist nicht zwingend mit 0,4 im Französischen vergleichbar; das mehrsprachige Modell hat eine unterschiedliche Kalibrierung pro Sprache. Kulturübergreifender Vergleich erfordert, dass das metric_equivalence-Register (ADR-016) ein Deviation-Level (z-Score / Perzentil) gewährt, bevor die BFF zwischen sprachlichen Frames normalisiert."
+    - "Tier-2-Reproduzierbarkeit — die Ausgaben sind über Läufe im selben Prozess mit geseedeten Determinismus-Flags reproduzierbar, aber nicht bit-genau deterministisch über CUDA-Backends hinweg. Der reine CPU-Betrieb ist die kalibrierte Baseline."
   extractor_version_hash: bert-multilingual-tier2
   wp_reference: WP-002 §3.2
 
@@ -123,12 +187,32 @@ sentiment_score_bert_de_news:
     surfaces both metrics under ADR-016's dual-metric pattern.
     tier_classification is 2 in the API enum (no 2.5 slot); the
     refinement distinction is recorded here in the description.
+  algorithm_description_de: >
+    Deutscher News-domänenspezifischer BERT-Sentiment-Klassifikator. Gleiche
+    Skalar-Reduktion (P(positiv) − P(negativ)) wie der mehrsprachige Default,
+    jedoch auf deutschem Nachrichtentext trainiert — die Kalibrierung auf dem
+    AĒR-Sonde-0-Korpus wird voraussichtlich enger sein als beim mehrsprachigen
+    Modell. Implementiert durch den GermanNewsBertSentimentExtractor gegen
+    mdraw/german-news-sentiment-bert, gepinnt per HuggingFace-Commit-Revision
+    im Language Capability Manifest unter
+    languages.de.sentiment_tier2_refinement. Gemäß ADR-023 ist dies die
+    Tier-2.5-Verfeinerungsschicht — optional, sprachgebunden, läuft begleitend
+    (nie anstelle) zum mehrsprachigen Default; das Dashboard zeigt beide
+    Metriken gemäß dem Dual-Metric-Muster von ADR-016. tier_classification ist
+    2 im API-Enum (kein 2.5-Slot); die Verfeinerungs-Distinktion wird hier in
+    der Beschreibung festgehalten.
   known_limitations:
     - "Domain narrowness — the model was fine-tuned on German news, not on government press releases or institutional communication. Genre transfer to the institutional editorial register of Probe 0 is plausible but not validated (WP-002 §3.2)."
     - "Single-language scope — produces metric rows for German documents only. Documents whose detected_language is not 'de' produce no row. This is by design — Tier-2.5 refinements are language-bound; cross-language coverage is the multilingual Tier-2 default's job."
     - "Model-revision binding — calibration is tied to a specific HuggingFace commit revision. The Phase 119 determinism CI gate detects byte-level drift but not semantic drift across revisions."
     - "Tier-2 reproducibility — outputs are reproducible across runs in the same process with seeded determinism flags, but not bit-for-bit deterministic across CUDA backends. CPU-only deployment is the calibrated baseline."
     - "No coreference or compositionality — single-pass token-classification model; sarcasm, negation across long contexts, and document-level rhetorical inversion remain failure modes (WP-002 §3.2)."
+  known_limitations_de:
+    - "Domänenenge — das Modell wurde auf deutschen Nachrichten feinjustiert, nicht auf Regierungspressemitteilungen oder institutioneller Kommunikation. Der Genretransfer auf das institutionelle redaktionelle Register von Sonde 0 ist plausibel, aber nicht validiert (WP-002 §3.2)."
+    - "Einzelsprachen-Geltungsbereich — erzeugt Metrik-Zeilen nur für deutsche Dokumente. Dokumente, deren detected_language nicht 'de' ist, erzeugen keine Zeile. Dies ist per Design so — Tier-2.5-Verfeinerungen sind sprachgebunden; die sprachübergreifende Abdeckung ist Aufgabe des mehrsprachigen Tier-2-Defaults."
+    - "Bindung an die Modellrevision — die Kalibrierung ist an eine bestimmte HuggingFace-Commit-Revision gebunden. Das Phase-119-Determinismus-CI-Gate erkennt Byte-Level-Drift, aber nicht semantische Drift über Revisionen hinweg."
+    - "Tier-2-Reproduzierbarkeit — die Ausgaben sind über Läufe im selben Prozess mit geseedeten Determinismus-Flags reproduzierbar, aber nicht bit-genau deterministisch über CUDA-Backends hinweg. Der reine CPU-Betrieb ist die kalibrierte Baseline."
+    - "Keine Koreferenz oder Kompositionalität — Single-Pass-Token-Klassifikationsmodell; Sarkasmus, Negation über lange Kontexte hinweg und dokumentebene rhetorische Umkehrung bleiben Fehlerquellen (WP-002 §3.2)."
   extractor_version_hash: bert-de-news-tier2_5
   wp_reference: WP-002 §3.2
 
@@ -138,11 +222,20 @@ entity_count:
     Count of named entities extracted by spaCy de_core_news_lg-3.8.0.
     Implemented by NamedEntityExtractor; individual entity records are
     written to aer_gold.entities.
+  algorithm_description_de: >
+    Anzahl der von spaCy de_core_news_lg-3.8.0 extrahierten benannten
+    Entitäten. Implementiert durch den NamedEntityExtractor; einzelne
+    Entitätsdatensätze werden nach aer_gold.entities geschrieben.
   known_limitations:
     - "No entity linking — surface forms are counted, not canonical IDs; 'Angela Merkel', 'Merkel', and 'die Bundeskanzlerin' are three distinct entities, inflating counts and preventing entity-level aggregation (WP-002 §3)."
     - "Western bias in entity ontology — the PER/ORG/LOC/MISC labels are inherited from CoNLL-2003; recognition accuracy degrades for non-Western names, organisations, and locations (WP-002 §3)."
     - "Model drift — extraction is tied to the pinned spaCy model version (de_core_news_lg-3.8.0); model upgrades may produce different boundaries and labels for the same input, breaking longitudinal comparability (Arc42 Chapter 11, R-10)."
     - "No coreference resolution — pronouns and anaphoric references are not resolved to antecedents, so frequency counts reflect only explicit named mentions (WP-002 §3)."
+  known_limitations_de:
+    - "Kein Entity-Linking — gezählt werden Oberflächenformen, nicht kanonische IDs; „Angela Merkel“, „Merkel“ und „die Bundeskanzlerin“ sind drei verschiedene Entitäten, was die Zählungen aufbläht und eine Aggregation auf Entitätsebene verhindert (WP-002 §3)."
+    - "Westlicher Bias in der Entitäts-Ontologie — die Labels PER/ORG/LOC/MISC sind von CoNLL-2003 übernommen; die Erkennungsgenauigkeit verschlechtert sich bei nicht-westlichen Namen, Organisationen und Orten (WP-002 §3)."
+    - "Modell-Drift — die Extraktion ist an die gepinnte spaCy-Modellversion gebunden (de_core_news_lg-3.8.0); Modell-Upgrades können für dieselbe Eingabe abweichende Grenzen und Labels erzeugen und so die longitudinale Vergleichbarkeit brechen (Arc42 Kapitel 11, R-10)."
+    - "Keine Koreferenzauflösung — Pronomen und anaphorische Bezüge werden nicht zu ihren Antezedenten aufgelöst, sodass die Häufigkeitszählungen nur explizite benannte Erwähnungen widerspiegeln (WP-002 §3)."
   extractor_version_hash: de_core_news_lg-3.8.0
   wp_reference: WP-002 §3
 
@@ -162,11 +255,31 @@ revision_count:
     cadence bounds detection recall but is excluded from the metric. The
     diff sweep is the sole writer; the value converges upward as more
     pairs are classified.
+  algorithm_description_de: >
+    Anzahl der pro Artikel BEOBACHTETEN REDAKTIONELLEN Bearbeitungen
+    (Phase 133) — wie oft die Quelle den Artikelkörper/die Überschrift nach
+    der Veröffentlichung tatsächlich geändert hat, NICHT wie oft das Internet
+    Archive ihn erfasst hat. Abgeleitet aus aer_gold.article_revisions: ein
+    Paar zählt nur, wenn sein berechneter Diff eine echte inhaltliche Änderung
+    ist (nicht das Sentinel der identischen Wiederarchivierung und kein
+    noch-nicht-gedifftes ausstehendes Paar). Die beobachteten Zustände stammen
+    aus Wayback-CDX-Captures von Drittanbietern und aus
+    Republikations-Trigger-Signalen der Herausgeberseite (sitemap_lastmod ≥
+    REPUBLICATION_TRIGGER_MIN_DELTA_DAYS Tage nach published_date); diese sind
+    BEOBACHTUNGSINSTRUMENTE, nicht die Bearbeitungen selbst — ihre Kadenz
+    begrenzt den Detektions-Recall, wird aber aus der Metrik ausgeschlossen.
+    Der Diff-Sweep ist der einzige Schreiber; der Wert konvergiert nach oben,
+    während mehr Paare klassifiziert werden.
   known_limitations:
     - "Witnessed lower bound, sampling-limited: an edit is detected only when it changed the extracted text BETWEEN two captured states. Two edits between two captures read as one; an edit reverted before the next capture is invisible. The true edit count is ≥ the witnessed count."
     - "Detection recall is bounded by Internet-Archive snapshot frequency (publisher-dependent) and by republication-trigger coverage (publishers that never update sitemap-lastmod emit no signal). This bounds RECALL of edits — it is deliberately NOT counted as edits."
     - "Extraction-defined: an edit = a change in the trafilatura-extracted body/headline. Markup/ad/boilerplate changes that leave the extracted article unchanged are correctly NOT counted."
     - "Coverage gap: a wayback_lookup_status of `failed` / `no_snapshots` / `disabled` yields no article_revisions rows, so the article has no revision_count datum at all — distinct from `0 edits witnessed`. The ADR-036 re-attempt loop heals `failed` lookups; the dashboard surfaces the gap (Silent-Edit NS-class)."
+  known_limitations_de:
+    - "Beobachtete Untergrenze, stichprobenbegrenzt: eine Bearbeitung wird nur erkannt, wenn sie den extrahierten Text ZWISCHEN zwei erfassten Zuständen verändert hat. Zwei Bearbeitungen zwischen zwei Captures lesen sich als eine; eine vor dem nächsten Capture zurückgenommene Bearbeitung ist unsichtbar. Die wahre Bearbeitungszahl ist ≥ der beobachteten Zahl."
+    - "Der Detektions-Recall ist begrenzt durch die Snapshot-Frequenz des Internet Archive (herausgeberabhängig) und durch die Abdeckung der Republikations-Trigger (Herausgeber, die sitemap-lastmod nie aktualisieren, geben kein Signal ab). Dies begrenzt den RECALL der Bearbeitungen — es wird bewusst NICHT als Bearbeitungen gezählt."
+    - "Extraktionsdefiniert: eine Bearbeitung = eine Änderung am trafilatura-extrahierten Körper/an der Überschrift. Markup-/Werbe-/Boilerplate-Änderungen, die den extrahierten Artikel unverändert lassen, werden korrekterweise NICHT gezählt."
+    - "Abdeckungslücke: ein wayback_lookup_status von `failed` / `no_snapshots` / `disabled` liefert keine article_revisions-Zeilen, sodass der Artikel überhaupt kein revision_count-Datum hat — verschieden von „0 beobachteten Bearbeitungen“. Die ADR-036-Wiederholungsschleife heilt `failed`-Lookups; das Dashboard zeigt die Lücke an (Silent-Edit-NS-Klasse)."
   extractor_version_hash: v2
   wp_reference: WP-003 §5.3.1
 
@@ -189,9 +302,19 @@ paywall_status:
     (schema.org isAccessibleForFree, negated) by the WebAdapter and promoted
     to a Gold metric_name by the processor (Phase 133). The merged-scope
     aggregate is the SHARE of paywalled articles (an intensive proportion).
+  algorithm_description_de: >
+    Pro-Artikel-Bezahlschranken-Flag (1 = hinter einer Bezahlschranke,
+    0 = frei zugänglich), deterministisch aus den strukturierten Metadaten des
+    Herausgebers gelesen (schema.org isAccessibleForFree, negiert) durch den
+    WebAdapter und vom Processor zu einem Gold-metric_name befördert
+    (Phase 133). Der zusammengeführte Aggregatwert ist der ANTEIL der Artikel
+    hinter einer Bezahlschranke (eine intensive Proportion).
   known_limitations:
     - "Publisher-declared, not verified — the flag reflects what the publisher asserts in structured metadata, not an independent paywall probe; a mis-tagged page is recorded as the publisher tagged it (WP-003 §3.2)."
     - "Metadata-richness asymmetry — many publishers never emit isAccessibleForFree. For those sources the field is structurally absent (Negative Space), NOT assumed free; absence is a publisher choice, not a defect (WP-003 §3.2)."
+  known_limitations_de:
+    - "Herausgeber-deklariert, nicht verifiziert — das Flag spiegelt wider, was der Herausgeber in den strukturierten Metadaten behauptet, nicht eine unabhängige Bezahlschranken-Prüfung; eine falsch ausgezeichnete Seite wird so erfasst, wie der Herausgeber sie ausgezeichnet hat (WP-003 §3.2)."
+    - "Asymmetrie im Metadaten-Reichtum — viele Herausgeber geben isAccessibleForFree nie aus. Für diese Quellen ist das Feld strukturell abwesend (Negative Space), NICHT als frei angenommen; die Abwesenheit ist eine Herausgeber-Entscheidung, kein Defekt (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
 
@@ -202,9 +325,18 @@ image_count:
     metadata (schema.org image[]), counted by the WebAdapter and promoted to a
     Gold metric_name by the processor (Phase 133). An extensive count — a
     merged-scope total is a legitimate sum over the unioned corpus.
+  algorithm_description_de: >
+    Anzahl der Bilder, die der Herausgeber in den strukturierten Metadaten des
+    Artikels ausweist (schema.org image[]), vom WebAdapter gezählt und vom
+    Processor zu einem Gold-metric_name befördert (Phase 133). Eine extensive
+    Zählung — ein zusammengeführter Bereichswert ist eine legitime Summe über
+    den vereinigten Korpus.
   known_limitations:
     - "Structured-metadata only — counts images declared in JSON-LD/OpenGraph, not every <img> in the rendered article body; the structured set is usually the lead/social images, so this under-counts true illustration density (WP-003 §3.2)."
     - "Metadata-richness asymmetry — a source that emits no structured image metadata is structurally absent for this field (Negative Space), never recorded as zero images (WP-003 §3.2)."
+  known_limitations_de:
+    - "Nur strukturierte Metadaten — gezählt werden in JSON-LD/OpenGraph deklarierte Bilder, nicht jedes <img> im gerenderten Artikelkörper; die strukturierte Menge sind meist die Leit-/Social-Bilder, daher unterschätzt dies die tatsächliche Bilddichte (WP-003 §3.2)."
+    - "Asymmetrie im Metadaten-Reichtum — eine Quelle, die keine strukturierten Bild-Metadaten ausgibt, ist für dieses Feld strukturell abwesend (Negative Space) und wird nie als null Bilder erfasst (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
 
@@ -222,9 +354,18 @@ reading_time_minutes:
     duration) by the WebAdapter and promoted to a Gold metric_name by the
     processor (Phase 133). An extensive quantity (total minutes is a legitimate
     merged sum).
+  algorithm_description_de: >
+    Geschätzte Lesezeit in Minuten, deterministisch aus den strukturierten
+    Metadaten des Herausgebers gelesen (schema.org timeRequired, eine
+    ISO-8601-Dauer) durch den WebAdapter und vom Processor zu einem
+    Gold-metric_name befördert (Phase 133). Eine extensive Größe (die
+    Gesamtminutenzahl ist eine legitime zusammengeführte Summe).
   known_limitations:
     - "Publisher-declared estimate — reflects the publisher's own reading-time figure (or a CMS default), not a measured reading speed; figures are not comparable across publishers using different words-per-minute assumptions (WP-003 §3.2)."
     - "Metadata-richness asymmetry — most sources never emit timeRequired in structured form; for those it is structurally absent (Negative Space), recovered only by per-source visible-HTML rules (Phase 133 custom_extractors), never assumed (WP-003 §3.2)."
+  known_limitations_de:
+    - "Herausgeber-deklarierte Schätzung — spiegelt die eigene Lesezeit-Angabe des Herausgebers wider (oder einen CMS-Default), keine gemessene Lesegeschwindigkeit; die Angaben sind nicht über Herausgeber hinweg vergleichbar, die unterschiedliche Wörter-pro-Minute-Annahmen verwenden (WP-003 §3.2)."
+    - "Asymmetrie im Metadaten-Reichtum — die meisten Quellen geben timeRequired nie in strukturierter Form aus; für diese ist es strukturell abwesend (Negative Space) und wird nur durch quellenspezifische Sichtbares-HTML-Regeln (Phase 133 custom_extractors) wiederhergestellt, nie angenommen (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
 
@@ -235,9 +376,17 @@ comment_count:
     (schema.org interactionStatistic / commentCount), read by the WebAdapter and
     promoted to a Gold metric_name by the processor (Phase 133). An extensive
     count.
+  algorithm_description_de: >
+    Anzahl der Leserkommentare, die der Herausgeber in den strukturierten
+    Metadaten ausweist (schema.org interactionStatistic / commentCount), vom
+    WebAdapter gelesen und vom Processor zu einem Gold-metric_name befördert
+    (Phase 133). Eine extensive Zählung.
   known_limitations:
     - "Snapshot at crawl time — the comment count reflects the moment of capture, not the article's final comment volume; a re-crawl yields a different value (WP-003 §3.2)."
     - "Metadata-richness asymmetry — many publishers (and all comment-less institutional sources) never emit a comment count; for those it is structurally absent (Negative Space), never recorded as 0 comments (WP-003 §3.2)."
+  known_limitations_de:
+    - "Momentaufnahme zur Crawl-Zeit — die Kommentarzahl spiegelt den Moment der Erfassung wider, nicht das endgültige Kommentarvolumen des Artikels; ein erneuter Crawl liefert einen anderen Wert (WP-003 §3.2)."
+    - "Asymmetrie im Metadaten-Reichtum — viele Herausgeber (und alle kommentarlosen institutionellen Quellen) geben nie eine Kommentarzahl aus; für diese ist sie strukturell abwesend (Negative Space) und wird nie als 0 Kommentare erfasst (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
 
@@ -248,9 +397,18 @@ external_citation_count:
     structured citation metadata (schema.org citation) by the WebAdapter and
     promoted to a Gold metric_name by the processor (Phase 133). An extensive
     count — a merged-scope total is a legitimate sum.
+  algorithm_description_de: >
+    Anzahl der externen Quellen, die ein Artikel zitiert, gezählt aus den
+    strukturierten Zitations-Metadaten des Herausgebers (schema.org citation)
+    durch den WebAdapter und vom Processor zu einem Gold-metric_name befördert
+    (Phase 133). Eine extensive Zählung — ein zusammengeführter Bereichswert
+    ist eine legitime Summe.
   known_limitations:
     - "Structured-citation only — counts citations the publisher declares in machine-readable metadata, not every hyperlink in the article body; most outbound links are not declared as schema.org citations, so this under-counts true referencing (WP-003 §3.2)."
     - "Metadata-richness asymmetry — a source that declares no structured citations is structurally absent for this field (Negative Space), never recorded as zero citations (WP-003 §3.2)."
+  known_limitations_de:
+    - "Nur strukturierte Zitationen — gezählt werden Zitationen, die der Herausgeber in maschinenlesbaren Metadaten deklariert, nicht jeder Hyperlink im Artikelkörper; die meisten ausgehenden Links werden nicht als schema.org-citation deklariert, daher unterschätzt dies die tatsächliche Referenzierung (WP-003 §3.2)."
+    - "Asymmetrie im Metadaten-Reichtum — eine Quelle, die keine strukturierten Zitationen deklariert, ist für dieses Feld strukturell abwesend (Negative Space) und wird nie als null Zitationen erfasst (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
 
@@ -268,11 +426,25 @@ topic_model:
     by its c-TF-IDF representation (the four words most over-represented in the
     cluster), prefixed by a numeric topic id. Topic id -1 is the outlier class.
     Topics are partitioned by language because the embeddings are language-specific.
+  algorithm_description_de: >
+    BERTopic über aer_gold.topic_assignments (Phase 120). Dokumente werden mit
+    dem gepinnten intfloat/multilingual-e5-large-Modell („passage:“-Eingaben)
+    eingebettet, mit geseedetem UMAP reduziert und mit HDBSCAN geclustert;
+    jedes Thema wird durch seine c-TF-IDF-Repräsentation benannt (die vier im
+    Cluster am stärksten überrepräsentierten Wörter), mit vorangestellter
+    numerischer Themen-ID. Themen-ID -1 ist die Ausreißerklasse. Themen werden
+    nach Sprache partitioniert, weil die Embeddings sprachspezifisch sind.
   known_limitations:
     - "Reproducible, not bit-for-bit deterministic — results are stable for a pinned model version + fixed UMAP/HDBSCAN seed, but not guaranteed identical across platforms or library upgrades (Tier 2, WP-002 §8.1 Option C)."
     - "Model rotation breaks longitudinal comparability — more than one model hash within a window means the topic identities may have rotated; topic ids are not a stable basis across a model change (WP-002 §8.1)."
     - "Topic ids do not align across languages — each language is clustered independently, so topic 0 in German and topic 0 in French are unrelated; never read across language partitions as if the ids matched (WP-004 §3.4)."
     - "Labels are fingerprints, not titles — the c-TF-IDF words characterise a cluster statistically; they are not an editorial topic name and can read oddly for a small or mixed cluster."
     - "Small-corpus instability — with few documents HDBSCAN produces a large outlier class (-1) and unstable clusters; the topic structure is meaningful only at sufficient corpus size."
+  known_limitations_de:
+    - "Reproduzierbar, nicht bit-für-bit deterministisch — die Ergebnisse sind bei gepinnter Modellversion + festem UMAP/HDBSCAN-Seed stabil, aber nicht garantiert identisch über Plattformen oder Bibliotheks-Upgrades hinweg (Tier 2, WP-002 §8.1 Option C)."
+    - "Modellrotation bricht die longitudinale Vergleichbarkeit — mehr als ein Modell-Hash innerhalb eines Fensters bedeutet, dass die Themenidentitäten rotiert sein können; Themen-IDs sind über einen Modellwechsel hinweg keine stabile Basis (WP-002 §8.1)."
+    - "Themen-IDs sind nicht sprachübergreifend deckungsgleich — jede Sprache wird unabhängig geclustert, daher sind Thema 0 im Deutschen und Thema 0 im Französischen ohne Bezug zueinander; lesen Sie niemals über Sprachpartitionen hinweg, als ob die IDs übereinstimmten (WP-004 §3.4)."
+    - "Labels sind Fingerabdrücke, keine Titel — die c-TF-IDF-Wörter charakterisieren ein Cluster statistisch; sie sind kein redaktioneller Themenname und können bei einem kleinen oder gemischten Cluster eigenartig wirken."
+    - "Instabilität bei kleinem Korpus — bei wenigen Dokumenten erzeugt HDBSCAN eine große Ausreißerklasse (-1) und instabile Cluster; die Themenstruktur ist nur bei ausreichender Korpusgröße aussagekräftig."
   extractor_version_hash: multilingual-e5-large
   wp_reference: WP-002 §8.1

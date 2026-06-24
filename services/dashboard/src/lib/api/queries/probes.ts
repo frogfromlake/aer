@@ -69,14 +69,15 @@ export function metricsQuery(
 
 export function provenanceQuery(
   ctx: FetchContext,
-  metricName: string
+  metricName: string,
+  locale: 'en' | 'de' = 'en'
 ): QueryOptions<MetricProvenanceDto> {
   return {
-    queryKey: ['aer', 'provenance', metricName] as const,
+    queryKey: ['aer', 'provenance', metricName, locale] as const,
     queryFn: () =>
       fetchJson<MetricProvenanceDto>(
         ctx,
-        `/metrics/${encodeURIComponent(metricName)}/provenance`,
+        `/metrics/${encodeURIComponent(metricName)}/provenance?locale=${locale}`,
         'validation_missing'
       ),
     // Provenance changes only when the operator re-publishes the

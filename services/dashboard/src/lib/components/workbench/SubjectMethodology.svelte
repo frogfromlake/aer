@@ -93,7 +93,7 @@
     Error,
     QueryOutcome<MetricProvenanceDto>
   >(() => {
-    const o = provenanceQuery(ctx, name);
+    const o = provenanceQuery(ctx, name, locale());
     return {
       queryKey: [...o.queryKey],
       queryFn: o.queryFn,
@@ -167,6 +167,19 @@
 
   const badgeTier = $derived(pickBadgeTier(provenance));
   const hasLimitations = $derived((provenance?.knownLimitations.length ?? 0) > 0);
+
+  // Localized validation-status value ('unvalidated'|'validated'|'expired'; the
+  // 'validation_missing' fetch-fallback reads as unvalidated).
+  function validationLabel(status: string | undefined): string {
+    switch (status) {
+      case 'validated':
+        return m.workbench_meth_validation_validated();
+      case 'expired':
+        return m.workbench_meth_validation_expired();
+      default:
+        return m.workbench_meth_validation_unvalidated();
+    }
+  }
 </script>
 
 {#if isMetric || isField}
@@ -217,7 +230,7 @@
               <dd><Badge tier={badgeTier} /></dd>
               <dt>{m.workbench_meth_provenance_validation()}</dt>
               <dd class="status status-{provenance.validationStatus}">
-                {provenance.validationStatus}
+                {validationLabel(provenance.validationStatus)}
               </dd>
               <dt>{m.workbench_meth_provenance_algorithm()}</dt>
               <dd>{provenance.algorithmDescription}</dd>

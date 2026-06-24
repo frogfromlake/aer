@@ -748,16 +748,16 @@ func (e GetMetricsParamsResolution) Valid() bool {
 
 // Defines values for GetMetricsAvailableParamsLocale.
 const (
-	De GetMetricsAvailableParamsLocale = "de"
-	En GetMetricsAvailableParamsLocale = "en"
+	GetMetricsAvailableParamsLocaleDe GetMetricsAvailableParamsLocale = "de"
+	GetMetricsAvailableParamsLocaleEn GetMetricsAvailableParamsLocale = "en"
 )
 
 // Valid indicates whether the value is a known member of the GetMetricsAvailableParamsLocale enum.
 func (e GetMetricsAvailableParamsLocale) Valid() bool {
 	switch e {
-	case De:
+	case GetMetricsAvailableParamsLocaleDe:
 		return true
-	case En:
+	case GetMetricsAvailableParamsLocaleEn:
 		return true
 	default:
 		return false
@@ -938,6 +938,24 @@ func (e GetMetricHeatmapParamsYDimension) Valid() bool {
 	case GetMetricHeatmapParamsYDimensionLanguage:
 		return true
 	case GetMetricHeatmapParamsYDimensionSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetMetricProvenanceParamsLocale.
+const (
+	GetMetricProvenanceParamsLocaleDe GetMetricProvenanceParamsLocale = "de"
+	GetMetricProvenanceParamsLocaleEn GetMetricProvenanceParamsLocale = "en"
+)
+
+// Valid indicates whether the value is a known member of the GetMetricProvenanceParamsLocale enum.
+func (e GetMetricProvenanceParamsLocale) Valid() bool {
+	switch e {
+	case GetMetricProvenanceParamsLocaleDe:
+		return true
+	case GetMetricProvenanceParamsLocaleEn:
 		return true
 	default:
 		return false
@@ -2593,6 +2611,15 @@ type GetMetricHeatmapParamsXDimension string
 // GetMetricHeatmapParamsYDimension defines parameters for GetMetricHeatmap.
 type GetMetricHeatmapParamsYDimension string
 
+// GetMetricProvenanceParams defines parameters for GetMetricProvenance.
+type GetMetricProvenanceParams struct {
+	// Locale Language of the prose fields (algorithmDescription, knownLimitations). Tier, extractor hash and validation status are locale-neutral. Defaults to "en"; a missing German translation falls back to English.
+	Locale *GetMetricProvenanceParamsLocale `form:"locale,omitempty" json:"locale,omitempty"`
+}
+
+// GetMetricProvenanceParamsLocale defines parameters for GetMetricProvenance.
+type GetMetricProvenanceParamsLocale string
+
 // GetProbeDossierParams defines parameters for GetProbeDossier.
 type GetProbeDossierParams struct {
 	// WindowStart Start of the article-count window (RFC 3339). When omitted the per-source `articlesInWindow` counts equal the total counts.
@@ -3081,7 +3108,7 @@ type ServerInterface interface {
 	GetMetricHeatmap(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricHeatmapParams)
 	// Retrieve provenance metadata for a metric
 	// (GET /metrics/{metricName}/provenance)
-	GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string)
+	GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricProvenanceParams)
 	// List active probes with emission geometry
 	// (GET /probes)
 	GetProbes(w http.ResponseWriter, r *http.Request)
@@ -3465,7 +3492,7 @@ func (_ Unimplemented) GetMetricHeatmap(w http.ResponseWriter, r *http.Request, 
 
 // Retrieve provenance metadata for a metric
 // (GET /metrics/{metricName}/provenance)
-func (_ Unimplemented) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string) {
+func (_ Unimplemented) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricProvenanceParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5999,8 +6026,19 @@ func (siw *ServerInterfaceWrapper) GetMetricProvenance(w http.ResponseWriter, r 
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMetricProvenanceParams
+
+	// ------------- Optional query parameter "locale" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locale", r.URL.Query(), &params.Locale, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locale", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMetricProvenance(w, r, metricName)
+		siw.Handler.GetMetricProvenance(w, r, metricName, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11766,6 +11804,7 @@ func (response GetMetricHeatmap500JSONResponse) VisitGetMetricHeatmapResponse(w 
 
 type GetMetricProvenanceRequestObject struct {
 	MetricName string `json:"metricName"`
+	Params     GetMetricProvenanceParams
 }
 
 type GetMetricProvenanceResponseObject interface {
@@ -15211,10 +15250,11 @@ func (sh *strictHandler) GetMetricHeatmap(w http.ResponseWriter, r *http.Request
 }
 
 // GetMetricProvenance operation middleware
-func (sh *strictHandler) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string) {
+func (sh *strictHandler) GetMetricProvenance(w http.ResponseWriter, r *http.Request, metricName string, params GetMetricProvenanceParams) {
 	var request GetMetricProvenanceRequestObject
 
 	request.MetricName = metricName
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMetricProvenance(ctx, request.(GetMetricProvenanceRequestObject))
