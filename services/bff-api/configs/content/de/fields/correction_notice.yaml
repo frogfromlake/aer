@@ -1,0 +1,53 @@
+entityId: correction_notice
+entityType: field
+locale: de
+displayLabel: "Korrekturhinweis"
+registers:
+  semantic:
+    short: "Ein vom Herausgeber angefügter Vermerk, dass ein Artikel nach der Veröffentlichung korrigiert wurde."
+    long: >
+      Das Feld Korrekturhinweis erfasst die eigene Angabe eines Herausgebers, dass
+      ein Artikel nach Erscheinen korrigiert wurde — die redaktionelle Spur einer
+      Berichtigung, Ergänzung oder Klarstellung. Es ist ein Marker einer
+      Transparenzpraxis: eine Quelle, die Korrekturhinweise ausgibt, steht
+      öffentlich zu ihren Fehlern, was ein bedeutsames redaktionelles Signal ist,
+      unabhängig vom Inhalt des Artikels. Als Feld gelesen ist seine Seltenheit der
+      springende Punkt. Wo es auftaucht, kann es als Facettierungsachse dienen, um
+      korrigierte Beiträge zu isolieren, oder als Filter auf der kategorialen
+      Verteilung — so kann eine Forscherin fragen, ob korrigierte Artikel sich nach
+      Ressort, Zeit oder Quelle häufen. Da aber fast keine Quelle im aktuellen
+      Korpus es ausgibt, ist die ehrliche Lesart heute ganz überwiegend seine
+      Abwesenheit: AĒR kann die meisten Korrekturen nicht sehen, weil die meisten
+      Herausgeber sie nicht maschinenlesbar deklarieren, sondern — wenn überhaupt —
+      nur in Fließtext, den die Plattform nicht als Korrektur erkennt.
+  methodological:
+    short: "JSON-LD-Schlüssel correction. Tier-C. Heute fast immer abwesend; Abwesenheit heißt NICHT „keine Korrekturen“, sondern kein maschinenlesbares Signal. WP-003 §3.2 / ADR-039."
+    long: >
+      Das Feld wird an der Silver-Grenze vom WebAdapter des Workers aus dem JSON-LD
+      der Seite gelesen — dem in die Seite eingebetteten strukturierten
+      Schema.org-Datenblock — aus dem Schlüssel correction. Trägt dieser Schlüssel
+      einen Wert, erfasst AĒR ihn als Korrekturhinweis; ist er abwesend oder leer,
+      bleibt das Feld leer. Es gibt keinen OpenGraph-, Microdata- oder
+      Fließtext-Rückfall: AĒR durchsucht den sichtbaren Artikeltext nicht nach dem
+      Wort „Korrektur“, sodass eine nur im Körpertext angekündigte Berichtigung für
+      dieses Feld unsichtbar ist.
+      Die Abwesenheit ist die Regel und verlangt Sorgfalt. correction_notice ist
+      ein Tier-C-Feld, das im aktuellen Korpus fast kein Herausgeber ausgibt, sodass
+      es für nahezu jeden Artikel Negative Space ist. Die Invariante
+      disclose-never-coerce (ADR-039) ist hier besonders tragend: ein fehlender
+      Korrekturhinweis bedeutet NICHT, dass der Artikel nie korrigiert wurde — er
+      bedeutet, dass AĒR kein maschinenlesbares Korrektursignal erhielt. Abwesenheit
+      als saubere Bilanz zu lesen wäre eine erfundene Aussage über redaktionelle
+      Integrität, genau die Umdeutung, die ADR-039 verbietet. Eine Quelle, die den
+      Schlüssel nie ausgibt, ist eine Herausgeber-Entscheidung (WP-003 §3.2), kein
+      Defekt; das Feld wird für diese Quelle als strukturell abwesend markiert und
+      im Dimensions-Picker für den Bereich nicht angeboten. Etwaige befüllte Werte
+      sind viel zu spärlich, um einen quellenübergreifenden Vergleich ohne externe
+      Prüfung zu tragen (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

@@ -1,0 +1,64 @@
+entityId: time_series_image_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Images per article over time. The mean declared image count per time bucket — useful for spotting shifts in visual format or presentation budget."
+    long: >
+      This view plots the image count as a time series, showing how the average
+      number of declared images per article changes across the selected window
+      and scope. A flat line is a stable visual format; a sustained rise can
+      signal a move toward more photo-led, illustrated reporting or a redesign
+      that surfaces galleries in metadata; a sustained fall can reflect format
+      compression, automation, or a leaner template. Spikes often track specific
+      events that draw heavier photographic coverage. Read it as a trend in media
+      richness, not in depth — more images is not more reporting — and remember
+      it is a lower bound: it tracks declared metadata images, not every picture
+      on the page. Compare across sources to tell whether a shift in visual
+      format is sector-wide (structural) or particular to one publisher
+      (editorial).
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE line over the unioned corpus
+      (BFF query ?sourceIds=a,b,...); under composition='split' the same
+      source-set fans out into one line per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. The merged
+      reading is appropriate when the question is about the union (e.g. how the
+      institutional press as a whole illustrates over time); the split reading
+      is appropriate when per-source distinction is the question.
+  methodological:
+    short: "Downsampled mean of the image count per time bucket. Tier 1 (deterministic). Counts declared distinct images (crops de-duplicated). Buckets with no image metadata are Negative Space, never coerced to 0."
+    long: >
+      The time-series view applies bucket downsampling to the image-count values and
+      plots the mean per bucket; optional uncertainty bands reflect within-bucket
+      variance. The metric is the cardinality of the article's structured image
+      list (schema.org image[]), extracted at the Silver boundary, with
+      responsive renditions of the same picture de-duplicated so a count measures
+      DISTINCT images, not crops. It is a Tier 1 deterministic measure
+      (WP-002 §3); validation status is unvalidated (engineering default).
+
+      Two limits bound interpretation. First, scope: the image count is a lower bound
+      on illustration density — it counts only images declared in structured
+      metadata (typically the lead and social-share image), not every picture in
+      the rendered article body, so the line tracks declared visual format rather
+      than true image density. Second, disclose-never-coerce (WP-003 §3.2 /
+      ADR-039): an article that genuinely declares an empty image list
+      contributes a real 0 to its bucket, but a bucket whose only articles come
+      from a source that emits no image metadata is structurally absent — surfaced
+      as Negative Space, never drawn as a 0 — so a gap in the line is silence, not
+      a measured image-free period. Caveat thin buckets: a mean over a handful of
+      articles is a noisy point.
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the handler
+      executes a single BFF call with the unioned sourceIds and the Cell renders
+      one line; for 'split' the Cell fans out one query per source. Split
+      direction is a layout toggle only. The image count is an extensive count, so a
+      merged scope pools legitimately over the unioned corpus — a real combined
+      trend, not a cross-context ranking.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

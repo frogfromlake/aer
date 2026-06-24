@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Wortanzahl über die Zeit. Zeigt, wie sich die Artikellänge im Beobachtungsfenster verändert — hilfreich, um Verschiebungen im redaktionellen Umfang oder Formatänderungen zu erkennen."
     long: >
-      Diese Ansicht stellt word_count als Zeitreihe dar und zeigt, wie sich die durchschnittliche
+      Diese Ansicht stellt die Wortanzahl als Zeitreihe dar und zeigt, wie sich die durchschnittliche
       Artikellänge im ausgewählten Zeitraum und Geltungsbereich verändert. Anhaltende Anstiege
       können auf redaktionelle Expansion oder eine Verschiebung zu Long-form-Berichterstattung
       hinweisen; anhaltende Rückgänge können Formatverdichtung, Automatisierung oder
@@ -27,11 +27,11 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "5-Minuten-Downsampling-Mittelwert von word_count. Tier 1 — keine bekannten Einschränkungen für deutsches RSS. Unsicherheitsbänder zeigen Stichprobenvarianz pro Bucket."
+    short: "5-Minuten-Downsampling-Mittelwert der Wortanzahl. Tier 1 — keine bekannten Einschränkungen für deutsches RSS. Unsicherheitsbänder zeigen Stichprobenvarianz pro Bucket."
     long: >
-      Die Zeitreihenansicht wendet 5-Minuten-Bucket-Downsampling auf word_count-Werte an und
+      Die Zeitreihenansicht wendet 5-Minuten-Bucket-Downsampling auf die Werte der Wortanzahl an und
       stellt den Mittelwert pro Bucket dar. Unsicherheitsbänder spiegeln die Varianz innerhalb
-      jedes Buckets wider. word_count ist eine deterministische Tier-1-Metrik (WP-002 §3);
+      jedes Buckets wider. Die Wortanzahl ist eine deterministische Tier-1-Metrik (WP-002 §3);
       zeitliche Muster in der Reihe sind strukturell zuverlässig für gut gestempelte
       RSS-Quellen. Wichtigster Interpretationsvorbehalt: Wortanzahl misst Länge, nicht Tiefe —
       ein längerer Artikel ist nicht zwangsläufig informativer. Quellenübergreifende Vergleiche
@@ -54,9 +54,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

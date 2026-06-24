@@ -18,19 +18,19 @@ registers:
 
       Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
       composition='merged' bündelt, aggregiert diese Metrik als mittlere
-      Entitätszahl pro Artikel über den vereinigten Korpus. Sentiment-Metriken
-      erben die Empfindlichkeit des Merged-Mittelwerts gegenüber
-      Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke Quelle
-      kann den Aggregatwert dominieren. Split-Komposition (eine Zelle pro
+      Entitätszahl pro Artikel über den vereinigten Korpus. Der
+      Merged-Mittelwert erbt eine Empfindlichkeit gegenüber Ungleichgewicht
+      im Quell-Mix: eine einzelne volumenstarke Quelle kann den Aggregatwert
+      dominieren. Split-Komposition (eine Zelle pro
       Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind. Die
-      merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      merged-Lesart ist über Sprachen mit weichem Methodikhinweis erlaubt
       (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
       View-Mode-Eintrag für das genaue Verhalten.
 
   methodological:
     short: "spaCy de_core_news_lg-3.8.0 NER-Span-Anzahl pro Dokument. Tier 1 (deterministisch). Kein Entity-Linking; westlicher Namens-Bias im Trainingskorpus. WP-002 §3."
     long: >
-      entity_count wird berechnet, indem die spaCy de_core_news_lg-3.8.0 German NER-Pipeline
+      Die Entitäten-Anzahl wird berechnet, indem die spaCy de_core_news_lg-3.8.0 German NER-Pipeline
       auf cleaned_text angewendet und die resultierenden Entity-Spans gezählt werden. Die
       Pipeline ist deterministisch bei identischen Eingaben — Tier-1-Metrik gemäß WP-002 §3.
       Vier dokumentierte Einschränkungen: (1) Kein Entity-Linking — "Merkel", "Angela Merkel"
@@ -56,9 +56,9 @@ registers:
       anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §6.2"

@@ -1,0 +1,50 @@
+entityId: paywall_status
+entityType: field
+locale: en
+displayLabel: "Paywall Status"
+registers:
+  semantic:
+    short: "A publisher-declared flag stating whether an article is free to read or sits behind a paywall."
+    long: >
+      The paywall-status field records what a publisher itself declares about an
+      article's accessibility: free to read, or gated behind payment. It is a
+      metadata field, not a measurement AĒR performs — the platform reads the
+      declaration, it never tries the paywall itself. Read as a field, its value
+      is what it tells you about a source: a publisher that consistently emits
+      this flag is being explicit about its business model, while one that never
+      emits it has simply chosen not to declare accessibility at all. In the
+      Workbench the field feeds the Categorical Distribution and the small-multiple
+      faceting axis, letting you split a corpus into free versus gated reporting,
+      and it supplies the colour channel on scatter plots. The same signal is also
+      promoted to an analytical metric — for the share-of-paywalled-articles
+      measure and how it aggregates over a scope, see the paywall_status metric
+      entry; this entry covers the field as such: what is emitted, and what its
+      silence means.
+  methodological:
+    short: "JSON-LD isAccessibleForFree, negated (false → paywalled, true → free). Tier-B. Absent flag = Negative Space, never coerced to free. WP-003 §3.2."
+    long: >
+      The field is read at the Silver boundary by the worker's WebAdapter from the
+      page's JSON-LD — the Schema.org structured-data block (a small machine-readable
+      JSON description publishers embed in the page) — specifically the
+      isAccessibleForFree key. The value is negated to AĒR's convention: a declared
+      isAccessibleForFree=false becomes paywalled (1), isAccessibleForFree=true
+      becomes free (0). The string forms "true"/"false" are accepted as well; any
+      other shape is treated as no signal. There is no OpenGraph or microdata
+      fallback — JSON-LD is the only source.
+      The load-bearing point is what absence means. Most institutional sources
+      (press offices such as bundesregierung or elysee) emit no accessibility flag
+      at all. Under disclose-never-coerce (ADR-039), an absent flag is Negative
+      Space — it is NEVER silently recorded as "free / 0". The publisher's silence
+      is a publisher choice (WP-003 §3.2), not evidence that everything is open,
+      and not a defect. A source whose flag is absent over a whole window is
+      flagged structurally absent for this field and withheld from the dimension
+      picker for that scope. Because accessibility models differ by publisher and
+      by jurisdiction, cross-source aggregation of this field is comparability-
+      sensitive and is not granted without out-of-band review (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

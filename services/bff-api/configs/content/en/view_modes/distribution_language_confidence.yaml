@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Language detection confidence distribution. Shows how consistently the source publishes in a single detectable language — a data-quality and corpus-composition signal."
     long: >
-      The distribution view for language_confidence shows the spread of detection certainty
+      The distribution view for language confidence shows the spread of detection certainty
       across all articles in the selected window. For a stable monolingual source, the
       distribution will be tightly packed near 1.0 — this is the expected profile for Probe 0.
       A long left tail (many articles with lower confidence) suggests short articles, mixed-
@@ -51,8 +51,8 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"

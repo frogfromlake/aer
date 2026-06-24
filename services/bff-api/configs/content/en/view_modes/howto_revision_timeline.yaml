@@ -3,22 +3,45 @@ entityType: view_mode
 locale: en
 registers:
   semantic:
-    short: "Each article's edit history on a shared time axis — when published pieces were silently changed."
+    short: "Detected edits per source over time — one line per source, showing when published pieces were silently changed."
     long: >
-      The diachronic companion to revision activity: instead of counts per source, every detected
-      edit is placed at the moment it was captured. Read the pattern — a burst of edits right after
-      publication is ordinary editorial polishing, while an isolated change weeks later is the kind of
-      quiet revision worth a second look. Articles with no captured edits simply have no points; that
-      absence is observed, not inferred (a lookup that failed is tracked separately, ADR-036).
+      The diachronic companion to revision activity: where that view collapses editing to a single bar
+      per source, this one spreads it along the time axis as one line per source, each point the number
+      of captured edits in that calendar bucket (daily / weekly / monthly, per the Resolution control).
+      Read the pattern — a rise just after publication is ordinary editorial polishing, while a late,
+      isolated bump is the kind of quiet revision worth a second look. A bucket with no captured edits
+      simply has no point; that absence is observed, not inferred (a lookup that failed is tracked
+      separately, ADR-036).
   methodological:
-    short: "Per-article revision points (snapshot_at) from aer_gold.article_revisions over the window."
+    short: "Per-source revision counts bucketed on a calendar grain (snapshot_at) from aer_gold.article_revisions; sub-daily resolution collapses to daily. One line per source."
     long: >
-      Same source as revision activity (Internet Archive CDX snapshots, digest-collapsed) but
-      un-aggregated: one point per (article, snapshot). Anchored on snapshot_at — the capture time,
-      not the article's publish date — and read with FINAL so re-ingested duplicates collapse. The
-      window bounds which captures are shown; widen it to see an article's full observed edit history.
+      Server side: the same endpoint and source as revision activity (Internet Archive CDX / Wayback
+      snapshots, collapsed by content digest so only a genuine content change counts) but read
+      diachronically. Each point is a per-(source, bucket) revision count anchored on SNAPSHOT_AT —
+      the capture time, NOT the article's publish date — drawn as one line per source. Rows read with
+      FINAL so re-ingested duplicates collapse.
+
+      What a revision event IS and is NOT. An event is the OBSERVED fact that the archived body
+      changed between two consecutive captures — a silent edit. It is not an editorial timestamp:
+      the moment shown is when the Archive happened to CAPTURE the change, which can lag the real
+      edit by hours or days, and changes made and reverted between two captures are invisible. A
+      cluster of points right after publication is ordinary polishing; an isolated point weeks later
+      is the kind of quiet revision worth a second look — but read the spacing, not the exact time.
+
+      Quantitative limits. (1) The shared Resolution control offers daily/weekly/monthly; any
+      SUB-DAILY request (5min/hourly) is forced to DAILY, because sub-day buckets would surface CDX-
+      API capture jitter rather than analytical signal — the grain is bounded by how the Archive
+      crawls, not by the publisher. (2) Per-source point density therefore tracks CAPTURE CADENCE: a
+      heavily-archived source yields denser timelines than a lightly-archived one editing just as
+      much, so compare shapes within a source over time, not raw point counts across sources. (3) The
+      window bounds which captures appear; widen it to recover an article's full observed history. (4)
+      Absence of points is OBSERVED absence, not "no edits" — a failed/skipped lookup produces no row
+      and lives in the separate wayback-lookup completeness signal (ADR-036), never coerced to a zero
+      (ADR-039 disclose-never-coerce). Composition: a single grouped query; no merged/split fan-out.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-02"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §5.3"
+  - "ADR-036"
+  - "ADR-039"

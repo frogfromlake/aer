@@ -1,0 +1,44 @@
+entityId: published_date
+entityType: field
+locale: en
+displayLabel: "Published Date"
+registers:
+  semantic:
+    short: "When the publisher says the article first went out. This is the timestamp every time-based view hangs off of."
+    long: >
+      The publication date is the moment a publisher records as the article's first
+      appearance. It is the spine of every diachronic reading: it places the article on the
+      time axis in the Episteme pillar (the climate record), drives recency faceting, and
+      bins articles into the hourly, daily, and monthly windows the Workbench reads. When you
+      slice a corpus by month or watch a topic rise across a year, this field is doing the
+      work underneath. A publisher that stamps every article with a precise date gives you a
+      clean timeline; one that omits the date leaves a gap you can see rather than a gap that
+      is silently filled. Because it anchors so much, a missing or imprecise publication date
+      is not a small omission — it is the difference between an article that can join a trend
+      and one that can only be counted, never placed.
+  methodological:
+    short: "Extracted via the priority chain JSON-LD datePublished → OpenGraph → microdata → HTML5 <time>/<meta> → htmldate heuristic; year-floor sentinel rewritten to None → Negative Space. WP-003 §3.2 · ADR-039."
+    long: >
+      The publication date is resolved by the worker's WebAdapter at the Silver boundary
+      through a five-step priority chain, taking the first authoritative value it finds.
+      JSON-LD datePublished comes first — JSON-LD is the structured machine-readable block
+      many publishers embed for search engines. If absent, the chain falls to the OpenGraph
+      article:published_time meta tag (OpenGraph is the social-sharing metadata standard),
+      then to Schema.org microdata datePublished (Schema.org is the shared vocabulary those
+      formats draw on), then to publisher-emitted HTML5 <time datetime> or <meta> tags. Only
+      as a last resort does it run htmldate, a whole-document heuristic that guesses a date
+      from page text. A critical guard applies here: when htmldate returns a "year-floor
+      sentinel" (a bare YYYY-01-01 00:00 with nothing in the HTML to corroborate it), that
+      value is rewritten to None rather than recorded. The article then becomes Negative Space
+      (AĒR's first-class disclosure of what it cannot see) — never a fake-precise stamp that
+      would pollute timeline analysis. When no authoritative date is found at all, the value
+      stays empty and the source cascades to a fetch-time fallback; the article is classified
+      under the timestamp-provenance Negative-Space class, never given a guessed date.
+      An absent publication date is a publisher choice (WP-003 §3.2), surfaced honestly, not
+      a defect and never coerced to a value AĒR did not observe (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

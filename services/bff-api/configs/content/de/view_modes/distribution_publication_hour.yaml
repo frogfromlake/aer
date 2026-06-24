@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Veröffentlichungsstunden-Verteilung. Zeigt den vollständigen Tagesrhythmus, wann eine Quelle veröffentlicht — Spitzen, Täler und ob der Output in bestimmten Stunden konzentriert oder über den Tag verteilt ist."
     long: >
-      Die Verteilungsansicht für publication_hour stellt die Dichte der Veröffentlichungen
+      Die Verteilungsansicht für die Veröffentlichungsstunde stellt die Dichte der Veröffentlichungen
       über die 24-Stunden-Uhr als Balkendiagramm oder Dichtekurve dar. Dies ist typischerweise
       die aussagekräftigste Ansicht für diese Metrik: Während der Zeitreihenmittelwert anzeigt,
       ob sich die Durchschnittsstunde verschiebt, zeigt die Verteilung, wie der redaktionelle
@@ -29,12 +29,12 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "Balkendiagramm / Dichte über publication_hour (UTC, 0–23). Tier 1. Wichtiger Hinweis: Balkendiagramme zeigen keine Zirkularität — Stunde 23 und Stunde 0 sind benachbart. UTC ≠ Lokalzeit (+1/+2 für Deutschland)."
+    short: "Balkendiagramm / Dichte über die Veröffentlichungsstunde (UTC, 0–23). Tier 1. Wichtiger Hinweis: Balkendiagramme zeigen keine Zirkularität — Stunde 23 und Stunde 0 sind benachbart. UTC ≠ Lokalzeit (+1/+2 für Deutschland)."
     long: >
       Die Verteilung wird als einfache Häufigkeitsauszählung über die 24 ganzzahligen Werte
-      von publication_hour (UTC) berechnet, aggregiert über alle Artikel im ausgewählten
+      der Veröffentlichungsstunde (UTC) berechnet, aggregiert über alle Artikel im ausgewählten
       Geltungsbereich und Fenster. Tier 1 deterministisch (WP-002 §3). Zwei
-      Interpretationshinweise spezifisch für diese Ansicht: (1) publication_hour ist eine
+      Interpretationshinweise spezifisch für diese Ansicht: (1) die Veröffentlichungsstunde ist eine
       zirkuläre Variable — ein Standard-Histogramm behandelt Stunde 23 und Stunde 0 als
       maximal entfernt, obwohl sie tatsächlich benachbart sind; Quellen, die um Mitternacht
       veröffentlichen, erscheinen aufgeteilt an den beiden Enden des Diagramms; (2) UTC-Stunden
@@ -58,9 +58,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

@@ -6,7 +6,7 @@ registers:
   semantic:
     short: "Wie viele Bilder ein Herausgeber für einen Artikel in seinen strukturierten Metadaten deklariert. Ein Näherungswert für visuelle Dichte, keine Zählung jedes Bildes auf der Seite."
     long: >
-      image_count ist die Anzahl der Bilder, die der Herausgeber in den
+      Die Bildzahl ist die Anzahl der Bilder, die der Herausgeber in den
       strukturierten Metadaten eines Artikels ausweist. Es ist ein grober
       Näherungswert dafür, wie stark eine Berichterstattung visuell aufbereitet
       ist — eine fotogeführte Reportage gegenüber einer reinen Textmeldung — und
@@ -22,7 +22,7 @@ registers:
   methodological:
     short: "Kardinalität der strukturierten schema.org-image[]-Liste. Tier 1 (deterministisch). Abwesend, wenn der Herausgeber keine Bild-Metadaten deklariert — Negative Space, nie zu 0 umgedeutet."
     long: >
-      image_count ist die Anzahl der Einträge in den strukturierten Bild-Metadaten
+      Die Bildzahl ist die Anzahl der Einträge in den strukturierten Bild-Metadaten
       des Artikels (schema.org image[]), vom WebAdapter an der Silver-Grenze
       extrahiert und vom Processor zu einem Gold-metric_name befördert
       (Phase 133). Es ist ein deterministisches Tier-1-Maß (kein Modell, keine
@@ -33,18 +33,18 @@ registers:
       <img> im gerenderten DOM — die strukturierte Menge ist meist eine kleine
       kuratierte Teilmenge, daher unterschätzt die Metrik die tatsächliche
       Bilddichte. Zweitens disclose-never-coerce (WP-003 §3.2): eine Quelle, die
-      keine strukturierten Bild-Metadaten ausgibt, ist für image_count strukturell
+      keine strukturierten Bild-Metadaten ausgibt, ist für die Bildzahl strukturell
       abwesend (als Negative Space gezeigt, im Picker für diesen Bereich nicht
       angeboten) und wird NIE als null erfasst. Ein extrahierter Artikel, der
       tatsächlich eine leere Bildliste deklariert, zählt als 0 — das ist eine
       echte Messung, verschieden von Abwesenheit.
 
-      Komposition — image_count ist eine extensive Zählung, daher summiert ein
+      Komposition — die Bildzahl ist eine extensive Zählung, daher summiert ein
       zusammengeführter Mehrquellen-Bereich legitim über den vereinigten Korpus
       (kein kontextübergreifendes Ranking); die geteilte Komposition zeigt pro
       Quelle.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §3.2"

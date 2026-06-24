@@ -1,0 +1,48 @@
+entityId: categories
+entityType: field
+locale: en
+displayLabel: "Categories"
+registers:
+  semantic:
+    short: "The set of editorial classifications a publisher assigns an article — broader than a single section, narrower than free-form tags."
+    long: >
+      Categories are the editorial classifications a publisher attaches to an article — a
+      small set of rubrics that sit between the single primary section and the open scatter of
+      keyword tags. Where the section commits to one home shelf, categories can list several
+      ("Politics", "Europe", "Climate") and so capture an article that lives on more than one
+      desk. In the Workbench categories drive faceting (small multiples split by category),
+      the Cross-tab group-by axis, the Categorical Distribution, and a node column in the
+      Sankey alluvial chain — useful for watching how a publisher's classification scheme
+      distributes its output. Read them as the newsroom's own filing logic: a source with a
+      flat, repetitive category list organises its output differently from one with a deep,
+      varied scheme. The richness of the category vocabulary is itself an observation about how
+      a publisher structures what it puts out, not a measure of quality.
+  methodological:
+    short: "JSON-LD articleSection → about[*].name fallback when articleSection absent; OpenGraph article:tag. Tier-B publisher taxonomy; not a shared scheme across sources. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      Categories are resolved by the worker's WebAdapter at the Silver boundary. The primary
+      source is the JSON-LD articleSection list — JSON-LD is the structured machine-readable
+      block many publishers embed for search engines, and a publisher may list more than one
+      section there. When articleSection is absent, the extractor falls back to the names of
+      the JSON-LD about entries (the Schema.org "about" list, the canonical topical anchor
+      many publishers use instead of articleSection — tagesschau emits about with Thing
+      references rather than articleSection). The OpenGraph article:tag (OpenGraph is the
+      social-sharing metadata standard) supplies a further fallback. Categories are a Tier-B
+      descriptive field: a list of strings the publisher chose, not values AĒR derives or
+      validates. The decisive caveat is comparability. A category set is the publisher's OWN
+      taxonomy — categories from different publishers, and especially across languages, are NOT
+      a shared classification scheme. A Sankey or cross-tab spanning sources will therefore
+      show each publisher's distinct category nodes side by side, never a normalised set, and
+      cross-source aggregation over categories is not granted without out-of-band validation
+      (WP-004 §5.3). Note also the overlap with section and tags: all three draw on
+      neighbouring Schema.org keys, so a source may populate one and leave the others empty.
+      When a source emits no category on any path, the field is structurally absent — shown as
+      Negative Space, a publisher choice (WP-003 §3.2), never coerced to an "uncategorised"
+      bucket that would invent a value AĒR never observed (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

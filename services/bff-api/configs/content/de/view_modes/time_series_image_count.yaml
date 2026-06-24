@@ -1,0 +1,71 @@
+entityId: time_series_image_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Bilder pro Artikel über die Zeit. Die mittlere deklarierte Bild-Anzahl pro Zeit-Bucket — hilfreich, um Verschiebungen im visuellen Format oder Präsentationsaufwand zu erkennen."
+    long: >
+      Diese Ansicht stellt die Bildzahl als Zeitreihe dar und zeigt, wie sich die
+      durchschnittliche Anzahl deklarierter Bilder pro Artikel über das
+      ausgewählte Fenster und den Bereich verändert. Eine flache Linie ist ein
+      stabiles Bildformat; ein anhaltender Anstieg kann auf einen Wandel zu
+      stärker fotogeführter, bebilderter Berichterstattung oder ein Redesign
+      hinweisen, das Galerien in den Metadaten sichtbar macht; ein anhaltender
+      Rückgang kann Formatverdichtung, Automatisierung oder ein schlankeres
+      Template widerspiegeln. Spitzen verfolgen oft bestimmte Ereignisse, die
+      stärkere fotografische Berichterstattung anziehen. Lesen Sie dies als Trend
+      der medialen Dichte, nicht der Tiefe — mehr Bilder sind nicht mehr
+      Berichterstattung — und bedenken Sie: es ist eine Untergrenze, gezählt
+      werden deklarierte Metadaten-Bilder, nicht jede Abbildung auf der Seite.
+      Der Vergleich zwischen Quellen zeigt, ob eine Verschiebung im visuellen
+      Format branchenweit (strukturell) oder herausgeber-spezifisch (redaktionell)
+      ist.
+
+      Komposition — komponiert das Panel mehr als eine Quelle unter
+      composition='merged', rendert diese Ansicht EINE Linie über den
+      vereinigten Korpus (BFF-Abfrage ?sourceIds=a,b,...); unter
+      composition='split' fächert dieselbe Quellenmenge in eine Linie pro Quelle
+      auf, nebeneinander bei split-direction='horizontal' oder gestapelt bei
+      'vertical'. Die merged-Lesart ist angemessen, wenn die Frage die
+      Vereinigung betrifft (z. B. wie die institutionelle Presse insgesamt über
+      die Zeit bebildert); die split-Lesart ist angemessen, wenn Quellen-
+      spezifische Unterscheidung die Frage ist.
+  methodological:
+    short: "Downsampling-Mittelwert der Bildzahl pro Zeit-Bucket. Tier 1 (deterministisch). Zählt deklarierte verschiedene Bilder (Crops dedupliziert). Buckets ohne Bild-Metadaten sind Negative Space, nie zu 0 umgedeutet."
+    long: >
+      Die Zeitreihenansicht wendet Bucket-Downsampling auf die Bildzahl-Werte an
+      und stellt den Mittelwert pro Bucket dar; optionale Unsicherheitsbänder
+      spiegeln die Varianz innerhalb des Buckets wider. Die Metrik ist die
+      Kardinalität der strukturierten Bildliste des Artikels (schema.org
+      image[]), extrahiert an der Silver-Grenze, wobei responsive Renditionen
+      desselben Bildes dedupliziert werden, sodass eine Anzahl VERSCHIEDENE
+      Bilder misst, keine Crops. Es ist ein deterministisches Tier-1-Maß
+      (WP-002 §3); Validierungsstatus: unvalidated (Engineering-Default).
+
+      Zwei Grenzen rahmen die Interpretation. Erstens der Umfang: die Bildzahl ist
+      eine Untergrenze der Bilddichte — gezählt werden nur in den strukturierten
+      Metadaten deklarierte Bilder (typischerweise Aufmacher- und
+      Social-Share-Bild), nicht jede Abbildung im gerenderten Artikeltext, daher
+      verfolgt die Linie das deklarierte visuelle Format, nicht die echte
+      Bilddichte. Zweitens disclose-never-coerce (WP-003 §3.2 / ADR-039): ein
+      Artikel, der echt eine leere Bildliste deklariert, trägt eine echte 0 zu
+      seinem Bucket bei, aber ein Bucket, dessen einzige Artikel aus einer Quelle
+      ohne ausgegebene Bild-Metadaten stammen, ist strukturell abwesend — als
+      Negative Space gezeigt, nie als 0 gezeichnet — eine Lücke in der Linie ist
+      also Schweigen, keine gemessene bildfreie Phase. Vorbehalt bei dünnen
+      Buckets: ein Mittelwert über wenige Artikel ist ein verrauschter Punkt.
+
+      Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
+      Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus, und
+      die Zelle rendert eine Linie; für 'split' führt die Zelle eine Abfrage pro
+      Quelle aus. Split-Direction ist ein reiner Layout-Schalter. Die Bildzahl ist
+      eine extensive Zählung, daher bündelt ein merged-Bereich legitim über den
+      vereinigten Korpus — ein echter kombinierter Trend, kein
+      kontextübergreifendes Ranking.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

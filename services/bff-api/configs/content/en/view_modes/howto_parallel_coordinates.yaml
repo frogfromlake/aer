@@ -3,25 +3,36 @@ entityType: view_mode
 locale: en
 registers:
   semantic:
-    short: "One line per article threaded across several metric axes — read clusters of lines that move together and crossings that show trade-offs."
+    short: "One line per article threaded across several metric axes — read bundles of lines that move together and crossings that show trade-offs."
     long: >
-      Parallel coordinates show many metrics at once. Each vertical axis is one metric; each line is
-      one article, connecting its value on every axis. Bundles of near-parallel lines are groups of
-      similar articles; lines that cross between two axes are articles that score high on one metric
-      and low on the next (a trade-off). Each axis is scaled to its own min–max, so the shape is
-      comparable across metrics on very different scales.
+      Parallel coordinates show a whole SET of metrics at once. Each vertical axis is one metric in
+      the set; each line is one article, connecting its value on every axis. Bundles of
+      near-parallel lines are groups of similar articles; lines that cross between two axes are
+      articles that score high on one metric and low on the next (a trade-off). The reading is the
+      PATTERN — clustering, crossing, fanning — not any single absolute value, because each axis is
+      scaled to its own observed min–max, so a high position on one axis is not the same number as
+      a high position on the next. Use it to spot whether articles fall into a few distinct shapes
+      across the metric set, then drop to a scatter or distribution to read the actual numbers.
   methodological:
-    short: "Per-article pivot of N metrics over the scope; only articles carrying every metric are drawn. Each axis independently min–max normalised client-side."
+    short: "Per-article pivot of the chosen metric set over the scope; only articles carrying every metric are drawn. Each axis independently min–max normalised client-side."
     long: >
-      The server pivots aer_gold.metrics per article into an N-value vector (one avgIf per metric),
-      keeping only articles that carry every requested metric so each polyline is complete. The cell
-      normalises each axis to its own observed min–max for display; the export carries the raw values.
-      The axis count is capped at 8 for readability and the article count is capped (a disclosed
-      "showing first N"). A multi-language scope requires a validated equivalence grant for every
-      metric; absent that, the cell refuses with a Level-1 alternative (WP-004 §5.2).
+      The server pivots aer_gold.metrics per article into one value per metric in the set (an avgIf
+      per metric), keeping only articles that carry EVERY requested metric so each polyline is
+      complete — an article missing any one axis is dropped rather than drawn with a guessed value
+      (disclose-never-coerce, WP-003 §3.2). The cell normalises each axis to its own observed
+      min–max for display, so the axes are visually comparable in shape across metrics on very
+      different scales; the export carries the raw, un-normalised values. The axis count is capped
+      at 8 for readability, and the article count is capped (the cell requests up to 3000 lines,
+      disclosed as "showing first N") — a denser corpus is sampled, never silently complete. A
+      sparse set of lines is a small sample, not a conclusion. A multi-language scope requires a
+      validated equivalence grant for every metric in the set; absent that, the cell refuses with a
+      Level-1 alternative rather than overlaying non-comparable scales on shared axes (WP-004 §5.2,
+      §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

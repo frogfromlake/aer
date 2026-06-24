@@ -1,0 +1,45 @@
+entityId: description
+entityType: field
+locale: en
+displayLabel: "Description"
+registers:
+  semantic:
+    short: "The publisher's own short teaser for the article — the framing they chose, not a summary AĒR generated."
+    long: >
+      Description is the short blurb a publisher attaches to an article — the line you see under
+      a headline in a search result or a social-media preview. It matters because it is the
+      publisher's own editorial framing: the words they chose to make you click, written by
+      them and never by AĒR. Reading it tells you how a source positions a story, which can
+      differ markedly from how the article actually reads. Treat it as a primary signal of
+      framing, not as a neutral summary of content. Analytically, description is mostly a
+      faceting and presence signal rather than a grouping axis: it is free text, so it does not
+      split cleanly into categories the way section or tags do. Its main Workbench role is as a
+      readable label when you inspect an individual article, and as a coverage signal — whether
+      a source bothers to emit a teaser at all is itself informative about how it packages
+      discourse for distribution.
+  methodological:
+    short: "JSON-LD description → OpenGraph og:description → microdata description. Tier-B free text. Absent = publisher emits no teaser (Negative Space), never coerced to empty. WP-003 §3.2."
+    long: >
+      Description is extracted by the worker's WebAdapter at the Silver boundary along a strict
+      priority chain: JSON-LD `description` (Schema.org structured data embedded in the page) is
+      preferred; if absent, the OpenGraph `og:description` meta tag (the convention publishers
+      use for social-preview blurbs); if that too is absent, the Schema.org microdata
+      `description` attribute. The first hit wins and its origin is recorded in the per-field
+      provenance dictionary, rolled up into the source's metadata-coverage report. JSON-LD,
+      OpenGraph and microdata are three competing ways a page can declare machine-readable
+      facts; AĒR reads whichever the publisher actually emits. The load-bearing limitation is
+      that this is the publisher's text, verbatim — it carries their framing and any
+      promotional slant, and must never be read as an objective abstract. When a source emits
+      none of the three, description is structurally absent for that article: shown as Negative
+      Space (a named gap), never silently filled with an empty string or treated as content the
+      article lacks. A source that systematically omits it — common for institutional press
+      offices — is disclosed as `structurallyAbsent`, a publisher choice and never a defect
+      (disclose-never-coerce, ADR-039; WP-003 §3.2). Cross-source comparison of description
+      presence is descriptive only; richness differences reflect publishing conventions, not
+      quality.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

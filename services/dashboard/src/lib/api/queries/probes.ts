@@ -90,6 +90,7 @@ export function contentQuery(
   ctx: FetchContext,
   entityType:
     | 'metric'
+    | 'field'
     | 'probe'
     | 'source'
     | 'discourse_function'

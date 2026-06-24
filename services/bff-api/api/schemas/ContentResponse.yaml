@@ -21,6 +21,7 @@ properties:
     description: Category of the entity.
     enum:
       - metric
+      - field
       - probe
       - source
       - discourse_function

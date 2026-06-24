@@ -3,25 +3,41 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Jeder Punkt ist ein Artikel, positioniert durch zwei Metriken — lies die Wolke auf Korrelation, Cluster und Ausreißer."
+    short: "Jeder Punkt ist ein Artikel, positioniert durch zwei Metriken; Größe und Farbe ergänzen zwei weitere Dimensionen. Lies die Wolke auf Korrelation, Cluster und Ausreißer."
     long: >
       Ein Streudiagramm beantwortet „Bewegen sich zwei Messgrößen gemeinsam, und welche Artikel
-      brechen das Muster?". Lies die Gesamtneigung der Wolke als Korrelation, dichte Bereiche als
-      typischen Artikel und Ausreißer als lohnenswerte Einzelfälle. Phase 131 bindet vier visuelle
-      Kanäle unabhängig: x- und y-Position, Punktgröße und Punktfarbe, je an eine Metrik deiner
-      Wahl. Das ist Visual-Channel-Binding konkret — es ist nicht „Streudiagramm vs. Diagramm",
-      sondern echte Kanäle an echten Artikeldaten.
+      brechen das Muster?“. Lies die Gesamtneigung der Wolke als Korrelation, dichte Bereiche als
+      typischen Artikel und Ausreißer als lohnenswerte Einzelfälle. Vier visuelle Kanäle sind
+      unabhängig gebunden — x-Position, y-Position, Punktgröße und Punktfarbe — je an eine Metrik
+      deiner Wahl (und die Farbe kann ein kategoriales Feld tragen, etwa das Ressort, sodass die
+      Wolke in farbige Gruppen zerfällt). x und y sind die beiden Pflichtkanäle: Ein Punkt
+      existiert nur dort, wo der Artikel beide trägt. Größe und Farbe sind optional und fügen
+      demselben Punkt eine dritte und vierte Dimension hinzu. Das ist Visual-Channel-Binding
+      konkret — kein „Streudiagramm vs. Diagramm“, sondern echte Kanäle an echten Artikeldaten.
+      Eine Regressionsgerade samt r wird für das x–y-Paar gezeichnet, doch eine Gerade erfasst nur
+      einen linearen Zusammenhang und bedeutet nie Ursache.
   methodological:
-    short: "Artikelweise Pivotierung zweier (optional vier) Metriken über den Geltungsbereich; nur Artikel mit beiden Positionsmetriken liefern einen Punkt."
+    short: "Artikelweise Pivotierung von zwei bis vier Metriken über den Bereich; ein Punkt erscheint nur, wenn der Artikel beide Positionsmetriken trägt. Wolke gedeckelt."
     long: >
       Die Notiz wird aus einer Vorlage je Darstellung plus den aktuellen Kanalbindungen komponiert.
-      Der Server pivotiert die rohe Gold-Metriktabelle nach Artikel: ein Punkt erscheint nur, wenn
-      der Artikel im Fenster sowohl die x- als auch die y-Metrik trägt; Größen- und Farbwerte
-      hängen an, wenn der Artikel auch diese Metriken trägt. Die Wolke ist begrenzt (Standard 2000
-      Punkte); greift das Limit, zeigt die Zelle einen „N von mehr"-Hinweis statt Vollständigkeit
-      vorzutäuschen.
-contentVersion: "v2026-05-a"
+      Der Server pivotiert die rohe Tabelle aer_gold.metrics nach article_id (BFF GET
+      /metrics/scatter): Ein Punkt erscheint nur, wenn der Artikel im Fenster SOWOHL die x- als auch
+      die y-Metrik trägt; Größen- und Farbwerte hängen an, wenn der Artikel auch diese Metriken
+      trägt, und eine fehlende Größe oder Farbe lässt den Punkt auf einem neutralen Standardwert
+      statt einer erzwungenen Null (disclose-never-coerce, WP-003 §3.2). Die Wolke ist gedeckelt
+      (die Zelle fordert bis zu 3000 Punkte an); greift das Limit, zeigt die Zelle einen „N von
+      mehr“-Hinweis, statt Vollständigkeit vorzutäuschen. Die Anpassungsgerade ist eine
+      Kleinste-Quadrate-Regression von y auf x über die gezeichneten Punkte, mit Pearson r; sie
+      bleibt leer, wenn einer Achse die Varianz fehlt. Eine kleine Wolke ergibt eine verrauschte
+      Regression — lies r zusammen mit der Punktzahl. Kanäle, die an Metriken mit über Quellen oder
+      Sprachen abweichenden Skalen gebunden sind, sind nicht automatisch vergleichbar: Ein
+      bereichsübergreifendes Streudiagramm, das kulturell nicht-äquivalente Skalen mischt, sollte
+      je Bereich gelesen werden, nicht als eine gepoolte Wolke, solange keine
+      Äquivalenz-Freigabe vorliegt (WP-004 §3.4).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"

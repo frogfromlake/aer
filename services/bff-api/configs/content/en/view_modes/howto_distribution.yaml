@@ -12,14 +12,38 @@ registers:
       bin count: fewer bins smooth the shape, more bins reveal fine structure (at the cost of
       noise on small corpora).
   methodological:
-    short: "Histogram over the metric values in scope; bin count configurable (default 30). Tier-1 deterministic for structural metrics."
+    short: "Histogram + quantile summary over the metric values in scope; bin count clamped [1, 200] (default 30), right-tail robustly clamped. Tier-1 deterministic for structural metrics."
     long: >
-      The note is composed at render time from a per-presentation template plus the cell's live
-      configuration (the active bin count). The histogram is computed server-side over the raw
-      metric values in the selected window and scope; the percentile rules come from the same
-      sample. Bin count is the one depth lever — it is clamped server-side to [1, 200].
-contentVersion: "v2026-05-a"
+      Server side: the histogram is computed over the RAW metric values in the selected scope and
+      window (GET /metrics/{name}/distribution on Gold; the Silver aggregation path for a narrowed
+      single-source word-count or entity-count). The same sample yields the quantile summary —
+      n, min, p05, p25, median, mean, p75, p95, max — and the on-plot rules (solid = median, dashed
+      = the p25/p75 inter-quartile range). For a structural metric the underlying value is Tier-1
+      deterministic (WP-002 §3); for a provisional NLP metric the distribution inherits that metric's
+      validation status.
+
+      Quantitative limits. (1) Bin count is the one depth lever, clamped server-side to [1, 200]
+      (default 30); fewer bins smooth the shape, more reveal fine structure. (2) On a small corpus
+      (rule of thumb < ~100 articles) fine binning produces NOISY estimates — a jagged shape is
+      sampling noise, not real multi-modality, and the quantiles widen. (3) Right-tail robustness:
+      to stop one extreme article (e.g. a 12000-word feature) from compressing the whole body into
+      the leftmost bin, the upper edge is clamped to a robust bound and values above it are pooled
+      into a single disclosed OVERFLOW bar (distinct amber fill, count + true max stated in the
+      caption) — never silently dropped. Under a shared (union) x-axis the overflow is disclosed in
+      the caption only, since a bar past this cell's bound would land mid-range and misread. (4) A
+      degenerate (single-value) distribution is named explicitly rather than drawn as a misleading
+      spike.
+
+      Composition (ADR-034). Under composition='merged' the cell issues ONE query over the unioned
+      sourceIds and draws one chart; under 'split' it fans out one query and one chart per source
+      (split-direction is presentation-only, not a query change). Cross-language merged scope is
+      PERMITTED in Aleph and raises a soft cross-frame-comparability banner (WP-004 §3.4) rather than
+      a refusal, because the structural metrics shown here are language-agnostic enough to pool with
+      caveats — the deliberate asymmetry against Episteme/Rhizome, which do refuse.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-004 §3.4"
+  - "ADR-034"

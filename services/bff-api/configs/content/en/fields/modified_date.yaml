@@ -1,0 +1,47 @@
+entityId: modified_date
+entityType: field
+locale: en
+displayLabel: "Modified Date"
+registers:
+  semantic:
+    short: "When the publisher says the article was last changed — present only if the publisher emits it, which institutional sources often do not."
+    long: >
+      The modified date records when a publisher last says it changed the article after first
+      publishing it. Read alongside the publication date, it tells you whether a piece has been
+      revisited — a sign of a developing story, a correction, or an ongoing live update. Its
+      presence depends entirely on whether the publisher chooses to emit it: many sources never
+      do, and for them this field is simply silent. That silence is meaningful. An institutional
+      press office (Bundesregierung, Élysée) that publishes a statement and never re-timestamps
+      it is not hiding anything — its publication model does not track post-publication edits at
+      all. In the Workbench the modified date supports recency faceting and helps separate
+      first-issue volume from re-issue activity; but because so many sources leave it empty, it
+      is best read as a positive signal where present rather than a count you can take across a
+      whole corpus.
+  methodological:
+    short: "Extracted via JSON-LD dateModified → OpenGraph article:modified_time. Absent for sources that emit no dateModified — structural absence by design (institutional press offices). WP-003 §3.2 · ADR-039."
+    long: >
+      The modified date is resolved by the worker's WebAdapter at the Silver boundary through a
+      two-step priority chain. It first reads JSON-LD dateModified — JSON-LD is the structured,
+      machine-readable metadata block publishers embed for search engines. If that is absent, it
+      falls to the OpenGraph article:modified_time meta tag (OpenGraph is the social-sharing
+      metadata standard). There is no heuristic fallback: unlike the publication date, AĒR will
+      not guess when an article was last edited. The field is therefore populated only when the
+      publisher explicitly declares it. This is the load-bearing caveat. A great many sources —
+      institutional press offices in particular — never emit dateModified at all. For those
+      sources the field is structurally absent by design (WP-003 §3.2): their publishing model
+      issues a statement and does not record subsequent edits, so the absence reflects the
+      publisher's authorship and workflow, not a fault in the article or in AĒR. Following the
+      disclose-never-coerce invariant (ADR-039), an absent modified date is shown as Negative
+      Space (AĒR's first-class disclosure of what it cannot see) and is never silently treated
+      as "unchanged" or copied from the publication date. A source whose coverage is 0% over at
+      least 50 articles in the trailing 30 days is flagged structurallyAbsent for this field, so
+      a reader knows the silence is the source's norm, not a sampling gap. Aggregating modified
+      dates across heterogeneous sources is comparability-sensitive — emitting publishers and
+      silent publishers are not the same population (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

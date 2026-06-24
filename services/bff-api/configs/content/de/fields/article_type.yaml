@@ -1,0 +1,51 @@
+entityId: article_type
+entityType: field
+locale: de
+displayLabel: "Artikeltyp"
+registers:
+  semantic:
+    short: "Der Schema.org-Typ, den ein Herausgeber für eine Seite deklariert — NewsArticle, LiveBlogPosting — er benennt die Form des Inhalts, nicht das Thema."
+    long: >
+      Der Artikeltyp benennt die FORM, die ein Herausgeber für eine Seite deklariert, nicht ihr
+      Thema: ein gewöhnlicher NewsArticle, ein laufender LiveBlogPosting, ein Article, ein
+      ReportageNewsArticle. Er sagt Ihnen, welche ART von Artefakt Sie lesen — einen fertigen
+      Bericht gegenüber einem Live-Ticker, der stündlich wächst —, und das ist von Belang, weil
+      Formen sich über die Zeit unterschiedlich verhalten und unterschiedliche Metadaten tragen.
+      In der Workbench kann er als Faceting-Achse, als Gruppierung der Kreuztabelle oder als
+      Knoten einer Sankey-Kette dienen, der nachzeichnet, wie Formen in Ressorts oder Labels
+      münden. Rechnen Sie damit, dass er flach ist: Viele Quellen stempeln jede Seite mit
+      demselben Typ, sodass das Feld oft degeneriert ist — über eine Quelle hinweg konstant —,
+      und eine konstante Spalte trägt kein Signal. Variiert er, ist er wirklich aussagekräftig
+      und unterscheidet etwa zeitlose Berichte von Live-Berichterstattung. Lesen Sie ihn als die
+      eigene Formdeklaration des Herausgebers: nützlich, wo er variiert, und still offengelegt,
+      wo nicht.
+  methodological:
+    short: "Nur JSON-LD @type (z. B. NewsArticle, LiveBlogPosting). Tier-B; häufig degeneriert (pro Quelle konstant) — eine Konstante trägt kein Signal und wird offengelegt, nicht gezeichnet. WP-003 §3.2."
+    long: >
+      Der Artikeltyp wird vom WebAdapter des Workers an der Silver-Grenze aus einer einzigen
+      Quelle aufgelöst: dem JSON-LD-@type-Wert — JSON-LD ist der strukturierte,
+      maschinenlesbare Block, den viele Herausgeber für Suchmaschinen einbetten, und @type ist
+      der Schema.org-Klassenname darin (NewsArticle, LiveBlogPosting, Article und so weiter).
+      Ist @type eine Liste, wird der erste Zeichenketten-Eintrag genommen. Es gibt keinen
+      OpenGraph- oder Microdata-Fallback: Eine Quelle, die kein JSON-LD-@type ausgibt, lässt
+      dieses Feld leer. Es ist ein beschreibendes Tier-B-Feld — eine einzelne vom Herausgeber
+      deklarierte Zeichenkette, weder von AĒR abgeleitet noch validiert. Die operative Realität,
+      die hervorzuheben ist, ist die Degeneriertheit: Die meisten Herausgeber stempeln einen Typ
+      über ihre gesamte Ausgabe („NewsArticle" auf jeder Seite), sodass das Feld über eine
+      einzelne Quelle hinweg häufig konstant ist. Eine Konstante trägt kein analytisches Signal
+      — sie kann einen Korpus nicht in sinnvolle Gruppen trennen —, weshalb AĒR die
+      Degeneriertheit offenlegt, statt eine flache Verteilung zu zeichnen, die eine nicht
+      vorhandene Unterscheidung suggerierte. Wirklich variabel ist der Typ vor allem bei
+      Herausgebern, die Live-Berichterstattung (LiveBlogPosting) von fertigen Berichten
+      trennen, wo er zu einer nützlichen Faceting-Achse wird. Die Vergleichbarkeit über Quellen
+      ist hier milder als bei freien Feldern, da @type sich aus einem festen
+      Schema.org-Vokabular speist, doch die WAHL des Herausgebers, welche Typen er deklariert,
+      bleibt redaktionell. Gibt eine Quelle kein @type aus, ist das Feld strukturell abwesend —
+      als Negative Space gezeigt, eine Herausgeber-Entscheidung (WP-003 §3.2), nie zu einem nie
+      beobachteten Standardtyp umgedeutet (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

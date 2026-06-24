@@ -1,0 +1,47 @@
+entityId: tags
+entityType: field
+locale: en
+displayLabel: "Tags"
+registers:
+  semantic:
+    short: "The free-form keywords a publisher attaches to an article — the finest-grained, most open layer of its own classification."
+    long: >
+      Tags are the free-form keywords a publisher pins to an article: people, places,
+      events, themes. They are the finest-grained and most open layer of a publisher's
+      classification — where a section commits to one desk and categories to a small set of
+      rubrics, tags can run to a dozen specific terms ("Bundestag", "Energiepreise", "Olaf
+      Scholz"). In the Workbench they support faceting and the Categorical Distribution, can
+      anchor a node column in a Sankey alluvial chain, and give a quick read on what entities
+      and themes a source foregrounds in its own words. Read them as the newsroom's editorial
+      indexing, distinct from the entities AĒR itself extracts from article text: tags tell
+      you what the publisher chose to flag, not what the analyser found. A source that tags
+      densely exposes a richer surface for faceting; one that tags sparsely or not at all is
+      making a different editorial choice, not failing a standard.
+  methodological:
+    short: "JSON-LD keywords → OpenGraph article:tag. Tier-B publisher keywording; multi-valued; not a shared scheme across sources. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      Tags are resolved by the worker's WebAdapter at the Silver boundary. The primary source
+      is the JSON-LD keywords field — JSON-LD is the structured machine-readable block many
+      publishers embed for search engines — parsed into a list of strings (a comma-joined
+      keyword string is split into its parts). When JSON-LD keywords are absent, the extractor
+      falls back to the OpenGraph article:tag meta tag (OpenGraph is the social-sharing
+      metadata standard). Tags are a Tier-B descriptive field: a multi-valued list of whatever
+      terms the publisher chose, neither derived nor validated by AĒR. Note the close
+      relationship with section and categories — all three feed on neighbouring Schema.org
+      keys (keywords also serves as the final fallback for section), so the same keyword string
+      can surface in more than one field. The load-bearing caveat is comparability: tags are
+      the publisher's OWN keywording vocabulary, not a controlled or shared scheme. The same
+      concept may appear as "EU", "Europäische Union", or "Brussels" across sources, and
+      identical surface strings across languages are not guaranteed to mean the same thing.
+      Cross-source aggregation over tags is therefore not granted without out-of-band
+      validation (WP-004 §5.3); a faceting view or Sankey across sources shows each publisher's
+      distinct tag nodes, not a unified index. When a source emits no tags on any path, the
+      field is structurally absent — shown as Negative Space, a publisher choice (WP-003 §3.2),
+      never coerced to an empty-list value treated as a measured zero (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

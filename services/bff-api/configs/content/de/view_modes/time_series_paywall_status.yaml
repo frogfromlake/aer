@@ -1,0 +1,68 @@
+entityId: time_series_paywall_status
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Bezahlschranken-Anteil über die Zeit. Der Mittelwert des 0/1-Flags pro Zeit-Bucket — ein Signal für den Wandel des Geschäftsmodells: öffnet sich eine Quelle oder schottet sie sich ab?"
+    long: >
+      Der Bezahlschranken-Status ist ein 0/1-Wert pro Artikel, daher ist seine Zeitreihe
+      nicht das Flag selbst, sondern dessen Mittelwert pro Zeit-Bucket — also
+      der Anteil der Artikel in jedem Bucket, die hinter einer Bezahlschranke
+      liegen. Eine flache Linie nahe 0 ist eine Quelle, die frei veröffentlicht;
+      eine flache Linie nahe 1 eine, die fast alles hinter eine Bezahlschranke
+      setzt; eine steigende oder fallende Linie ist der interessante Fall — eine
+      Drift der Zugangspolitik, oft die sichtbare Spur eines Geschäftsmodell-
+      Wandels, einer Phase freier Berichterstattung um ein Ereignis oder einer
+      neuen Bezahlstufe. Abrupte Stufen können den Tag markieren, an dem eine
+      Bezahlschranke ein- oder abgeschaltet wurde. Der Vergleich zwischen Quellen
+      zeigt, ob ein Öffnungs- oder Schließungstrend branchenweit oder
+      herausgeber-spezifisch ist; eine staatliche Quelle flach bei 0 neben einer
+      kommerziellen Quelle mit steigender Linie ist eine strukturelle Divergenz
+      in der öffentlichen Reichweite, keine Qualitätslücke.
+
+      Komposition — komponiert das Panel mehr als eine Quelle unter
+      composition='merged', rendert diese Ansicht EINE Linie über den
+      vereinigten Korpus (BFF-Abfrage ?sourceIds=a,b,...); unter
+      composition='split' fächert dieselbe Quellenmenge in eine Linie pro Quelle
+      auf, nebeneinander bei split-direction='horizontal' oder gestapelt bei
+      'vertical'. Da der Bezahlschranken-Anteil eine intensive Proportion ist,
+      bündelt die merged-Linie Quellen womöglich unterschiedlicher Größe und
+      Kontexts und behauptet kontextübergreifende Vergleichbarkeit (Design-Brief §1.3) —
+      unterscheiden sich die Quellen, hält die split-Lesart (eine Linie pro
+      Quelle) jeden Anteil für sich lesbar.
+  methodological:
+    short: "Downsampling-Mittelwert des Bezahlschranken-Status (0/1) pro Zeit-Bucket = Bezahlschranken-Anteil über die Zeit. Tier 1 (deterministisch). Buckets ohne ausgegebenes Flag sind Negative Space, nie als frei gezählt."
+    long: >
+      Die Zeitreihenansicht wendet Bucket-Downsampling auf die Bezahlschranken-Status-Werte
+      an und stellt den Mittelwert pro Bucket dar. Da die Metrik ein 0/1-Flag ist
+      — gelesen aus schema.org isAccessibleForFree (negiert) an der Silver-Grenze
+      — ist der Mittelwert pro Bucket genau der Bezahlschranken-ANTEIL in diesem
+      Bucket, eine Zahl in [0,1]. Optionale Unsicherheitsbänder spiegeln die
+      Varianz innerhalb des Buckets wider; bei einer binären Metrik ist diese
+      Varianz nahe einer 50/50-Teilung am größten und verschwindet, wenn der
+      Anteil gegen 0 oder 1 geht. Es ist ein deterministisches Tier-1-Maß
+      (WP-002 §3); Validierungsstatus: unvalidated (Engineering-Default).
+
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2 / ADR-039): nur
+      Artikel, deren Herausgeber das Zugänglichkeits-Flag ausgibt, gehen in den
+      Mittelwert ein. Ein Bucket, das nur Artikel einer Quelle ohne ausgegebenes
+      Flag enthält, ist für diese Metrik strukturell abwesend — als Negative
+      Space gezeigt, nie als 0 gezeichnet — eine Lücke in der Linie ist also
+      Schweigen, keine gemessene Phase „alles frei". Vorbehalt bei dünnen
+      Buckets: ein über wenige Artikel berechneter Anteil ist ein verrauschter
+      Punkt, und ein einzelner Artikel kippt ein kleines Bucket zwischen 0 und 1.
+
+      Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
+      Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus, und
+      die Zelle rendert eine Linie; für 'split' führt die Zelle eine Abfrage pro
+      Quelle aus. Split-Direction ist ein reiner Layout-Schalter. Da die
+      merged-Linie eine gebündelte intensive Proportion ist, ist der
+      Cross-Sonden-Merge vergleichbarkeitsreguliert (Design-Brief §1.3), keine freie
+      Summe.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

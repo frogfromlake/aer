@@ -1,0 +1,50 @@
+entityId: section
+entityType: field
+locale: de
+displayLabel: "Ressort"
+registers:
+  semantic:
+    short: "Das eine Hauptressort, unter dem ein Herausgeber einen Artikel einordnet — Politik, Sport, Wirtschaft — sozusagen sein Regalplatz."
+    long: >
+      Das Ressort ist die eine Hauptrubrik, unter die ein Herausgeber einen Artikel stellt:
+      sein Schreibtisch, sein Regalplatz — Politik, Sport, Kultur, Wirtschaft. Während Tags
+      einen Artikel über viele Schlagworte streuen, legt sich das Ressort auf genau eines
+      fest. In der Workbench ist es die natürliche Gruppierungsachse: Teilen Sie einen Korpus
+      in Small Multiples nach Ressort, um zu sehen, welche Schreibtische eine Quelle am
+      stärksten bespielt; setzen Sie es als kategoriale x-Achse einer Verteilung, um die
+      Aufmerksamkeitsstruktur eines Herausgebers abzulesen; oder machen Sie es zur ersten
+      Spalte einer Sankey-Kette, um zu verfolgen, wie Ressorts in Typen oder Labels münden.
+      Lesen Sie es als die eigene Einordnungsentscheidung des Herausgebers, nicht als neutrale
+      Sachklassifikation: Eine Quelle, die alles unter „News" ablegt, sagt etwas anderes als
+      eine mit einem Dutzend feiner Ressorts. Schon ein reiches Ressort-Vokabular ist ein
+      Signal dafür, wie eine Redaktion ihre Ausgabe organisiert.
+  methodological:
+    short: "Erster Treffer aus JSON-LD articleSection → OpenGraph article:section → JSON-LD about[0].name → keywords[0]. Tier-B-Herausgeber-Taxonomie; Abwesenheit = Herausgeber-Entscheidung. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      Das Ressort wird vom WebAdapter des Workers an der Silver-Grenze über eine vierstufige
+      Prioritätskette aufgelöst, die den ersten gefundenen Wert nimmt. Zuerst liest sie JSON-LD
+      articleSection — JSON-LD ist der strukturierte, maschinenlesbare Block, den viele
+      Herausgeber für Suchmaschinen einbetten. Fehlt er, fällt die Kette auf das
+      OpenGraph-Tag article:section (OpenGraph ist der Metadaten-Standard fürs Teilen in
+      sozialen Netzen), dann auf den Namen des ersten JSON-LD-about-Eintrags (die
+      Schema.org-„about"-Liste verweist auf den primären thematischen Anker des Artikels, oft
+      mit einer sameAs-URL zu einer Wissensbasis), und schließlich auf das erste
+      JSON-LD-Keyword. tagesschau etwa gibt kein articleSection aus, führt aber eine
+      about-Liste und Keywords, sodass der Fallback den thematischen Anker greift, statt das
+      Feld leer zu lassen. Das Ressort ist ein beschreibendes Tier-B-Feld: Es ist die
+      Zeichenkette, die der Herausgeber gewählt hat, kein von AĒR abgeleiteter Wert. Der
+      tragende Vorbehalt ist die Vergleichbarkeit: Ein Ressort gehört zur EIGENEN Taxonomie des
+      Herausgebers, nicht zu einem gemeinsamen Schema. „Politik" der einen Quelle und „Politics"
+      einer anderen sind nicht derselbe Knoten, und eine quellenübergreifende Aggregation über
+      Ressorts wird ohne externe Validierung nicht gewährt (WP-004 §5.3) — ein Sankey oder eine
+      Kreuztabelle über Quellen zeigt das je eigene Vokabular nebeneinander, nie eine
+      normalisierte Klassifikation. Gibt eine Quelle auf keinem Pfad ein Ressort aus, ist das
+      Feld strukturell abwesend — als Negative Space gezeigt, eine Herausgeber-Entscheidung
+      (WP-003 §3.2), nie zu einem Platzhalter-Bucket umgedeutet (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

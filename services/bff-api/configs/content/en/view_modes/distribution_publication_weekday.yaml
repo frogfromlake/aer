@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Publication weekday distribution. Shows the full weekly pattern of when a source publishes — the most direct view of the editorial work week."
     long: >
-      The distribution view for publication_weekday renders publication volume across the
+      The distribution view for publication weekday renders publication volume across the
       seven days of the week as a bar chart. This is typically the most interpretable view for
       this metric: a single bar chart shows the source's editorial week at a glance. Strong
       Monday–Friday bars with flat Saturday–Sunday bars are the signature of institutional
@@ -27,13 +27,13 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "Bar chart over publication_weekday (ISO 1=Mon, 7=Sun). Tier 1. Normalise by corpus size when comparing sources of different activity levels. UTC date boundary applies (see metric entry)."
+    short: "Bar chart over publication weekday (ISO 1=Mon, 7=Sun). Tier 1. Normalise by corpus size when comparing sources of different activity levels. UTC date boundary applies (see metric entry)."
     long: >
-      The distribution is a frequency count over the seven integer values of publication_weekday
+      The distribution is a frequency count over the seven integer values of publication weekday
       (ISO 8601: 1 = Monday, 7 = Sunday). Tier 1 deterministic (WP-002 §3). Methodological
       notes: (1) raw counts are proportional to source activity level; normalise to publication
       rates (articles per day of week) when comparing a prolific source with a low-volume one;
-      (2) the UTC date-boundary caveat applies — see the metric entry for publication_weekday;
+      (2) the UTC date-boundary caveat applies — see the metric entry for publication weekday;
       for Probe 0 sources, this affects only a small fraction of articles published near
       midnight UTC; (3) within a probe scope, the distribution aggregates across sources —
       a probe-level peak on Monday reflects aggregate Monday volume, which could mask one
@@ -53,9 +53,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

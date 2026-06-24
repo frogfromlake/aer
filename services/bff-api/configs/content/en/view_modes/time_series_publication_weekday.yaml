@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Publication weekday over time. For most stable sources this curve is flat — deviations signal real shifts in editorial scheduling, such as weekend coverage expansion or reduced weekday output."
     long: >
-      This view plots publication_weekday as a rolling average across the observation window.
+      This view plots publication weekday as a rolling average across the observation window.
       Because weekday is a weekly-cycle quantity, the time series is most interpretable over
       multi-week or multi-month ranges where the rolling mean stabilises. For institutional
       sources with strong Monday–Friday concentration, the mean publication weekday hovers
@@ -26,11 +26,11 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "5-minute downsampled mean of publication_weekday (ISO 1–7). Tier 1. Note: interpreting a mean of a weekly-cycle quantity requires multi-week observation windows to be meaningful."
+    short: "5-minute downsampled mean of publication weekday (ISO 1–7). Tier 1. Note: interpreting a mean of a weekly-cycle quantity requires multi-week observation windows to be meaningful."
     long: >
-      publication_weekday is a Tier 1 deterministic metric (WP-002 §3). In this time-series
+      Publication weekday is a Tier 1 deterministic metric (WP-002 §3). In this time-series
       view, it is plotted as a downsampled mean — which requires careful interpretation.
-      publication_weekday is a categorical quantity with weekly periodicity; its arithmetic
+      Publication weekday is a categorical quantity with weekly periodicity; its arithmetic
       mean is only meaningful when computed over spans long enough to average across multiple
       full weeks. Over short windows (days to a week), the apparent trend is dominated by
       which day the window happens to start and end on, not by any structural editorial change.
@@ -51,9 +51,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

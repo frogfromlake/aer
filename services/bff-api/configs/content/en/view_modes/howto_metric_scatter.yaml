@@ -3,24 +3,38 @@ entityType: view_mode
 locale: en
 registers:
   semantic:
-    short: "Each point is one article, positioned by two metrics — read the cloud for correlation, clusters, and outliers."
+    short: "Each point is one article, positioned by two metrics; size and colour add two more dimensions. Read the cloud for correlation, clusters, and outliers."
     long: >
       A scatter answers "do two measurements move together, and which articles break the
-      pattern?". Read the overall tilt of the cloud for correlation, dense regions for the
-      typical article, and stragglers for outliers worth opening. Phase 131 binds four visual
-      channels independently: x and y position, point size, and point colour, each to a metric
-      of your choice. This is visual-channel binding made concrete — it is not "scatter vs
-      chart", it is real channels bound to real per-article data.
+      pattern?". Read the overall tilt of the cloud for correlation, dense regions for the typical
+      article, and stragglers for outliers worth opening. Four visual channels are bound
+      independently — x position, y position, point size, and point colour — each to a metric of
+      your choice (and colour may carry a categorical field, e.g. section, so the cloud splits into
+      coloured groups). x and y are the two required channels: a point exists only where the
+      article carries both. Size and colour are optional and add a third and fourth dimension to
+      the same point. This is visual-channel binding made concrete — not "scatter vs chart", but
+      real channels bound to real per-article data. A regression line and its r are drawn for the
+      x–y pair, but a straight line only captures a linear relationship and never implies cause.
   methodological:
-    short: "Per-article pivot of two (optionally four) metrics over the scope; only articles carrying both position metrics contribute a point."
+    short: "Per-article pivot of two-to-four metrics over the scope; a point appears only when the article carries both position metrics. Point cloud capped."
     long: >
       The note is composed from a per-presentation template plus the live channel bindings. The
-      server pivots the raw Gold metrics table by article: a point appears only when the article
-      carries both the x and y metric in the window; the size and colour values attach when the
-      article also carries those metrics. The cloud is capped (default 2000 points); when the
-      cap bites the cell shows a "showing N of more" note rather than implying exhaustiveness.
-contentVersion: "v2026-05-a"
+      server pivots the raw aer_gold.metrics table by article_id (BFF GET /metrics/scatter): a
+      point appears only when the article carries BOTH the x and y metric in the window; the size
+      and colour values attach when the article also carries those metrics, and a missing size or
+      colour leaves the point at a neutral default rather than coercing a zero (disclose-never-
+      coerce, WP-003 §3.2). The cloud is capped (the cell requests up to 3000 points); when the cap
+      bites, the cell shows a "showing N of more" note rather than implying the cloud is
+      exhaustive. The fitted line is an ordinary least-squares regression of y on x over the
+      rendered points, with Pearson r; it is blank when an axis has no variance. A small cloud is a
+      noisy regression — read r alongside the point count. Channels bound to metrics whose scales
+      differ across sources or languages are not automatically comparable: a cross-frame scatter
+      that mixes culturally non-equivalent scales should be read within each frame, not as one
+      pooled cloud, until an equivalence grant exists (WP-004 §3.4).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"

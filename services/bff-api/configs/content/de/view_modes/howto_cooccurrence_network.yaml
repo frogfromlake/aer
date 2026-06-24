@@ -3,25 +3,48 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Knoten sind Entitäten; eine Kante bedeutet, dass zwei Entitäten im selben Artikel genannt wurden. Lies Cluster als wiederkehrende Rahmungen."
+    short: "Knoten sind Entitäten; eine Kante heißt, zwei Entitäten wurden im selben Artikel genannt. Lies Cluster als Rahmungen, Brückenknoten als Verbinder."
     long: >
       Ein Ko-Okkurrenz-Netzwerk beantwortet „Welche Akteure, Orte und Konzepte werden zusammen
-      besprochen?". Lies dichte Cluster als wiederkehrende Rahmungen und Brückenknoten als
-      Entitäten, die sonst getrennte Gespräche verbinden. Phase 131 bindet zwei visuelle Kanäle:
-      die Knotengröße kann das Gesamt-Ko-Okkurrenzgewicht oder den Knotengrad kodieren, und die
-      Knotenfarbe den Entitätstyp, die quellenübergreifende Präsenz oder einen einheitlichen Ton.
-      Ziehe Knoten zum Entwirren, klicke einen für die zugrunde liegenden Artikel.
+      besprochen?“. Lies dichte Cluster als wiederkehrende Rahmungen und Brückenknoten als
+      Entitäten, die sonst getrennte Gespräche verbinden. Zwei visuelle Kanäle sind unabhängig an
+      den Graphen gebunden: Knotengröße und Knotenfarbe. Die Größe kann das Gesamt-Ko-Okkurrenz-
+      gewicht, den Knotengrad (mit wie vielen verschiedenen Partnern eine Entität verbunden ist)
+      oder eine Artikel-Kennzahl kodieren (etwa wie lang die Artikel sind, die diese Entität
+      nennen). Die Farbe kann den erkannten Themencluster (Community), den Entitätstyp, die
+      quellenübergreifende Präsenz, einen einheitlichen Ton oder eine Artikel-Kennzahl kodieren
+      (etwa das mittlere Sentiment der Artikel, die die Entität nennen). Treibt eine Kennzahl einen
+      Kanal, bedeutet ein größerer oder wärmerer Knoten einen HÖHEREN Mittelwert für diese Entität
+      — nie eine Anzahl von Nennungen. Ziehe Knoten zum Entwirren, klicke einen für die
+      zugrunde liegenden Artikel.
   methodological:
-    short: "Top-N-Entitätspaare nach Ko-Okkurrenzgewicht, kräftegerichtet; Knotengröße/-farbe an eine gewählte Graph-Dimension gebunden."
+    short: "Top-N-Entitätspaare nach Ko-Okkurrenzgewicht, kräftegerichtet; Knotengröße/-farbe binden an eine Graph-Dimension ODER den Mittelwert einer Artikel-Kennzahl."
     long: >
       Die Notiz wird aus einer Vorlage je Darstellung plus dem aktuellen Top-N-Limit und den
-      gebundenen Größen-/Farbkanälen komponiert. Kanten sind die Top-N-Paare nach summierter
-      Ko-Okkurrenz im Fenster (serverseitig auf [1, 6000] begrenzt); ein dünner Graph spiegelt
-      Korpus-Dünnheit wider, keine analytische Schlussfolgerung. Farbe trägt keine Valenz — sie
-      ist nur eine kategoriale/Präsenz-Kodierung.
-contentVersion: "v2026-05-a"
+      gebundenen Größen-/Farbkanälen komponiert. Kanten sind die Top-N-Entitätspaare nach
+      summierter Ko-Okkurrenz im Fenster (serverseitig auf [1, 6000] begrenzt; Zell-Standard 60);
+      ein dünner Graph spiegelt Korpus-Dünnheit wider, keine analytische Schlussfolgerung, und
+      wird markiert, sobald er unter acht Knoten fällt. Die Knotengröße bindet an total_count
+      (summiertes Ko-Okkurrenzgewicht), den Knotengrad oder eine Artikel-Kennzahl; die Knotenfarbe
+      bindet an Community (Louvain-Themencluster), Entitätstyp, Präsenz (Anzahl distinkter Quellen,
+      in denen eine Entität erscheint), source_overlay (eine Quellpalette im merged-Bereich), einen
+      einheitlichen Ton oder eine Artikel-Kennzahl — Größe und Farbe dürfen an VERSCHIEDENE
+      Kennzahlen binden. Ist eine Artikel-Kennzahl gebunden, ist der für eine Entität gezeigte Wert
+      der MITTELWERT dieser Kennzahl über alle Artikel im Bereich, in denen die Entität erscheint
+      (BFF nodeMetric / nodeColorMetric): Knotenfarbe = Sentiment heißt „das durchschnittliche
+      Sentiment der Artikel, die diesen Akteur nennen“; Knotengröße = Wortzahl heißt „die
+      durchschnittliche Länge dieser Artikel“. Eine Entität ohne einen Artikel, der die Kennzahl
+      trägt, erscheint als grauer „keine Daten“-Knoten, nie als erzwungene Null
+      (disclose-never-coerce, WP-003 §3.2). Farbe trägt keine eigene Valenz — sie ist nur eine
+      kategoriale oder skalierte Kodierung. Entitäten stammen aus sprach-spezifischem NER, also
+      sind Ko-Nennungsgewichte INNERHALB einer Sprache vergleichbar; ein mehrsprachiger
+      merged-Bereich wird in der BFF verweigert (NER-Tag-Mengen und Frequenzen sind über Pipelines
+      nicht kommensurabel) — prüfe jede Sprache in ihrer eigenen Split-Zelle (ADR-034, WP-004 §3.4).
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-005 §6.2"

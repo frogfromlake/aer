@@ -1,0 +1,63 @@
+entityId: distribution_paywall_status
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Paywall status as a distribution. With only two possible values (0 = free, 1 = paywalled) this is really a proportion — the share of the corpus behind a paywall."
+    long: >
+      The paywall flag is a per-article 0/1 value, so its distribution is not a
+      shape with a tail and a peak the way article length is — it is a
+      two-bin histogram, and the only thing it can really tell you is the
+      proportion: what share of the scoped corpus sits behind a paywall versus
+      free. A source that paywalls everything (or nothing) produces a single
+      bar — which is itself the finding, a publisher with a uniform access
+      model. A source that mixes free and paid reporting produces two bars
+      whose relative heights are the paywalled share. Read this view as a
+      snapshot of access policy at one moment for one scope; to see whether
+      that share is drifting, switch the same metric to a time series. Comparing
+      two sources side by side reveals a structural difference in public reach —
+      not a quality judgement.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE chart over the unioned
+      corpus (BFF query ?sourceIds=a,b,...); under composition='split' the
+      same source-set fans out into one chart per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. Because the
+      paywalled share is an intensive proportion, pooling more than one probe
+      onto one chart asserts cross-context comparability and is regulated
+      accordingly (Brief §1.3); the split reading — one bar pair per source —
+      is the safer default when the sources differ in language or context.
+  methodological:
+    short: "Two-bin histogram of the paywall flag (0/1) over the scoped window — effectively the paywalled share. Tier 1 (deterministic). Articles whose publisher emits no accessibility flag are Negative Space, never counted as free."
+    long: >
+      The distribution is computed as a histogram over the paywall-flag values in
+      the selected scope and time window. Because the underlying metric takes
+      only two values — 0 (free) and 1 (paywalled), read from schema.org
+      isAccessibleForFree (negated) at the Silver boundary — the histogram
+      degenerates to two bins, and the height of the paywalled bin divided by
+      the total is the paywalled SHARE. The configurable bin count has no
+      meaningful effect here: a 0/1 metric has at most two occupied bins
+      regardless of the setting. It is a Tier 1 deterministic measure
+      (WP-002 §3); validation status is unvalidated (engineering default).
+
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2 / ADR-039):
+      only articles whose publisher actually emits the accessibility flag enter
+      the histogram. An article that genuinely declares itself free counts as 0;
+      a source that emits no flag at all is structurally absent — surfaced as
+      Negative Space and withheld from the picker — and is NEVER folded into the
+      free bin. Treat a near-constant source (one bar) as a real reading, and
+      caveat small corpora: with few articles the share is a noisy estimate.
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the handler
+      executes a single BFF call with the unioned sourceIds and the Cell renders
+      one chart; for 'split' the Cell fans out one query per source. Split
+      direction is a layout toggle only. Because the merged reading is a pooled
+      intensive proportion, the cross-probe merge is comparability-regulated
+      (Brief §1.3) rather than a free total.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

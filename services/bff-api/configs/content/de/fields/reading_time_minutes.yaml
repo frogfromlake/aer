@@ -1,0 +1,52 @@
+entityId: reading_time_minutes
+entityType: field
+locale: de
+displayLabel: "Lesezeit (Minuten)"
+registers:
+  semantic:
+    short: "Eine vom Herausgeber gelieferte Schätzung, wie viele Minuten das Lesen eines Artikels dauert."
+    long: >
+      Das Feld Lesezeit enthält die eigene Schätzung des Herausgebers, wie lange
+      das Lesen eines Artikels in ganzen Minuten dauert. Es ist eine darstellerische
+      Annehmlichkeit, die manche Nachrichtenseiten berechnen und einbetten —
+      typischerweise eine grobe Division nach Wörtern pro Minute — und AĒR erfasst
+      die Zahl einfach, wenn die Seite sie angibt. Als Feld gelesen ist das
+      eigentlich interessantere Signal nicht die Zahl, sondern ihr Vorhandensein:
+      eine Quelle, die eine Lesezeit ausgibt, hat in eine leserzugewandte
+      Ausstattungsebene investiert, was eher konsumentenorientierte redaktionelle
+      Herausgeber kennzeichnet als institutionelle Presseämter. Wo das Feld
+      befüllt ist, kann es als Facettierungsachse oder Farbkanal im Streudiagramm
+      dienen und passt natürlich zu word_count als grober Gegenprüfung der
+      Artikellänge. Im aktuellen Korpus ist die Lesezeit jedoch nahezu durchweg
+      abwesend, sodass die ehrliche Lesart dieses Feldes heute vor allem sein
+      Schweigen ist: die meisten von AĒR beobachteten Quellen deklarieren es nicht.
+  methodological:
+    short: "JSON-LD timeRequired (ISO-8601-Dauer PT…M), nur Minuten. Tier-C. Heute nahezu durchweg abwesend; Abwesenheit = Herausgeber-Entscheidung, nie umgedeutet. WP-003 §3.2."
+    long: >
+      Das Feld wird an der Silver-Grenze vom WebAdapter des Workers aus dem JSON-LD
+      der Seite gelesen — dem in die Seite eingebetteten strukturierten
+      Schema.org-Datenblock — aus dem Schlüssel timeRequired. Dieser Wert ist ein
+      ISO-8601-Dauer-String; AĒR parst nur die einfache Minutenform „PT<N>M“ (zum
+      Beispiel PT5M → 5 Minuten) und nimmt die Ganzzahl zwischen dem Präfix PT und
+      dem abschließenden M. Jede reichere Dauerform oder ein Wert, der nicht als
+      Ganzzahl parst, gilt als kein Signal. Es gibt keinen OpenGraph-, Microdata-
+      oder berechneten Rückfall — gibt der Herausgeber timeRequired nicht in genau
+      dieser Form aus, bleibt das Feld leer; AĒR leitet nie eine Lesezeit aus
+      word_count ab, um die Lücke zu füllen.
+      Die Abwesenheit ist der dominierende Fall. timeRequired ist ein Tier-C-Feld,
+      das nur sehr wenige Herausgeber überhaupt ausgeben, und fast keiner in der
+      Form, die AĒR parsen kann, sodass das Feld für den aktuellen Korpus nahezu
+      durchweg abwesend ist. Unter disclose-never-coerce (ADR-039) bleibt diese
+      Abwesenheit Negative Space, wird nie mit einer Schätzung nachgefüllt und nie
+      als „null Minuten“ gelesen. Eine Quelle, die es nie ausgibt, ist eine
+      Herausgeber-Entscheidung (WP-003 §3.2), kein Defekt; das Feld wird für diese
+      Quelle als strukturell abwesend markiert und im Dimensions-Picker für den
+      Bereich nicht angeboten. Behandeln Sie etwaige befüllte Werte als zu spärlich
+      für einen quellenübergreifenden Vergleich ohne externe Prüfung (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

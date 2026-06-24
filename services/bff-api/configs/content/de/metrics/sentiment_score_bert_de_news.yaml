@@ -10,7 +10,7 @@ registers:
       das auf deutschen Nachrichtentexten feinjustiert wurde, und wendet es
       artikelweise an. Die drei Klassen des Modells (negativ / neutral / positiv)
       werden zu einer einzigen Zahl zwischen −1 und +1 zusammengefasst. Im
-      Vergleich zum mehrsprachigen Sentiment (sentiment_score_bert_multilingual)
+      Vergleich zum mehrsprachigen Sentiment (das mehrsprachige BERT-Modell)
       liegt dieses Modell näher am Quellenregister von AĒR — es hat Texte
       gelesen, die stilistisch dem ähneln, was es bewerten soll, während das
       mehrsprachige Modell auf Twitter-Texten vieler Sprachen trainiert wurde.
@@ -26,17 +26,17 @@ registers:
       composition='merged' bündelt, aggregiert diese Metrik als mittlere
       Polarität (Bereich −1..+1) über den vereinigten Korpus.
       Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
-      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      gegenüber Ungleichgewicht im Quell-Mix: eine einzelne volumenstarke
       Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
       pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
-      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      Die merged-Lesart ist über Sprachen mit weichem Methodikhinweis erlaubt
       (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
       View-Mode-Eintrag für das genaue Verhalten.
 
   methodological:
     short: "mdraw/german-news-sentiment-bert, gepinnte HuggingFace-Revision. Tier-2.5-Verfeinerung gemäß ADR-023. P(pos) − P(neg), geklippt auf [-1, +1]. Strikter de-only-Sprachfilter. WP-002 §3.2."
     long: >
-      sentiment_score_bert_de_news wird vom GermanNewsBertSentimentExtractor
+      Der deutsche News-BERT-Stimmungswert wird vom deutschen News-Sentiment-Extraktor
       berechnet, der mdraw/german-news-sentiment-bert ausführt, gepinnt per
       HuggingFace-Commit-Revision im
       languages.de.sentiment_tier2_refinement-Block des Language Capability
@@ -44,8 +44,8 @@ registers:
       P(positiv) − P(negativ), geklippt auf [-1, +1] — gleiche
       Determinismus-Flags, gleiches Phase-119-CI-Gate. Gemäß ADR-023 ist dies
       die Tier-2.5-Verfeinerungsschicht: optional, sprachgebunden, und ersetzt
-      weder den Tier-1-Lexikonscore (sentiment_score_sentiws) noch den
-      Tier-2-Multilingual-Default (sentiment_score_bert_multilingual). Das
+      weder den Tier-1-Lexikonscore (die SentiWS-Metrik) noch den
+      Tier-2-Multilingual-Default (die mehrsprachige BERT-Metrik). Das
       Dashboard zeigt alle drei gemäß ADR-016s Dual-Metric-Muster; die Lücke
       zwischen Multilingual-Default und domänenspezifischer Verfeinerung ist
       das WP-002-§3.2-Domänentransfer-Signal. Das OpenAPI-TierClassification-
@@ -76,9 +76,9 @@ registers:
       anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

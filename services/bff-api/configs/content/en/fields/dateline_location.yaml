@@ -1,0 +1,44 @@
+entityId: dateline_location
+entityType: field
+locale: en
+displayLabel: "Dateline Location"
+registers:
+  semantic:
+    short: "The place an article declares it is about or filed from — rarely emitted, so mostly a named gap rather than data."
+    long: >
+      Dateline location is the place an article explicitly attaches to itself — the equivalent of
+      the "BERLIN —" dateline at the head of a wire story, the geographic anchor the publisher
+      chose to declare. When present it can tell you where reporting is centred or what place a
+      piece is about. The honest headline, though, is that this field is rarely emitted: most
+      publishers in AĒR's corpus declare no machine-readable content location at all, so for the
+      bulk of articles it is Negative Space rather than data. Where it does appear it is a free-text
+      place label, not a coordinate, and it must never be read as a coverage map — a missing
+      dateline does not mean an article is "about nowhere", and a present one describes the
+      publisher's framing, not measured geographic reach. Analytically, treat it as an occasional
+      faceting signal for the rare sources that supply it, useful for inspecting individual
+      articles. It is too sparse to serve as a reliable grouping axis across a corpus.
+  methodological:
+    short: "JSON-LD contentLocation only — no OpenGraph/microdata fallback. Tier-C, rarely emitted → mostly Negative Space. Never coerced to empty. WP-003 §3.2."
+    long: >
+      Dateline location is extracted by the worker's WebAdapter at the Silver boundary from a single
+      source: the JSON-LD `contentLocation` field (the Schema.org structured-data block embedded in
+      the page), stringified to a plain place label. There is no fallback chain — unlike fields that
+      cascade to OpenGraph or microdata, this one reads JSON-LD or nothing, so its coverage is
+      strictly bounded by how many publishers populate that one Schema.org property. In practice that
+      is very few: it is among the least-emitted fields AĒR tracks, which means for most articles it
+      is structurally absent. Absence is shown as Negative Space — a named gap — and is never coerced
+      to an empty string or read as a meaningful "no location". Because emission is so sparse, a
+      source with zero population over the trailing window is routinely flagged `structurallyAbsent`,
+      a publisher choice and never a defect (disclose-never-coerce, ADR-039; WP-003 §3.2). The
+      load-bearing limitations are two. First, the value is the publisher's declared label, not a
+      verified or geocoded location — AĒR neither resolves it to coordinates nor checks it. Second,
+      and most important methodologically: because coverage is so low, any cross-source aggregation
+      over dateline location is descriptive at best and must never be presented as a geographic
+      coverage claim. AĒR makes no claim about a source's geographic reach (it is unmeasurable) —
+      a sparse declared label cannot stand in for one.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

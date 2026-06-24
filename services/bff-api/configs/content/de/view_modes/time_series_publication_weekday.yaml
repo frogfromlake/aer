@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Veröffentlichungswochentag über die Zeit. Für die meisten stabilen Quellen ist diese Kurve flach — Abweichungen signalisieren reale Verschiebungen in der redaktionellen Planung, etwa eine Ausweitung der Wochenendberichterstattung."
     long: >
-      Diese Ansicht stellt publication_weekday als gleitenden Durchschnitt über das
+      Diese Ansicht stellt den Veröffentlichungswochentag als gleitenden Durchschnitt über das
       Beobachtungsfenster dar. Da Wochentag eine wöchentliche Zyklusgröße ist, ist die
       Zeitreihe am aussagekräftigsten über Mehrwochen- oder Mehrmonatszeiträume, in denen
       sich der gleitende Mittelwert stabilisiert. Für institutionelle Quellen mit starker
@@ -28,11 +28,11 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "5-Minuten-Downsampling-Mittelwert von publication_weekday (ISO 1–7). Tier 1. Hinweis: die Interpretation eines Mittelwerts einer wöchentlichen Zyklusgröße erfordert Mehrwochen-Beobachtungsfenster."
+    short: "5-Minuten-Downsampling-Mittelwert des Veröffentlichungswochentags (ISO 1–7). Tier 1. Hinweis: die Interpretation eines Mittelwerts einer wöchentlichen Zyklusgröße erfordert Mehrwochen-Beobachtungsfenster."
     long: >
-      publication_weekday ist eine deterministische Tier-1-Metrik (WP-002 §3). In dieser
+      Der Veröffentlichungswochentag ist eine deterministische Tier-1-Metrik (WP-002 §3). In dieser
       Zeitreihenansicht wird sie als Downsampling-Mittelwert dargestellt — was sorgfältige
-      Interpretation erfordert. publication_weekday ist eine kategorische Größe mit wöchentlicher
+      Interpretation erfordert. Der Veröffentlichungswochentag ist eine kategorische Größe mit wöchentlicher
       Periodizität; ihr arithmetisches Mittel ist nur sinnvoll, wenn es über Zeitspannen
       berechnet wird, die lang genug sind, um mehrere vollständige Wochen zu mitteln. Über
       kurze Fenster (Tage bis eine Woche) wird der scheinbare Trend dadurch dominiert, an
@@ -57,9 +57,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

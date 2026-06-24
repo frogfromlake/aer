@@ -10,7 +10,7 @@ registers:
       einen analytischen Rahmen — Sentiment, Länge, Entitätsdichte —, aber die Themen selbst
       werden aus dem bereinigten Text berechnet, unabhängig von der Metrik. Mit dieser Ansicht
       lässt sich die Episteme-Frage zuerst stellen: welche thematischen Regionen deckt der
-      Korpus überhaupt ab? Leere Regionen sind selbst Beobachtungen (Brief §7.7 / Negativraum).
+      Korpus überhaupt ab? Leere Regionen sind selbst Beobachtungen (Design-Brief §7.7 / Negativraum).
       Die Ausreißerklasse wird als ausgegraute "unkategorisiert"-Reihe dargestellt — das sind
       Artikel, die BERTopic keinem kohärenten Cluster zuordnen konnte, kein zu verbergendes
       Rauschen. Wenn der Geltungsbereich mehrere Sprachpartitionen umfasst, rendert die Zelle

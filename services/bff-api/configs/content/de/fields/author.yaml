@@ -1,0 +1,55 @@
+entityId: author
+entityType: field
+locale: de
+displayLabel: "Autor"
+registers:
+  semantic:
+    short: "Die Verfasserzeile, die ein Herausgeber an einen Artikel hängt — die Person oder Redaktion, der das Schreiben zugeschrieben wird. Vorhanden, fehlend oder strukturell gar nicht ausgegeben."
+    long: >
+      Autor ist die Verfasserzeile, die ein Herausgeber an einen Artikel hängt: die
+      namentlich genannte Journalistin, die Redaktion oder die Agentur, der das Schreiben
+      zugeschrieben wird. Ist sie vorhanden, arbeitet die Quelle mit einem redaktionellen
+      Verfassermodell — einzelne Schreibende werden genannt und sind ansprechbar, wie bei
+      tagesschau oder franceinfo. Fehlt sie systematisch, gilt das Gegenteil: eine
+      institutionelle Pressestelle (die Bundesregierung, die Élysée) spricht mit einer
+      einzigen körperschaftlichen Stimme und gibt überhaupt keine artikelweise
+      Verfasserzeile aus. Dieses Schweigen ist eine Tatsache darüber, wie die Quelle
+      publiziert, kein Loch in den Daten.
+      In der Workbench begegnet Ihnen Autor als Facettierungs-Dimension (kleine Vielfache,
+      aufgeteilt nach Schreibenden), als Gruppierungsachse der Kreuztabelle und als Stufe
+      einer Sankey-Kette (Autor → Ressort → Stimmung). Damit lässt sich fragen, welche
+      Stimmen welche Themen tragen. Wo eine Quelle institutionell publiziert, wird Autor
+      als Negative Space gezeigt — nie als leerer Autor gezählt und nie ein zu erfindender
+      Name.
+  methodological:
+    short: "JSON-LD author → OpenGraph article:author / author. Tier-1, deterministisch. Bei institutionellen Quellen prinzipbedingt abwesend — Negative Space, nie umgedeutet. WP-003 §3.2."
+    long: >
+      Autor wird vom WebAdapter des Workers an der Silver-Grenze deterministisch entlang
+      einer festen zweistufigen Prioritätskette extrahiert: zuerst die JSON-LD-Eigenschaft
+      author des Artikels (JSON-LD ist der strukturierte Datenblock, den Herausgeber in
+      eine Seite einbetten, um sie für Maschinen zu beschreiben); andernfalls das
+      OpenGraph-Tag article:author oder author (OpenGraph ist das Meta-Tag-Vokabular, das
+      Herausgeber für Link-Vorschauen nutzen). Der erste Treffer gewinnt; ist keiner
+      vorhanden, wird das Feld als abwesend verzeichnet. Kein Modell, keine Schlussfolgerung,
+      keine Rekonstruktion von Namen — Tier-1, deterministisch. Validierungsstatus:
+      unvalidated (Engineering-Default).
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2, ADR-039). Ein fehlender
+      Autor wird als Verfassermodell des Herausgebers gelesen, nicht als Defekt.
+      Institutionelle Pressestellen publizieren unter körperschaftlicher Urheberschaft und
+      geben keine Verfasserzeile aus; bei einer solchen Quelle ist Autor strukturell
+      abwesend — als structurallyAbsent markiert, wenn die Belegung über mindestens 50
+      Artikel der letzten 30 Tage bei 0 % liegt, als Negative Space gezeigt und im
+      Dimensions-Picker für diesen Bereich nicht angeboten. Entscheidend: eine Aggregation
+      über einen strukturell abwesenden Autor VERWEIGERT die Antwort, statt eine leere oder
+      auf 0 gesetzte Zählung zu liefern — man kann nicht nach einer Stimme gruppieren, die
+      die Quelle nie nennt. Quellenübergreifende Autor-Vergleiche gelten nicht ohne
+      Out-of-band-Validierung als gleichwertig (WP-004 §5.3): eine redaktionelle
+      Verfasserzeile und eine institutionelle Stimme sind verschiedene Arten von Objekt,
+      nicht zwei Werte auf einer Skala.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

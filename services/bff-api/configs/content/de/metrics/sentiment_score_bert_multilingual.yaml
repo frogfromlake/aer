@@ -14,7 +14,7 @@ registers:
       als negativ, nahe 0 als gemischt oder neutral. Das Modell betrachtet den
       Artikel als Ganzes, sodass Kontext wie Negation und Wortstellung in den Score
       einfließen — ein Unterschied zum lexikonbasierten Tier-1-Wert
-      sentiment_score_sentiws, der nur zählt, welche Wörter vorkommen. Diese
+      der SentiWS-Metrik, der nur zählt, welche Wörter vorkommen. Diese
       Metrik wird neben (nicht statt) dem lexikonbasierten Score angezeigt; die
       Lücke zwischen beiden ist selbst ein Forschungssignal. Als Tier-2-Metrik ist
       sie mit gepinnten Modellversionen reproduzierbar, aber für das institutionelle
@@ -25,17 +25,17 @@ registers:
       composition='merged' bündelt, aggregiert diese Metrik als mittlere
       Polarität (Bereich −1..+1) über den vereinigten Korpus.
       Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
-      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
+      gegenüber Ungleichgewicht im Quell-Mix: eine einzelne volumenstarke
       Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
       pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
-      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      Die merged-Lesart ist über Sprachen mit weichem Methodikhinweis erlaubt
       (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
       View-Mode-Eintrag für das genaue Verhalten.
 
   methodological:
     short: "cardiffnlp/twitter-xlm-roberta-base-sentiment, gepinnte HuggingFace-Revision. Tier-2-Default gemäß ADR-023. P(pos) − P(neg), geklippt auf [-1, +1]. Domänentransfer-Vorbehalt: auf Twitter trainiert, auf institutionellem RSS angewendet (WP-002 §3.2)."
     long: >
-      sentiment_score_bert_multilingual wird vom MultilingualBertSentimentExtractor
+      Der mehrsprachige BERT-Stimmungswert wird vom mehrsprachigen Sentiment-Extraktor
       berechnet, der das mehrsprachige XLM-RoBERTa-Modell
       cardiffnlp/twitter-xlm-roberta-base-sentiment ausführt, gepinnt per
       HuggingFace-Commit-Revision im shared.multilingual_bert-Block des Language
@@ -48,7 +48,7 @@ registers:
       ist dies der Tier-2-Default — ein einziges mehrsprachiges Modell ersetzt die
       pro-Sprach-Tier-2-Flotte des ursprünglichen Phase-119-Entwurfs und skaliert
       die Sentimentabdeckung O(1) pro neuer Sprache. Die optionale
-      Tier-2.5-Verfeinerung (sentiment_score_bert_de_news für Deutsch) läuft
+      Tier-2.5-Verfeinerung (die deutsche News-BERT-Metrik) läuft
       parallel, nicht als Ersatz; das Dashboard zeigt beide. Bekannte
       Einschränkungen (WP-002 §3.2): (1) Domänentransfer — das Modell wurde auf
       Twitter trainiert, nicht auf institutioneller Presse; die domänenspezifische
@@ -75,9 +75,9 @@ registers:
       anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

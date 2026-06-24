@@ -1,0 +1,48 @@
+entityId: description
+entityType: field
+locale: de
+displayLabel: "Beschreibung"
+registers:
+  semantic:
+    short: "Der eigene Kurzanriss des Herausgebers zum Artikel — die von ihm gewählte Rahmung, keine von AĒR erzeugte Zusammenfassung."
+    long: >
+      Die Beschreibung ist der kurze Anrisstext, den ein Herausgeber einem Artikel beigibt — die
+      Zeile, die unter einer Überschrift in einem Suchergebnis oder einer Social-Media-Vorschau
+      erscheint. Sie ist deshalb aufschlussreich, weil sie die eigene redaktionelle Rahmung des
+      Herausgebers ist: die Worte, mit denen er zum Klick bewegen will, von ihm geschrieben und
+      nie von AĒR. Wer sie liest, erfährt, wie eine Quelle eine Geschichte positioniert — was
+      sich deutlich davon unterscheiden kann, wie der Artikel tatsächlich gelesen wird. Sie ist
+      also ein primäres Signal für Rahmung, keine neutrale Inhaltszusammenfassung. Analytisch
+      dient die Beschreibung eher der Facettierung und als Vorhandenseins-Signal denn als
+      Gruppierungsachse: Sie ist Freitext und lässt sich nicht so sauber in Kategorien teilen
+      wie Ressort oder Tags. Ihre Hauptrolle in der Workbench ist die einer lesbaren
+      Beschriftung beim Betrachten eines einzelnen Artikels sowie eines Coverage-Signals —
+      ob eine Quelle überhaupt einen Anriss ausgibt, sagt bereits etwas darüber aus, wie sie
+      ihren Diskurs für die Verbreitung verpackt.
+  methodological:
+    short: "JSON-LD description → OpenGraph og:description → microdata description. Tier-B-Freitext. Abwesend = Herausgeber gibt keinen Anriss aus (Negative Space), nie zu leer umgedeutet. WP-003 §3.2."
+    long: >
+      Die Beschreibung wird vom WebAdapter des Workers an der Silver-Grenze entlang einer
+      strikten Prioritätskette extrahiert: Bevorzugt wird JSON-LD `description` (in die Seite
+      eingebettete strukturierte Schema.org-Daten); fehlt diese, das OpenGraph-Meta-Tag
+      `og:description` (die Konvention für Social-Vorschau-Anrisse); fehlt auch dieses, das
+      Schema.org-microdata-Attribut `description`. Der erste Treffer gewinnt, und seine Herkunft
+      wird im feldbezogenen Provenance-Verzeichnis festgehalten, das in den Metadata-Coverage-
+      Bericht der Quelle einfließt. JSON-LD, OpenGraph und microdata sind drei konkurrierende
+      Wege, auf denen eine Seite maschinenlesbare Fakten deklarieren kann; AĒR liest jeweils
+      das, was der Herausgeber tatsächlich ausgibt. Die tragende Einschränkung: Es ist der Text
+      des Herausgebers, wortgleich — er trägt dessen Rahmung und etwaige werbliche Färbung und
+      darf nie als objektives Abstract gelesen werden. Gibt eine Quelle keine der drei Quellen
+      aus, ist die Beschreibung für diesen Artikel strukturell abwesend: als Negative Space (eine
+      benannte Lücke) gezeigt, nie stillschweigend mit einer leeren Zeichenkette gefüllt oder als
+      fehlender Inhalt gewertet. Eine Quelle, die sie systematisch weglässt — bei institutionellen
+      Pressestellen üblich —, wird als `structurallyAbsent` ausgewiesen: eine Herausgeber-
+      Entscheidung, nie ein Defekt (disclose-never-coerce, ADR-039; WP-003 §3.2). Ein
+      quellenübergreifender Vergleich des Vorhandenseins ist rein beschreibend; Richness-
+      Unterschiede spiegeln Publikationskonventionen, kein Qualitätsurteil.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

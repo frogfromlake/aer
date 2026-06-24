@@ -5,25 +5,37 @@ registers:
   semantic:
     short: "Läuft eine Kennzahl einer anderen zeitlich voraus? Jeder Punkt ist eine Zeitverschiebung; der höchste ist das Lead-Lag — nach rechts folgt die zweite Kennzahl der ersten."
     long: >
-      Ein Lead-Lag beantwortet „wenn sich eine dieser Messgrößen bewegt, folgt die andere — und wie
-      lange danach?". Die Kurve ist die Korrelation der stündlichen Reihen beider Kennzahlen bei jeder
-      Zeitverschiebung; der Gipfel benennt das wahrscheinlichste Vorlaufen/Nachlaufen. Ein Gipfel bei
-      Lag 0 heißt Gleichlauf; rechts folgt die zweite Kennzahl der ersten, links läuft sie voraus. Das
-      beschreibt zeitlichen Gleichlauf, nicht Ursache — ein gemeinsamer äußerer Treiber erzeugt
-      dieselbe Form.
+      Ein Lead-Lag beantwortet „Wenn sich eine dieser zwei Messgrößen bewegt, folgt die andere —
+      und wie lange danach?“. Es bindet zwei Kennzahlen als gerichtetes Paar: x wird als FÜHRENDE,
+      y als folgende geprüft. Die Kurve ist die Korrelation ihrer stündlichen Reihen bei jeder
+      Zeitverschiebung, und der GIPFEL dieser Kurve ist die ganze Lesart — seine Lage ist das
+      wahrscheinlichste Vorlaufen/Nachlaufen. Ein Gipfel bei Lag 0 heißt Gleichlauf; ein Gipfel
+      RECHTS heißt, die zweite Kennzahl (y) folgt der ersten (x) um so viele Stunden; ein Gipfel
+      LINKS heißt, y läuft x voraus. Die gestrichelte Linie markiert den Gipfel. Das beschreibt das
+      TIMING des Gleichlaufs, nicht seine Ursache — ein gemeinsamer äußerer Treiber erzeugt genau
+      dieselbe Form, also ist ein klarer Gipfel eine zu prüfende Hypothese, nie ein Beweis, dass
+      eine Kennzahl die andere treibt.
   methodological:
-    short: "Verschobene Pearson-Kreuzkorrelation der stündlichen Mittel-Reihen zweier Kennzahlen über einen Bereich; nutzt den Phase-124-Kreuzkorrelations-Kern."
+    short: "Verschobene Pearson-Kreuzkorrelation der stündlichen Mittel-Reihen zweier Kennzahlen über einen Bereich; nutzt den Phase-124-Kern. Das Lag ist die Lesart, nicht Kausalität."
     long: >
-      Der Server bildet je Kennzahl die stündliche Mittel-Reihe über Bereich und Fenster und berechnet
-      dann die Pearson-Korrelation bei jeder ganzstündigen Verschiebung in ±maxLagHours (mit dem
-      Phase-124-computeLeadLag-Kern). Ein Lag ist null, wenn bei dieser Verschiebung zu wenige Buckets
-      überlappen oder eine Seite keine Varianz hat — leer dargestellt, nie null. Die Bucket-Zahl bei
-      Lag 0 ist ein Stichproben-Indikator: wenig Überlappung = verrauschte Kurve. Ein mehrsprachiger
-      Bereich erfordert eine validierte Äquivalenz-Freigabe für beide Kennzahlen; fehlt sie,
-      verweigert die Zelle mit einer Level-1-Alternative (WP-004 §5.2).
+      Der Server bildet je Kennzahl die stündliche Mittel-Reihe über Bereich und Fenster und
+      berechnet dann die Pearson-Korrelation zwischen x und einem um jede ganzstündige
+      Verschiebung in ±maxLagHours verschobenen y (mit dem Phase-124-computeLeadLag-Kern). Ein Lag
+      ist null, wenn bei dieser Verschiebung zu wenige Buckets überlappen oder eine Seite keine
+      Varianz hat — leer dargestellt, nie zu null erzwungen (disclose-never-coerce, WP-003 §3.2).
+      Die Bucket-Zahl bei Lag 0 ist ein Stichproben-Indikator: Das Verfahren braucht genügend
+      überlappende Stundenpunkte, um stabil zu sein, und wenig Überlappung ergibt eine verrauschte
+      Kurve, deren Gipfel wandern kann; lies den Gipfel also neben dieser Zahl, statt einem
+      einzelnen hohen Punkt in einem kurzen Fenster zu trauen. Das Lag ist die Antwort, die die
+      Ansicht zurückgibt — ein Timing-Zusammenhang, KEINE Kausalaussage. Ein mehrsprachiger Bereich
+      erfordert eine validierte Äquivalenz-Freigabe für beide Kennzahlen; fehlt sie, verweigert die
+      Zelle mit einer Level-1-Alternative, statt nicht-vergleichbare Skalen kreuzzukorrelieren
+      (WP-004 §5.2, §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

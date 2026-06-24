@@ -169,7 +169,11 @@
       </div>
     </div>
 
-    <MeasureDetail {metricName} viewMode={presentation.id} viewLabel={presentation.label} />
+    <MeasureDetail
+      subjects={[{ name: metricName, roles: ['primary'] }]}
+      viewMode={presentation.id}
+      viewLabel={presentation.label}
+    />
   {:else if dossierQ.isError}
     <p class="muted">{m.workbench_rhizome_dossier_failed()}</p>
   {/if}

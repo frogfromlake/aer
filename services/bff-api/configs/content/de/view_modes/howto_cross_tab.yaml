@@ -5,29 +5,39 @@ registers:
   semantic:
     short: "Eine Kennzahl, aufgeschlüsselt nach einer Metadaten-Kategorie — jeder Balken ist eine Kategorie, seine Länge/Farbe der Mittelwert der Kennzahl in diesen Artikeln."
     long: >
-      Eine Kreuztabelle beantwortet „unterscheidet sich diese Kennzahl nach Kategorie?" — etwa ob die
-      Stimmung in einem Ressort positiver ist als in einem anderen, oder ob die Artikel mancher
-      Autoren länger sind. Jeder Balken ist ein Wert des gewählten Metadaten-Feldes; er zeigt den
-      Mittelwert der gewählten Kennzahl über die Artikel dieser Kategorie, der Hover nennt Artikelzahl
-      und Streuung. Lies einen kurzen Balken aus wenigen Artikeln vorsichtig — eine kleine Stichprobe
-      ist ein verrauschter Mittelwert.
+      Eine Kreuztabelle beantwortet „Unterscheidet sich diese Kennzahl nach Kategorie?“ — etwa ob
+      die Stimmung in einem Ressort positiver ist als in einem anderen, oder ob die Artikel mancher
+      Autoren länger sind. Die Ansicht bindet zwei Dinge: ein kategoriales Gruppierungs-FELD (das
+      Metadaten-Feld, dessen Werte zu den Balken werden — Ressort, Autor, article_type und so
+      weiter) und eine numerische KENNZAHL, die je Kategorie gemittelt wird. Jeder Balken ist ein
+      Wert des Feldes; seine Länge und Farbe zeigen den MITTELWERT der Kennzahl über die Artikel
+      dieser Kategorie, der Hover nennt die Distinct-Artikel-Zahl und die Streuung. Lies einen
+      kurzen Balken aus wenigen Artikeln vorsichtig — eine kleine Stichprobe ist ein verrauschter
+      Mittelwert, und ein einzelner Ausreißer kann ihn kippen. Kategorien mit deutlich mehr
+      Artikeln tragen die verlässlicheren Mittelwerte.
   methodological:
     short: "Mittelwert je Kategorie aus einem JOIN von article_metadata (das Feld) × metrics (die Kennzahl) über article_id; Top-N nach Artikelzahl."
     long: >
-      Der Server verknüpft aer_gold.article_metadata (das kategorische Feld, via arrayJoin entfaltet,
-      FINAL für exakte Distinct-Artikel-Zählung) mit aer_gold.metrics (die numerische Kennzahl, je
-      Artikel pivotiert) über article_id und berechnet je Kategoriewert die Distinct-Artikel-Zahl
-      sowie Mittelwert und Stichproben-Standardabweichung der Kennzahl. Kategorien werden nach
-      Artikelzahl sortiert und bei Top-N gekappt; die Gesamtzahl distinkter Werte wird offengelegt,
-      sodass die Kürzung nie stillschweigend erfolgt. Eine Kategorie, in der kein Artikel die Kennzahl
-      trägt, fehlt — nie eine erzwungene Null (WP-003 §3.2). Bei einem Listen-Feld kann ein Artikel
-      unter mehreren Kategorien erscheinen. Eine bereichsübergreifende (mehrsprachige) Anfrage
-      erfordert die validierte Äquivalenz-Freigabe der Kennzahl; fehlt sie, verweigert die Zelle mit
-      einer Level-1-Alternative (WP-004 §5.2).
+      Der Server verknüpft aer_gold.article_metadata (das kategorische Feld, für Listen-Felder via
+      arrayJoin entfaltet, FINAL für exakte Distinct-Artikel-Zählung) mit aer_gold.metrics (die
+      numerische Kennzahl, je Artikel pivotiert) über article_id und berechnet je Kategoriewert die
+      Distinct-Artikel-Zahl sowie Mittelwert und Stichproben-Standardabweichung der Kennzahl. Das
+      Kategorie-Feld ist die Gruppierungsachse; die Kennzahl ist der innerhalb jeder Gruppe
+      gemittelte Wert — dasselbe Feld kann in einer Zelle die Achse und in einer anderen eine
+      aggregierte Kennzahl sein. Kategorien werden nach Artikelzahl sortiert und bei Top-N gekappt;
+      die Gesamtzahl distinkter Werte wird offengelegt, sodass die Kürzung nie stillschweigend
+      erfolgt. Eine Kategorie, in der kein Artikel die Kennzahl trägt, fehlt — nie eine erzwungene
+      Null (disclose-never-coerce, WP-003 §3.2); bei einem Listen-Feld kann ein Artikel unter
+      mehreren Kategorien erscheinen, sodass die Kategoriezahlen mehr als die Korpusgröße ergeben
+      können. Eine bereichsübergreifende (mehrsprachige) Anfrage erfordert die validierte
+      Äquivalenz-Freigabe der Kennzahl, und Kategorielabels stimmen über die Taxonomien der
+      Publisher selten überein; fehlt die Freigabe, verweigert die Zelle mit einer
+      Level-1-Alternative, statt nicht-vergleichbare Skalen zu mitteln (WP-004 §5.2, §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

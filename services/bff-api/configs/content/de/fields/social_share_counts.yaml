@@ -1,0 +1,55 @@
+entityId: social_share_counts
+entityType: field
+locale: de
+displayLabel: "Social-Media-Teilungen"
+registers:
+  semantic:
+    short: "Wie oft ein Artikel in sozialen Netzwerken geteilt wurde — ein Feld, das AĒR heute auf keine Weise befüllen kann und das daher für jede Quelle leer ist."
+    long: >
+      Social-Media-Teilungen wären die Anzahl der Male, die ein Artikel in sozialen
+      Netzwerken geteilt wurde — die Art von Zahl, die ein „4.200-mal geteilt"-Abzeichen
+      meldet. Grundsätzlich ist das ein Signal für die Reichweite beim Publikum: welche
+      Beiträge sich verbreitet haben und wie weit. In der Praxis kann AĒR sie nicht liefern.
+      Es gibt kein kanonisches, vom Herausgeber ausgegebenes Feld für Teilungszahlen in den
+      strukturierten Metadaten, wie es eines für eine Kommentarzahl oder ein
+      Veröffentlichungsdatum gibt, sodass der Worker keinen ehrlichen Weg hat, eine solche
+      Zahl zu lesen. Die Zahl ist daher für jede Quelle im Korpus leer — nicht weil nie ein
+      Artikel geteilt wurde, sondern weil AĒR über kein Instrument verfügt, das diese Zahl
+      messen oder auch nur abrufen könnte, ohne einzelne Plattform-APIs abzufragen, was es
+      nicht tut.
+      Ein befülltes Feld für Social-Media-Teilungen werden Sie in der Workbench nicht
+      antreffen. Es wird im Feldkatalog geführt, damit seine Abwesenheit ausdrücklich statt
+      stillschweigend ist: es wird überall dort, wo das Feld sonst erscheinen könnte, als
+      Negative Space gezeigt — etwas, das AĒR nicht sieht. Behandeln Sie seine Leere als
+      bewusst offengelegte Grenze des Sensors, nicht als Beleg, dass Artikel ungeteilt
+      blieben.
+  methodological:
+    short: "Kein kanonisches Schema.org-Feld vorhanden; AĒR hat keinen Extraktionspfad. Heute IMMER leer / Negative Space für jede Quelle. Offengelegte Grenze, nie zu 0 umgedeutet. WP-003 §3.2, ADR-039."
+    long: >
+      Social-Media-Teilungen haben heute keinen Extraktionspfad in AĒR, und der Eintrag ist
+      genau so zu lesen. Es gibt keine kanonische Schema.org-Eigenschaft für Teilungszahlen
+      (Schema.org ist das gemeinsame Vokabular, das Herausgeber in ihrem JSON-LD-Block
+      strukturierter Daten verwenden, um eine Seite für Maschinen zu beschreiben), und auch
+      kein OpenGraph-Tag trägt eine. Da der WebAdapter des Workers Metadaten nur aus dem
+      extrahiert, was ein Herausgeber an der Silver-Grenze in seinen strukturierten
+      Metadaten deklariert, gibt es nichts zu lesen: das Feld wird auf jedem Artikel
+      bedingungslos als abwesend erfasst — es ist fest auf record-as-none verdrahtet, und es
+      gibt keinen Code, der es je befüllen könnte. Dies ist keine Tier-Einstufung eines
+      funktionierenden Extraktors; es ist das dokumentierte Nichtvorhandensein eines solchen.
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2, ADR-039). Da das Feld für
+      jede Quelle, jeden Bereich und jedes Zeitfenster leer ist, liest es sich durchgängig
+      als strukturell abwesend — als Negative Space gezeigt und im Dimensions-Picker nicht
+      angeboten. Entscheidend: diese Leere darf nie zu 0 umgedeutet oder als „nichts wurde
+      geteilt" gelesen werden — eine Null wäre eine erfundene Messung einer Größe, die AĒR
+      mit keinem Mittel beobachten kann, und verletzte das Gebot, nie eine Offenlegung
+      vorzutäuschen, die man nicht messen kann. Die ehrliche Aussage ist, dass AĒR das
+      Teilen in sozialen Netzwerken derzeit überhaupt nicht instrumentiert. Eine künftige
+      Unterstützung erforderte einen neuen Erfassungspfad (einen API-Adapter je Plattform),
+      keine Änderung daran, wie dieses Feld aus strukturierten Metadaten gelesen wird; bis
+      dahin besteht das Feld, um diese Lücke ausdrücklich zu machen.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

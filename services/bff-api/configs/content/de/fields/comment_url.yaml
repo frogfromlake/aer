@@ -1,0 +1,55 @@
+entityId: comment_url
+entityType: field
+locale: de
+displayLabel: "Kommentar-URL"
+registers:
+  semantic:
+    short: "Der Link, den ein Herausgeber auf die Diskussionsseite eines Artikels setzt — nur vorhanden, wo die Quelle Kommentare führt und die Adresse ausgibt; sonst schweigt das Feld."
+    long: >
+      Die Kommentar-URL ist die Webadresse, auf die ein Herausgeber für die Diskussion zu
+      einem Artikel verweist: die Seite, auf der Leser Kommentare hinterlassen und lesen.
+      Wo vorhanden, sagt sie Ihnen, dass die Quelle eine Kommentarfunktion betreibt und
+      bereit ist zu benennen, wo das Gespräch stattfindet; wo abwesend, bedeutet das meist,
+      dass es keine solche Funktion gibt oder der Herausgeber die Adresse nicht ausgibt. Im
+      Korpus von AĒR ist diese Abwesenheit heute die Regel — die institutionellen
+      Pressestellen (die Bundesregierung, der Élysée) und die meisten erfassten
+      Nachrichtenseiten geben in ihren strukturierten Metadaten keinen Diskussionslink aus.
+      Dies ist ein Verweisfeld, keine Zahl: es trägt eine einzelne Adresse je Artikel und
+      lässt sich daher nicht wie eine Zählung zu einer Verteilung oder Streudiagramm-Achse
+      bündeln. Analytisch dient es als Beleg und Herkunft — es erlaubt einer Leserin, einem
+      Artikel bis dorthin zu folgen, wo seine öffentliche Diskussion stattfand, und allein
+      sein Vorhandensein oder Fehlen über eine Quelle hinweg ist bereits eine Beobachtung
+      darüber, wie diese Quelle zur Reaktion einlädt. Wo eine Quelle keinen Diskussionslink
+      ausgibt, wird die Kommentar-URL als Negative Space gezeigt — niemals mit einer
+      geratenen oder konstruierten Adresse gefüllt.
+  methodological:
+    short: "Aus JSON-LD discussionUrl. Tier-1 deterministisch. Bei den heutigen Quellen fast immer abwesend — Negative Space, nie erfunden. Herausgeber-Selbstauskunft. WP-003 §3.2."
+    long: >
+      Die Kommentar-URL wird vom WebAdapter des Workers an der Silver-Grenze
+      deterministisch allein aus dem JSON-LD des Artikels extrahiert (JSON-LD ist der
+      strukturierte Datenblock, den Herausgeber in eine Seite einbetten, um sie für
+      Maschinen zu beschreiben). Der Extraktor liest die Eigenschaft discussionUrl und
+      speichert sie wörtlich als Zeichenkette; ist die Eigenschaft abwesend oder leer, wird
+      das Feld als abwesend erfasst. Es gibt keinen Rückfall auf OpenGraph oder eine andere
+      Quelle, keine Normalisierung und keine Prüfung, ob die Adresse auflöst — AĒR erfasst,
+      was der Herausgeber deklariert hat, nicht mehr. Kein Modell, keine Inferenz — Tier-1
+      deterministisch. Validierungsstatus: unvalidated (Engineering-Default).
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2, ADR-039). Die heute
+      erfassten institutionellen und Nachrichtenquellen geben discussionUrl fast nie aus,
+      sodass die Kommentar-URL für sie strukturell abwesend ist — als structurallyAbsent
+      markiert, wenn die Befüllung über mindestens 50 Artikel der letzten 30 Tage bei 0 %
+      liegt, als Negative Space gezeigt und im Dimensions-Picker für diesen Bereich nicht
+      angeboten. Ein fehlender Link ist eine Herausgeber-Entscheidung (die Quelle führt
+      keine Kommentare oder gibt die Adresse nicht aus), nie ein Defekt und nie erfunden —
+      AĒR erfindet oder rekonstruiert keine Adresse, die ihm nicht gegeben wurde. Als
+      Selbstauskunft des Herausgebers über die eigene Plattform gilt das Vorhandensein des
+      Links ohne externe Validierung nicht als quellenübergreifend vergleichbar
+      (WP-004 §5.3): eine Seite, die ihre Diskussionsseite benennt, und eine, die das nicht
+      tut, unterscheiden sich der Art nach, nicht als zwei Werte einer Skala.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

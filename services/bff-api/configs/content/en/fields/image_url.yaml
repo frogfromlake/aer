@@ -1,0 +1,44 @@
+entityId: image_url
+entityType: field
+locale: en
+displayLabel: "Lead Image URL"
+registers:
+  semantic:
+    short: "The address of the article's single lead image — a presence signal, not a judgement on the picture itself."
+    long: >
+      Image URL is the web address of an article's main illustrating image — the one a publisher
+      designates as the lead, the picture you would see at the top of the page or in a shared
+      link's preview card. AĒR records where the image lives, not the image itself; it makes no
+      claim about what the picture shows or how good it is. The most useful thing this field tells
+      you is binary and structural: did the publisher attach a designated lead image at all? A
+      source that always supplies one packages its discourse visually; a source that never does —
+      common for terse institutional notices — presents text-first. Analytically it is a presence
+      signal best used for faceting (split articles by has-image versus none) rather than as a
+      grouping axis, since the URL itself is a unique string with no shared categories. Pair it
+      with the `images` field when you want to ask not just "is there a lead image?" but "how many
+      distinct images does the article carry?".
+  methodological:
+    short: "JSON-LD image (lead) → OpenGraph og:image. Tier-B presence signal. Absent = publisher emits no lead image (Negative Space), never coerced to empty. WP-003 §3.2."
+    long: >
+      Image URL is extracted by the worker's WebAdapter at the Silver boundary along a two-step
+      priority chain. First it reads JSON-LD `image` (the Schema.org structured-data block embedded
+      in the page) and takes the lead URL from it; because that value may be a bare URL string, a
+      single ImageObject, or an array of either, a dedicated resolver walks the structure and
+      returns the first usable URL (preferring `url`, then `@id`, then `contentUrl`). If JSON-LD
+      yields nothing, it falls back to the OpenGraph `og:image` meta tag — the convention
+      publishers use to declare a social-preview image. The first hit wins and its origin (JSON-LD
+      or OpenGraph) is recorded in the per-field provenance dictionary that rolls up into the
+      source's metadata-coverage report. JSON-LD and OpenGraph are two competing machine-readable
+      declaration formats; AĒR reads whichever the publisher emits. The load-bearing limitation:
+      this is a presence and address signal only. AĒR does not fetch, store, or analyse the pixels,
+      so the field never supports a claim about image content, quality, or relevance. When neither
+      source emits a lead image, the field is structurally absent for that article — shown as
+      Negative Space, never silently set to an empty string or read as "no image existed". A source
+      that systematically omits it is disclosed as `structurallyAbsent`, a publisher choice and
+      never a defect (disclose-never-coerce, ADR-039; WP-003 §3.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

@@ -5,23 +5,34 @@ registers:
   semantic:
     short: "Does one metric lead another over time? Each point is a time-shift; the tallest is the lead-lag — a shift right means the second metric follows the first."
     long: >
-      A lead-lag answers "when one of these measurements moves, does the other follow — and how long
-      after?". The curve is the correlation of the two metrics' hourly series at every time-shift; the
-      peak names the most likely lead/lag. A peak at lag 0 means they move in step; a peak to the
-      right means the second metric follows the first, to the left means it leads. This describes
-      timing co-movement, not cause — a shared external driver produces the same shape.
+      A lead-lag answers "when one of these two measurements moves, does the other follow — and how
+      long after?". It binds two metrics in a directional pair: x is tested as the LEADER, y as the
+      follower. The curve is the correlation of their hourly series at every time-shift, and the
+      PEAK of that curve is the whole read — its position is the most likely lead/lag. A peak at lag
+      0 means they move in step; a peak to the RIGHT means the second metric (y) follows the first
+      (x) by that many hours; a peak to the LEFT means y leads x. The dashed rule marks the peak.
+      This describes the TIMING of co-movement, not its cause — a shared external driver produces
+      exactly the same shape, so a clean peak is a hypothesis to investigate, never a proof that one
+      metric drives the other.
   methodological:
-    short: "Lagged Pearson cross-correlation of two metrics' hourly mean series over one scope; reuses the Phase-124 cross-correlation core."
+    short: "Lagged Pearson cross-correlation of two metrics' hourly mean series over one scope; reuses the Phase-124 cross-correlation core. The lag is the read, not causation."
     long: >
-      The server builds each metric's hourly mean series over the scope and window, then computes the
-      Pearson correlation at every integer hour-shift in ±maxLagHours (reusing the Phase-124
-      computeLeadLag core). A lag is null when too few hourly buckets overlap at that shift or a side
-      has zero variance — left blank, never zero. The bucket count at lag 0 is a sample-size proxy: a
-      thin overlap is a noisy curve. A multi-language scope requires a validated equivalence grant for
-      both metrics; absent that, the cell refuses with a Level-1 alternative (WP-004 §5.2).
+      The server builds each metric's hourly mean series over the scope and window, then computes
+      the Pearson correlation between x and a y shifted by every integer hour in ±maxLagHours
+      (reusing the Phase-124 computeLeadLag core). A given lag is null when too few hourly buckets
+      overlap at that shift, or a side has zero variance — left blank, never coerced to zero
+      (disclose-never-coerce, WP-003 §3.2). The bucket count at lag 0 is a sample-size proxy: the
+      method needs enough overlapping hourly points to be stable, and a thin overlap is a noisy
+      curve whose peak can wander, so read the peak alongside that count rather than trusting a
+      single tall point in a short window. The lag is the answer the view returns — it is a timing
+      relationship, NOT a causal claim. A multi-language scope requires a validated equivalence
+      grant for both metrics; absent that, the cell refuses with a Level-1 alternative rather than
+      cross-correlating non-comparable scales (WP-004 §5.2, §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

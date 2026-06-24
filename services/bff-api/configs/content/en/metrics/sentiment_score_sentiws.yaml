@@ -17,7 +17,7 @@ registers:
       contains. Because it relies on a German lexicon, the score is valid only for
       German-language text. Results labeled "provisional" carry this caveat explicitly: the
       metric is technically operational but not yet scientifically validated for research use.
-      A second sentiment metric — sentiment_score_bert_multilingual — runs in parallel under
+      A second sentiment metric — the multilingual BERT score — runs in parallel under
       ADR-016's dual-metric pattern; the gap between the two is itself a research signal, not
       a contradiction.
 
@@ -34,7 +34,7 @@ registers:
   methodological:
     short: "SentiWS v2.0 lexicon, polarity sum normalised by matched tokens. Tier 1 (deterministic). Phase-117 hardening: dependency-based negation scope, German compound decomposition, custom-lexicon hook. ADR-016 dual-metric pattern. WP-002 §3."
     long: >
-      sentiment_score_sentiws is computed by SentimentExtractor matching each token in
+      The SentiWS sentiment score is computed by the sentiment extractor, which matches each token in
       cleaned_text against the SentiWS v2.0 German sentiment lexicon (~16,000 lemma–PoS pairs
       with polarity weights in [−1, +1]). The score is the sum of matched token weights divided
       by the number of matched tokens, producing a normalised average polarity. Unmatched
@@ -63,7 +63,7 @@ registers:
       level — sentence-level polarity is averaged, not modelled as a whole; (c) no irony or
       sarcasm detection; (d) the heuristic disambiguation of multi-word polarity clusters is
       a known limit of any lexicon-only approach. The Tier-2 multilingual metric
-      sentiment_score_bert_multilingual ships alongside this one per ADR-016 / ADR-023; the
+      (the multilingual BERT score) ships alongside this one per ADR-016 / ADR-023; the
       gap between the two is the WP-002 §3.2 domain-transfer signal. Extractor:
       sentiws-2.0 (Phase-117 hardened). Validation status: unvalidated.
 
@@ -78,9 +78,9 @@ registers:
       MethodologyBanner; Episteme/Rhizome view-modes (when applicable) refuse
       with HTTP 422 cross_language_merge_unsupported (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-002 §3.2"

@@ -1,0 +1,47 @@
+entityId: dateline_location
+entityType: field
+locale: de
+displayLabel: "Ortsmarke"
+registers:
+  semantic:
+    short: "Der Ort, den ein Artikel als Gegenstand oder Herkunft angibt — selten ausgegeben, daher meist eine benannte Lücke statt Daten."
+    long: >
+      Die Ortsmarke ist der Ort, den ein Artikel sich ausdrücklich beilegt — das Gegenstück zur
+      Zeile „BERLIN —" am Kopf einer Agenturmeldung, der geografische Anker, den der Herausgeber zu
+      deklarieren wählte. Wo sie vorhanden ist, kann sie zeigen, worauf die Berichterstattung
+      zentriert ist oder worum es einem Stück geht. Die ehrliche Schlagzeile lautet jedoch: Dieses
+      Feld wird selten ausgegeben. Die meisten Herausgeber in AĒRs Korpus deklarieren überhaupt
+      keinen maschinenlesbaren Inhaltsort, daher ist es für den Großteil der Artikel Negative Space
+      statt Daten. Wo es erscheint, ist es eine Freitext-Ortsbezeichnung, keine Koordinate, und es
+      darf nie als Reichweitenkarte gelesen werden — eine fehlende Ortsmarke heißt nicht, dass ein
+      Artikel „von nirgendwo" handelt, und eine vorhandene beschreibt die Rahmung des Herausgebers,
+      nicht gemessene geografische Reichweite. Analytisch ist es ein gelegentliches Facettierungs-
+      Signal für die seltenen Quellen, die es liefern, nützlich zum Betrachten einzelner Artikel. Für
+      eine verlässliche korpusweite Gruppierungsachse ist es zu dünn besetzt.
+  methodological:
+    short: "Nur JSON-LD contentLocation — kein OpenGraph-/microdata-Rückfall. Tier-C, selten ausgegeben → meist Negative Space. Nie zu leer umgedeutet. WP-003 §3.2."
+    long: >
+      Die Ortsmarke wird vom WebAdapter des Workers an der Silver-Grenze aus einer einzigen Quelle
+      extrahiert: dem JSON-LD-Feld `contentLocation` (dem in die Seite eingebetteten strukturierten
+      Schema.org-Block), zu einer schlichten Ortsbezeichnung verflacht. Es gibt keine Rückfallkette —
+      anders als Felder, die auf OpenGraph oder microdata ausweichen, liest dieses entweder JSON-LD
+      oder nichts, sodass seine Abdeckung strikt davon begrenzt ist, wie viele Herausgeber diese eine
+      Schema.org-Eigenschaft befüllen. In der Praxis sind das sehr wenige: Es gehört zu den am
+      seltensten ausgegebenen Feldern, die AĒR verfolgt, womit es für die meisten Artikel strukturell
+      abwesend ist. Abwesenheit wird als Negative Space gezeigt — eine benannte Lücke — und nie zu
+      einer leeren Zeichenkette umgedeutet oder als bedeutsames „kein Ort" gelesen. Da die Ausgabe so
+      dünn ist, wird eine Quelle mit null Befüllung über das zurückliegende Fenster regelmäßig als
+      `structurallyAbsent` markiert: eine Herausgeber-Entscheidung, nie ein Defekt (disclose-never-
+      coerce, ADR-039; WP-003 §3.2). Es gibt zwei tragende Einschränkungen. Erstens ist der Wert die
+      vom Herausgeber deklarierte Bezeichnung, kein verifizierter oder geokodierter Ort — AĒR löst ihn
+      weder zu Koordinaten auf noch prüft es ihn. Zweitens, und methodisch am wichtigsten: Weil die
+      Abdeckung so gering ist, ist jede quellenübergreifende Aggregation über die Ortsmarke
+      bestenfalls beschreibend und darf nie als geografische Reichweitenaussage dargestellt werden.
+      AĒR erhebt keinen Anspruch auf die geografische Reichweite einer Quelle (sie ist nicht messbar) —
+      eine dünn besetzte deklarierte Bezeichnung kann sie nicht ersetzen.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

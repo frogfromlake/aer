@@ -1,0 +1,47 @@
+entityId: section
+entityType: field
+locale: en
+displayLabel: "Section"
+registers:
+  semantic:
+    short: "The single primary desk or rubric a publisher files an article under — Politics, Sport, Wirtschaft — the article's home shelf."
+    long: >
+      The section is the one primary heading a publisher places an article beneath: its desk,
+      its rubric, its home shelf — Politics, Sport, Kultur, Wirtschaft. Where tags scatter an
+      article across many keywords, the section commits to one. In the Workbench it is the
+      natural group-by axis: split a corpus into small multiples by section to see which desks
+      a source feeds most, set it as the categorical x-axis of a distribution to read the
+      shape of a publisher's editorial attention, or make it the first column of a Sankey
+      alluvial chain to watch how sections flow into types or labels. Read it as the
+      publisher's own filing decision, not a neutral subject classification: a source that
+      files everything under "News" tells you something different from one that maintains a
+      dozen fine-grained desks. The presence of a rich section vocabulary is itself a signal
+      of how a newsroom organises its output.
+  methodological:
+    short: "First value from JSON-LD articleSection → OpenGraph article:section → JSON-LD about[0].name → keywords[0]. Tier-B publisher taxonomy; absent = publisher choice. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      The section is resolved by the worker's WebAdapter at the Silver boundary through a
+      four-step priority chain, taking the first value it finds. It reads JSON-LD
+      articleSection first — JSON-LD is the structured machine-readable block many publishers
+      embed for search engines. If absent, it falls to the OpenGraph article:section meta tag
+      (OpenGraph is the social-sharing metadata standard), then to the name of the first
+      JSON-LD about entry (the Schema.org "about" list points at the article's primary topical
+      anchor, often with a sameAs URL to a knowledge base), and finally to the first JSON-LD
+      keyword. tagesschau, for instance, emits no articleSection but does carry an about list
+      and keywords, so the fallback captures the topical anchor rather than leaving the field
+      empty. The section is a Tier-B descriptive field: it is whatever string the publisher
+      chose, not a value AĒR derives. The load-bearing caveat is comparability: a section is
+      the publisher's OWN taxonomy, not a shared scheme. "Politik" from one source and
+      "Politics" from another are not the same node, and cross-source aggregation over sections
+      is not granted without out-of-band validation (WP-004 §5.3) — a Sankey or cross-tab
+      across sources shows each publisher's distinct vocabulary side by side, never a normalised
+      classification. When a source emits no section on any path, the field is structurally
+      absent — surfaced as Negative Space, a publisher choice (WP-003 §3.2), never coerced to a
+      placeholder bucket (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

@@ -13,7 +13,7 @@ import (
 // for an entity. Locale defaults to "en".
 func (s *Server) GetContent(_ context.Context, request GetContentRequestObject) (GetContentResponseObject, error) {
 	if !request.EntityType.Valid() {
-		return GetContent400JSONResponse{Message: "invalid entityType; must be one of metric, probe, discourse_function, refusal"}, nil
+		return GetContent400JSONResponse{Message: "invalid entityType; must be one of metric, field, probe, source, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer"}, nil
 	}
 
 	locale := string(GetContentParamsLocaleEn)

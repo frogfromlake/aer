@@ -1,0 +1,60 @@
+entityId: external_citations
+entityType: field
+locale: de
+displayLabel: "Externe Zitationen"
+registers:
+  semantic:
+    short: "Die nach außen verweisenden Quellen, die ein Artikel ausdrücklich zitiert — die Liste der Werke, auf die er verweist. Nur vorhanden, wo ein Herausgeber seine Belege deklariert; sonst schweigt das Feld."
+    long: >
+      Externe Zitationen sind die Liste der nach außen verweisenden Quellen, die ein
+      Artikel ausdrücklich zitiert: die Studien, Dokumente oder anderen Werke, die der
+      Herausgeber als Belege benennt. Wo vorhanden, ist sie ein Blick darauf, wie ein
+      Beitrag sich abstützt — ein stark zitierter Artikel trägt seine Quellen offen, während
+      einer ohne Zitationen entweder auf eigener Recherche steht oder seine Belege schlicht
+      nicht in maschinenlesbarer Form deklariert. Im Korpus von AĒR ist diese Deklaration
+      heute selten; die institutionellen Pressestellen und die meisten erfassten
+      Nachrichtenseiten geben in ihren strukturierten Metadaten kaum eine Zitationsliste
+      aus, sodass das Feld für sie schweigt.
+      Dies ist ein Listenfeld, keine einzelne Zahl. Das Feld selbst ist die Menge der
+      zitierten Werke; eine Anzahl der Zitationen ist eine getrennte, aus dieser Liste
+      abgeleitete Metrik, und die beiden dürfen nicht vermengt werden — eine leere Liste und
+      ein abwesendes Feld sind verschiedene Tatsachen. In der Workbench dient die Liste als
+      Beleg und Herkunft (einem Artikel zu dem zu folgen, worauf er sich stützt), während
+      eine abgeleitete Anzahl eine Streudiagramm-Achse oder Verteilung speisen könnte. Wo
+      eine Quelle keine Zitationen deklariert, werden externe Zitationen als Negative Space
+      gezeigt — niemals mit erfundenen Belegen gefüllt und niemals stillschweigend als
+      Zitationsanzahl von null behandelt.
+  methodological:
+    short: "Aus JSON-LD citation (nach außen zitierte Quellen). Tier-1 deterministisch. Bei den heutigen Quellen fast immer abwesend — Negative Space, nie umgedeutet. Feld ≠ abgeleitete Anzahl. WP-003 §3.2."
+    long: >
+      Externe Zitationen werden vom WebAdapter des Workers an der Silver-Grenze
+      deterministisch allein aus dem JSON-LD des Artikels extrahiert (JSON-LD ist der
+      strukturierte Datenblock, den Herausgeber in eine Seite einbetten, um sie für
+      Maschinen zu beschreiben). Der Extraktor liest die Eigenschaft citation und
+      normalisiert sie zu einer Liste von Zeichenketten — jeder Eintrag eine nach außen
+      zitierte Quelle, wie der Herausgeber sie deklariert hat; ist die Eigenschaft abwesend
+      oder ergibt keine Zeichenketten, wird das Feld als abwesend erfasst. Es gibt keinen
+      Rückfall auf OpenGraph, kein Verfolgen von Links und keine Prüfung, ob ein zitiertes
+      Werk existiert oder auflöst — AĒR erfasst die deklarierte Belegliste wörtlich. Kein
+      Modell, keine Inferenz — Tier-1 deterministisch. Validierungsstatus: unvalidated
+      (Engineering-Default).
+      Zwei tragende Unterscheidungen. Erstens disclose-never-coerce (WP-003 §3.2, ADR-039):
+      die erfassten Quellen geben citation selten aus, sodass externe Zitationen meist
+      strukturell abwesend sind — als structurallyAbsent markiert, wenn die Befüllung über
+      mindestens 50 Artikel der letzten 30 Tage bei 0 % liegt, als Negative Space gezeigt
+      und im Dimensions-Picker für diesen Bereich nicht angeboten; eine fehlende Liste ist
+      eine Herausgeber-Entscheidung, nie ein Defekt und nie umgedeutet. Zweitens ist das
+      FELD (die Liste der zitierten Werke) nicht die ANZAHL (wie viele ein Beitrag zitiert):
+      jede Zitationsanzahl-Metrik wird nachgelagert aus dieser Liste abgeleitet, sodass ein
+      strukturell abwesendes Feld nicht als Anzahl von null gelesen werden darf — die
+      Abwesenheit bedeutet „es wurde keine Belegliste deklariert", nicht „null Belege". Als
+      Herausgeber-Selbstauskunft gelten Vorhandensein und Reichhaltigkeit der
+      Zitationslisten ohne externe Validierung nicht als quellenübergreifend vergleichbar
+      (WP-004 §5.3); Zitationskonventionen unterscheiden sich nach Herausgeber und Genre.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

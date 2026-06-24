@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Veröffentlichungswochentag-Verteilung. Zeigt das vollständige Wochenmuster, wann eine Quelle veröffentlicht — die direkteste Ansicht der redaktionellen Arbeitswoche."
     long: >
-      Die Verteilungsansicht für publication_weekday stellt das Veröffentlichungsvolumen
+      Die Verteilungsansicht für den Veröffentlichungswochentag stellt das Veröffentlichungsvolumen
       über die sieben Wochentage als Balkendiagramm dar. Dies ist typischerweise die
       interpretierbarste Ansicht für diese Metrik: ein einzelnes Balkendiagramm zeigt die
       redaktionelle Woche einer Quelle auf einen Blick. Starke Montag–Freitag-Balken mit
@@ -29,14 +29,14 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "Balkendiagramm über publication_weekday (ISO 1=Mo, 7=So). Tier 1. Bei Vergleichen zwischen Quellen unterschiedlicher Aktivitätsniveaus nach Korpusgröße normieren. UTC-Datumsgrenze gilt (siehe Metrik-Eintrag)."
+    short: "Balkendiagramm über den Veröffentlichungswochentag (ISO 1=Mo, 7=So). Tier 1. Bei Vergleichen zwischen Quellen unterschiedlicher Aktivitätsniveaus nach Korpusgröße normieren. UTC-Datumsgrenze gilt (siehe Metrik-Eintrag)."
     long: >
-      Die Verteilung ist eine Häufigkeitsauszählung über die sieben ganzzahligen Werte von
-      publication_weekday (ISO 8601: 1 = Montag, 7 = Sonntag). Tier 1 deterministisch
+      Die Verteilung ist eine Häufigkeitsauszählung über die sieben ganzzahligen Werte des
+      Veröffentlichungswochentags (ISO 8601: 1 = Montag, 7 = Sonntag). Tier 1 deterministisch
       (WP-002 §3). Methodologische Hinweise: (1) Rohzählungen sind proportional zum
       Aktivitätsniveau der Quelle; bei Vergleichen einer aktiven Quelle mit einer
       volumenarmen normieren (Artikel pro Wochentag); (2) der UTC-Datumsgrenze-Vorbehalt
-      gilt — siehe den Metrik-Eintrag für publication_weekday; für Sonde-0-Quellen betrifft
+      gilt — siehe den Metrik-Eintrag für den Veröffentlichungswochentag; für Sonde-0-Quellen betrifft
       dies nur einen kleinen Anteil der Artikel, die nahe Mitternacht UTC veröffentlicht werden;
       (3) im Sonde-Scope aggregiert die Verteilung über alle Quellen — ein Sonde-weiter
       Montag-Gipfel spiegelt aggregiertes Montags-Volumen wider, was verbergen kann, dass eine
@@ -58,9 +58,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

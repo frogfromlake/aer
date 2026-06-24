@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Benannte Entitätsdichte-Verteilung. Zeigt die volle Bandbreite, wie entitätsreich Artikel sind — von spärlichen, abstrakten Texten bis zu dichten Mehrakteurs-Berichten — und wie diese Bandbreite quellenübergreifend variiert."
     long: >
-      Die Verteilungsansicht für entity_count offenbart die strukturelle Bandbreite, wie
+      Die Verteilungsansicht für die Entitäten-Anzahl offenbart die strukturelle Bandbreite, wie
       spezifisch ein Artikel auf die soziale Welt verweist: Wie viele benannte Personen,
       Orte und Organisationen werden erwähnt? Eine enge, niedrige Verteilung zeigt eine
       Quelle mit eher abstraktem oder allgemeinem Inhalt an. Eine breite, rechtsschiefe
@@ -29,12 +29,12 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "Histogramm / Dichte von Per-Artikel-entity_count aus spaCy de_core_news_lg. Vorläufig (Tier 3). Rechte-Tail-Kürzung empfohlen; Ausreißer sind real (lange Parlamentsartikel)."
+    short: "Histogramm / Dichte der Per-Artikel-Entitäten-Anzahl aus spaCy de_core_news_lg. Vorläufig (Tier 3). Rechte-Tail-Kürzung empfohlen; Ausreißer sind real (lange Parlamentsartikel)."
     long: >
-      Die Verteilung ist ein Histogramm der entity_count-Werte pro Artikel im ausgewählten
-      Geltungsbereich und Fenster. Tier 3 (vorläufig) gemäß WP-002 §5 — entity_count hängt
+      Die Verteilung ist ein Histogramm der Werte der Entitäten-Anzahl pro Artikel im ausgewählten
+      Geltungsbereich und Fenster. Tier 3 (vorläufig) gemäß WP-002 §5 — die Entitäten-Anzahl hängt
       vom deutschen NER-Modell de_core_news_lg (spaCy 3.8.0) ab. Interpretationshinweise:
-      (1) die Verteilung weist natürlich eine Rechtsschiefe auf, da entity_count nach unten
+      (1) die Verteilung weist natürlich eine Rechtsschiefe auf, da die Entitäten-Anzahl nach unten
       bei null begrenzt ist, nach oben aber nicht; sehr lange Artikel mit vielen Akteuren
       erzeugen extreme rechte Tail-Werte (z. B. vollständige Bundestagsprotokolle); (2) der
       Modalwert (häufigste Anzahl) ist typischerweise aussagekräftiger als der Mittelwert;
@@ -59,8 +59,8 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"

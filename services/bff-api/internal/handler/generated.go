@@ -204,6 +204,7 @@ func (e AvailableMetricValidationStatus) Valid() bool {
 const (
 	ContentResponseEntityTypeDiscourseFunction    ContentResponseEntityType = "discourse_function"
 	ContentResponseEntityTypeEmptyLane            ContentResponseEntityType = "empty_lane"
+	ContentResponseEntityTypeField                ContentResponseEntityType = "field"
 	ContentResponseEntityTypeMetric               ContentResponseEntityType = "metric"
 	ContentResponseEntityTypeOpenResearchQuestion ContentResponseEntityType = "open_research_question"
 	ContentResponseEntityTypePrimer               ContentResponseEntityType = "primer"
@@ -219,6 +220,8 @@ func (e ContentResponseEntityType) Valid() bool {
 	case ContentResponseEntityTypeDiscourseFunction:
 		return true
 	case ContentResponseEntityTypeEmptyLane:
+		return true
+	case ContentResponseEntityTypeField:
 		return true
 	case ContentResponseEntityTypeMetric:
 		return true
@@ -552,6 +555,7 @@ func (e GetContentParamsLocale) Valid() bool {
 const (
 	GetContentParamsEntityTypeDiscourseFunction    GetContentParamsEntityType = "discourse_function"
 	GetContentParamsEntityTypeEmptyLane            GetContentParamsEntityType = "empty_lane"
+	GetContentParamsEntityTypeField                GetContentParamsEntityType = "field"
 	GetContentParamsEntityTypeMetric               GetContentParamsEntityType = "metric"
 	GetContentParamsEntityTypeOpenResearchQuestion GetContentParamsEntityType = "open_research_question"
 	GetContentParamsEntityTypePrimer               GetContentParamsEntityType = "primer"
@@ -567,6 +571,8 @@ func (e GetContentParamsEntityType) Valid() bool {
 	case GetContentParamsEntityTypeDiscourseFunction:
 		return true
 	case GetContentParamsEntityTypeEmptyLane:
+		return true
+	case GetContentParamsEntityTypeField:
 		return true
 	case GetContentParamsEntityTypeMetric:
 		return true

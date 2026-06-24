@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Deutsche Nachrichten-BERT-Sentiment-Verteilung. Polaritätsstreuung für deutsche Artikel, gelesen von einem auf Nachrichten feinjustierten Transformer-Modell."
     long: >
-      Die Verteilungsansicht für sentiment_score_bert_de_news rendert die Streuung
+      Die Verteilungsansicht für den deutschen News-BERT-Stimmungswert rendert die Streuung
       der Polaritätswerte, die das deutsche Nachrichtendomänen-Transformer-Modell
       über alle deutschen Artikel im ausgewählten Geltungsbereich und Fenster
       erzeugt. Im Vergleich zur mehrsprachigen BERT-Verteilung wird dieser View
@@ -33,7 +33,7 @@ registers:
   methodological:
     short: "Histogramm / Dichte des mdraw/german-news-sentiment-bert-Skalars ([-1, +1]). Tier-2.5-Verfeinerung gemäß ADR-023. Nur Deutsch. Tail-Form ist das aussagekräftige Signal."
     long: >
-      Die Verteilung ist ein Histogramm über sentiment_score_bert_de_news-Werte
+      Die Verteilung ist ein Histogramm über die Werte des deutschen News-BERT-Stimmungswerts
       (deutsches Nachrichtendomänen-BERT, P(positiv) − P(negativ), [-1, +1]) für
       den ausgewählten Geltungsbereich und Zeitraum. Tier-2.5-Verfeinerung gemäß
       ADR-023; reduziert auf tier_classification=2 im OpenAPI-Wire-Format.
@@ -65,9 +65,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

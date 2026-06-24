@@ -1,0 +1,47 @@
+entityId: editorial_labels
+entityType: field
+locale: en
+displayLabel: "Editorial Labels"
+registers:
+  semantic:
+    short: "The genre flags a publisher attaches to an article — Opinion, Analysis, Sponsored — marking how a piece should be read."
+    long: >
+      Editorial labels are the genre flags a publisher attaches to an article to tell readers
+      how to read it: Opinion, Analysis, Commentary, Sponsored. They mark the difference
+      between straight reporting and a column, or between editorial content and paid placement
+      — a distinction that matters enormously for interpreting what a piece is doing. In the
+      Workbench they make a strong faceting axis and a revealing node in a Sankey alluvial
+      chain, letting you ask how much of a source's output is opinion versus reportage, or
+      whether sponsored content concentrates in particular sections. They are also among the
+      most telling fields when present: a source that consistently labels its opinion and
+      sponsored content is making its editorial boundaries legible. Expect them to be sparse
+      or absent for many sources, especially institutional ones — that absence is itself an
+      observation about how openly a publisher signals genre, not a gap to be filled.
+  methodological:
+    short: "JSON-LD genre only (e.g. Opinion, Analysis, Sponsored). Tier-B; often degenerate or absent — a constant carries no signal, absence = publisher choice, neither charted nor coerced. WP-003 §3.2."
+    long: >
+      Editorial labels are resolved by the worker's WebAdapter at the Silver boundary from a
+      single source: the JSON-LD genre field — JSON-LD is the structured machine-readable
+      block many publishers embed for search engines, and genre is the Schema.org key for the
+      editorial category of a piece — parsed into a list of strings. There is no OpenGraph or
+      microdata fallback: a publisher that emits no JSON-LD genre leaves this field empty,
+      which is the common case. It is a Tier-B descriptive field — whatever genre strings the
+      publisher chose, neither derived nor validated by AĒR. Two operational realities shape
+      its use. First, absence is the norm rather than the exception: most publishers, and
+      nearly all institutional press offices (bundesregierung, elysee), emit no genre at all,
+      so the field is structurally absent for them — surfaced as Negative Space, a publisher
+      choice (WP-003 §3.2), never coerced to a "news" default that would invent a genre AĒR
+      never observed (ADR-039). Second, where it IS emitted it is often degenerate — a single
+      repeated value across a source — and a constant carries no analytical signal, so AĒR
+      discloses the constancy rather than charting a flat distribution. Comparability is also
+      delicate: the genre vocabulary is the publisher's OWN, so "Meinung" and "Opinion" are
+      not guaranteed to be the same node across sources or languages, and cross-source
+      aggregation is not granted without out-of-band validation (WP-004 §5.3). Read editorial
+      labels as a high-value signal where present, and a meaningful silence where absent.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

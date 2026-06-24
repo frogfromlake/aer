@@ -13,15 +13,32 @@ registers:
       than being read as silence (ADR-036). Read the relative heights across sources, not absolute
       counts — capture frequency varies by how aggressively each site is archived.
   methodological:
-    short: "Count of distinct content-changing snapshots in aer_gold.article_revisions over the window, grouped by source."
+    short: "Count of distinct content-changing snapshots in aer_gold.article_revisions over the window, grouped by source; the synchronic Aleph cell collapses the window to one bucket."
     long: >
-      Revisions come from Internet Archive CDX snapshots, collapsed by content digest so only
-      genuine content changes count. The aggregate groups aer_gold.article_revisions by (source,
-      bucket) and is read with FINAL so re-ingested duplicates collapse to one. A failed or skipped
-      lookup never produces a revision row; its outcome lives in the separate wayback-lookup
-      completeness signal, so "0 revisions" and "we could not look" are distinguishable.
+      Server side: revisions come from Internet Archive CDX (Wayback index) snapshots, collapsed by
+      content digest so only a snapshot whose body DIFFERS from the previous capture counts —
+      identical re-archivals (the bulk of captures) are discarded. The aggregate groups
+      aer_gold.article_revisions by (source, bucket) and is read with FINAL so re-ingested duplicates
+      collapse to one. This Aleph cell is synchronic: it collapses the whole active window to a
+      single bucket and asks only "which source edits most right now" — the diachronic per-bucket
+      reading is the revision_timeline cell over the same endpoint.
+
+      What "edit activity" is, and is NOT. A counted revision is the OBSERVABLE fact that the
+      archived body changed between two captures — a silent re-edit of an already-published article.
+      It is NOT a count of editorial decisions: one editorial change between captures registers as
+      one revision regardless of how many words moved, and several changes BETWEEN two captures are
+      invisible (they collapse into the single net diff). Crucially, bar HEIGHT is governed by
+      CAPTURE FREQUENCY — how aggressively the Internet Archive crawls each site — at least as much
+      as by publisher behaviour. A heavily-archived outlet can show more revisions than a lightly-
+      archived one that actually edits more. Read RELATIVE heights with this caveat, never absolute
+      counts as an edit rate. An empty/absent bar is NOT coerced to "no edits": a lookup that
+      could not complete (Archive unreachable, rate-limited, circuit open) produces no revision row
+      and is recorded in the SEPARATE wayback-lookup completeness signal, so "0 revisions" and "we
+      could not look" stay distinguishable (ADR-039 disclose-never-coerce). Composition: a single
+      grouped query over the scope; no merged/split fan-out.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-02"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §5.3"
+  - "ADR-039"

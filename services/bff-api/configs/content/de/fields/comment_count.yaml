@@ -1,0 +1,55 @@
+entityId: comment_count
+entityType: field
+locale: de
+displayLabel: "Kommentaranzahl"
+registers:
+  semantic:
+    short: "Wie viele Leserkommentare ein Herausgeber für einen Artikel meldet — ein selbstberichtetes Engagement-Signal, nur dort vorhanden, wo die Quelle Kommentare führt und die Zahl ausgibt."
+    long: >
+      Die Kommentaranzahl ist die Zahl der Leserkommentare, die ein Herausgeber einem
+      Artikel zuordnet. Sie ist ein Blick auf das Engagement des Publikums: ein Beitrag
+      mit Hunderten Kommentaren hat eine öffentliche Reaktion ausgelöst; einer ohne
+      Kommentare blieb entweder ohne Resonanz oder stammt — was im Korpus von AĒR weit
+      häufiger ist — von einer Quelle, die gar keinen Kommentarbereich betreibt. Die Zahl
+      sagt nur etwas aus, wenn sie vorhanden ist, und vorhanden ist sie selten: die
+      institutionellen Pressestellen (die Bundesregierung, der Élysée) und die meisten
+      heute erfassten Nachrichtenseiten geben in ihren strukturierten Metadaten keine
+      Kommentarzahl aus, sodass dieses Feld für sie schlicht schweigt.
+      In der Workbench begegnet Ihnen die Kommentaranzahl als Streudiagramm-Achse oder
+      Farbkanal (Engagement gegen Artikellänge oder Stimmung etwa) und als Facetten-
+      Dimension. Behandeln Sie sie mit Vorsicht: sie spiegelt, was der Herausgeber über
+      seine eigene Plattform zu berichten wählt, keine unabhängige Messung, und sie lässt
+      sich nicht über Quellen hinweg vergleichen, als wäre sie eine einheitliche Skala. Wo
+      eine Quelle keine Zahl ausgibt, wird die Kommentaranzahl als Negative Space gezeigt —
+      niemals als null Kommentare gezählt.
+  methodological:
+    short: "Aus JSON-LD interactionStatistic (CommentAction) / commentCount. Tier-1 deterministisch. Bei den heutigen Quellen fast immer abwesend — Negative Space, nie zu 0 umgedeutet. Herausgeber-Selbstauskunft, nicht vergleichbar. WP-003 §3.2."
+    long: >
+      Die Kommentaranzahl wird vom WebAdapter des Workers an der Silver-Grenze
+      deterministisch allein aus dem JSON-LD des Artikels extrahiert (JSON-LD ist der
+      strukturierte Datenblock, den Herausgeber in eine Seite einbetten, um sie für
+      Maschinen zu beschreiben). Der Extraktor liest die Eigenschaft interactionStatistic:
+      ist sie eine Liste von Interaktionseinträgen, wählt er denjenigen, dessen
+      interactionType eine CommentAction benennt, und nimmt dessen userInteractionCount; er
+      akzeptiert auch einen bloßen commentCount-Wert. Die erste gültige Ganzzahl gewinnt;
+      Nicht-Numerisches wird ignoriert. Kein Modell, keine Inferenz — Tier-1
+      deterministisch. Validierungsstatus: unvalidated (Engineering-Default).
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2, ADR-039). Die heute
+      erfassten institutionellen und Nachrichtenquellen geben diese Eigenschaft fast nie
+      aus, sodass die Kommentaranzahl für sie strukturell abwesend ist — als
+      structurallyAbsent markiert, wenn die Befüllung über mindestens 50 Artikel der
+      letzten 30 Tage bei 0 % liegt, als Negative Space gezeigt und im Dimensions-Picker
+      für diesen Bereich nicht angeboten. Eine fehlende Zahl ist eine Herausgeber-
+      Entscheidung (die Quelle führt keine Kommentare oder gibt die Zahl nicht aus), nie
+      ein Defekt und nie zu 0 umgedeutet, denn null Kommentare und „keine gemeldete
+      Kommentarfunktion" sind verschiedene Tatsachen. Wo vorhanden, ist die Zahl die
+      Selbstauskunft des Herausgebers über die eigene Engagement-Oberfläche, keine
+      unabhängige Messung; sie gilt ohne externe Validierung nicht als quellenübergreifend
+      vergleichbar (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Sentimentpolarität über die Zeit. Zeigt, ob sich der emotionale Register der veröffentlichten Texte — hin zu positiverer oder negativerer Rahmung — im Beobachtungsfenster verschiebt."
     long: >
-      Diese Ansicht stellt sentiment_score als Zeitreihe dar und zeigt, wie sich der aggregierte
+      Diese Ansicht stellt den Stimmungswert als Zeitreihe dar und zeigt, wie sich der aggregierte
       emotionale Register einer Quelle im Zeitverlauf verändert. Anhaltende Abwärtstrends können
       auf zunehmend negative Themensetzung hinweisen; Aufwärtsbewegungen können auf Entspannung,
       positive Umrahmung oder einen redaktionellen Themenwechsel hindeuten. Abrupte Tagesbewegungen
@@ -28,11 +28,11 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "5-Minuten-Downsampling-Mittelwert von SentiWS-v2.0-sentiment_score (Bereich −1 bis +1). Vorläufig (Tier 3). Bekannte Einschränkungen: Negation, Ironie, Komposita im Deutschen."
+    short: "5-Minuten-Downsampling-Mittelwert des SentiWS-v2.0-Stimmungswerts (Bereich −1 bis +1). Vorläufig (Tier 3). Bekannte Einschränkungen: Negation, Ironie, Komposita im Deutschen."
     long: >
-      sentiment_score wird in dieser Ansicht als 5-Minuten-Downsampling-Zeitreihe dargestellt.
+      Der Stimmungswert wird in dieser Ansicht als 5-Minuten-Downsampling-Zeitreihe dargestellt.
       Unsicherheitsbänder spiegeln die Varianz innerhalb der Buckets wider. Die Metrik wird
-      vom SentimentExtractor unter Verwendung des deutschen SentiWS-v2.0-Lexikons mit
+      vom Sentiment-Extraktor unter Verwendung des deutschen SentiWS-v2.0-Lexikons mit
       Mittelwert-Polaritätenaggregation berechnet — Tier 3 (vorläufig) gemäß WP-002 §5.
       Kritische Einschränkungen: (1) SentiWS wurde auf Zeitungstext validiert und überträgt
       sich möglicherweise nicht sauber auf institutionelle Pressemitteilungen oder
@@ -58,9 +58,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"
   - "WP-004 §3"

@@ -5,10 +5,10 @@ registers:
   semantic:
     short: "Multilingual BERT sentiment over time. Shows how the emotional register of published text — read by a transformer model that handles many languages — moves across the observation window."
     long: >
-      This view plots sentiment_score_bert_multilingual as a time series, revealing how
+      This view plots the multilingual BERT sentiment score as a time series, revealing how
       the aggregate emotional register of a source's output moves across time when read
       by a multilingual transformer model. Compared to the lexicon-based time series
-      (sentiment_score_sentiws), this score reads each article as a whole — context like
+      (the SentiWS sentiment score), this score reads each article as a whole — context like
       negation, word order, and irony has at least some chance of being detected. Sustained
       shifts are interpretable as before; sharp single-day movements often correlate with
       major news events. This metric works across many languages, so it is the natural
@@ -32,9 +32,9 @@ registers:
   methodological:
     short: "5-minute downsampled mean of cardiffnlp/twitter-xlm-roberta-base-sentiment scalar (P(pos) − P(neg), [-1, +1]). Tier-2 default per ADR-023. Domain-transfer caveat: trained on Twitter, applied to institutional RSS (WP-002 §3.2)."
     long: >
-      sentiment_score_bert_multilingual in this view is rendered as a 5-minute downsampled
+      The multilingual BERT sentiment score in this view is rendered as a 5-minute downsampled
       time series. Uncertainty bands reflect within-bucket variance. The metric is
-      computed by MultilingualBertSentimentExtractor running
+      computed by the multilingual sentiment extractor running
       cardiffnlp/twitter-xlm-roberta-base-sentiment, pinned by HuggingFace commit
       revision in the Language Capability Manifest's shared.multilingual_bert block;
       the scalar is P(positive) − P(negative), clipped to [-1, +1]. Tier-2 default
@@ -44,7 +44,7 @@ registers:
       torch.use_deterministic_algorithms(True). Critical limitations (WP-002 §3.2):
       (1) domain transfer — the model was trained on Twitter, not institutional
       press; gap with the per-language news-domain refinement
-      (sentiment_score_bert_de_news for German) is itself the WP-002 signal, not a
+      (the German news-domain BERT sentiment score for German) is itself the WP-002 signal, not a
       flaw to be averaged out; (2) cross-language calibration drift — comparing
       time-series across two languages requires a metric_equivalence registry
       entry granting a deviation level (ADR-016) before normalisation is permitted
@@ -66,9 +66,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

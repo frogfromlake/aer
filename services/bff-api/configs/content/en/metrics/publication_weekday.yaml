@@ -6,22 +6,22 @@ registers:
   semantic:
     short: "The ISO weekday (1 = Monday, 7 = Sunday) on which an article was published. Reveals weekly editorial cycles, weekday-vs-weekend patterns, and institutional work rhythms."
     long: >
-      publication_weekday is the day-of-week component of an article's publication timestamp,
+      Publication weekday is the day-of-week component of an article's publication timestamp,
       using the ISO 8601 numbering where 1 = Monday and 7 = Sunday. Charted as a distribution,
       it reveals the weekly editorial heartbeat of a source. Sources embedded in institutional
       work cultures (government, public broadcasting) typically show steep Monday–Friday
       concentrations and sharp weekend drops; continuous-news operations flatten this curve;
       purely automated sources produce uniform distributions. The weekday pattern interacts
-      with publication_hour: a source that publishes heavily on weekdays in the morning hours
+      with the publication hour: a source that publishes heavily on weekdays in the morning hours
       is almost certainly driven by institutional scheduling, not by the news cycle itself.
       The metric does not measure newsworthiness or editorial judgment — it measures the
       structural conditions under which content is produced.
 
       Composition — when a Workbench Panel pools more than one source under
       composition='merged', this metric aggregates as mode-aligned weekday
-      distribution over the unioned corpus. Sentiment-class metrics inherit
-      the merged-mean's sensitivity to source-mix imbalance: a single
-      high-volume source can dominate the aggregate. Use the split composition
+      distribution over the unioned corpus. The merged aggregate inherits a
+      sensitivity to source-mix imbalance: a single high-volume source can
+      dominate the aggregate. Use the split composition
       (one Cell per source) when source-level differences are the question.
       The merged reading is permitted across languages with a soft methodology
       banner (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode
@@ -30,15 +30,15 @@ registers:
   methodological:
     short: "ISO weekday extracted from Silver-layer timestamp. Tier 1 (deterministic). Note: UTC date boundary may shift the apparent weekday by one day for late-night publications."
     long: >
-      publication_weekday is computed from the same Silver-layer timestamp as publication_hour:
+      Publication weekday is computed from the same Silver-layer timestamp as the publication hour:
       the ISO weekday of the UTC date of publication. Extraction is stateless and deterministic
       — Tier 1 under WP-002 §3. Methodological caveats: (1) Because the date boundary is
       computed in UTC, a German article published at 23:30 local time (CET) appears as 22:30
       UTC and is assigned to the UTC weekday, which may differ from the local weekday. For
       most editorial patterns this offset is negligible; for analyses focused specifically on
       Monday-morning or Sunday-night publications, it deserves attention. (2) The timestamp
-      reflects RSS publication time, not event time or authoring time — see publication_hour
-      for a full discussion of this caveat. (3) For Probe 0 sources, timestamps are
+      reflects RSS publication time, not event time or authoring time — see the publication-hour
+      metric entry for a full discussion of this caveat. (3) For Probe 0 sources, timestamps are
       machine-generated and reliable. Validation status: unvalidated (no known active
       limitations for Probe 0).
 
@@ -54,9 +54,9 @@ registers:
       applicable) refuse with HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

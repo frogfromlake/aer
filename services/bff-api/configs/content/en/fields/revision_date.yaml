@@ -1,0 +1,46 @@
+entityId: revision_date
+entityType: field
+locale: en
+displayLabel: "Revision Date"
+registers:
+  semantic:
+    short: "The publisher's last-revision timestamp — the same dateModified signal, mirrored so revision-oriented views can read it directly."
+    long: >
+      The revision date is the publisher's own record of when the article was last revised. In
+      practice it tracks the same publisher signal as the modified date — the two move together —
+      but it is surfaced under its own name so revision-oriented readings have a field to hang on.
+      It tells you whether a piece has been touched since first issue, which matters when you are
+      watching a developing story or auditing how often a source restates itself. Like the
+      modified date, it is present only when the publisher emits a revision timestamp at all;
+      institutional press offices that publish once and never re-timestamp leave it silent, and
+      that silence is a property of their publishing model, not a defect. In the Workbench it
+      supports recency faceting and feeds revision-activity readings; because so many sources
+      omit it, treat it as a positive signal where present rather than a corpus-wide count.
+  methodological:
+    short: "Extracted from JSON-LD dateModified; mirrors modified_date whenever that is set, so the two carry the same publisher signal. Absent when no dateModified is emitted — structural absence by design. WP-003 §3.2 · ADR-039."
+    long: >
+      The revision date is resolved by the worker's WebAdapter at the Silver boundary from the
+      JSON-LD dateModified field — JSON-LD is the structured, machine-readable metadata block
+      publishers embed for search engines. The resolution is deliberately coupled to the modified
+      date: when a modified date has already been set, the revision date is mirrored from it and
+      carries the same provenance; when only the raw JSON-LD dateModified is available, that value
+      is used. The two fields therefore reflect the same underlying publisher signal under two
+      names — revision_date is not an independent edit trail, and it must not be read as one.
+      There is no heuristic fallback and no OpenGraph step beyond what the modified date already
+      consumed: AĒR never guesses a revision time. The field is populated only when the publisher
+      explicitly declares dateModified. When the publisher emits none — common for institutional
+      press offices whose workflow issues a statement and does not record subsequent edits — the
+      field is structurally absent by design (WP-003 §3.2). Following disclose-never-coerce
+      (ADR-039), an absent revision date is shown as Negative Space (AĒR's first-class disclosure
+      of what it cannot see), never coerced to the publication date or to a "no revisions" value.
+      Because revision_date mirrors modified_date, the two will agree by construction wherever
+      both are present; a reader should not treat their agreement as independent corroboration.
+      Aggregating across heterogeneous sources is comparability-sensitive, since emitting and
+      silent publishers form different populations (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

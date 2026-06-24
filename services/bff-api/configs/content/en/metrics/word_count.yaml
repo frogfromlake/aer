@@ -17,9 +17,9 @@ registers:
 
       Composition — when a Workbench Panel pools more than one source under
       composition='merged', this metric aggregates as mean per-article word
-      count over the unioned corpus. Sentiment-class metrics inherit the
-      merged-mean's sensitivity to source-mix imbalance: a single high-volume
-      source can dominate the aggregate. Use the split composition (one Cell
+      count over the unioned corpus. The merged mean inherits a sensitivity
+      to source-mix imbalance: a single high-volume source can dominate the
+      aggregate. Use the split composition (one Cell
       per source) when source-level differences are the question. The merged
       reading is permitted across languages with a soft methodology banner
       (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode entry for
@@ -28,7 +28,7 @@ registers:
   methodological:
     short: "Whitespace tokenization on cleaned_text. Tier 1 (deterministic). Known limitation: undercounts in agglutinative and logographic languages."
     long: >
-      word_count is computed by splitting cleaned_text on Unicode whitespace boundaries and
+      Word count is computed by splitting cleaned_text on Unicode whitespace boundaries and
       counting the resulting tokens. The extractor is stateless, requires no external models,
       and produces identical output for identical input — it is a Tier 1 deterministic metric
       under WP-002 §3. Its primary methodological limitation is that whitespace tokenization
@@ -50,9 +50,9 @@ registers:
       MethodologyBanner; Episteme/Rhizome view-modes (when applicable) refuse
       with HTTP 422 cross_language_merge_unsupported (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §6.2"

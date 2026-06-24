@@ -12,15 +12,40 @@ registers:
       der Median. Phase 131 erlaubt das Einstellen der Klassenzahl: weniger Klassen glätten die
       Form, mehr Klassen zeigen Feinstruktur (auf Kosten von Rauschen bei kleinen Korpora).
   methodological:
-    short: "Histogramm über die Metrikwerte im Geltungsbereich; Klassenzahl konfigurierbar (Standard 30). Für strukturelle Metriken Tier-1-deterministisch."
+    short: "Histogramm + Quantil-Zusammenfassung über die Metrikwerte im Geltungsbereich; Klassenzahl auf [1, 200] begrenzt (Standard 30), rechter Rand robust gekappt. Für strukturelle Metriken Tier-1-deterministisch."
     long: >
-      Die Notiz wird zur Renderzeit aus einer Vorlage je Darstellung plus der aktuellen
-      Konfiguration der Zelle (aktive Klassenzahl) komponiert. Das Histogramm wird serverseitig
-      über die rohen Metrikwerte im gewählten Fenster und Geltungsbereich berechnet; die
-      Perzentil-Linien stammen aus derselben Stichprobe. Die Klassenzahl ist der einzige
-      Tiefenregler — serverseitig auf [1, 200] begrenzt.
-contentVersion: "v2026-05-a"
+      Serverseitig: Das Histogramm wird über die ROHEN Metrikwerte im gewählten Geltungsbereich und
+      Fenster berechnet (GET /metrics/{name}/distribution auf Gold; der Silver-Aggregationspfad für
+      ein eingegrenztes Einzelquellen-Wortzahl- oder -Entitätszahl-Histogramm). Dieselbe Stichprobe liefert die
+      Quantil-Zusammenfassung — n, min, p05, p25, Median, Mittelwert, p75, p95, max — und die Linien
+      im Plot (durchgezogen = Median, gestrichelt = Interquartilsabstand p25/p75). Bei einer
+      strukturellen Metrik ist der zugrunde liegende Wert Tier-1-deterministisch (WP-002 §3); bei
+      einer provisorischen NLP-Metrik erbt die Verteilung deren Validierungsstatus.
+
+      Quantitative Grenzen. (1) Die Klassenzahl ist der einzige Tiefenregler, serverseitig auf
+      [1, 200] begrenzt (Standard 30); weniger Klassen glätten die Form, mehr zeigen Feinstruktur.
+      (2) Bei kleinem Korpus (Faustregel < ~100 Artikel) erzeugt feine Klasseneinteilung VERRAUSCHTE
+      Schätzungen — eine zackige Form ist Stichprobenrauschen, keine echte Mehrgipfligkeit, und die
+      Quantile werden breiter. (3) Robustheit am rechten Rand: Damit ein einzelner Ausreißer (etwa
+      ein 12000-Wörter-Feature) nicht den ganzen Körper in die linkeste Klasse staucht, wird der
+      obere Rand auf eine robuste Grenze gekappt und Werte darüber in einen einzelnen, offengelegten
+      ÜBERLAUF-Balken gebündelt (eigene Bernsteinfüllung, Anzahl + echtes Maximum in der Bildunterschrift)
+      — nie still verworfen. Bei geteilter (vereinigter) x-Achse wird der Überlauf nur in der
+      Bildunterschrift offengelegt, da ein Balken jenseits der Grenze dieser Zelle mittig läge und
+      missdeutet würde. (4) Eine entartete (Einzelwert-)Verteilung wird ausdrücklich benannt statt
+      als irreführender Ausschlag gezeichnet.
+
+      Komposition (ADR-034). Unter composition='merged' stellt die Zelle EINE Abfrage über die
+      vereinigten sourceIds und zeichnet ein Diagramm; unter 'split' fächert sie eine Abfrage und ein
+      Diagramm je Quelle auf (split-direction ist rein darstellend, keine Änderung der Abfrage).
+      Sprachübergreifender merged-Geltungsbereich ist in Aleph ZULÄSSIG und löst einen weichen
+      Hinweis zur rahmenübergreifenden Vergleichbarkeit (WP-004 §3.4) aus statt einer Verweigerung,
+      weil die hier gezeigten strukturellen Metriken sprachunabhängig genug sind, um mit Vorbehalt zu
+      bündeln — die bewusste Asymmetrie gegenüber Episteme/Rhizome, die verweigern.
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-25"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-004 §3.4"
+  - "ADR-034"

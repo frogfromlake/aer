@@ -5,14 +5,14 @@ registers:
   semantic:
     short: "Deutsches Nachrichten-BERT-Sentiment über die Zeit. Gleiche Form wie die mehrsprachige Zeitreihe, aber gelesen von einem auf deutsche Nachrichten feinjustierten Modell — näher am AĒR-Quellenregister, nur Deutsch."
     long: >
-      Diese Ansicht stellt sentiment_score_bert_de_news als Zeitreihe dar. Die
+      Diese Ansicht stellt den deutschen News-BERT-Stimmungswert als Zeitreihe dar. Die
       Metrik ist das domänenspezialisierte Gegenstück zum mehrsprachigen
       BERT-Sentimentscore: Das Modell liest dieselben Artikel, wurde aber auf
       deutschen Nachrichtentexten feinjustiert, nicht auf mehrsprachigem Twitter,
       sodass seine Kalibrierung auf den deutschen institutionellen Quellen von AĒR
       voraussichtlich enger ist. Vergleichen Sie diese Zeitreihe mit der
-      mehrsprachigen (sentiment_score_bert_multilingual) und mit dem
-      lexikonbasierten Score (sentiment_score_sentiws) — die Lücke zwischen den
+      mehrsprachigen (der mehrsprachige BERT-Stimmungswert) und mit dem
+      lexikonbasierten Score (der SentiWS-Stimmungswert) — die Lücke zwischen den
       drei Linien macht das WP-002-§3.2-Domänentransfer-Signal sichtbar. Die
       Ansicht ist absichtlich nur für Deutsch: Eine Eingrenzung auf
       nicht-deutsche Quellen rendert einen leeren Stream, was korrekt ist (die
@@ -34,7 +34,7 @@ registers:
   methodological:
     short: "5-Minuten-Downsampling-Mittelwert des mdraw/german-news-sentiment-bert-Skalars (P(pos) − P(neg), [-1, +1]). Tier-2.5-Verfeinerung gemäß ADR-023. Nur Deutsch. Genretransfer-Vorbehalt: Nachrichtentraining, institutionelle Anwendung (WP-002 §3.2)."
     long: >
-      sentiment_score_bert_de_news ist in dieser Ansicht eine
+      Der deutsche News-BERT-Stimmungswert ist in dieser Ansicht eine
       5-Minuten-Downsampling-Zeitreihe über den Skalar P(positiv) − P(negativ),
       ausgegeben von mdraw/german-news-sentiment-bert, gepinnt per
       HuggingFace-Commit-Revision im
@@ -73,9 +73,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

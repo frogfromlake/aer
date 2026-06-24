@@ -1,0 +1,52 @@
+entityId: modified_date
+entityType: field
+locale: de
+displayLabel: "Änderungsdatum"
+registers:
+  semantic:
+    short: "Wann der Herausgeber den Artikel zuletzt geändert hat — nur vorhanden, wenn der Herausgeber es ausgibt, was institutionelle Quellen oft nicht tun."
+    long: >
+      Das Änderungsdatum hält fest, wann ein Herausgeber den Artikel nach der ersten
+      Veröffentlichung nach eigenen Angaben zuletzt geändert hat. Zusammen mit dem
+      Veröffentlichungsdatum gelesen, verrät es, ob ein Beitrag überarbeitet wurde — ein
+      Hinweis auf eine sich entwickelnde Lage, eine Korrektur oder eine laufende
+      Live-Aktualisierung. Ob es vorhanden ist, hängt allein davon ab, ob der Herausgeber es
+      ausgeben möchte: Viele Quellen tun das nie, und für sie schweigt dieses Feld schlicht.
+      Dieses Schweigen ist aussagekräftig. Eine institutionelle Pressestelle (Bundesregierung,
+      Élysée), die eine Erklärung veröffentlicht und ihr nie einen neuen Zeitstempel gibt,
+      verbirgt nichts — ihr Veröffentlichungsmodell erfasst nachträgliche Bearbeitungen gar
+      nicht. In der Workbench unterstützt das Änderungsdatum die Filterung nach Aktualität und
+      hilft, das Volumen der Erstveröffentlichung von der Aktivität der Neuausgabe zu trennen;
+      doch weil so viele Quellen es leer lassen, liest es sich am besten als positives Signal
+      dort, wo es vorhanden ist, statt als Zählung über ein ganzes Korpus.
+  methodological:
+    short: "Über JSON-LD dateModified → OpenGraph article:modified_time extrahiert. Abwesend bei Quellen, die kein dateModified ausgeben — strukturelle Abwesenheit von Natur aus (institutionelle Pressestellen). WP-003 §3.2 · ADR-039."
+    long: >
+      Das Änderungsdatum wird vom WebAdapter des Workers an der Silver-Grenze über eine
+      zweistufige Prioritätskette aufgelöst. Zuerst liest es JSON-LD dateModified — JSON-LD ist
+      der strukturierte, maschinenlesbare Metadatenblock, den Herausgeber für Suchmaschinen
+      einbetten. Fehlt dieser, fällt es auf den OpenGraph-Metatag article:modified_time
+      (OpenGraph ist der Standard für Metadaten beim Teilen in sozialen Netzwerken). Es gibt
+      keinen heuristischen Rückfall: Anders als beim Veröffentlichungsdatum errät AĒR nicht,
+      wann ein Artikel zuletzt bearbeitet wurde. Das Feld wird also nur befüllt, wenn der
+      Herausgeber es ausdrücklich angibt. Das ist der tragende Vorbehalt. Sehr viele Quellen —
+      insbesondere institutionelle Pressestellen — geben dateModified überhaupt nie aus. Für
+      diese Quellen ist das Feld von Natur aus strukturell abwesend (WP-003 §3.2): Ihr
+      Veröffentlichungsmodell gibt eine Erklärung heraus und erfasst spätere Bearbeitungen
+      nicht, sodass die Abwesenheit die Autorschaft und den Arbeitsablauf des Herausgebers
+      widerspiegelt, nicht einen Fehler im Artikel oder in AĒR. Gemäß dem Grundsatz
+      disclose-never-coerce (ADR-039) wird ein fehlendes Änderungsdatum als Negative Space
+      gezeigt (AĒRs erstklassige Offenlegung dessen, was es nicht sehen kann) und nie
+      stillschweigend als „unverändert" behandelt oder vom Veröffentlichungsdatum übernommen.
+      Eine Quelle mit 0 % Abdeckung über mindestens 50 Artikel in den letzten 30 Tagen wird
+      für dieses Feld als structurallyAbsent markiert, damit ein Leser weiß, dass das Schweigen
+      die Norm der Quelle ist und keine Stichprobenlücke. Das Bündeln von Änderungsdaten über
+      heterogene Quellen hinweg ist vergleichbarkeits-empfindlich — ausgebende und schweigende
+      Herausgeber sind nicht dieselbe Grundgesamtheit (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

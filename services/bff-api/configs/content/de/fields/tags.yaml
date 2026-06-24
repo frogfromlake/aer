@@ -1,0 +1,51 @@
+entityId: tags
+entityType: field
+locale: de
+displayLabel: "Tags"
+registers:
+  semantic:
+    short: "Die freien Schlagworte, die ein Herausgeber an einen Artikel heftet — die feinste, offenste Schicht seiner eigenen Klassifikation."
+    long: >
+      Tags sind die freien Schlagworte, die ein Herausgeber an einen Artikel pinnt: Personen,
+      Orte, Ereignisse, Themen. Sie sind die feinste und offenste Schicht der Klassifikation
+      eines Herausgebers — wo ein Ressort sich auf einen Schreibtisch festlegt und Kategorien
+      auf eine kleine Menge von Rubriken, können Tags zu einem Dutzend spezifischer Begriffe
+      anwachsen („Bundestag", „Energiepreise", „Olaf Scholz"). In der Workbench unterstützen sie
+      das Faceting und die kategoriale Verteilung, können eine Knotenspalte einer Sankey-Kette
+      verankern und geben einen schnellen Eindruck davon, welche Entitäten und Themen eine
+      Quelle in ihren eigenen Worten hervorhebt. Lesen Sie sie als die redaktionelle
+      Verschlagwortung, deutlich getrennt von den Entitäten, die AĒR selbst aus dem Artikeltext
+      extrahiert: Tags sagen Ihnen, was der Herausgeber markieren wollte, nicht was die Analyse
+      gefunden hat. Eine dicht verschlagwortende Quelle bietet eine reichere Oberfläche fürs
+      Faceting; eine, die kaum oder gar nicht taggt, trifft eine andere redaktionelle
+      Entscheidung — sie verfehlt keinen Standard.
+  methodological:
+    short: "JSON-LD keywords → OpenGraph article:tag. Tier-B-Verschlagwortung des Herausgebers; mehrwertig; kein gemeinsames Schema über Quellen. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      Tags werden vom WebAdapter des Workers an der Silver-Grenze aufgelöst. Primäre Quelle ist
+      das JSON-LD-Feld keywords — JSON-LD ist der strukturierte, maschinenlesbare Block, den
+      viele Herausgeber für Suchmaschinen einbetten — geparst zu einer Liste von Zeichenketten
+      (eine kommaverbundene Keyword-Zeichenkette wird in ihre Teile zerlegt). Fehlen die
+      JSON-LD-keywords, fällt der Extraktor auf das OpenGraph-Tag article:tag zurück (OpenGraph
+      ist der Metadaten-Standard fürs Teilen in sozialen Netzen). Tags sind ein beschreibendes
+      Tier-B-Feld: eine mehrwertige Liste beliebiger vom Herausgeber gewählter Begriffe, weder
+      von AĒR abgeleitet noch validiert. Beachten Sie die enge Verwandtschaft mit Ressort und
+      Kategorien — alle drei speisen sich aus benachbarten Schema.org-Schlüsseln (keywords dient
+      auch als letzter Fallback fürs Ressort), sodass dieselbe Keyword-Zeichenkette in mehr als
+      einem Feld auftauchen kann. Der tragende Vorbehalt ist die Vergleichbarkeit: Tags gehören
+      zum EIGENEN Verschlagwortungs-Vokabular des Herausgebers, nicht zu einem kontrollierten
+      oder gemeinsamen Schema. Derselbe Begriff kann über Quellen hinweg als „EU", „Europäische
+      Union" oder „Brussels" erscheinen, und identische Oberflächenformen über Sprachen hinweg
+      bedeuten nicht garantiert dasselbe. Eine quellenübergreifende Aggregation über Tags wird
+      deshalb ohne externe Validierung nicht gewährt (WP-004 §5.3); eine Faceting-Ansicht oder
+      ein Sankey über Quellen zeigt die je eigenen Tag-Knoten, keinen vereinheitlichten Index.
+      Gibt eine Quelle auf keinem Pfad Tags aus, ist das Feld strukturell abwesend — als
+      Negative Space gezeigt, eine Herausgeber-Entscheidung (WP-003 §3.2), nie zu einer leeren
+      Liste umgedeutet, die als gemessene Null gälte (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

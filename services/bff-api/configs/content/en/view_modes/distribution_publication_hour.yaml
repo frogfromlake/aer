@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Publication hour distribution. Shows the full daily rhythm of when a source publishes — peaks, valleys, and whether output is concentrated in specific hours or spread across the clock."
     long: >
-      The distribution view for publication_hour renders the density of publications across
+      The distribution view for publication hour renders the density of publications across
       the 24-hour clock as a bar chart or density curve. This is typically the most revealing
       view for this metric: while the time-series mean tells you if the average hour shifts,
       the distribution tells you what the source's editorial day looks like in total. For
@@ -27,12 +27,12 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "Bar chart / density over publication_hour (UTC, 0–23). Tier 1. Key caution: bar charts do not show circularity — hour 23 and hour 0 are adjacent. UTC ≠ local time (+1/+2 for Germany)."
+    short: "Bar chart / density over publication hour (UTC, 0–23). Tier 1. Key caution: bar charts do not show circularity — hour 23 and hour 0 are adjacent. UTC ≠ local time (+1/+2 for Germany)."
     long: >
       The distribution is computed as a simple frequency count over the 24 integer values of
-      publication_hour (UTC), aggregated across all articles in the selected scope and window.
+      publication hour (UTC), aggregated across all articles in the selected scope and window.
       Tier 1 deterministic (WP-002 §3). Two interpretive cautions specific to this view:
-      (1) publication_hour is a circular variable — a standard histogram treats hour 23 and
+      (1) publication hour is a circular variable — a standard histogram treats hour 23 and
       hour 0 as maximally distant when they are in fact adjacent; sources that publish around
       midnight will appear split across the two ends of the plot; (2) UTC hours must be
       mentally offset by +1 (CET) or +2 (CEST) to read as German local time. For sources
@@ -52,9 +52,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

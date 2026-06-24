@@ -11,18 +11,34 @@ registers:
       category that spreads across many of the next; a converging pattern shows many categories that
       funnel into one. Read it left to right as the corpus being repeatedly re-grouped.
   methodological:
-    short: "Distinct-article flows between consecutive field pairs, from article_id self-joins on aer_gold.article_metadata (FINAL); top-N edges per pair."
+    short: "Distinct-article flows between consecutive field pairs, from article_id self-joins on aer_gold.article_metadata (FINAL); top-N=30 edges per pair, chain capped at 8 columns."
     long: >
-      For each consecutive pair of fields the server joins aer_gold.article_metadata on article_id
-      (both sides FINAL, for exact distinct-article counts) and counts distinct articles per
-      (value, value) pair, keeping the top-N edges per pair so a long tail does not explode the
-      graph (the drop is disclosed here, never summed into a misleading band). A list-valued field
-      can place one article under several values, so band widths are article-flow weights, not a
-      strict partition. The field chain is capped at 8 columns. Article counts only — no metric
-      normalization, so no cross-cultural equivalence gate applies (categories from different
-      languages simply appear as distinct nodes).
+      Server side: for each CONSECUTIVE pair of fields in the ordered chain the BFF
+      (GET /metadata/sankey) self-joins aer_gold.article_metadata on article_id — both sides read
+      with FINAL so re-ingested duplicates collapse and counts are exact distinct articles — and
+      counts distinct articles per (value, value) pair. Only neighbouring columns are joined; the
+      Sankey shows pairwise transitions, never a full N-way partition of the corpus.
+
+      Quantitative limits. (1) Each pair keeps only its TOP-N edges (N=30); the long tail is dropped
+      so a graph of hair-thin bands does not form. The drop is disclosed here and the dropped flows
+      are still reachable via hover and CSV/JSON export — they are NEVER summed back into a visible
+      band, which would mislead. (2) The field chain is hard-capped at 8 columns; a longer chain is
+      rejected upstream. (3) A LIST-VALUED field (tags, categories) can place one article under
+      several values at once, so the same article is counted on multiple bands of that column. Band
+      widths are therefore article-FLOW weights, not a strict partition, and the per-column total can
+      exceed the corpus size. Read a thick band as "many article-placements", not "this fraction of
+      all articles". (4) A node label only prints when its band clears the height threshold; thinner
+      nodes are hover-only — so a sparse column can look emptier than it is.
+
+      Composition (ADR-034). The Sankey is a single-scope relational view; it does not fan out into
+      a merged/split per-source layout — the chain itself is the structure. Article counts only, no
+      metric normalisation, so the cross-cultural equivalence gate (WP-004 §5.3) never engages:
+      categories from different languages simply appear as distinct nodes (WP-003 §3.2), never
+      silently merged.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-034"

@@ -5,10 +5,10 @@ registers:
   semantic:
     short: "Mehrsprachiges BERT-Sentiment über die Zeit. Zeigt, wie sich der emotionale Register veröffentlichter Texte — gelesen von einem Transformer-Modell, das viele Sprachen beherrscht — im Beobachtungsfenster bewegt."
     long: >
-      Diese Ansicht stellt sentiment_score_bert_multilingual als Zeitreihe dar und
+      Diese Ansicht stellt den mehrsprachigen BERT-Stimmungswert als Zeitreihe dar und
       zeigt, wie sich der aggregierte emotionale Register einer Quelle im Zeitverlauf
       verschiebt, wenn er von einem mehrsprachigen Transformer-Modell gelesen wird.
-      Im Vergleich zur lexikonbasierten Zeitreihe (sentiment_score_sentiws) liest
+      Im Vergleich zur lexikonbasierten Zeitreihe (der SentiWS-Stimmungswert) liest
       dieser Score jeden Artikel als Ganzes — Kontext wie Negation, Wortstellung
       und Ironie kann zumindest teilweise erkannt werden. Anhaltende Verschiebungen
       sind wie zuvor interpretierbar; abrupte Tagesbewegungen korrelieren häufig
@@ -35,10 +35,10 @@ registers:
   methodological:
     short: "5-Minuten-Downsampling-Mittelwert des cardiffnlp/twitter-xlm-roberta-base-sentiment-Skalars (P(pos) − P(neg), [-1, +1]). Tier-2-Default gemäß ADR-023. Domänentransfer-Vorbehalt: auf Twitter trainiert, auf institutionellem RSS angewendet (WP-002 §3.2)."
     long: >
-      sentiment_score_bert_multilingual wird in dieser Ansicht als
+      Der mehrsprachige BERT-Stimmungswert wird in dieser Ansicht als
       5-Minuten-Downsampling-Zeitreihe gerendert. Unsicherheitsbänder spiegeln die
       Varianz innerhalb der Buckets wider. Die Metrik wird vom
-      MultilingualBertSentimentExtractor berechnet, der
+      mehrsprachigen Sentiment-Extraktor berechnet, der
       cardiffnlp/twitter-xlm-roberta-base-sentiment ausführt, gepinnt per
       HuggingFace-Commit-Revision im shared.multilingual_bert-Block des Language
       Capability Manifests; der Skalar ist P(positiv) − P(negativ), geklippt auf
@@ -49,7 +49,7 @@ registers:
       Kritische Einschränkungen (WP-002 §3.2): (1) Domänentransfer — das Modell
       wurde auf Twitter trainiert, nicht auf institutioneller Presse; die Lücke
       zur domänenspezifischen Verfeinerung pro Sprache
-      (sentiment_score_bert_de_news für Deutsch) ist selbst das WP-002-Signal,
+      (der deutsche News-BERT-Stimmungswert für Deutsch) ist selbst das WP-002-Signal,
       kein Mangel zur Mittelung; (2) sprachübergreifende
       Kalibrierungsverschiebung — Zeitreihen-Vergleich über zwei Sprachen
       erfordert einen Eintrag im metric_equivalence-Register, der ein
@@ -74,9 +74,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

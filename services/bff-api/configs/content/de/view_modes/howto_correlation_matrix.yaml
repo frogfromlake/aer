@@ -3,30 +3,37 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Jede Zelle ist die Korrelation zweier Kennzahlen im Bereich — warm = sie steigen gemeinsam, kühl = die eine fällt, wenn die andere steigt, blass = kein Zusammenhang."
+    short: "Jede Zelle ist die Korrelation zweier Kennzahlen der Menge — warm = sie steigen gemeinsam, kühl = die eine fällt, wenn die andere steigt, blass = kein Zusammenhang."
     long: >
-      Eine Korrelations-Matrix beantwortet „welche dieser Messgrößen bewegen sich gemeinsam, welche
-      sind unabhängig?". Lies die Zellen abseits der Diagonale: eine kräftig warme oder kühle Zelle
-      markiert ein Paar, das sich als Streudiagramm zu öffnen lohnt, um die Form hinter der Zahl zu
-      sehen. Die Diagonale ist immer 1 (eine Kennzahl korreliert perfekt mit sich selbst).
-      Korrelation ist keine Kausalität, und Pearsons r erfasst nur lineare Zusammenhänge — ein
-      gekrümmter Zusammenhang kann als schwaches r erscheinen.
+      Eine Korrelations-Matrix beantwortet „Welche dieser MESSGRÖSSEN-MENGE bewegen sich gemeinsam,
+      welche sind unabhängig?“. Die gewählte Menge IST der Gegenstand der Ansicht: Jede Kennzahl
+      darin wird zu einer Zeile und einer Spalte, und jede Zelle abseits der Diagonale ist die
+      Korrelation dieses Zeile-Spalte-Paares. Lies eine kräftig warme oder kühle Zelle als Paar,
+      das sich als Streudiagramm zu öffnen lohnt, um die Form hinter der Zahl zu sehen. Die
+      Diagonale ist immer 1 (eine Kennzahl korreliert perfekt mit sich selbst), und die Matrix ist
+      symmetrisch, sodass oberes und unteres Dreieck einander spiegeln. Korrelation ist keine
+      Kausalität, und Pearsons r erfasst nur lineare Zusammenhänge — ein gekrümmter Zusammenhang
+      kann als schwaches r erscheinen, selbst wenn beide Kennzahlen eng verknüpft sind.
   methodological:
-    short: "Paarweises Pearson-r über 5-Minuten-Bucket-Mittel der gewählten Kennzahlen; Zellen mit zu wenigen überlappenden Buckets bleiben leer, nie null."
+    short: "Paarweises Pearson-r über 5-Minuten-Bucket-Mittel der gewählten Menge; Zellen mit zu wenigen überlappenden Buckets bleiben leer, nie null."
     long: >
-      Für jede Kennzahl der gewählten Menge berechnet der Server Bucket-Mittel (5-Minuten-Auflösung,
-      wie der Zeitreihen-Endpoint), dann Pearson r über jedes Paar der Bucket-Mittel-Reihen. Die
+      Für jede Kennzahl der gewählten Menge berechnet der Server Bucket-Mittel (feste
+      5-Minuten-Auflösung via toStartOfFiveMinute, wie der Zeitreihen-Endpoint), dann Pearson r über
+      jedes Paar der Bucket-Mittel-Reihen dort, wo beide Kennzahlen einen Wert haben. Die
       Beobachtungseinheit ist der Zeit-Bucket, nicht der Artikel — also ein „bewegen sich diese
-      Kennzahlen über die Zeit gemeinsam", verschieden vom artikelweisen Streudiagramm. Ein Paar mit
-      zu wenigen überlappenden Buckets liefert null und wird leer dargestellt
-      (disclose-never-coerce, WP-003 §3.2), nie als erzwungene Null. Eine bereichsübergreifende
-      (mehrsprachige) Matrix erfordert für jede Kennzahl eine validierte Äquivalenz-Freigabe; fehlt
-      sie, verweigert die Zelle mit einer Level-1-Alternative, statt nicht-vergleichbare Skalen zu
-      korrelieren (WP-004 §5.2).
+      Kennzahlen über die Zeit gemeinsam“, verschieden vom artikelweisen Streudiagramm; deshalb
+      kann dasselbe Paar in beiden Ansichten anders aussehen. Ein Paar mit zu wenigen überlappenden
+      Buckets liefert null und wird leer dargestellt (disclose-never-coerce, WP-003 §3.2), nie als
+      erzwungene Null; wenig Überlappung ergibt zudem ein verrauschtes r, also lies die Bucket-Zahl
+      neben der Farbe, statt einer einzelnen starken Zelle aus wenigen Buckets zu trauen. Eine
+      bereichsübergreifende (mehrsprachige) Matrix erfordert für jede Kennzahl eine validierte
+      Äquivalenz-Freigabe; fehlt sie, verweigert die Zelle mit einer Level-1-Alternative, statt
+      nicht-vergleichbare Skalen zu korrelieren (WP-004 §5.2, §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

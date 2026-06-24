@@ -1,0 +1,50 @@
+entityId: social_share_counts
+entityType: field
+locale: en
+displayLabel: "Social Share Counts"
+registers:
+  semantic:
+    short: "How often an article was shared on social platforms — a field AĒR has no way to populate today, so it is empty for every source."
+    long: >
+      Social share counts would be the number of times an article was shared on social
+      platforms — the kind of figure a "shared 4,200 times" badge reports. In principle it
+      is an audience-reach signal: which pieces travelled, and how far. In practice AĒR
+      cannot supply it. There is no canonical, publisher-emitted structured-metadata field
+      for share counts the way there is for a comment tally or a publication date, so the
+      worker has no honest path to read one. The figure is therefore empty for every source
+      in the corpus — not because no article was ever shared, but because AĒR has no
+      instrument that can measure or even retrieve this number without scraping individual
+      platform APIs, which it does not do.
+      You will not meet a populated social share counts field in the Workbench. It is
+      carried in the field catalogue so its absence is explicit rather than silent: it is
+      shown as Negative Space — a thing AĒR does not see — wherever the field could
+      otherwise appear. Treat its emptiness as a deliberate, disclosed limit of the sensor,
+      not as evidence that articles went unshared.
+  methodological:
+    short: "No canonical Schema.org field exists; AĒR has no extractor path. ALWAYS empty / Negative Space for every source today. Disclosed limit, never coerced to 0. WP-003 §3.2, ADR-039."
+    long: >
+      Social share counts has no extraction path in AĒR today, and the entry must be read
+      as exactly that. There is no canonical Schema.org property for share counts (Schema.org
+      is the shared vocabulary publishers use inside their JSON-LD structured-data block to
+      describe a page for machines), and no OpenGraph tag carries one either. Because the
+      worker's WebAdapter extracts metadata only from what a publisher declares in its
+      structured metadata at the Silver boundary, there is nothing for it to read: the field
+      is recorded as absent on every article unconditionally — it is wired to record-as-none
+      and there is no code that could ever populate it. This is not a Tier ranking of a
+      working extractor; it is the documented non-existence of one.
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2, ADR-039). Because the
+      field is empty for every source, every scope, and every window, it will read as
+      structurally absent throughout — shown as Negative Space and withheld from the
+      dimension picker. Crucially, this emptiness must never be coerced to 0 or read as
+      "nothing was shared": a zero would be a fabricated measurement of a quantity AĒR has
+      no means to observe, which violates the invariant never to fake a disclosure it cannot
+      measure. The honest statement is that AĒR does not currently instrument social sharing
+      at all. Any future support would require a new collection path (a per-platform API
+      adapter), not a change to this field's reading from structured metadata; until then
+      the field exists to make that gap explicit.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Benannte Entitätsdichte über die Zeit. Zeigt, ob Artikel entitätsreicher oder -ärmer werden — ein Proxy für die Dichte von Verweisen auf bestimmte Personen, Orte und Organisationen."
     long: >
-      Diese Ansicht stellt entity_count — die Anzahl erkannter benannter Entitäten pro Artikel —
+      Diese Ansicht stellt die Entitäten-Anzahl — die Anzahl erkannter benannter Entitäten pro Artikel —
       als Zeitreihe dar. Steigende Entitätsdichte kann auf zunehmende Konkretheit in der
       Berichterstattung hinweisen (mehr spezifische Akteure, Orte und Institutionen werden
       benannt); sinkende Dichte kann abstrakteren, allgemeineren oder meinungsorientierten
@@ -27,13 +27,13 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "5-Minuten-Downsampling-Mittelwert von entity_count aus spaCy de_core_news_lg. Vorläufig (Tier 3). Bekannte Einschränkungen: NER-Fehler, Entitätsfusionierungslücken, Domänenabdeckung."
+    short: "5-Minuten-Downsampling-Mittelwert der Entitäten-Anzahl aus spaCy de_core_news_lg. Vorläufig (Tier 3). Bekannte Einschränkungen: NER-Fehler, Entitätsfusionierungslücken, Domänenabdeckung."
     long: >
-      entity_count ist die Anzahl benannter Entitäts-Spans, die das spaCy-Modell de_core_news_lg
+      Die Entitäten-Anzahl ist die Anzahl benannter Entitäts-Spans, die das spaCy-Modell de_core_news_lg
       pro Artikel erkennt; hier als Downsampling-Zeitreihe dargestellt. Tier 3 (vorläufig)
       gemäß WP-002 §5. Vorbehalte: (1) spaCys deutsches NER wurde auf Nachrichtentext trainiert
       und liefert die besten Ergebnisse bei nachrichtenagenturtypischem Stil; staatliche
-      Pressemitteilungen können mehr falsch-negative Organisationsnamen erzeugen; (2) entity_count
+      Pressemitteilungen können mehr falsch-negative Organisationsnamen erzeugen; (2) die Entitäten-Anzahl
       unterscheidet nicht zwischen Entitätstypen (Personen, Orte, Organisationen werden zusammengefasst)
       — für Typebenen-Analysen eignen sich die Entitätsverteilungs- oder Netzwerkansichten;
       (3) Satzlänge und Textkomplexität beeinflussen die Erkennungsrate; (4) Modell-Updates
@@ -55,8 +55,8 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"

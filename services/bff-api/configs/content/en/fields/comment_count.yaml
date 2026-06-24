@@ -1,0 +1,51 @@
+entityId: comment_count
+entityType: field
+locale: en
+displayLabel: "Comment Count"
+registers:
+  semantic:
+    short: "How many reader comments a publisher reports for an article — a self-reported engagement signal, present only where the source runs comments and publishes the tally."
+    long: >
+      Comment count is the number of reader comments a publisher attaches to an article.
+      It is a window onto audience engagement: a piece with hundreds of comments provoked
+      a public reaction; one with none either drew no response or — far more commonly in
+      AĒR's corpus — comes from a source that runs no comment section at all. The figure
+      tells you something only when it is present, and present it rarely is: the
+      institutional press offices (the Bundesregierung, the Élysée) and most of the news
+      sites in scope today do not emit a comment tally in their structured metadata, so
+      for them this field is simply silent.
+      In the Workbench you would meet comment count as a scatter axis or colour channel
+      (engagement against article length or sentiment, for instance) and as a faceting
+      dimension. Treat it with care: it reflects what the publisher chooses to report
+      about its own platform, not an independent measurement, and it cannot be compared
+      across sources as though it were one scale. Where a source emits no tally, comment
+      count is shown as Negative Space — never counted as zero comments.
+  methodological:
+    short: "JSON-LD interactionStatistic (CommentAction) / commentCount. Tier-1 deterministic. Almost always absent on in-scope sources — Negative Space, never coerced to 0. Publisher self-report, not comparable. WP-003 §3.2."
+    long: >
+      Comment count is extracted deterministically by the worker's WebAdapter at the
+      Silver boundary from the article's JSON-LD only (JSON-LD is the structured-data
+      block publishers embed in a page to describe it for machines). The extractor reads
+      the interactionStatistic property: where it is a list of interaction entries, it
+      selects the one whose interactionType names a CommentAction and takes its
+      userInteractionCount; it also accepts a bare commentCount value. The first valid
+      integer wins; anything non-numeric is ignored. No model, no inference — Tier-1
+      deterministic. Validation status: unvalidated (engineering default).
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2, ADR-039). The
+      institutional and news sources in scope today almost never emit this property, so
+      for them comment count is structurally absent — flagged structurallyAbsent when
+      population sits at 0% over at least 50 articles in the trailing 30 days, shown as
+      Negative Space, and withheld from the dimension picker for that scope. An absent
+      tally is a publisher choice (the source runs no comments, or does not expose the
+      count), never a defect and never coerced to 0, because zero comments and "no comment
+      facility reported" are different facts. Where present, the figure is the publisher's
+      self-report about its own engagement surface, not an independent measurement; it is
+      not granted as comparable across sources without out-of-band validation
+      (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

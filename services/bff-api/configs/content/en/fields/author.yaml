@@ -1,0 +1,49 @@
+entityId: author
+entityType: field
+locale: en
+displayLabel: "Author"
+registers:
+  semantic:
+    short: "The byline a publisher attaches to an article — the person or desk credited with writing it. Present, absent, or structurally never emitted, depending on the source."
+    long: >
+      Author is the byline a publisher attaches to an article: the named journalist,
+      the desk, or the agency credited with writing it. Its presence tells you a source
+      operates an editorial-byline model — individual writers are named and accountable,
+      as at tagesschau or franceinfo. Its systematic absence tells you the opposite: an
+      institutional press office (the Bundesregierung, the Élysée) speaks with one
+      corporate voice and emits no per-article byline at all. That silence is a fact
+      about how the source publishes, not a gap in the data.
+      In the Workbench you meet author as a faceting dimension (small multiples split by
+      writer), as a Cross-tab group-by axis, and as a stage in a Sankey alluvial chain
+      (author → section → sentiment). It lets you ask which voices carry which themes.
+      Where a source publishes institutionally, author is shown as Negative Space — never
+      counted as an empty author and never a name to invent.
+  methodological:
+    short: "JSON-LD author → OpenGraph article:author / author. Tier-1 deterministic. Absent on institutional sources by design — Negative Space, never coerced. WP-003 §3.2."
+    long: >
+      Author is extracted deterministically by the worker's WebAdapter at the Silver
+      boundary along a fixed two-step priority chain: first the article's JSON-LD
+      author property (JSON-LD is the structured-data block publishers embed in a page
+      to describe it for machines); failing that, the OpenGraph article:author or author
+      tag (OpenGraph is the meta-tag vocabulary publishers use for link previews). The
+      first hit wins; if neither is present the field is recorded as absent. No model,
+      no inference, no name reconstruction — Tier-1 deterministic. Validation status:
+      unvalidated (engineering default).
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2, ADR-039). An absent
+      author is read as the publisher's authorship model, not a defect. Institutional
+      press offices publish under corporate authorship and emit no byline; on such a
+      source author is structurally absent — flagged structurallyAbsent when population
+      sits at 0% over at least 50 articles in the trailing 30 days, shown as Negative
+      Space, and withheld from the dimension picker for that scope. Critically, an
+      aggregate over a structurally-absent author REFUSES rather than returning an empty
+      or zero count — you cannot group by a voice the source never names. Cross-source
+      author comparisons are not granted as equivalent without out-of-band validation
+      (WP-004 §5.3): an editorial byline and an institutional voice are different kinds
+      of object, not two values on one scale.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

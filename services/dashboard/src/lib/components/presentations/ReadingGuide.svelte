@@ -26,6 +26,7 @@
     type ReadingQuestion
   } from '$lib/presentations/reading-guide';
   import { panelSubjectKind } from '$lib/presentations/metric-presentation';
+  import { cellSubjects } from '$lib/presentations';
   import MeasureDetail from '$lib/components/workbench/MeasureDetail.svelte';
   import type { PresentationDefinition } from '$lib/presentations';
   import type { Panel } from '$lib/state/url-internals';
@@ -207,7 +208,7 @@
       <!-- Phase 148f Step 7 — the deep methodology, folded in under the ladder as
            the MEASURE detail (METHODIK header + default-collapsed blocks + links). -->
       <MeasureDetail
-        metricName={panel.metric}
+        subjects={cellSubjects(presentation, panel)}
         viewMode={presentation.id}
         viewLabel={presentation.label}
       />

@@ -1,0 +1,69 @@
+entityId: distribution_paywall_status
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Bezahlschranken-Status als Verteilung. Mit nur zwei möglichen Werten (0 = frei, 1 = Bezahlschranke) ist dies in Wahrheit ein Anteil — der Anteil des Korpus hinter einer Bezahlschranke."
+    long: >
+      Der Bezahlschranken-Status ist ein 0/1-Wert pro Artikel, daher ist seine Verteilung
+      keine Form mit Gipfel und Tail wie die Artikellänge — sie ist ein
+      Zwei-Bin-Histogramm, und das Einzige, was es wirklich sagen kann, ist der
+      Anteil: welcher Anteil des Bereichs-Korpus hinter einer Bezahlschranke
+      liegt und welcher frei ist. Eine Quelle, die alles (oder nichts) hinter
+      eine Bezahlschranke setzt, erzeugt einen einzigen Balken — und das ist
+      bereits der Befund: ein Herausgeber mit einheitlichem Zugangsmodell. Eine
+      Quelle, die freie und kostenpflichtige Berichterstattung mischt, erzeugt
+      zwei Balken, deren relative Höhe der Bezahlschranken-Anteil ist. Lesen Sie
+      diese Ansicht als Momentaufnahme der Zugangspolitik zu einem Zeitpunkt für
+      einen Bereich; ob dieser Anteil driftet, zeigt dieselbe Metrik als
+      Zeitreihe. Der Vergleich zweier Quellen zeigt einen strukturellen
+      Unterschied in der öffentlichen Reichweite — kein Qualitätsurteil.
+
+      Komposition — komponiert das Panel mehr als eine Quelle unter
+      composition='merged', rendert diese Ansicht EINE Grafik über den
+      vereinigten Korpus (BFF-Abfrage ?sourceIds=a,b,...); unter
+      composition='split' fächert dieselbe Quellenmenge in eine Grafik pro
+      Quelle auf, nebeneinander bei split-direction='horizontal' oder gestapelt
+      bei 'vertical'. Da der Bezahlschranken-Anteil eine intensive Proportion
+      ist, behauptet das Bündeln mehrerer Sonden auf einer Grafik
+      kontextübergreifende Vergleichbarkeit und ist entsprechend reguliert
+      (Design-Brief §1.3); die split-Lesart — ein Balkenpaar pro Quelle — ist die
+      sicherere Voreinstellung, wenn sich die Quellen in Sprache oder Kontext
+      unterscheiden.
+  methodological:
+    short: "Zwei-Bin-Histogramm des Bezahlschranken-Status (0/1) über das Bereichsfenster — faktisch der Bezahlschranken-Anteil. Tier 1 (deterministisch). Artikel ohne ausgegebenes Zugänglichkeits-Flag sind Negative Space, nie als frei gezählt."
+    long: >
+      Die Verteilung wird als Histogramm über die Bezahlschranken-Status-Werte im
+      ausgewählten Geltungsbereich und Zeitfenster berechnet. Da die
+      zugrundeliegende Metrik nur zwei Werte annimmt — 0 (frei) und 1
+      (Bezahlschranke), gelesen aus schema.org isAccessibleForFree (negiert) an
+      der Silver-Grenze — entartet das Histogramm zu zwei Bins, und die Höhe des
+      Bezahlschranken-Bins geteilt durch die Summe ist der Bezahlschranken-
+      ANTEIL. Die einstellbare Bin-Anzahl hat hier keine sinnvolle Wirkung: eine
+      0/1-Metrik hat unabhängig von der Einstellung höchstens zwei belegte Bins.
+      Es ist ein deterministisches Tier-1-Maß (WP-002 §3); Validierungsstatus:
+      unvalidated (Engineering-Default).
+
+      Der tragende Punkt ist disclose-never-coerce (WP-003 §3.2 / ADR-039): nur
+      Artikel, deren Herausgeber das Zugänglichkeits-Flag tatsächlich ausgibt,
+      gehen ins Histogramm ein. Ein Artikel, der sich echt als frei deklariert,
+      zählt als 0; eine Quelle, die gar kein Flag ausgibt, ist strukturell
+      abwesend — als Negative Space gezeigt und im Picker nicht angeboten — und
+      wird NIE in den Frei-Balken eingerechnet. Eine nahezu konstante Quelle (ein
+      Balken) ist eine echte Messung, und kleine Korpora sind mit Vorbehalt zu
+      lesen: bei wenigen Artikeln ist der Anteil eine verrauschte Schätzung.
+
+      Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
+      Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus, und
+      die Zelle rendert eine Grafik; für 'split' führt die Zelle eine Abfrage pro
+      Quelle aus. Split-Direction ist ein reiner Layout-Schalter. Da die
+      merged-Lesart eine gebündelte intensive Proportion ist, ist der
+      Cross-Sonden-Merge vergleichbarkeitsreguliert (Design-Brief §1.3), keine freie
+      Summe.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

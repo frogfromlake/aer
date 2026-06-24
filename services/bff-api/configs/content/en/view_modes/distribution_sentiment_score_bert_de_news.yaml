@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "German news-domain BERT sentiment distribution. Polarity spread for German articles read by a news-fine-tuned transformer model."
     long: >
-      The distribution view for sentiment_score_bert_de_news renders the spread of
+      The distribution view for the German news-domain BERT sentiment score renders the spread of
       polarity values produced by the German news-domain transformer model across
       all German articles in the selected scope and window. Compared to the
       multilingual BERT distribution, this view is expected to peak slightly tighter
@@ -30,7 +30,7 @@ registers:
   methodological:
     short: "Histogram / density of mdraw/german-news-sentiment-bert scalar ([-1, +1]). Tier-2.5 refinement per ADR-023. German-only. Tail shape is the meaningful signal."
     long: >
-      The distribution is a histogram over sentiment_score_bert_de_news values
+      The distribution is a histogram over the German news-domain BERT sentiment score values
       (German news-domain BERT, P(positive) − P(negative), [-1, +1]) for the
       selected scope and window. Tier-2.5 refinement per ADR-023; collapses to
       tier_classification=2 in the OpenAPI wire format. Interpretive notes:
@@ -58,9 +58,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

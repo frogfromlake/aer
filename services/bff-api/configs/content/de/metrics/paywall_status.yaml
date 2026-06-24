@@ -6,7 +6,7 @@ registers:
   semantic:
     short: "Ob ein Artikel hinter einer Bezahlschranke liegt (1) oder frei zugänglich ist (0). Über einen Bereich aggregiert ergibt sich der Anteil der Artikel mit Bezahlschranke."
     long: >
-      paywall_status erfasst pro Artikel, ob der Herausgeber ihn als
+      Der Bezahlschranken-Status erfasst pro Artikel, ob der Herausgeber ihn als
       zahlungspflichtig markiert. Als einzelner Artikel ist es ein 0/1-Wert;
       über eine Quelle oder ein Zeitfenster gebündelt wird daraus der Anteil des
       Korpus hinter einer Bezahlschranke — ein Blick darauf, wie offen ein
@@ -26,7 +26,7 @@ registers:
   methodological:
     short: "Aus schema.org isAccessibleForFree (negiert) in den strukturierten Metadaten gelesen. Tier 1 (deterministisch). Abwesend, wenn der Herausgeber kein Zugänglichkeits-Flag ausgibt — als Negative Space gezeigt, nie zu 0 umgedeutet."
     long: >
-      paywall_status wird deterministisch aus den strukturierten Metadaten des
+      Der Bezahlschranken-Status wird deterministisch aus den strukturierten Metadaten des
       Artikels abgeleitet: schema.org isAccessibleForFree=false → 1
       (Bezahlschranke), isAccessibleForFree=true → 0 (frei). Der Wert wird vom
       WebAdapter an der Silver-Grenze extrahiert und vom Processor zu einem Gold-
@@ -37,7 +37,7 @@ registers:
       Der tragende methodische Punkt ist disclose-never-coerce (WP-003 §3.2): die
       Metrik wird NUR für Artikel erfasst, deren Herausgeber das Zugänglichkeits-
       Flag tatsächlich ausgibt. Eine Quelle, die es nie ausgibt, ist für
-      paywall_status strukturell abwesend — im Coverage-Panel als Negative Space
+      den Bezahlschranken-Status strukturell abwesend — im Coverage-Panel als Negative Space
       gezeigt und im Dimensions-Picker für diesen Bereich nicht angeboten — und
       wird NIE als „0 / alles frei" erfasst. Das Schweigen des Herausgebers ist
       eine Herausgeber-Entscheidung, kein Maß für Offenheit.
@@ -46,9 +46,9 @@ registers:
       Mittelwert der 0/1-Werte, also als Bezahlschranken-ANTEIL, eine intensive
       Proportion: mehr als eine Sonde auf einer Achse zu bündeln behauptet
       kontextübergreifende Vergleichbarkeit und ist entsprechend reguliert
-      (Brief §1.3). Die geteilte Komposition zeigt den Anteil pro Quelle.
+      (Design-Brief §1.3). Die geteilte Komposition zeigt den Anteil pro Quelle.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §3.2"

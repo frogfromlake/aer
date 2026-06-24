@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Sentiment polarity over time. Shows whether the emotional register of published text shifts — toward more positive or negative framing — across the observation window."
     long: >
-      This view plots sentiment_score as a time series, revealing how the aggregate emotional
+      This view plots the sentiment score as a time series, revealing how the aggregate emotional
       register of a source's output moves across time. Sustained downward trends may signal
       escalating negative framing around a topic; upward movements may reflect resolution,
       positive reframing, or an editorial shift in subject matter. Sharp single-day movements
@@ -26,11 +26,11 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "5-minute downsampled mean of SentiWS v2.0 sentiment_score (range −1 to +1). Provisional (Tier 3). Known limitations: negation, irony, compound adjectives in German."
+    short: "5-minute downsampled mean of the SentiWS v2.0 sentiment score (range −1 to +1). Provisional (Tier 3). Known limitations: negation, irony, compound adjectives in German."
     long: >
-      sentiment_score in this view is displayed as a 5-minute downsampled time series.
+      The sentiment score in this view is displayed as a 5-minute downsampled time series.
       Uncertainty bands reflect within-bucket variance. The metric is computed by the
-      SentimentExtractor using the SentiWS v2.0 German lexicon with mean polarity
+      sentiment extractor using the SentiWS v2.0 German lexicon with mean polarity
       aggregation — Tier 3 (provisional) under WP-002 §5. The time-series view is appropriate
       for trend analysis but not for precise event attribution. Critical limitations: (1) SentiWS
       was validated on newspaper text and may not transfer cleanly to institutional press releases
@@ -53,9 +53,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"
   - "WP-004 §3"

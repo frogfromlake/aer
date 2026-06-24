@@ -1,0 +1,70 @@
+entityId: distribution_image_count
+entityType: view_mode
+locale: de
+registers:
+  semantic:
+    short: "Bild-Anzahl als Verteilung. Zeigt die Streuung der medialen Dichte über Artikel — wie viele deklarierte Bilder ein typischer Beitrag trägt und wie variabel das ist."
+    long: >
+      Die Bildzahl ist eine ganze Zahl — wie viele verschiedene Bilder ein
+      Herausgeber für einen Artikel deklariert — daher ist seine Verteilung ein
+      echtes ganzzahliges Histogramm mit einem Balken pro Anzahl: wie viele
+      Artikel null deklarierte Bilder tragen, wie viele eines, zwei, eine
+      Galerie und so weiter. Ein hoher Balken bei einem einzigen Wert (oft 1)
+      kennzeichnet eine Quelle mit festem Bildformat — ein Aufmacherbild pro
+      Beitrag. Ein langer rechter Tail kennzeichnet gelegentliche fotogeführte
+      Reportagen unter ansonsten schlanken Artikeln. Eine bimodale Streuung kann
+      zwei Inhaltstypen im selben Feed trennen: Textmeldungen gegenüber
+      bebilderter Reportage. Lesen Sie dies als mediale Dichte in der Form, nicht
+      im Mittel — ein Mittelwert von „1,4 Bildern" verbirgt, ob das
+      jeder-hat-eins-oder-zwei oder meist-keins-mit-seltenen-Galerien bedeutet,
+      was die Verteilung auf einen Blick zeigt. Der Vergleich zwischen Quellen
+      zeigt strukturelle Unterschiede im Präsentationsaufwand.
+
+      Komposition — komponiert das Panel mehr als eine Quelle unter
+      composition='merged', rendert diese Ansicht EINE Grafik über den
+      vereinigten Korpus (BFF-Abfrage ?sourceIds=a,b,...); unter
+      composition='split' fächert dieselbe Quellenmenge in eine Grafik pro
+      Quelle auf, nebeneinander bei split-direction='horizontal' oder gestapelt
+      bei 'vertical'. Die merged-Lesart ist angemessen, wenn die Frage die
+      Vereinigung betrifft (z. B. wie bildreich ist die institutionelle Presse
+      insgesamt?); die split-Lesart ist angemessen, wenn Quellen-spezifische
+      Unterscheidung die Frage ist.
+  methodological:
+    short: "Ganzzahliges Histogramm der Bildzahl über das Bereichsfenster. Tier 1 (deterministisch). Zählt deklarierte verschiedene Bilder (responsive Crops dedupliziert). Keine Bild-Metadaten = Negative Space, nie zu 0 umgedeutet."
+    long: >
+      Die Verteilung wird als Histogramm über die Bildzahl-Werte im ausgewählten
+      Geltungsbereich und Zeitfenster berechnet. Die Metrik ist die Kardinalität
+      der strukturierten Bildliste des Artikels (schema.org image[]), extrahiert
+      an der Silver-Grenze; responsive Renditionen desselben Bildes werden
+      dedupliziert, sodass eine Anzahl VERSCHIEDENE Bilder misst, keine Crops. Da
+      die Werte kleine nichtnegative ganze Zahlen sind, sind ganzzahlige
+      Bin-Kanten die natürliche Wahl — ein Balken pro Anzahl ist lesbarer als
+      breite Bins, doch die Bin-Steuerung greift weiterhin, falls ein langer Tail
+      Bündelung verlangt. Es ist ein deterministisches Tier-1-Maß (WP-002 §3);
+      Validierungsstatus: unvalidated (Engineering-Default).
+
+      Zwei Grenzen rahmen die Interpretation. Erstens der Umfang: die Bildzahl ist
+      eine Untergrenze der Bilddichte — gezählt werden nur in den strukturierten
+      Metadaten deklarierte Bilder (meist Aufmacher- und Social-Share-Bild), nicht
+      jede Abbildung im gerenderten Artikeltext. Zweitens disclose-never-coerce
+      (WP-003 §3.2 / ADR-039): ein Artikel, der echt eine leere Bildliste
+      deklariert, geht in den Null-Balken ein — eine echte Messung — aber eine
+      Quelle, die gar keine Bild-Metadaten ausgibt, ist strukturell abwesend, als
+      Negative Space gezeigt und im Picker nicht angeboten, und wird NIE in den
+      Null-Balken eingerechnet. Vorbehalt bei kleinen Korpora: bei wenigen
+      Artikeln ist das ganzzahlige Histogramm verrauscht.
+
+      Komposition (Phase 122i / ADR-034) — für composition='merged' führt der
+      Handler einen einzelnen BFF-Aufruf mit den vereinigten sourceIds aus, und
+      die Zelle rendert eine Grafik; für 'split' führt die Zelle eine Abfrage pro
+      Quelle aus. Split-Direction ist ein reiner Layout-Schalter. Die Bildzahl ist
+      eine extensive Zählung, daher bündelt ein merged-Bereich legitim über den
+      vereinigten Korpus — eine echte kombinierte Streuung, kein
+      kontextübergreifendes Ranking.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

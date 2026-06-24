@@ -6,7 +6,7 @@ registers:
   semantic:
     short: "The UTC hour (0–23) at which an article was published. Reveals editorial scheduling rhythms, institutional timing conventions, and round-the-clock vs. office-hours publication patterns."
     long: >
-      publication_hour is the hour component of an article's publication timestamp, expressed
+      Publication hour is the hour component of an article's publication timestamp, expressed
       in UTC on a 0–23 scale. When charted across a source's corpus, it reveals the temporal
       texture of editorial production: does the source publish in concentrated morning bursts,
       follow the news cycle with evening peaks, or distribute output evenly across the clock?
@@ -18,9 +18,9 @@ registers:
 
       Composition — when a Workbench Panel pools more than one source under
       composition='merged', this metric aggregates as mode-aligned hour-of-day
-      distribution over the unioned corpus. Sentiment-class metrics inherit
-      the merged-mean's sensitivity to source-mix imbalance: a single
-      high-volume source can dominate the aggregate. Use the split composition
+      distribution over the unioned corpus. The merged aggregate inherits a
+      sensitivity to source-mix imbalance: a single high-volume source can
+      dominate the aggregate. Use the split composition
       (one Cell per source) when source-level differences are the question.
       The merged reading is permitted across languages with a soft methodology
       banner (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode
@@ -29,7 +29,7 @@ registers:
   methodological:
     short: "UTC hour extracted from Silver-layer timestamp. Tier 1 (deterministic). Key caveat: UTC ≠ local time — add +1/+2 for German sources."
     long: >
-      publication_hour is the integer hour field of the article's publication timestamp as
+      Publication hour is the integer hour field of the article's publication timestamp as
       stored in the Silver layer (sourced from the RSS feed's pubDate or equivalent). Extraction
       is deterministic: identical timestamps produce identical output with no model dependency.
       Tier 1 under WP-002 §3. Methodological caveats: (1) AĒR stores and compares all
@@ -41,7 +41,7 @@ registers:
       article was written. For institutional sources with queued editorial workflows, publication
       time may lag authoring time by hours or days. (3) For Probe 0 sources, timestamps are
       machine-generated and reliable; for sources with irregular or manipulated timestamps,
-      publication_hour may not reflect actual editorial timing. Validation status: unvalidated
+      the publication hour may not reflect actual editorial timing. Validation status: unvalidated
       (no known active limitations for Probe 0).
 
       Composition (Phase 122i / ADR-034) — multi-source merged queries
@@ -56,9 +56,9 @@ registers:
       applicable) refuse with HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

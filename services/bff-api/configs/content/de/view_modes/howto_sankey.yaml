@@ -12,18 +12,36 @@ registers:
       Zusammenlaufen zeigt viele Kategorien, die in eine münden. Von links nach rechts gelesen wird
       der Korpus wiederholt neu gruppiert.
   methodological:
-    short: "Distinct-Artikel-Flüsse zwischen aufeinanderfolgenden Feld-Paaren, aus article_id-Selfjoins auf aer_gold.article_metadata (FINAL); Top-N-Kanten je Paar."
+    short: "Distinct-Artikel-Flüsse zwischen aufeinanderfolgenden Feld-Paaren, aus article_id-Selfjoins auf aer_gold.article_metadata (FINAL); Top-N=30 Kanten je Paar, Kette auf 8 Spalten gedeckelt."
     long: >
-      Für jedes aufeinanderfolgende Feld-Paar verknüpft der Server aer_gold.article_metadata über
-      article_id (beide Seiten FINAL, für exakte Distinct-Artikel-Zählung) und zählt distinkte
-      Artikel je (Wert, Wert)-Paar; je Paar werden die Top-N-Kanten behalten, damit ein langer
-      Schwanz den Graphen nicht sprengt (die Kürzung wird hier offengelegt, nie in ein irreführendes
-      Band summiert). Ein Listen-Feld kann einen Artikel unter mehrere Werte setzen, daher sind
-      Bandbreiten Artikel-Fluss-Gewichte, keine strikte Partition. Die Feld-Kette ist auf 8 Spalten
-      gedeckelt. Nur Artikelzahlen — keine Kennzahl-Normierung, also kein Äquivalenz-Gate (Kategorien
-      verschiedener Sprachen erscheinen einfach als eigene Knoten).
+      Serverseitig: Für jedes BENACHBARTE Feld-Paar der geordneten Kette verknüpft die BFF
+      (GET /metadata/sankey) aer_gold.article_metadata über article_id mit sich selbst — beide
+      Seiten mit FINAL gelesen, sodass re-ingestierte Duplikate kollabieren und die Zählung exakt
+      distinkte Artikel ergibt — und zählt distinkte Artikel je (Wert, Wert)-Paar. Verknüpft werden
+      nur Nachbarspalten; der Sankey zeigt paarweise Übergänge, nie eine vollständige N-fache
+      Partition des Korpus.
+
+      Quantitative Grenzen. (1) Je Paar bleiben nur die TOP-N-Kanten (N=30); der lange Schwanz wird
+      verworfen, damit kein Graph aus haarfeinen Bändern entsteht. Die Kürzung wird hier offengelegt,
+      und die verworfenen Flüsse bleiben über Hover und CSV-/JSON-Export erreichbar — sie werden NIE
+      in ein sichtbares Band zurücksummiert, was irreführen würde. (2) Die Feld-Kette ist hart auf
+      8 Spalten gedeckelt; eine längere Kette wird vorgelagert abgelehnt. (3) Ein LISTEN-Feld (Tags,
+      Kategorien) kann einen Artikel zugleich unter mehrere Werte setzen, sodass derselbe Artikel auf
+      mehreren Bändern dieser Spalte gezählt wird. Bandbreiten sind daher Artikel-FLUSS-Gewichte,
+      keine strikte Partition, und die Spaltensumme kann die Korpusgröße übersteigen. Lies ein dickes
+      Band als „viele Artikel-Platzierungen", nicht als „dieser Anteil aller Artikel". (4) Eine
+      Knoten-Beschriftung erscheint nur, wenn das Band die Höhenschwelle überschreitet; dünnere
+      Knoten sind nur per Hover sichtbar — eine dünn besetzte Spalte kann also leerer wirken, als sie ist.
+
+      Komposition (ADR-034). Der Sankey ist eine einzelne, relationale Sicht; er fächert sich nicht
+      in ein merged/split-Layout je Quelle auf — die Kette selbst ist die Struktur. Nur Artikelzahlen,
+      keine Kennzahl-Normierung, also greift das kulturelle Äquivalenz-Gate (WP-004 §5.3) nie:
+      Kategorien verschiedener Sprachen erscheinen einfach als eigene Knoten (WP-003 §3.2), nie still
+      zusammengeführt.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-034"

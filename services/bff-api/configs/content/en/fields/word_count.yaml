@@ -1,0 +1,50 @@
+entityId: word_count
+entityType: field
+locale: en
+displayLabel: "Word Count"
+registers:
+  semantic:
+    short: "How many words an article contains — a coarse proxy for its length and editorial scope."
+    long: >
+      The word-count field is the simplest quantitative property of a text: how
+      many words the article body holds. It is a near-universal field because AĒR
+      can always derive it from the extracted body — unlike most metadata, it does
+      not depend on a publisher choosing to declare anything. Read as a field, it
+      is a coarse proxy for editorial scope: longer pieces tend to carry more
+      reporting, framing, or breadth, and a source whose typical length shifts over
+      time may be changing format or resourcing. In the Workbench the field anchors
+      a scatter axis (length against sentiment, say), serves as a faceting axis to
+      split short from long pieces, and groups the Cross-tab. The same property is
+      also promoted to an analytical metric — for how it aggregates as a mean over
+      a scope, its language-segmentation limits, and merged-versus-split behaviour,
+      see the word_count metric entry. This entry covers the field as such: that it
+      is almost always present, and how it is sourced.
+  methodological:
+    short: "Body word tally, with JSON-LD wordCount preferred when present. Tier-B. Near-universally present (body-derived). Whitespace tokenisation. WP-003 §3.2."
+    long: >
+      The field has two provenance paths, joined at the Silver boundary by the
+      worker's WebAdapter. The primary path is a direct tally of the extracted
+      article body: the body text is split on Unicode whitespace and the resulting
+      tokens are counted, with no lemmatisation or language-specific segmentation.
+      The secondary path is the page's JSON-LD — the Schema.org structured-data
+      block — wordCount key: when the publisher declares it, that value is taken in
+      preference to the body tally (it reflects the publisher's own canonical body,
+      free of any extraction boilerplate). This is a Tier-B field: the body tally
+      makes it near-universally present, so it is one of the few metadata fields
+      that is rarely Negative Space.
+      Its honest limitation is the same as the metric's: whitespace tokenisation
+      undercounts agglutinative languages and does not apply to logographic scripts
+      where words are not space-separated; German compounds count as one token
+      (Bundesregierung = 1). Where word_count IS absent — a body that failed to
+      extract — that absence is left as Negative Space under disclose-never-coerce
+      (ADR-039), never written as zero; an empty body is a collection observation,
+      a publisher or extraction outcome (WP-003 §3.2), not a zero-length article.
+      Cross-source comparison of length is sensitive to extraction boundaries and
+      should be read with that caveat (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

@@ -1,0 +1,50 @@
+entityId: correction_notice
+entityType: field
+locale: en
+displayLabel: "Correction Notice"
+registers:
+  semantic:
+    short: "A publisher-attached note recording that an article was corrected after publication."
+    long: >
+      The correction-notice field captures a publisher's own statement that an
+      article was corrected after it went out — the editorial trail of a fix,
+      amendment, or clarification. It is a marker of a transparency practice: a
+      source that emits correction notices is publicly owning its errors, which
+      is itself a meaningful editorial signal, distinct from the article's content.
+      Read as a field, its rarity is the point. Where it does appear it can serve
+      as a faceting axis to isolate corrected pieces or as a filter on the
+      Categorical Distribution, letting a researcher ask whether corrected articles
+      cluster by section, time, or source. But because almost no source in the
+      current corpus emits it, the honest reading today is overwhelmingly its
+      absence: AĒR cannot see most corrections, because most publishers do not
+      declare them in machine-readable form, only — if at all — in prose the
+      platform does not parse as a correction.
+  methodological:
+    short: "JSON-LD correction key. Tier-C. Almost always absent today; absence is NOT 'no corrections', it is no machine-readable signal. WP-003 §3.2 / ADR-039."
+    long: >
+      The field is read at the Silver boundary by the worker's WebAdapter from the
+      page's JSON-LD — the Schema.org structured-data block embedded in the page —
+      from the correction key. When that key carries a value, AĒR records it as the
+      correction notice; when it is absent or empty, the field is empty. There is no
+      OpenGraph, microdata, or prose-scanning fallback: AĒR does not read the
+      visible article text looking for the word "correction", so a fix announced
+      only in body prose is invisible to this field.
+      Absence is the rule and demands care. correction_notice is a Tier-C field
+      that almost no publisher emits in the current corpus, so for nearly every
+      article it is Negative Space. The disclose-never-coerce invariant (ADR-039)
+      is especially load-bearing here: an absent correction notice does NOT mean
+      the article was never corrected — it means AĒR received no machine-readable
+      correction signal. Reading absence as a clean record would be a fabricated
+      claim about editorial integrity, the precise coercion ADR-039 forbids. A
+      source that never emits the key is a publisher choice (WP-003 §3.2), not a
+      defect; the field is flagged structurally absent for that source and withheld
+      from the dimension picker for the scope. Any populated values are far too
+      sparse to support cross-source comparison without out-of-band review
+      (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

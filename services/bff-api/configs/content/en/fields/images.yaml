@@ -1,0 +1,47 @@
+entityId: images
+entityType: field
+locale: en
+displayLabel: "Images"
+registers:
+  semantic:
+    short: "The article's set of distinct images — a count is a crude richness proxy, not a quality judgement."
+    long: >
+      Images is the list of pictures an article carries — not just the lead image but the full set
+      the publisher declares, each with its address and, where given, alt-text and caption. Its
+      most common analytical use is the count: how many distinct images does this article carry?
+      That count is a crude richness proxy — a text-heavy explainer and a photo essay sit at
+      opposite ends — but it is only a proxy. It says nothing about whether the images are
+      relevant, well-chosen, or even meaningfully different; a high count is not "better". The
+      count is deliberately a count of distinct images: publishers routinely declare one photo in
+      several responsive crops (16x9, 1x1, 4x3 of the same picture), and those renditions are
+      collapsed so the number reflects pictures, not crops. Analytically, images works as a
+      faceting and presence signal and as a scatter axis or colour binding when you want to relate
+      visual richness to another metric — for example, plotting article length against image count.
+      It is poor as a grouping axis, since the underlying URLs share no categories.
+  methodological:
+    short: "JSON-LD image[] with responsive renditions de-duplicated so the count measures DISTINCT images, not crops. Tier-B. Absent = no image[] block (Negative Space). WP-003 §3.2."
+    long: >
+      Images is extracted by the worker's WebAdapter at the Silver boundary from the JSON-LD `image`
+      array (the Schema.org structured-data block embedded in the page). Each entry — a bare URL
+      string or an ImageObject dict — becomes an image reference carrying its URL plus alt-text
+      (`name`) and `caption` when the publisher supplies them. The defining data-quality step is
+      de-duplication of responsive renditions: publishers commonly expose one photograph in several
+      aspect-ratio crops (Schema.org best practice), and counting each crop would make a constant
+      template read as several images. A deliberately conservative identity normaliser drops the
+      query string and any aspect-ratio crop path segment, so renditions of the same photo collapse
+      to one while genuinely distinct images stay distinct. The heuristic only ever over-counts (a
+      publisher that encodes the size in the filename rather than the path will not collapse) and
+      never under-counts real images, and it never empties a non-empty list — so the field's
+      presence semantics are preserved. The origin (JSON-LD) is recorded in the per-field provenance
+      that rolls up into the source's metadata-coverage report. Unlike the single lead `image_url`,
+      this field reads only JSON-LD — there is no OpenGraph fallback for a full set. When the page
+      carries no `image` array, images is structurally absent: shown as Negative Space, never coerced
+      to a count of zero. A source that omits it is disclosed as `structurallyAbsent`, a publisher
+      choice and never a defect (disclose-never-coerce, ADR-039; WP-003 §3.2). Treat cross-source
+      count comparisons as descriptive — they reflect publishing conventions, not journalistic merit.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

@@ -1,0 +1,47 @@
+entityId: article_type
+entityType: field
+locale: en
+displayLabel: "Article Type"
+registers:
+  semantic:
+    short: "The Schema.org type a publisher declares for a page — NewsArticle, LiveBlogPosting — naming the form of the content, not its subject."
+    long: >
+      The article type names the FORM a publisher declares for a page rather than its subject:
+      a standard NewsArticle, a rolling LiveBlogPosting, an Article, a ReportageNewsArticle.
+      It tells you what KIND of artefact you are reading — a finished report versus a live
+      ticker that grows by the hour — which matters because forms behave differently over time
+      and carry different metadata. In the Workbench it can serve as a faceting axis, a
+      Cross-tab group-by, or a node in a Sankey alluvial chain that traces how forms flow into
+      sections or labels. Be ready for it to be flat: many sources stamp every page with the
+      same type, so the field is often degenerate — constant across a source — and a constant
+      column carries no signal. When it does vary it is genuinely informative, distinguishing,
+      say, evergreen reports from live coverage. Read it as the publisher's own declaration of
+      form, useful where it varies and quietly disclosed where it does not.
+  methodological:
+    short: "JSON-LD @type only (e.g. NewsArticle, LiveBlogPosting). Tier-B; frequently degenerate (constant per source) — a constant carries no signal and is disclosed, not charted. WP-003 §3.2."
+    long: >
+      The article type is resolved by the worker's WebAdapter at the Silver boundary from a
+      single source: the JSON-LD @type value — JSON-LD is the structured machine-readable
+      block many publishers embed for search engines, and @type is the Schema.org class name
+      it carries (NewsArticle, LiveBlogPosting, Article, and so on). When @type is a list, the
+      first string entry is taken. There is no OpenGraph or microdata fallback: a publisher
+      that emits no JSON-LD @type leaves this field empty. It is a Tier-B descriptive field —
+      a single string the publisher declared, neither derived nor validated by AĒR. The
+      operational reality to flag is degeneracy: most publishers stamp one type across their
+      entire output ("NewsArticle" on every page), so over a single source the field is
+      frequently constant. A constant carries no analytical signal — it cannot separate a
+      corpus into meaningful groups — so AĒR discloses the degeneracy rather than charting a
+      flat distribution that would imply a distinction that is not there. The type genuinely
+      varies mainly for publishers that distinguish live coverage (LiveBlogPosting) from
+      finished reports, where it becomes a useful faceting axis. Comparability across sources
+      is gentler here than for free-form fields, since @type draws on a fixed Schema.org
+      vocabulary, but a publisher's CHOICE of which types to declare is still editorial.
+      When a source emits no @type, the field is structurally absent — shown as Negative
+      Space, a publisher choice (WP-003 §3.2), never coerced to a default type AĒR never
+      observed (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

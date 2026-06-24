@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Spracherkennungskonfidenz-Verteilung. Zeigt, wie konsistent die Quelle in einer einzigen erkennbaren Sprache veröffentlicht — ein Datenqualitäts- und Korpuszusammensetzungssignal."
     long: >
-      Die Verteilungsansicht für language_confidence zeigt die Streuung der Erkennungssicherheit
+      Die Verteilungsansicht für die Sprach-Konfidenz zeigt die Streuung der Erkennungssicherheit
       über alle Artikel im ausgewählten Fenster. Für eine stabile einsprachige Quelle wird die
       Verteilung eng nahe 1,0 gepackt sein — dies ist das erwartete Profil für Sonde 0. Ein
       langer linker Tail (viele Artikel mit niedrigerer Konfidenz) deutet auf kurze Artikel,
@@ -55,8 +55,8 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"

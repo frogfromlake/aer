@@ -1,0 +1,55 @@
+entityId: external_citations
+entityType: field
+locale: en
+displayLabel: "External Citations"
+registers:
+  semantic:
+    short: "The outbound sources an article explicitly cites — the list of works it points to. Present only where a publisher declares its references; otherwise silent."
+    long: >
+      External citations is the list of outbound sources an article explicitly cites: the
+      studies, documents, or other works the publisher names as references. Where present,
+      it is a window onto how a piece grounds itself — a heavily-cited article wears its
+      sourcing openly, while one with no citations either stands on its own reporting or
+      simply does not declare its references in machine-readable form. In AĒR's corpus today
+      that declaration is uncommon; the institutional press offices and most news sites in
+      scope rarely emit a citation list in their structured metadata, so for them the field
+      is silent.
+      This is a list field, not a single number. The field itself is the set of cited
+      works; a count of citations is a separate metric derived from that list, and the two
+      must not be conflated — an empty list and an absent field are different facts. In the
+      Workbench the list serves as evidence and provenance (following an article to what it
+      draws on), while a derived count could drive a scatter axis or distribution. Where a
+      source declares no citations, external citations is shown as Negative Space — never
+      filled with invented references and never silently treated as a citation count of
+      zero.
+  methodological:
+    short: "JSON-LD citation (outbound cited sources). Tier-1 deterministic. Almost always absent on in-scope sources — Negative Space, never coerced. Field ≠ derived count. WP-003 §3.2."
+    long: >
+      External citations is extracted deterministically by the worker's WebAdapter at the
+      Silver boundary from the article's JSON-LD only (JSON-LD is the structured-data block
+      publishers embed in a page to describe it for machines). The extractor reads the
+      citation property and normalises it into a list of strings — each entry an outbound
+      cited source as the publisher declared it; if the property is absent or yields no
+      strings the field is recorded as absent. There is no fallback to OpenGraph, no
+      following of links, and no validation that a cited work exists or resolves — AĒR
+      records the declared reference list verbatim. No model, no inference — Tier-1
+      deterministic. Validation status: unvalidated (engineering default).
+      Two load-bearing distinctions. First, disclose-never-coerce (WP-003 §3.2, ADR-039):
+      the in-scope sources rarely emit citation, so external citations is typically
+      structurally absent — flagged structurallyAbsent when population sits at 0% over at
+      least 50 articles in the trailing 30 days, shown as Negative Space, and withheld from
+      the dimension picker for that scope; an absent list is a publisher choice, never a
+      defect and never coerced. Second, the FIELD (the list of cited works) is not the COUNT
+      (how many a piece cites): any citation-count metric is derived downstream from this
+      list, so a structurally-absent field cannot be read as a count of zero — the absence
+      means "no reference list was declared", not "zero references". As a publisher
+      self-report, the presence and richness of citation lists are not granted as comparable
+      across sources without out-of-band validation (WP-004 §5.3); citation conventions
+      differ by publisher and genre.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

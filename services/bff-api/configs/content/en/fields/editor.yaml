@@ -1,0 +1,50 @@
+entityId: editor
+entityType: field
+locale: en
+displayLabel: "Editor"
+registers:
+  semantic:
+    short: "The editor a publisher credits for an article — the person who shaped or signed off on it, distinct from its writer. Rarely emitted, even by editorial sources."
+    long: >
+      Editor is the person a publisher credits with editing an article: the desk lead who
+      shaped, checked, or signed off on it, distinct from the author who wrote it. Where it
+      appears, it adds a second layer of accountability beyond the byline — a glimpse of the
+      editorial chain behind a piece. In practice it is one of the rarest fields AĒR sees:
+      even editorial-byline sources like tagesschau or franceinfo seldom expose an editor in
+      their structured data, and institutional press offices (the Bundesregierung, the
+      Élysée) emit none at all, publishing under one corporate voice. So a sparse editor
+      column usually reflects what publishers choose to disclose, not a sampling gap.
+      In the Workbench editor serves the same analytical roles as author — a faceting
+      dimension, a Cross-tab group-by axis, a stage in a Sankey alluvial chain — but because
+      coverage is so thin, treat any editor-based comparison as exploratory. Where the field
+      is absent it is shown as Negative Space, never counted as an empty editor and never a
+      name to invent.
+  methodological:
+    short: "JSON-LD editor only — no OpenGraph fallback. Tier-1 deterministic. Very sparse; absent by design on institutional sources — Negative Space, never coerced. WP-003 §3.2."
+    long: >
+      Editor is extracted deterministically by the worker's WebAdapter at the Silver
+      boundary from a single source: the article's JSON-LD editor property (JSON-LD is the
+      structured-data block publishers embed in a page to describe it for machines). Unlike
+      author there is NO OpenGraph fallback — OpenGraph defines no editor tag — so if a
+      publisher does not emit editor in JSON-LD, the field is recorded as absent. No model,
+      no inference, no reconstruction of names — Tier-1 deterministic. Validation status:
+      unvalidated (engineering default).
+      The single-path extraction is why editor is the sparsest authorship field: most
+      publishers, including editorial-byline ones, simply do not populate Schema.org editor.
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2, ADR-039). An absent
+      editor is read as the publisher's disclosure choice, not a defect. On institutional
+      press offices, which publish under corporate authorship, editor is structurally
+      absent — flagged structurallyAbsent when population sits at 0% over at least 50
+      articles in the trailing 30 days, shown as Negative Space, and withheld from the
+      dimension picker for that scope. An aggregate over a structurally-absent editor
+      REFUSES rather than returning an empty or zero count. Because coverage is thin even
+      where the model is editorial, cross-source editor comparisons are not granted as
+      equivalent without out-of-band validation (WP-004 §5.3); read editor as a corroborating
+      detail, not a primary axis.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

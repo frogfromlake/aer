@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Named entity density distribution. Shows the full range of how entity-rich articles are — from sparse, abstract pieces to dense, multi-actor reports — and how that range compares across sources."
     long: >
-      The distribution view for entity_count reveals the structural range of how specifically
+      The distribution view for entity count reveals the structural range of how specifically
       an article references the social world: how many named people, places, and organisations
       appear? A tight, low-value distribution indicates a source producing relatively abstract
       or generic content. A wide right-skewed distribution suggests a mix of brief news items
@@ -27,9 +27,9 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "Histogram / density of per-article entity_count from spaCy de_core_news_lg. Provisional (Tier 3). Right-tail truncation recommended; outliers are real (long parliamentary articles)."
+    short: "Histogram / density of per-article entity count from spaCy de_core_news_lg. Provisional (Tier 3). Right-tail truncation recommended; outliers are real (long parliamentary articles)."
     long: >
-      The distribution is a histogram of entity_count values per article in the selected
+      The distribution is a histogram of entity-count values per article in the selected
       scope and window. Tier 3 (provisional) under WP-002 §5 — entity counts depend on
       spaCy's German NER model (de_core_news_lg 3.8.0). Interpretation notes: (1) the
       distribution naturally skews right because entity count is bounded below at zero but
@@ -54,8 +54,8 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"

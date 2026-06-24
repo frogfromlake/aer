@@ -18,9 +18,9 @@ registers:
 
       Composition — when a Workbench Panel pools more than one source under
       composition='merged', this metric aggregates as mean detection
-      confidence (0..1) over the unioned corpus. Sentiment-class metrics
-      inherit the merged-mean's sensitivity to source-mix imbalance: a single
-      high-volume source can dominate the aggregate. Use the split composition
+      confidence (0..1) over the unioned corpus. The merged mean inherits a
+      sensitivity to source-mix imbalance: a single high-volume source can
+      dominate the aggregate. Use the split composition
       (one Cell per source) when source-level differences are the question.
       The merged reading is permitted across languages with a soft methodology
       banner (Aleph) or refused (Episteme, Rhizome) — see the per-view-mode
@@ -29,7 +29,7 @@ registers:
   methodological:
     short: "langdetect v1.0.9 top-candidate probability, fixed seed. Tier 1 (deterministic). Degrades on texts under ~200 characters. WP-002 §3."
     long: >
-      language_confidence is the highest posterior probability assigned by langdetect v1.0.9
+      Language confidence is the highest posterior probability assigned by langdetect v1.0.9
       to the top-ranked language candidate. langdetect uses character n-gram profiles and a
       Naive Bayes classifier trained on Wikipedia text in 55 languages. The extractor fixes the
       random seed to 0 to ensure identical output for identical input (langdetect's internal
@@ -59,9 +59,9 @@ registers:
       applicable) refuse with HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §6.2"

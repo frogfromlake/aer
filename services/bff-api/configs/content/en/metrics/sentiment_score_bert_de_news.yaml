@@ -10,7 +10,7 @@ registers:
       German news text, applied to one article at a time. The model's three-way
       verdict (negative / neutral / positive) is collapsed into a single number
       between −1 and +1. Compared to the multilingual sentiment metric
-      (sentiment_score_bert_multilingual), this model is closer to AĒR's source
+      (the multilingual BERT model), this model is closer to AĒR's source
       register — it has read text similar in style to what it is asked to score,
       whereas the multilingual model was trained on Twitter text from many
       languages. The two metrics ship side by side; the gap between them is a
@@ -33,15 +33,15 @@ registers:
   methodological:
     short: "mdraw/german-news-sentiment-bert, pinned HuggingFace revision. Tier-2.5 refinement per ADR-023. P(pos) − P(neg) clipped to [-1, +1]. Strict de-only language guard. WP-002 §3.2."
     long: >
-      sentiment_score_bert_de_news is computed by GermanNewsBertSentimentExtractor
+      The German news-domain BERT sentiment score is computed by the German news sentiment extractor
       running mdraw/german-news-sentiment-bert, pinned by HuggingFace commit
       revision in the Language Capability Manifest's
       languages.de.sentiment_tier2_refinement block. Same scalar collapse as the
       multilingual default — P(positive) − P(negative), clipped to [-1, +1] —
       same determinism flags, same Phase-119 CI gate. Per ADR-023 this is the
       Tier-2.5 refinement layer: optional, language-bound, and never displaces
-      either the Tier-1 lexicon score (sentiment_score_sentiws) or the Tier-2
-      multilingual default (sentiment_score_bert_multilingual). The dashboard
+      either the Tier-1 lexicon score (the SentiWS metric) or the Tier-2
+      multilingual default (the multilingual BERT metric). The dashboard
       surfaces all three under ADR-016's dual-metric pattern; the gap between the
       multilingual default and this domain-fine-tuned refinement is the WP-002
       §3.2 domain-transfer signal. The OpenAPI TierClassification enum is [1, 2,
@@ -68,9 +68,9 @@ registers:
       MethodologyBanner; Episteme/Rhizome view-modes (when applicable) refuse
       with HTTP 422 cross_language_merge_unsupported (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

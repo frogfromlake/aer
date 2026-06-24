@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Sentiment score distribution. Shows the spread of emotional register across all articles in the window — whether output is uniformly neutral, skewed negative, or split between positive and negative framings."
     long: >
-      The distribution view for sentiment_score renders the full spread of polarity values
+      The distribution view for the sentiment score renders the full spread of polarity values
       across all articles in the selected scope and window. This is often more revealing than
       a time-series mean: a source with a mean sentiment near zero might produce almost
       entirely neutral content, or might alternate between sharply positive and sharply negative
@@ -26,9 +26,9 @@ registers:
       methodology banner (WP-004 §3.4) rather than a refusal.
 
   methodological:
-    short: "Histogram / density of sentiment_score values (range −1 to +1). Provisional (Tier 3). Values cluster near zero for institutional German sources; tail shape is the meaningful signal."
+    short: "Histogram / density of sentiment-score values (range −1 to +1). Provisional (Tier 3). Values cluster near zero for institutional German sources; tail shape is the meaningful signal."
     long: >
-      The distribution is a histogram over sentiment_score values (SentiWS v2.0, mean polarity
+      The distribution is a histogram over sentiment-score values (SentiWS v2.0, mean polarity
       aggregation, range −1 to +1) for the selected scope and window. Tier 3 (provisional)
       under WP-002 §5. Interpretive notes: (1) for German institutional RSS sources, the
       distribution is expected to be tightly peaked near zero — this is not a limitation but
@@ -52,9 +52,9 @@ registers:
       meaningful with caveats. The asymmetry against Episteme/Rhizome (which
       DO refuse) is intentional and documented in WP-005 §6.2 §8b.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §5"
   - "WP-004 §3"

@@ -5,25 +5,37 @@ registers:
   semantic:
     short: "Eine Linie je Artikel über mehrere Kennzahl-Achsen — lies Bündel gemeinsam verlaufender Linien und Kreuzungen, die Trade-offs zeigen."
     long: >
-      Parallel-Koordinaten zeigen viele Kennzahlen auf einmal. Jede senkrechte Achse ist eine
-      Kennzahl; jede Linie ist ein Artikel und verbindet seinen Wert auf jeder Achse. Bündel nahezu
-      paralleler Linien sind Gruppen ähnlicher Artikel; Linien, die zwischen zwei Achsen kreuzen, sind
-      Artikel mit hohem Wert auf der einen und niedrigem auf der nächsten Kennzahl (ein Trade-off).
-      Jede Achse ist auf ihr eigenes Min–Max skaliert, sodass die Form auch über sehr verschieden
-      skalierte Kennzahlen vergleichbar ist.
+      Parallel-Koordinaten zeigen eine ganze MENGE von Kennzahlen auf einmal. Jede senkrechte
+      Achse ist eine Kennzahl der Menge; jede Linie ist ein Artikel und verbindet seinen Wert auf
+      jeder Achse. Bündel nahezu paralleler Linien sind Gruppen ähnlicher Artikel; Linien, die
+      zwischen zwei Achsen kreuzen, sind Artikel mit hohem Wert auf der einen und niedrigem auf der
+      nächsten Kennzahl (ein Trade-off). Die Lesart ist das MUSTER — Bündelung, Kreuzung,
+      Auffächerung — nicht ein einzelner Absolutwert, denn jede Achse ist auf ihr eigenes
+      beobachtetes Min–Max skaliert, sodass eine hohe Position auf einer Achse nicht dieselbe Zahl
+      ist wie eine hohe Position auf der nächsten. Nutze sie, um zu erkennen, ob Artikel in wenige
+      verschiedene Formen über die Kennzahl-Menge fallen, und wechsle dann zu Streudiagramm oder
+      Verteilung, um die tatsächlichen Zahlen zu lesen.
   methodological:
-    short: "Per-Artikel-Pivot von N Kennzahlen über den Bereich; nur Artikel mit allen Kennzahlen werden gezeichnet. Jede Achse wird clientseitig eigen-min–max-normiert."
+    short: "Per-Artikel-Pivot der gewählten Kennzahl-Menge über den Bereich; nur Artikel mit allen Kennzahlen werden gezeichnet. Jede Achse clientseitig eigen-min–max-normiert."
     long: >
-      Der Server pivotiert aer_gold.metrics je Artikel in einen N-Werte-Vektor (ein avgIf je
-      Kennzahl) und behält nur Artikel, die jede angeforderte Kennzahl tragen, damit jede Linie
-      vollständig ist. Die Zelle normiert jede Achse zur Anzeige auf ihr eigenes beobachtetes
-      Min–Max; der Export trägt die Rohwerte. Die Achsenzahl ist zur Lesbarkeit auf 8 gedeckelt, die
-      Artikelzahl ebenfalls (offengelegt als „erste N"). Ein mehrsprachiger Bereich erfordert für
-      jede Kennzahl eine validierte Äquivalenz-Freigabe; fehlt sie, verweigert die Zelle mit einer
-      Level-1-Alternative (WP-004 §5.2).
+      Der Server pivotiert aer_gold.metrics je Artikel in einen Wert pro Kennzahl der Menge (ein
+      avgIf je Kennzahl) und behält nur Artikel, die JEDE angeforderte Kennzahl tragen, damit jede
+      Linie vollständig ist — ein Artikel ohne eine Achse wird verworfen, statt mit einem geratenen
+      Wert gezeichnet zu werden (disclose-never-coerce, WP-003 §3.2). Die Zelle normiert jede Achse
+      zur Anzeige auf ihr eigenes beobachtetes Min–Max, sodass die Achsen über sehr verschieden
+      skalierte Kennzahlen hinweg in der Form vergleichbar sind; der Export trägt die rohen,
+      un-normierten Werte. Die Achsenzahl ist zur Lesbarkeit auf 8 gedeckelt, die Artikelzahl
+      ebenfalls (die Zelle fordert bis zu 3000 Linien an, offengelegt als „erste N“) — ein dichterer
+      Korpus wird abgetastet, nie stillschweigend vollständig. Eine dünne Linienmenge ist eine
+      kleine Stichprobe, keine Schlussfolgerung. Ein mehrsprachiger Bereich erfordert für jede
+      Kennzahl der Menge eine validierte Äquivalenz-Freigabe; fehlt sie, verweigert die Zelle mit
+      einer Level-1-Alternative, statt nicht-vergleichbare Skalen auf gemeinsame Achsen zu legen
+      (WP-004 §5.2, §3.4).
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "WP-004 §3.4"
   - "WP-004 §5.2"

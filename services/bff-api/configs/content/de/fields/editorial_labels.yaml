@@ -1,0 +1,52 @@
+entityId: editorial_labels
+entityType: field
+locale: de
+displayLabel: "Redaktionelle Labels"
+registers:
+  semantic:
+    short: "Die Genre-Kennzeichnungen, die ein Herausgeber an einen Artikel heftet — Meinung, Analyse, Sponsored — sie markieren, wie ein Stück zu lesen ist."
+    long: >
+      Redaktionelle Labels sind die Genre-Kennzeichnungen, die ein Herausgeber an einen Artikel
+      heftet, um Lesern zu sagen, wie sie ihn lesen sollen: Meinung, Analyse, Kommentar,
+      Sponsored. Sie markieren den Unterschied zwischen gerader Berichterstattung und einer
+      Kolumne oder zwischen redaktionellem Inhalt und bezahlter Platzierung — eine
+      Unterscheidung, die für das Verständnis enorm wichtig ist, was ein Stück eigentlich tut.
+      In der Workbench bilden sie eine starke Faceting-Achse und einen aufschlussreichen Knoten
+      einer Sankey-Kette, mit denen Sie fragen können, wie viel der Ausgabe einer Quelle Meinung
+      gegenüber Reportage ist oder ob sich Sponsored-Inhalte in bestimmten Ressorts ballen. Sie
+      gehören außerdem zu den aussagekräftigsten Feldern, wenn sie vorhanden sind: Eine Quelle,
+      die ihre Meinungs- und Sponsored-Inhalte konsequent kennzeichnet, macht ihre redaktionellen
+      Grenzen lesbar. Rechnen Sie damit, dass sie für viele Quellen spärlich oder abwesend sind,
+      besonders bei institutionellen — diese Abwesenheit ist selbst eine Beobachtung darüber, wie
+      offen ein Herausgeber das Genre signalisiert, keine zu füllende Lücke.
+  methodological:
+    short: "Nur JSON-LD genre (z. B. Opinion, Analysis, Sponsored). Tier-B; oft degeneriert oder abwesend — eine Konstante trägt kein Signal, Abwesenheit = Herausgeber-Entscheidung, weder gezeichnet noch umgedeutet. WP-003 §3.2."
+    long: >
+      Redaktionelle Labels werden vom WebAdapter des Workers an der Silver-Grenze aus einer
+      einzigen Quelle aufgelöst: dem JSON-LD-Feld genre — JSON-LD ist der strukturierte,
+      maschinenlesbare Block, den viele Herausgeber für Suchmaschinen einbetten, und genre ist
+      der Schema.org-Schlüssel für die redaktionelle Kategorie eines Stücks — geparst zu einer
+      Liste von Zeichenketten. Es gibt keinen OpenGraph- oder Microdata-Fallback: Eine Quelle,
+      die kein JSON-LD-genre ausgibt, lässt dieses Feld leer, was der häufige Fall ist. Es ist
+      ein beschreibendes Tier-B-Feld — beliebige vom Herausgeber gewählte Genre-Zeichenketten,
+      weder von AĒR abgeleitet noch validiert. Zwei operative Realitäten prägen seine Nutzung.
+      Erstens ist die Abwesenheit eher die Regel als die Ausnahme: Die meisten Herausgeber und
+      fast alle institutionellen Pressestellen (bundesregierung, elysee) geben überhaupt kein
+      genre aus, sodass das Feld für sie strukturell abwesend ist — als Negative Space gezeigt,
+      eine Herausgeber-Entscheidung (WP-003 §3.2), nie zu einem „news"-Standard umgedeutet, der
+      ein nie von AĒR beobachtetes Genre erfände (ADR-039). Zweitens ist es dort, wo es AUSGEGEBEN
+      wird, oft degeneriert — ein einzelner wiederholter Wert über eine Quelle hinweg —, und eine
+      Konstante trägt kein analytisches Signal, weshalb AĒR die Konstanz offenlegt, statt eine
+      flache Verteilung zu zeichnen. Auch die Vergleichbarkeit ist heikel: Das Genre-Vokabular
+      gehört zur EIGENEN Taxonomie des Herausgebers, sodass „Meinung" und „Opinion" über Quellen
+      oder Sprachen hinweg nicht garantiert derselbe Knoten sind, und eine quellenübergreifende
+      Aggregation wird ohne externe Validierung nicht gewährt (WP-004 §5.3). Lesen Sie
+      redaktionelle Labels als hochwertiges Signal, wo vorhanden, und als bedeutsames Schweigen,
+      wo abwesend.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

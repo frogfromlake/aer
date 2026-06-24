@@ -1,0 +1,52 @@
+entityId: images
+entityType: field
+locale: de
+displayLabel: "Bilder"
+registers:
+  semantic:
+    short: "Die Menge der eigenständigen Bilder eines Artikels — eine Zählung ist ein grober Richness-Anhaltspunkt, kein Qualitätsurteil."
+    long: >
+      Bilder ist die Liste der Abbildungen, die ein Artikel trägt — nicht nur das Leitbild, sondern
+      die volle vom Herausgeber deklarierte Menge, jede mit ihrer Adresse und, sofern angegeben,
+      Alternativtext und Bildunterschrift. Am häufigsten dient sie analytisch der Zählung: Wie viele
+      eigenständige Bilder trägt dieser Artikel? Diese Zahl ist ein grober Richness-Anhaltspunkt —
+      ein textlastiges Erklärstück und eine Fotostrecke liegen an den Enden — doch sie ist nur ein
+      Anhaltspunkt. Sie sagt nichts darüber, ob die Bilder relevant, gut gewählt oder überhaupt
+      sinnvoll verschieden sind; eine hohe Zahl ist nicht „besser". Die Zählung ist bewusst eine
+      Zählung eigenständiger Bilder: Herausgeber deklarieren regelmäßig ein Foto in mehreren
+      responsiven Zuschnitten (16x9, 1x1, 4x3 desselben Bildes), und diese Varianten werden
+      zusammengefasst, sodass die Zahl Bilder abbildet, nicht Zuschnitte. Analytisch dient Bilder als
+      Facettierungs- und Vorhandenseins-Signal sowie als Scatter-Achse oder Farbbindung, wenn man
+      visuelle Richness zu einer anderen Metrik in Beziehung setzen will — etwa Artikellänge gegen
+      Bildanzahl. Als Gruppierungsachse taugt es schlecht, da die zugrunde liegenden Adressen keine
+      gemeinsamen Kategorien teilen.
+  methodological:
+    short: "JSON-LD image[] mit dedupliziereten responsiven Varianten, sodass die Zählung EIGENSTÄNDIGE Bilder misst, keine Zuschnitte. Tier-B. Abwesend = kein image[]-Block (Negative Space). WP-003 §3.2."
+    long: >
+      Bilder wird vom WebAdapter des Workers an der Silver-Grenze aus dem JSON-LD-Array `image` (dem
+      in die Seite eingebetteten strukturierten Schema.org-Block) extrahiert. Jeder Eintrag — eine
+      bloße URL-Zeichenkette oder ein ImageObject-Verzeichnis — wird zu einer Bildreferenz mit ihrer
+      Adresse sowie Alternativtext (`name`) und `caption`, sofern der Herausgeber sie liefert. Der
+      prägende Datenqualitäts-Schritt ist die Deduplizierung responsiver Varianten: Herausgeber
+      stellen ein Foto häufig in mehreren Seitenverhältnis-Zuschnitten bereit (Schema.org-Best-
+      Practice), und jeden Zuschnitt zu zählen ließe eine konstante Vorlage als mehrere Bilder lesen.
+      Ein bewusst konservativer Identitäts-Normalisierer entfernt die Query-Zeichenkette und jedes
+      Seitenverhältnis-Pfadsegment, sodass Varianten desselben Fotos zu einem zusammenfallen, während
+      echt verschiedene Bilder eigenständig bleiben. Die Heuristik überzählt allenfalls (ein
+      Herausgeber, der die Größe im Dateinamen statt im Pfad kodiert, fasst nicht zusammen) und
+      unterzählt nie echte Bilder, und sie leert nie eine nicht-leere Liste — die Vorhandenseins-
+      Semantik des Feldes bleibt also gewahrt. Die Herkunft (JSON-LD) wird im feldbezogenen
+      Provenance festgehalten, das in den Metadata-Coverage-Bericht der Quelle einfließt. Anders als
+      das einzelne Leitbild `image_url` liest dieses Feld nur JSON-LD — für eine volle Menge gibt es
+      keinen OpenGraph-Rückfall. Trägt die Seite kein `image`-Array, ist Bilder strukturell abwesend:
+      als Negative Space gezeigt, nie zu einer Zählung von null umgedeutet. Eine Quelle, die es
+      weglässt, wird als `structurallyAbsent` ausgewiesen: eine Herausgeber-Entscheidung, nie ein
+      Defekt (disclose-never-coerce, ADR-039; WP-003 §3.2). Behandle quellenübergreifende
+      Zählvergleiche als beschreibend — sie spiegeln Publikationskonventionen, kein journalistisches
+      Verdienst.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

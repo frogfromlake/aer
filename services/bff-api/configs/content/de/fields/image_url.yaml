@@ -1,0 +1,47 @@
+entityId: image_url
+entityType: field
+locale: de
+displayLabel: "Adresse des Leitbilds"
+registers:
+  semantic:
+    short: "Die Adresse des einzelnen Leitbilds eines Artikels — ein Vorhandenseins-Signal, kein Urteil über das Bild selbst."
+    long: >
+      Die Bildadresse ist die Web-Adresse des Hauptbilds eines Artikels — jenes, das der
+      Herausgeber als Leitbild bestimmt, das oben auf der Seite oder in der Vorschaukarte eines
+      geteilten Links erscheint. AĒR hält fest, wo das Bild liegt, nicht das Bild selbst; es
+      trifft keine Aussage darüber, was das Bild zeigt oder wie gut es ist. Am aufschlussreichsten
+      ist dieses Feld binär und strukturell: Hat der Herausgeber überhaupt ein bestimmtes Leitbild
+      beigegeben? Eine Quelle, die stets eines liefert, verpackt ihren Diskurs visuell; eine
+      Quelle, die nie eines liefert — bei knappen institutionellen Meldungen üblich —, tritt
+      textzuerst auf. Analytisch ist es ein Vorhandenseins-Signal, das sich am besten zur
+      Facettierung eignet (Artikel nach mit-Bild versus ohne teilen) statt als Gruppierungsachse,
+      denn die Adresse selbst ist eine eindeutige Zeichenkette ohne gemeinsame Kategorien. In
+      Kombination mit dem Feld `images` lässt sich nicht nur fragen „Gibt es ein Leitbild?", sondern
+      „Wie viele eigenständige Bilder trägt der Artikel?".
+  methodological:
+    short: "JSON-LD image (Leitbild) → OpenGraph og:image. Tier-B-Vorhandenseins-Signal. Abwesend = Herausgeber gibt kein Leitbild aus (Negative Space), nie zu leer umgedeutet. WP-003 §3.2."
+    long: >
+      Die Bildadresse wird vom WebAdapter des Workers an der Silver-Grenze entlang einer
+      zweistufigen Prioritätskette extrahiert. Zuerst liest er JSON-LD `image` (den in die Seite
+      eingebetteten strukturierten Schema.org-Block) und entnimmt daraus die Leit-Adresse; da
+      dieser Wert eine bloße URL-Zeichenkette, ein einzelnes ImageObject oder ein Array von beidem
+      sein kann, durchläuft ein eigener Resolver die Struktur und gibt die erste brauchbare Adresse
+      zurück (bevorzugt `url`, dann `@id`, dann `contentUrl`). Liefert JSON-LD nichts, greift als
+      Rückfall das OpenGraph-Meta-Tag `og:image` — die Konvention, mit der Herausgeber ein
+      Social-Vorschaubild deklarieren. Der erste Treffer gewinnt, und seine Herkunft (JSON-LD oder
+      OpenGraph) wird im feldbezogenen Provenance-Verzeichnis festgehalten, das in den Metadata-
+      Coverage-Bericht der Quelle einfließt. JSON-LD und OpenGraph sind zwei konkurrierende
+      maschinenlesbare Deklarationsformate; AĒR liest jeweils das, was der Herausgeber ausgibt. Die
+      tragende Einschränkung: Es ist allein ein Vorhandenseins- und Adress-Signal. AĒR holt,
+      speichert und analysiert die Bildpunkte nicht, daher stützt das Feld nie eine Aussage über
+      Bildinhalt, -qualität oder -relevanz. Gibt keine der Quellen ein Leitbild aus, ist das Feld
+      für diesen Artikel strukturell abwesend — als Negative Space gezeigt, nie stillschweigend auf
+      eine leere Zeichenkette gesetzt oder als „kein Bild vorhanden" gelesen. Eine Quelle, die es
+      systematisch weglässt, wird als `structurallyAbsent` ausgewiesen: eine Herausgeber-
+      Entscheidung, nie ein Defekt (disclose-never-coerce, ADR-039; WP-003 §3.2).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

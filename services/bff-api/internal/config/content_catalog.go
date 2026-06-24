@@ -60,6 +60,7 @@ func (c ContentCatalog) DisplayLabel(locale, entityType, entityID string) string
 
 var validEntityTypes = map[string]bool{
 	"metric":                 true,
+	"field":                  true,
 	"probe":                  true,
 	"source":                 true,
 	"discourse_function":     true,
@@ -132,7 +133,7 @@ func validateContentRecord(r ContentRecord, path string) error {
 		return loc("entityId is required")
 	}
 	if !validEntityTypes[r.EntityType] {
-		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, probe, source, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer", r.EntityType))
+		return loc(fmt.Sprintf("invalid entityType %q; must be one of metric, field, probe, source, discourse_function, refusal, view_mode, empty_lane, open_research_question, primer", r.EntityType))
 	}
 	if !validLocales[r.Locale] {
 		return loc(fmt.Sprintf("invalid locale %q; must be one of en, de", r.Locale))

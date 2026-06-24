@@ -335,7 +335,22 @@ export function reconcilePanelForView(
       next.metric = firstMetadataField(ctx.availableMetadataFields);
     }
   } else if (usesMetric) {
-    if (prevUsesMetadataField || !metricSupportsPresentation(next.metric, id)) {
+    // Phase 148g — `metricSupportsPresentation` defaults an UNKNOWN name to the
+    // scalar presentations, so a categorical FIELD stranded in `Panel.metric`
+    // (e.g. `author` left over from a field-driven or channel-driven view)
+    // would pass the support check and survive into a single-metric view as a
+    // bogus scalar dimension. The clean separator is the `/metrics/available`
+    // registry: a name absent from it (once loaded) is not a real metric and
+    // must be snapped to a genuine one. The default metric is always legitimate
+    // even before the registry loads.
+    const registryLoaded = ctx.availableMetricNames.length > 0;
+    const isRealMetric =
+      next.metric === DEFAULT_METRIC_NAME || ctx.availableMetricNames.includes(next.metric);
+    if (
+      prevUsesMetadataField ||
+      !metricSupportsPresentation(next.metric, id) ||
+      (registryLoaded && !isRealMetric)
+    ) {
       next.metric = firstMetricSupporting(id, ctx.availableMetricNames);
     }
   }

@@ -1,0 +1,55 @@
+entityId: word_count
+entityType: field
+locale: de
+displayLabel: "Wortanzahl"
+registers:
+  semantic:
+    short: "Wie viele Wörter ein Artikel enthält — ein grober Näherungswert für seine Länge und seinen redaktionellen Umfang."
+    long: >
+      Das Feld Wortanzahl ist die einfachste quantitative Eigenschaft eines Textes:
+      wie viele Wörter der Artikelkörper enthält. Es ist ein nahezu universelles
+      Feld, weil AĒR es stets aus dem extrahierten Körper ableiten kann — anders
+      als die meisten Metadaten hängt es nicht davon ab, dass ein Herausgeber sich
+      entscheidet, etwas zu deklarieren. Als Feld gelesen ist es ein grober
+      Näherungswert für den redaktionellen Umfang: längere Beiträge tragen
+      tendenziell mehr Berichterstattung, Rahmung oder Breite, und eine Quelle,
+      deren typische Länge sich über die Zeit verschiebt, ändert vielleicht Format
+      oder Ressourcen. In der Werkbank verankert das Feld eine Streudiagramm-Achse
+      (etwa Länge gegen Stimmung), dient als Facettierungsachse, um kurze von
+      langen Beiträgen zu trennen, und gruppiert die Kreuztabelle. Dieselbe
+      Eigenschaft wird auch zu einer analytischen Metrik befördert; wie sie als
+      Mittelwert über einen Bereich aggregiert, ihre Grenzen bei der
+      Sprachsegmentierung und das Merged-versus-Split-Verhalten — siehe den
+      Metrik-Eintrag word_count. Dieser Eintrag behandelt das Feld als solches:
+      dass es fast immer vorhanden ist und woher es stammt.
+  methodological:
+    short: "Körper-Wortzählung, JSON-LD wordCount bevorzugt, wenn vorhanden. Tier-B. Nahezu durchweg vorhanden (körper-abgeleitet). Leerzeichen-Tokenisierung. WP-003 §3.2."
+    long: >
+      Das Feld hat zwei Provenienz-Pfade, an der Silver-Grenze vom WebAdapter des
+      Workers zusammengeführt. Der primäre Pfad ist eine direkte Zählung des
+      extrahierten Artikelkörpers: der Körpertext wird an Unicode-Leerzeichen
+      aufgeteilt und die resultierenden Tokens werden gezählt, ohne Lemmatisierung
+      oder sprachspezifische Segmentierung. Der sekundäre Pfad ist der Schlüssel
+      wordCount aus dem JSON-LD der Seite — dem strukturierten Schema.org-Datenblock:
+      deklariert der Herausgeber ihn, wird dieser Wert der Körper-Zählung
+      vorgezogen (er spiegelt den eigenen kanonischen Körper des Herausgebers
+      wider, frei von Extraktions-Beiwerk). Dies ist ein Tier-B-Feld: die
+      Körper-Zählung macht es nahezu durchweg vorhanden, sodass es eines der
+      wenigen Metadatenfelder ist, das selten Negative Space ist.
+      Seine ehrliche Einschränkung gleicht der der Metrik: Leerzeichen-Tokenisierung
+      unterzählt agglutinierende Sprachen und gilt nicht für logografische
+      Schriften, in denen Wörter nicht durch Leerzeichen getrennt sind; deutsche
+      Komposita zählen als ein Token (Bundesregierung = 1). Wo word_count fehlt —
+      ein Körper, dessen Extraktion fehlschlug — bleibt diese Abwesenheit unter
+      disclose-never-coerce (ADR-039) Negative Space, wird nie als null erfasst;
+      ein leerer Körper ist eine Erhebungs-Beobachtung, ein Herausgeber- oder
+      Extraktions-Ergebnis (WP-003 §3.2), kein Artikel der Länge null. Der
+      quellenübergreifende Längenvergleich ist gegenüber Extraktionsgrenzen
+      empfindlich und sollte mit diesem Vorbehalt gelesen werden (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

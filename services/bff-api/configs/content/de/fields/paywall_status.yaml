@@ -1,0 +1,53 @@
+entityId: paywall_status
+entityType: field
+locale: de
+displayLabel: "Bezahlschranken-Status"
+registers:
+  semantic:
+    short: "Ein vom Herausgeber deklariertes Flag, ob ein Artikel frei lesbar ist oder hinter einer Bezahlschranke liegt."
+    long: >
+      Das Feld Bezahlschranken-Status erfasst, was ein Herausgeber selbst über die
+      Zugänglichkeit eines Artikels angibt: frei lesbar oder zahlungspflichtig. Es
+      ist ein Metadatenfeld, keine Messung, die AĒR vornimmt — die Plattform liest
+      die Deklaration, sie probiert die Bezahlschranke nie selbst aus. Als Feld
+      gelesen sagt der Wert etwas über die Quelle aus: ein Herausgeber, der dieses
+      Flag durchgängig ausgibt, ist über sein Geschäftsmodell explizit, während
+      einer, der es nie ausgibt, sich schlicht entschieden hat, die Zugänglichkeit
+      gar nicht zu deklarieren. In der Werkbank speist das Feld die kategoriale
+      Verteilung und die Achse für kleine Mehrfachansichten — so lässt sich ein
+      Korpus in freie und zahlungspflichtige Berichterstattung aufteilen — und es
+      liefert den Farbkanal in Streudiagrammen. Dasselbe Signal wird auch zu einer
+      analytischen Metrik befördert; für das Maß des Anteils zahlungspflichtiger
+      Artikel und seine Aggregation über einen Bereich siehe den Metrik-Eintrag
+      paywall_status. Dieser Eintrag behandelt das Feld als solches: was ausgegeben
+      wird und was sein Schweigen bedeutet.
+  methodological:
+    short: "JSON-LD isAccessibleForFree, negiert (false → Bezahlschranke, true → frei). Tier-B. Fehlendes Flag = Negative Space, nie zu „frei“ umgedeutet. WP-003 §3.2."
+    long: >
+      Das Feld wird an der Silver-Grenze vom WebAdapter des Workers aus dem JSON-LD
+      der Seite gelesen — dem strukturierten Schema.org-Datenblock, einer kleinen
+      maschinenlesbaren JSON-Beschreibung, die Herausgeber in die Seite einbetten —
+      konkret aus dem Schlüssel isAccessibleForFree. Der Wert wird in AĒRs Konvention
+      negiert: ein deklariertes isAccessibleForFree=false wird zu Bezahlschranke (1),
+      isAccessibleForFree=true wird zu frei (0). Die Stringformen „true“/„false“
+      werden ebenfalls akzeptiert; jede andere Form gilt als kein Signal. Es gibt
+      keinen OpenGraph- oder Microdata-Rückfall — JSON-LD ist die einzige Quelle.
+      Der tragende Punkt ist die Bedeutung der Abwesenheit. Die meisten
+      institutionellen Quellen (Presseämter wie bundesregierung oder elysee) geben
+      gar kein Zugänglichkeits-Flag aus. Unter disclose-never-coerce (ADR-039) ist
+      ein fehlendes Flag Negative Space — es wird NIE stillschweigend als „frei / 0“
+      erfasst. Das Schweigen des Herausgebers ist eine Herausgeber-Entscheidung
+      (WP-003 §3.2), kein Beleg dafür, dass alles offen ist, und kein Defekt. Eine
+      Quelle, deren Flag über ein ganzes Fenster fehlt, wird für dieses Feld als
+      strukturell abwesend markiert und im Dimensions-Picker für diesen Bereich
+      nicht angeboten. Da Zugänglichkeitsmodelle sich je Herausgeber und
+      Rechtsraum unterscheiden, ist die quellenübergreifende Aggregation dieses
+      Feldes vergleichbarkeits-sensibel und wird ohne externe Prüfung nicht
+      gewährt (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

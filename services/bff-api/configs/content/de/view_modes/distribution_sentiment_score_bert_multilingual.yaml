@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Mehrsprachige BERT-Sentiment-Verteilung. Zeigt die Streuung der von einem mehrsprachigen Transformer-Modell vergebenen Polaritätswerte über alle Artikel im Fenster."
     long: >
-      Die Verteilungsansicht für sentiment_score_bert_multilingual stellt die
+      Die Verteilungsansicht für den mehrsprachigen BERT-Stimmungswert stellt die
       vollständige Streuung der vom mehrsprachigen Transformer-Modell erzeugten
       Polaritätswerte über alle Artikel im ausgewählten Geltungsbereich und Fenster
       dar. Wie bei der Lexikon-Verteilung ist dies oft aussagekräftiger als ein
@@ -13,7 +13,7 @@ registers:
       neutrale Inhalte produzieren oder zwischen stark positiven und stark
       negativen Artikeln wechseln, die sich aufheben. Die Verteilung offenbart,
       welcher Fall vorliegt. Im Vergleich zur Lexikon-Verteilung
-      (sentiment_score_sentiws) hat diese Ansicht Zugriff auf den
+      (der SentiWS-Stimmungswert) hat diese Ansicht Zugriff auf den
       Gesamtartikel-Kontext und streut daher voraussichtlich etwas weiter — das
       Modell kann Ironie oder Negation erkennen, die das Lexikon übersieht. Der
       Formunterschied zwischen den beiden Verteilungen ist im Methodologie-Tray
@@ -34,7 +34,7 @@ registers:
   methodological:
     short: "Histogramm / Dichte des cardiffnlp/twitter-xlm-roberta-base-sentiment-Skalars (Bereich [-1, +1]). Tier-2-Default gemäß ADR-023. Tail-Form ist das aussagekräftige Signal; absolute Formen sprachübergreifend ohne metric_equivalence-Eintrag nicht vergleichen (WP-004 §3)."
     long: >
-      Die Verteilung ist ein Histogramm über sentiment_score_bert_multilingual-Werte
+      Die Verteilung ist ein Histogramm über die Werte des mehrsprachigen BERT-Stimmungswerts
       (mehrsprachiges XLM-RoBERTa, P(positiv) − P(negativ), [-1, +1]) für den
       ausgewählten Geltungsbereich und Zeitraum. Tier-2-Default gemäß ADR-023.
       Interpretationshinweise: (1) für institutionelle redaktionelle Quellen wird
@@ -67,9 +67,9 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-04"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3.2"
   - "WP-002 §5"

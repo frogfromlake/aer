@@ -1,0 +1,49 @@
+entityId: reading_time_minutes
+entityType: field
+locale: en
+displayLabel: "Reading Time (minutes)"
+registers:
+  semantic:
+    short: "A publisher-supplied estimate of how many minutes an article takes to read."
+    long: >
+      The reading-time field holds the publisher's own estimate of how long an
+      article takes to read, in whole minutes. It is a presentational courtesy
+      some news sites compute and embed — typically a rough words-per-minute
+      division — and AĒR simply records the figure when the page declares it. Read
+      as a field, its presence is itself the more interesting signal than the
+      number: a source that emits reading time has invested in a reader-facing
+      furniture layer, which tends to mark consumer-oriented editorial publishers
+      rather than institutional press offices. Where it is populated it can serve
+      as a faceting axis or a scatter colour channel and pairs naturally with
+      word_count as a coarse cross-check on article length. In the current corpus,
+      however, reading time is near-universally absent, so the honest reading of
+      this field today is mostly its silence: most sources AĒR observes do not
+      declare it.
+  methodological:
+    short: "JSON-LD timeRequired (ISO-8601 duration PT…M), minutes only. Tier-C. Near-universally absent today; absence = publisher choice, never coerced. WP-003 §3.2."
+    long: >
+      The field is read at the Silver boundary by the worker's WebAdapter from the
+      page's JSON-LD — the Schema.org structured-data block embedded in the page —
+      from the timeRequired key. That value is an ISO-8601 duration string; AĒR
+      parses only the simple minutes form "PT<N>M" (for example PT5M → 5 minutes),
+      taking the integer between the PT prefix and the trailing M. Any richer
+      duration shape, or a value that does not parse as an integer, is treated as
+      no signal. There is no OpenGraph, microdata, or computed fallback — if the
+      publisher does not emit timeRequired in this exact form, the field is empty;
+      AĒR never derives a reading time from word_count to fill the gap.
+      Absence is the dominant case. timeRequired is a Tier-C field that very few
+      publishers emit at all, and almost none in the form AĒR can parse, so for
+      the current corpus the field is near-universally absent. Under disclose-
+      never-coerce (ADR-039) that absence is left as Negative Space, never
+      back-filled with an estimate and never read as "zero minutes". A source that
+      never emits it is a publisher choice (WP-003 §3.2), not a defect, and the
+      field is flagged structurally absent for that source and withheld from the
+      dimension picker for the scope. Treat any populated values as too sparse to
+      compare across sources without out-of-band review (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

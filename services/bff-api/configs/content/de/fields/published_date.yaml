@@ -1,0 +1,48 @@
+entityId: published_date
+entityType: field
+locale: de
+displayLabel: "Veröffentlichungsdatum"
+registers:
+  semantic:
+    short: "Wann der Herausgeber den Artikel zuerst veröffentlicht hat. An diesem Zeitstempel hängt jede zeitbezogene Ansicht."
+    long: >
+      Das Veröffentlichungsdatum ist der Zeitpunkt, den ein Herausgeber als erstes Erscheinen
+      des Artikels festhält. Es ist das Rückgrat jeder diachronen Lesart: Es platziert den
+      Artikel auf der Zeitachse der Episteme-Säule (dem Klimaarchiv), steuert die Filterung
+      nach Aktualität und ordnet Artikel in die stündlichen, täglichen und monatlichen Fenster
+      ein, mit denen die Workbench arbeitet. Wenn Sie ein Korpus nach Monat aufteilen oder
+      verfolgen, wie ein Thema über ein Jahr hinweg ansteigt, leistet dieses Feld die Arbeit
+      darunter. Ein Herausgeber, der jeden Artikel mit einem präzisen Datum versieht, liefert
+      eine saubere Zeitachse; einer, der das Datum auslässt, hinterlässt eine sichtbare Lücke
+      statt einer still aufgefüllten. Weil so vieles daran hängt, ist ein fehlendes oder
+      ungenaues Veröffentlichungsdatum keine kleine Auslassung — es ist der Unterschied
+      zwischen einem Artikel, der einem Trend beitreten kann, und einem, der sich nur zählen,
+      aber nie verorten lässt.
+  methodological:
+    short: "Über die Prioritätskette JSON-LD datePublished → OpenGraph → Microdata → HTML5 <time>/<meta> → htmldate-Heuristik extrahiert; Jahres-Sockel-Sentinel zu None umgeschrieben → Negative Space. WP-003 §3.2 · ADR-039."
+    long: >
+      Das Veröffentlichungsdatum wird vom WebAdapter des Workers an der Silver-Grenze über
+      eine fünfstufige Prioritätskette aufgelöst und nimmt den ersten verlässlichen Wert, den
+      es findet. Zuerst kommt JSON-LD datePublished — JSON-LD ist der strukturierte,
+      maschinenlesbare Block, den viele Herausgeber für Suchmaschinen einbetten. Fehlt er,
+      fällt die Kette auf den OpenGraph-Metatag article:published_time (OpenGraph ist der
+      Standard für Metadaten beim Teilen in sozialen Netzwerken), dann auf Schema.org-Microdata
+      datePublished (Schema.org ist das gemeinsame Vokabular, aus dem diese Formate schöpfen),
+      dann auf vom Herausgeber ausgegebene HTML5-Tags <time datetime> oder <meta>. Erst als
+      letzte Möglichkeit läuft htmldate, eine Heuristik über das gesamte Dokument, die ein
+      Datum aus dem Seitentext errät. Hier greift eine entscheidende Sicherung: Gibt htmldate
+      einen „Jahres-Sockel-Sentinel" zurück (ein nacktes YYYY-01-01 00:00 ohne jeden Beleg im
+      HTML), wird dieser Wert zu None umgeschrieben statt erfasst. Der Artikel wird dann zu
+      Negative Space (AĒRs erstklassige Offenlegung dessen, was es nicht sehen kann) — niemals
+      zu einem schein-präzisen Zeitstempel, der die Zeitachsen-Analyse verfälschen würde. Wird
+      überhaupt kein verlässliches Datum gefunden, bleibt der Wert leer und die Quelle fällt
+      auf einen Abruf-Zeit-Ersatz zurück; der Artikel wird der Negative-Space-Klasse der
+      Zeitstempel-Provenienz zugeordnet, nie mit einem erratenen Datum versehen. Ein fehlendes
+      Veröffentlichungsdatum ist eine Herausgeber-Entscheidung (WP-003 §3.2), ehrlich gezeigt,
+      kein Defekt und nie zu einem Wert umgedeutet, den AĒR nicht beobachtet hat (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"

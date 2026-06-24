@@ -18,19 +18,19 @@ registers:
 
       Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
       composition='merged' bündelt, aggregiert diese Metrik als mittlere
-      Erkennungskonfidenz (0..1) über den vereinigten Korpus.
-      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
-      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
-      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      Erkennungskonfidenz (0..1) über den vereinigten Korpus. Der
+      Merged-Mittelwert erbt eine Empfindlichkeit gegenüber Ungleichgewicht
+      im Quell-Mix: eine einzelne volumenstarke Quelle kann den Aggregatwert
+      dominieren. Split-Komposition (eine Zelle
       pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
-      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      Die merged-Lesart ist über Sprachen mit weichem Methodikhinweis erlaubt
       (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
       View-Mode-Eintrag für das genaue Verhalten.
 
   methodological:
     short: "langdetect v1.0.9 Top-Kandidaten-Wahrscheinlichkeit, fixer Seed. Tier 1 (deterministisch). Verschlechtert sich bei Texten unter ~200 Zeichen. WP-002 §3."
     long: >
-      language_confidence ist die höchste Posterior-Wahrscheinlichkeit, die langdetect v1.0.9
+      Die Sprach-Konfidenz ist die höchste Posterior-Wahrscheinlichkeit, die langdetect v1.0.9
       dem erstplatzierten Sprachkandidaten zuweist. langdetect verwendet Zeichen-n-Gramm-Profile
       und einen Naive-Bayes-Klassifikator, trainiert auf Wikipedia-Texten in 55 Sprachen. Der
       Extraktor fixiert den Zufallsseed auf 0, um identische Ausgaben für identische Eingaben
@@ -61,9 +61,9 @@ registers:
       anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §6.2"

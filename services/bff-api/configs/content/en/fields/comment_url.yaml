@@ -1,0 +1,51 @@
+entityId: comment_url
+entityType: field
+locale: en
+displayLabel: "Comment URL"
+registers:
+  semantic:
+    short: "The link a publisher gives to an article's discussion page — present only where the source runs comments and exposes the address; otherwise silent."
+    long: >
+      Comment URL is the web address a publisher points to for an article's discussion: the
+      page where readers leave and read comments. Where present, it tells you the source
+      operates a comment facility and is willing to name where the conversation lives;
+      where absent, it usually means there is no such facility, or the publisher does not
+      expose its address. In AĒR's corpus today that absence is the rule — the
+      institutional press offices (the Bundesregierung, the Élysée) and most news sites in
+      scope emit no discussion link in their structured metadata.
+      This is a reference field, not a number: it carries a single address per article, so
+      it does not aggregate into a distribution or a scatter axis the way a count does.
+      Analytically it serves as evidence and provenance — it lets a reader follow an
+      article through to where its public discussion happened, and its mere presence or
+      absence across a source is itself an observation about how that source invites
+      response. Where a source emits no discussion link, comment URL is shown as Negative
+      Space — never filled with a guessed or constructed address.
+  methodological:
+    short: "JSON-LD discussionUrl. Tier-1 deterministic. Almost always absent on in-scope sources — Negative Space, never fabricated. Publisher self-report. WP-003 §3.2."
+    long: >
+      Comment URL is extracted deterministically by the worker's WebAdapter at the Silver
+      boundary from the article's JSON-LD only (JSON-LD is the structured-data block
+      publishers embed in a page to describe it for machines). The extractor reads the
+      discussionUrl property and stores it verbatim as a string; if the property is absent
+      or empty the field is recorded as absent. There is no fallback to OpenGraph or any
+      other source, no normalisation, and no validation that the address resolves — AĒR
+      records what the publisher declared, nothing more. No model, no inference — Tier-1
+      deterministic. Validation status: unvalidated (engineering default).
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2, ADR-039). The
+      institutional and news sources in scope today almost never emit discussionUrl, so for
+      them comment URL is structurally absent — flagged structurallyAbsent when population
+      sits at 0% over at least 50 articles in the trailing 30 days, shown as Negative
+      Space, and withheld from the dimension picker for that scope. An absent link is a
+      publisher choice (the source runs no comments, or does not expose the address), never
+      a defect and never fabricated — AĒR will not invent or reconstruct an address it was
+      not given. As a publisher self-report about its own platform, the link's presence is
+      not granted as comparable across sources without out-of-band validation (WP-004 §5.3):
+      a site that names its discussion page and one that does not are different in kind, not
+      two values on one scale.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

@@ -1,0 +1,55 @@
+entityId: editor
+entityType: field
+locale: de
+displayLabel: "Redakteur"
+registers:
+  semantic:
+    short: "Der Redakteur, den ein Herausgeber einem Artikel zuschreibt — wer ihn bearbeitet oder abgenommen hat, verschieden vom Verfasser. Selten ausgegeben, selbst von redaktionellen Quellen."
+    long: >
+      Redakteur ist die Person, der ein Herausgeber die Bearbeitung eines Artikels
+      zuschreibt: die Ressortleitung, die ihn geformt, geprüft oder abgenommen hat,
+      verschieden vom Autor, der ihn geschrieben hat. Wo dieses Feld auftaucht, fügt es eine
+      zweite Verantwortungsebene jenseits der Verfasserzeile hinzu — einen Blick auf die
+      redaktionelle Kette hinter einem Stück. In der Praxis ist es eines der seltensten
+      Felder, die AĒR sieht: selbst Quellen mit redaktionellen Verfasserzeilen wie
+      tagesschau oder franceinfo legen in ihren strukturierten Daten kaum je einen Redakteur
+      offen, und institutionelle Pressestellen (die Bundesregierung, die Élysée) geben
+      keinen aus und publizieren unter einer einzigen körperschaftlichen Stimme. Eine
+      dünn besetzte Redakteur-Spalte spiegelt also meist wider, was Herausgeber offenlegen
+      wollen, kein Stichprobenloch.
+      In der Workbench erfüllt Redakteur dieselben analytischen Rollen wie Autor — eine
+      Facettierungs-Dimension, eine Gruppierungsachse der Kreuztabelle, eine Stufe einer
+      Sankey-Kette — doch weil die Abdeckung so dünn ist, behandeln Sie jeden auf Redakteur
+      gestützten Vergleich als explorativ. Wo das Feld fehlt, wird es als Negative Space
+      gezeigt — nie als leerer Redakteur gezählt und nie ein zu erfindender Name.
+  methodological:
+    short: "Nur JSON-LD editor — kein OpenGraph-Fallback. Tier-1, deterministisch. Sehr dünn; bei institutionellen Quellen prinzipbedingt abwesend — Negative Space, nie umgedeutet. WP-003 §3.2."
+    long: >
+      Redakteur wird vom WebAdapter des Workers an der Silver-Grenze deterministisch aus
+      einer einzigen Quelle extrahiert: der JSON-LD-Eigenschaft editor des Artikels (JSON-LD
+      ist der strukturierte Datenblock, den Herausgeber in eine Seite einbetten, um sie für
+      Maschinen zu beschreiben). Anders als bei Autor gibt es KEINEN OpenGraph-Fallback —
+      OpenGraph definiert kein editor-Tag —, sodass das Feld als abwesend verzeichnet wird,
+      wenn ein Herausgeber editor nicht in JSON-LD ausgibt. Kein Modell, keine
+      Schlussfolgerung, keine Rekonstruktion von Namen — Tier-1, deterministisch.
+      Validierungsstatus: unvalidated (Engineering-Default).
+      Die einpfadige Extraktion ist der Grund, warum Redakteur das dünnste der Verfasserfelder
+      ist: die meisten Herausgeber, auch solche mit redaktionellen Verfasserzeilen, befüllen
+      schema.org editor schlicht nicht. Der tragende Punkt ist disclose-never-coerce
+      (WP-003 §3.2, ADR-039). Ein fehlender Redakteur wird als Offenlegungs-Entscheidung des
+      Herausgebers gelesen, nicht als Defekt. Bei institutionellen Pressestellen, die unter
+      körperschaftlicher Urheberschaft publizieren, ist Redakteur strukturell abwesend — als
+      structurallyAbsent markiert, wenn die Belegung über mindestens 50 Artikel der letzten
+      30 Tage bei 0 % liegt, als Negative Space gezeigt und im Dimensions-Picker für diesen
+      Bereich nicht angeboten. Eine Aggregation über einen strukturell abwesenden Redakteur
+      VERWEIGERT die Antwort, statt eine leere oder auf 0 gesetzte Zählung zu liefern. Weil
+      die Abdeckung selbst bei redaktionellem Modell dünn ist, gelten quellenübergreifende
+      Redakteur-Vergleiche nicht ohne Out-of-band-Validierung als gleichwertig (WP-004 §5.3);
+      lesen Sie Redakteur als bestätigendes Detail, nicht als primäre Achse.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

@@ -6,14 +6,14 @@ registers:
   semantic:
     short: "Der ISO-Wochentag (1 = Montag, 7 = Sonntag) der Artikelveröffentlichung. Zeigt wöchentliche Redaktionszyklen, Werktag-vs-Wochenend-Muster und institutionelle Arbeitsrhythmen."
     long: >
-      publication_weekday ist die Wochentags-Komponente des Veröffentlichungszeitstempels
+      Der Veröffentlichungswochentag ist die Wochentags-Komponente des Veröffentlichungszeitstempels
       eines Artikels nach ISO 8601-Nummerierung (1 = Montag, 7 = Sonntag). Als Verteilung
       dargestellt, offenbart sie den wöchentlichen redaktionellen Herzschlag einer Quelle.
       Quellen, die in institutionellen Arbeitskulturen verankert sind (Regierung, öffentlich-
       rechtlicher Rundfunk), zeigen typischerweise steile Montag–Freitag-Konzentrationen und
       deutliche Wochenendeinbrüche; Dauerredaktionen flachen diese Kurve ab; rein automatisierte
       Quellen erzeugen gleichmäßige Verteilungen. Das Wochentags-Muster steht in Wechselwirkung
-      mit publication_hour: Eine Quelle, die stark an Werktagen in den Morgenstunden
+      mit der Veröffentlichungsstunde: Eine Quelle, die stark an Werktagen in den Morgenstunden
       veröffentlicht, wird fast sicher durch institutionelle Zeitplanung gesteuert, nicht durch
       den Nachrichtenzyklus selbst. Die Metrik misst keine Nachrichtenwürdigkeit oder
       redaktionelles Urteil — sie misst die Strukturbedingungen, unter denen Inhalte produziert
@@ -21,19 +21,19 @@ registers:
 
       Komposition — wenn ein Werkbank-Panel mehr als eine Quelle unter
       composition='merged' bündelt, aggregiert diese Metrik als
-      modus-ausgerichtete Wochentagsverteilung über den vereinigten Korpus.
-      Sentiment-Metriken erben die Empfindlichkeit des Merged-Mittelwerts
-      gegenüber Ungleich-verteilung im Quell-Mix: eine einzelne volumenstarke
-      Quelle kann den Aggregatwert dominieren. Split-Komposition (eine Zelle
+      modus-ausgerichtete Wochentagsverteilung über den vereinigten Korpus. Der
+      Merged-Aggregatwert erbt eine Empfindlichkeit gegenüber Ungleichgewicht
+      im Quell-Mix: eine einzelne volumenstarke Quelle kann den Aggregatwert
+      dominieren. Split-Komposition (eine Zelle
       pro Quelle) ist angemessen, wenn Quellen-Unterschiede die Frage sind.
-      Die merged-Lesart ist über Sprachen mit weichem Methodik-hinweis erlaubt
+      Die merged-Lesart ist über Sprachen mit weichem Methodikhinweis erlaubt
       (Aleph) oder verweigert (Episteme, Rhizome) — siehe den jeweiligen
       View-Mode-Eintrag für das genaue Verhalten.
 
   methodological:
     short: "ISO-Wochentag aus Silver-Layer-Zeitstempel extrahiert. Tier 1 (deterministisch). Hinweis: UTC-Datumsgrenze kann den scheinbaren Wochentag bei Spätveröffentlichungen um einen Tag verschieben."
     long: >
-      publication_weekday wird aus demselben Silver-Layer-Zeitstempel wie publication_hour
+      Der Veröffentlichungswochentag wird aus demselben Silver-Layer-Zeitstempel wie die Veröffentlichungsstunde
       berechnet: der ISO-Wochentag des UTC-Datums der Veröffentlichung. Die Extraktion ist
       zustandslos und deterministisch — Tier 1 gemäß WP-002 §3. Methodologische Vorbehalte:
       (1) Da die Datumsgrenze in UTC berechnet wird, erscheint ein um 23:30 Uhr MEZ
@@ -42,7 +42,7 @@ registers:
       dieser Offset vernachlässigbar; bei Analysen, die sich speziell auf Montagmorgen- oder
       Sonntagabend-Veröffentlichungen konzentrieren, verdient er Beachtung. (2) Der Zeitstempel
       gibt die RSS-Veröffentlichungszeit an, nicht Ereignis- oder Verfassungszeit — siehe
-      publication_hour für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Sonde-0-
+      den Eintrag zur Veröffentlichungsstunde für eine vollständige Diskussion dieses Vorbehalts. (3) Bei Sonde-0-
       Quellen sind Zeitstempel maschinengeneriert und zuverlässig. Validierungsstatus: nicht
       validiert (keine bekannten aktiven Einschränkungen für Sonde 0).
 
@@ -59,9 +59,9 @@ registers:
       anwendbar) verweigern mit HTTP 422 cross_language_merge_unsupported
       (ADR-034 §3).
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
   - "WP-005 §3"

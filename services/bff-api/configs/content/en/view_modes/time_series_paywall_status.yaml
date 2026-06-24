@@ -1,0 +1,62 @@
+entityId: time_series_paywall_status
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Paywalled share over time. The mean of the 0/1 paywall flag per time bucket — a business-model-drift signal showing whether a source is opening up or closing off."
+    long: >
+      The paywall flag is a per-article 0/1 value, so its time series is not the
+      flag itself but its mean per time bucket — that is, the share of articles
+      in each bucket that sit behind a paywall. A flat line near 0 is a source
+      that publishes freely; a flat line near 1 is one that paywalls almost
+      everything; a rising or falling line is the interesting case — a drift in
+      access policy, often the visible trace of a business-model shift, a
+      campaign of free coverage around an event, or a new paid tier. Sudden
+      steps can mark the day a paywall went up or came down. Compare sources to
+      see whether an opening or closing trend is sector-wide or particular to
+      one publisher; a government source flat at 0 next to a commercial source
+      drifting upward is a structural divergence in public reach, not a quality
+      gap.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE line over the unioned corpus
+      (BFF query ?sourceIds=a,b,...); under composition='split' the same
+      source-set fans out into one line per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. Because the
+      paywalled share is an intensive proportion, the merged line pools sources
+      of possibly different size and context and asserts cross-context
+      comparability (Brief §1.3) — when sources differ, the split reading
+      (one line per source) keeps each share legible on its own terms.
+  methodological:
+    short: "Downsampled mean of the paywall flag (0/1) per time bucket = paywalled share over time. Tier 1 (deterministic). Buckets with no emitted flag are Negative Space, never counted as free."
+    long: >
+      The time-series view applies bucket downsampling to the paywall-flag values
+      and plots the mean per bucket. Because the metric is a 0/1 flag — read
+      from schema.org isAccessibleForFree (negated) at the Silver boundary — the
+      per-bucket mean is exactly the paywalled SHARE in that bucket, a number in
+      [0,1]. Optional uncertainty bands reflect within-bucket variance; with a
+      binary metric this variance is largest near a 50/50 split and collapses as
+      the share approaches 0 or 1. It is a Tier 1 deterministic measure
+      (WP-002 §3); validation status is unvalidated (engineering default).
+
+      The load-bearing point is disclose-never-coerce (WP-003 §3.2 / ADR-039):
+      only articles whose publisher emits the accessibility flag enter the mean.
+      A bucket containing only articles from a source that emits no flag is
+      structurally absent for this metric — surfaced as Negative Space, never
+      drawn as a 0 — so a gap in the line is silence, not a measured all-free
+      period. Caveat thin buckets: a share computed over a handful of articles
+      is a noisy point, and a single article flips a small bucket between 0 and 1.
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the handler
+      executes a single BFF call with the unioned sourceIds and the Cell renders
+      one line; for 'split' the Cell fans out one query per source. Split
+      direction is a layout toggle only. Because the merged line is a pooled
+      intensive proportion, the cross-probe merge is comparability-regulated
+      (Brief §1.3), not a free total.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

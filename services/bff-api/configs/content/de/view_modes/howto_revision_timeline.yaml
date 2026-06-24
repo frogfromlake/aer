@@ -3,23 +3,51 @@ entityType: view_mode
 locale: de
 registers:
   semantic:
-    short: "Die Edit-Historie jedes Artikels auf einer gemeinsamen Zeitachse — wann veröffentlichte Texte still geändert wurden."
+    short: "Erkannte Edits je Quelle über die Zeit — eine Linie je Quelle, die zeigt, wann veröffentlichte Texte still geändert wurden."
     long: >
-      Das diachrone Gegenstück zur Revisions-Aktivität: statt Zählungen je Quelle wird jeder erkannte Edit an
-      dem Zeitpunkt platziert, an dem er erfasst wurde. Lies das Muster — eine Häufung kurz nach
-      Veröffentlichung ist gewöhnlicher redaktioneller Feinschliff, eine isolierte Änderung Wochen später ist
-      die Art stiller Revision, die einen zweiten Blick wert ist. Artikel ohne erfasste Edits haben schlicht
-      keine Punkte; diese Abwesenheit ist beobachtet, nicht erschlossen (ein fehlgeschlagener Lookup wird
-      separat verfolgt, ADR-036).
+      Das diachrone Gegenstück zur Revisions-Aktivität: Wo jene Ansicht das Editieren zu einem einzigen
+      Balken je Quelle verdichtet, fächert diese es entlang der Zeitachse als eine Linie je Quelle auf —
+      jeder Punkt die Zahl der erfassten Edits in diesem Kalender-Bucket (täglich / wöchentlich /
+      monatlich, je nach Auflösungs-Steuerelement). Lies das Muster — ein Anstieg kurz nach
+      Veröffentlichung ist gewöhnlicher redaktioneller Feinschliff, ein später, isolierter Ausschlag ist
+      die Art stiller Revision, die einen zweiten Blick wert ist. Ein Bucket ohne erfasste Edits hat
+      schlicht keinen Punkt; diese Abwesenheit ist beobachtet, nicht erschlossen (ein fehlgeschlagener
+      Lookup wird separat verfolgt, ADR-036).
   methodological:
-    short: "Revisionspunkte je Artikel (snapshot_at) aus aer_gold.article_revisions über das Fenster."
+    short: "Revisionszahlen je Quelle, auf einem Kalender-Raster gebucketet (snapshot_at) aus aer_gold.article_revisions; sub-tägliche Auflösung kollabiert zu täglich. Eine Linie je Quelle."
     long: >
-      Dieselbe Quelle wie die Revisions-Aktivität (Internet-Archive-CDX-Snapshots, Digest-kollabiert), aber
-      un-aggregiert: ein Punkt je (Artikel, Snapshot). Verankert auf snapshot_at — dem Erfassungszeitpunkt, nicht
-      dem Publikationsdatum — und mit FINAL gelesen, sodass re-ingestierte Duplikate kollabieren. Das Fenster
-      bestimmt, welche Captures gezeigt werden; zieh es auf, um die volle beobachtete Edit-Historie eines Artikels zu sehen.
+      Serverseitig: derselbe Endpunkt und dieselbe Quelle wie die Revisions-Aktivität
+      (Internet-Archive-CDX-/Wayback-Snapshots, per Inhalts-Digest kollabiert, sodass nur eine echte
+      Inhaltsänderung zählt), aber diachron gelesen. Jeder Punkt ist eine Revisionszahl je
+      (source, bucket), verankert auf SNAPSHOT_AT — dem Erfassungszeitpunkt, NICHT dem
+      Publikationsdatum — gezeichnet als eine Linie je Quelle. Zeilen werden mit FINAL gelesen,
+      sodass re-ingestierte Duplikate kollabieren.
+
+      Was ein Revisions-Ereignis IST und NICHT ist. Ein Ereignis ist die BEOBACHTETE Tatsache, dass
+      sich der archivierte Inhalt zwischen zwei aufeinanderfolgenden Captures geändert hat — ein
+      stiller Edit. Es ist kein redaktioneller Zeitstempel: Der gezeigte Moment ist, wann das Archive
+      die Änderung zufällig ERFASST hat, was dem echten Edit um Stunden oder Tage nachlaufen kann; und
+      Änderungen, die zwischen zwei Captures gemacht und zurückgenommen wurden, sind unsichtbar. Eine
+      Häufung kurz nach Veröffentlichung ist gewöhnlicher Feinschliff; ein isolierter Punkt Wochen
+      später ist die Art stiller Revision, die einen zweiten Blick wert ist — lies aber die Abstände,
+      nicht den genauen Zeitpunkt.
+
+      Quantitative Grenzen. (1) Das gemeinsame Auflösungs-Steuerelement bietet täglich/wöchentlich/
+      monatlich; jede SUB-TÄGLICHE Anforderung (5min/stündlich) wird auf TÄGLICH gezwungen, weil
+      Sub-Tages-Buckets das Capture-Jitter der CDX-API statt analytischem Signal zeigen würden — das
+      Raster ist davon begrenzt, wie das Archive crawlt, nicht vom Herausgeber. (2) Die Punktdichte je
+      Quelle folgt daher der CAPTURE-KADENZ: Eine stark archivierte Quelle liefert dichtere
+      Zeitverläufe als eine schwach archivierte, die ebenso viel editiert; vergleiche also Formen
+      innerhalb einer Quelle über die Zeit, nicht rohe Punktzahlen zwischen Quellen. (3) Das Fenster
+      bestimmt, welche Captures erscheinen; zieh es auf, um die volle beobachtete Historie eines
+      Artikels wiederzugewinnen. (4) Fehlende Punkte sind BEOBACHTETE Abwesenheit, nicht „keine Edits"
+      — ein fehlgeschlagener/übersprungener Lookup erzeugt keine Zeile und liegt im separaten
+      Wayback-Lookup-Completeness-Signal (ADR-036), nie zu einer Null umgedeutet (ADR-039
+      disclose-never-coerce). Komposition: eine einzelne gruppierte Abfrage; kein merged/split-Auffächern.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-02"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §5.3"
+  - "ADR-036"
+  - "ADR-039"

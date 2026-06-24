@@ -1,0 +1,52 @@
+entityId: revision_date
+entityType: field
+locale: de
+displayLabel: "Überarbeitungsdatum"
+registers:
+  semantic:
+    short: "Der Zeitstempel der letzten Überarbeitung des Herausgebers — dasselbe dateModified-Signal, gespiegelt, damit überarbeitungsbezogene Ansichten es direkt lesen können."
+    long: >
+      Das Überarbeitungsdatum ist die eigene Aufzeichnung des Herausgebers, wann der Artikel
+      zuletzt überarbeitet wurde. In der Praxis verfolgt es dasselbe Herausgeber-Signal wie das
+      Änderungsdatum — beide bewegen sich gemeinsam —, wird aber unter eigenem Namen gezeigt,
+      damit überarbeitungsbezogene Lesarten ein eigenes Feld haben. Es verrät, ob ein Beitrag
+      seit der Erstausgabe angefasst wurde, was zählt, wenn Sie eine sich entwickelnde Lage
+      verfolgen oder prüfen, wie oft eine Quelle sich selbst neu formuliert. Wie das
+      Änderungsdatum ist es nur vorhanden, wenn der Herausgeber überhaupt einen
+      Überarbeitungs-Zeitstempel ausgibt; institutionelle Pressestellen, die einmal
+      veröffentlichen und nie einen neuen Zeitstempel setzen, lassen es schweigen, und dieses
+      Schweigen ist eine Eigenschaft ihres Veröffentlichungsmodells, kein Defekt. In der
+      Workbench unterstützt es die Filterung nach Aktualität und speist Lesarten zur
+      Überarbeitungsaktivität; weil so viele Quellen es auslassen, behandeln Sie es als positives
+      Signal dort, wo es vorhanden ist, statt als korpusweite Zählung.
+  methodological:
+    short: "Aus JSON-LD dateModified extrahiert; spiegelt modified_date, sobald dieses gesetzt ist, sodass beide dasselbe Herausgeber-Signal tragen. Abwesend, wenn kein dateModified ausgegeben wird — strukturelle Abwesenheit von Natur aus. WP-003 §3.2 · ADR-039."
+    long: >
+      Das Überarbeitungsdatum wird vom WebAdapter des Workers an der Silver-Grenze aus dem Feld
+      JSON-LD dateModified aufgelöst — JSON-LD ist der strukturierte, maschinenlesbare
+      Metadatenblock, den Herausgeber für Suchmaschinen einbetten. Die Auflösung ist bewusst an
+      das Änderungsdatum gekoppelt: Ist bereits ein Änderungsdatum gesetzt, wird das
+      Überarbeitungsdatum daraus gespiegelt und trägt dieselbe Provenienz; steht nur das rohe
+      JSON-LD dateModified zur Verfügung, wird dieser Wert verwendet. Beide Felder spiegeln also
+      dasselbe zugrunde liegende Herausgeber-Signal unter zwei Namen wider — revision_date ist
+      keine eigenständige Bearbeitungsspur und darf nicht als solche gelesen werden. Es gibt
+      keinen heuristischen Rückfall und keinen OpenGraph-Schritt über das hinaus, was das
+      Änderungsdatum bereits verbraucht hat: AĒR errät nie einen Überarbeitungszeitpunkt. Das
+      Feld wird nur befüllt, wenn der Herausgeber dateModified ausdrücklich angibt. Gibt der
+      Herausgeber keines aus — üblich bei institutionellen Pressestellen, deren Arbeitsablauf
+      eine Erklärung herausgibt und spätere Bearbeitungen nicht erfasst —, ist das Feld von
+      Natur aus strukturell abwesend (WP-003 §3.2). Gemäß disclose-never-coerce (ADR-039) wird
+      ein fehlendes Überarbeitungsdatum als Negative Space gezeigt (AĒRs erstklassige Offenlegung
+      dessen, was es nicht sehen kann), nie zum Veröffentlichungsdatum umgedeutet oder auf einen
+      „keine Überarbeitungen"-Wert gesetzt. Weil revision_date modified_date spiegelt, stimmen
+      die beiden überall dort, wo beide vorhanden sind, schon konstruktionsbedingt überein; ein
+      Leser sollte ihre Übereinstimmung nicht als unabhängige Bestätigung deuten. Das Bündeln
+      über heterogene Quellen hinweg ist vergleichbarkeits-empfindlich, da ausgebende und
+      schweigende Herausgeber verschiedene Grundgesamtheiten bilden (WP-004 §5.3).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "ADR-039"
+  - "WP-004 §5.3"

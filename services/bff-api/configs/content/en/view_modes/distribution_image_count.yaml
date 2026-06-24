@@ -1,0 +1,65 @@
+entityId: distribution_image_count
+entityType: view_mode
+locale: en
+registers:
+  semantic:
+    short: "Image count as a distribution. Shows the spread of media richness across articles — how many declared images a typical piece carries, and how varied that is."
+    long: >
+      The image count is an integer — how many distinct images a publisher declares
+      for an article — so its distribution is a genuine integer-valued histogram
+      with one bar per count: how many articles carry zero declared images, how
+      many carry one, two, a gallery, and so on. A tall bar at a single value
+      (often 1) marks a source with a fixed visual format — one lead image per
+      piece. A long right tail marks occasional photo-led features among
+      otherwise lean articles. A bimodal spread can separate two content types
+      living in the same feed: text notices versus illustrated reportage. Read
+      this as media richness in shape, not in average — a mean of "1.4 images"
+      hides whether that means everything-has-one-or-two or
+      mostly-none-with-rare-galleries, which the distribution shows at a glance.
+      Compare sources to see structural differences in presentation budget.
+
+      Composition — when the Panel composes more than one source under
+      composition='merged', this view renders ONE chart over the unioned corpus
+      (BFF query ?sourceIds=a,b,...); under composition='split' the same
+      source-set fans out into one chart per source, side-by-side under
+      split-direction='horizontal' or stacked under 'vertical'. The merged
+      reading is appropriate when the question is about the union (e.g. how
+      image-rich is the institutional press as a whole?); the split reading is
+      appropriate when per-source distinction is the question.
+  methodological:
+    short: "Integer-valued histogram of the image count over the scoped window. Tier 1 (deterministic). Counts declared distinct images (responsive crops de-duplicated). No image metadata = Negative Space, never coerced to 0."
+    long: >
+      The distribution is computed as a histogram over the image-count values in the
+      selected scope and time window. The metric is the cardinality of the
+      article's structured image list (schema.org image[]), extracted at the
+      Silver boundary; responsive renditions of the same picture are
+      de-duplicated, so a count measures DISTINCT images, not crops. Because the
+      values are small non-negative integers, integer bin edges are the natural
+      choice — one bar per count is more legible than wide bins, though the bin
+      control still applies if a long tail wants pooling. It is a Tier 1
+      deterministic measure (WP-002 §3); validation status is unvalidated
+      (engineering default).
+
+      Two limits bound interpretation. First, scope: the image count is a lower
+      bound on illustration density — it counts only images declared in
+      structured metadata (usually the lead and social-share image), not every
+      picture in the rendered article body. Second, disclose-never-coerce
+      (WP-003 §3.2 / ADR-039): an article that genuinely declares an empty image
+      list DOES enter the zero bar — a real measurement — but a source that emits
+      no image metadata at all is structurally absent, surfaced as Negative Space
+      and withheld from the picker, and is NEVER folded into the zero bar. Caveat
+      small corpora: with few articles the integer histogram is noisy.
+
+      Composition (Phase 122i / ADR-034) — for composition='merged' the handler
+      executes a single BFF call with the unioned sourceIds and the Cell renders
+      one chart; for 'split' the Cell fans out one query per source. Split
+      direction is a layout toggle only. The image count is an extensive count, so a
+      merged scope pools legitimately over the unioned corpus — it is a real
+      combined spread, not a cross-context ranking.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §3"
+  - "WP-003 §3.2"
+  - "ADR-039"

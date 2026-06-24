@@ -1,0 +1,52 @@
+entityId: categories
+entityType: field
+locale: de
+displayLabel: "Kategorien"
+registers:
+  semantic:
+    short: "Die Menge der redaktionellen Einordnungen, die ein Herausgeber einem Artikel gibt — breiter als ein einzelnes Ressort, enger als freie Tags."
+    long: >
+      Kategorien sind die redaktionellen Einordnungen, die ein Herausgeber an einen Artikel
+      heftet — eine kleine Menge von Rubriken zwischen dem einen Hauptressort und der offenen
+      Streuung der Schlagwort-Tags. Wo sich das Ressort auf einen Regalplatz festlegt, können
+      Kategorien mehrere nennen („Politik", „Europa", „Klima") und so einen Artikel erfassen,
+      der auf mehr als einem Schreibtisch zu Hause ist. In der Workbench treiben Kategorien das
+      Faceting (Small Multiples nach Kategorie geteilt), die Gruppierungsachse der Kreuztabelle,
+      die kategoriale Verteilung und eine Knotenspalte der Sankey-Kette — nützlich, um zu
+      verfolgen, wie das Klassifikationsschema eines Herausgebers seine Ausgabe verteilt. Lesen
+      Sie sie als die eigene Ablagelogik der Redaktion: Eine Quelle mit einer flachen,
+      sich wiederholenden Kategorienliste organisiert ihre Ausgabe anders als eine mit einem
+      tiefen, vielfältigen Schema. Schon der Reichtum des Kategorien-Vokabulars ist eine
+      Beobachtung darüber, wie ein Herausgeber strukturiert — kein Qualitätsmaß.
+  methodological:
+    short: "JSON-LD articleSection → about[*].name als Fallback bei fehlendem articleSection; OpenGraph article:tag. Tier-B-Herausgeber-Taxonomie; kein gemeinsames Schema über Quellen. WP-003 §3.2 · WP-004 §5.3."
+    long: >
+      Kategorien werden vom WebAdapter des Workers an der Silver-Grenze aufgelöst. Primäre
+      Quelle ist die JSON-LD-articleSection-Liste — JSON-LD ist der strukturierte,
+      maschinenlesbare Block, den viele Herausgeber für Suchmaschinen einbetten, und ein
+      Herausgeber kann dort mehr als ein Ressort führen. Fehlt articleSection, fällt der
+      Extraktor auf die Namen der JSON-LD-about-Einträge zurück (die Schema.org-„about"-Liste,
+      der kanonische thematische Anker, den viele Herausgeber statt articleSection verwenden —
+      tagesschau gibt about mit Thing-Referenzen aus statt articleSection). Das
+      OpenGraph-Tag article:tag (OpenGraph ist der Metadaten-Standard fürs Teilen in sozialen
+      Netzen) liefert einen weiteren Fallback. Kategorien sind ein beschreibendes Tier-B-Feld:
+      eine Liste von Zeichenketten, die der Herausgeber gewählt hat, nicht von AĒR abgeleitet
+      oder validiert. Der entscheidende Vorbehalt ist die Vergleichbarkeit. Eine Kategorienmenge
+      gehört zur EIGENEN Taxonomie des Herausgebers — Kategorien verschiedener Herausgeber, und
+      erst recht über Sprachen hinweg, sind KEIN gemeinsames Klassifikationsschema. Ein Sankey
+      oder eine Kreuztabelle über Quellen zeigt deshalb die je eigenen Kategorienknoten
+      nebeneinander, nie eine normalisierte Menge, und eine quellenübergreifende Aggregation
+      wird ohne externe Validierung nicht gewährt (WP-004 §5.3). Beachten Sie auch die
+      Überschneidung mit Ressort und Tags: Alle drei speisen sich aus benachbarten
+      Schema.org-Schlüsseln, sodass eine Quelle einen davon füllen und die anderen leer lassen
+      kann. Gibt eine Quelle auf keinem Pfad eine Kategorie aus, ist das Feld strukturell
+      abwesend — als Negative Space gezeigt, eine Herausgeber-Entscheidung (WP-003 §3.2), nie
+      zu einem „unkategorisiert"-Bucket umgedeutet, der einen nie beobachteten Wert erfände
+      (ADR-039).
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-003 §3.2"
+  - "WP-004 §5.3"
+  - "ADR-039"

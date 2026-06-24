@@ -30,3 +30,5 @@ export {
   presentationsForMetric,
   type PanelSubjectKind
 } from './metric-presentation';
+
+export { cellSubjects, type CellSubject, type SubjectRole } from './cell-subjects';

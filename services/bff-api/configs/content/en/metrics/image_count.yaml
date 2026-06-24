@@ -6,7 +6,7 @@ registers:
   semantic:
     short: "How many images a publisher declares for an article in its structured metadata. A proxy for visual richness, not a count of every picture on the page."
     long: >
-      image_count is the number of images the publisher exposes in an article's
+      The image count is the number of images the publisher exposes in an article's
       structured metadata. It is a coarse proxy for how visually presented a
       piece of reporting is — a photo-led feature versus a text-only notice — and
       its distribution across sources and over time can reveal differences in
@@ -21,7 +21,7 @@ registers:
   methodological:
     short: "Cardinality of the schema.org image[] structured-metadata list. Tier 1 (deterministic). Absent when the publisher declares no image metadata — Negative Space, never coerced to 0."
     long: >
-      image_count is the count of entries in the article's structured image
+      The image count is the count of entries in the article's structured image
       metadata (schema.org image[]), extracted by the WebAdapter at the Silver
       boundary and promoted to a Gold metric_name by the processor (Phase 133).
       It is a deterministic Tier 1 measure (no model, no statistics).
@@ -32,16 +32,16 @@ registers:
       DOM — the structured set is usually a small curated subset, so the metric
       under-counts true illustration density. Second, disclose-never-coerce
       (WP-003 §3.2): a source that emits no structured image metadata is
-      structurally absent for image_count (surfaced as Negative Space, withheld
+      structurally absent for the image count (surfaced as Negative Space, withheld
       from the picker for that scope) and is NEVER recorded as zero. An extracted
       article that genuinely declares an empty image list DOES count as 0 — that
       is a real measurement, distinct from absence.
 
-      Composition — image_count is an extensive count, so a merged multi-source
+      Composition — the image count is an extensive count, so a merged multi-source
       scope sums legitimately over the unioned corpus (it is not a cross-context
       ranking); split composition reports per source.
 contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-06-06"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-003 §3.2"

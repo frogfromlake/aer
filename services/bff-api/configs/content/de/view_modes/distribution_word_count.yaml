@@ -5,7 +5,7 @@ registers:
   semantic:
     short: "Wortanzahlverteilung. Zeigt die vollständige Form der Artikellängen einer Quelle oder Sonde — ob die Quelle kurze Meldungen, lange Analysen oder eine bimodale Mischung aus beidem veröffentlicht."
     long: >
-      Die Verteilungsansicht stellt word_count als Ridgeline-, Violin- oder Dichte-Plot dar —
+      Die Verteilungsansicht stellt die Wortanzahl als Ridgeline-, Violin- oder Dichte-Plot dar —
       sie zeigt die vollständige Wahrscheinlichkeitsmasse über Artikellängen, nicht einen
       Mittelwerttrend. Eine enge, symmetrische Verteilung zeigt eine Quelle mit konsistentem
       Format an (z. B. Agenturmeldungen fixer Länge). Eine breite oder rechtsschiefe
@@ -28,9 +28,9 @@ registers:
       Methodikhinweis ein (WP-004 §3.4) statt einer Verweigerung.
 
   methodological:
-    short: "Histogramm / Dichteschätzung von word_count-Werten im ausgewählten Fenster. Tier 1. Bin-Anzahl anpassbar (Standard 30). Rechte-Tail-Kürzung bei Ausreißer-lastigen Korpora empfohlen."
+    short: "Histogramm / Dichteschätzung der Werte der Wortanzahl im ausgewählten Fenster. Tier 1. Bin-Anzahl anpassbar (Standard 30). Rechte-Tail-Kürzung bei Ausreißer-lastigen Korpora empfohlen."
     long: >
-      Die Verteilung wird als Histogramm über word_count-Werte im ausgewählten Geltungsbereich
+      Die Verteilung wird als Histogramm über die Werte der Wortanzahl im ausgewählten Geltungsbereich
       und Zeitfenster berechnet, mit einstellbarer Bin-Anzahl zwischen 1 und 200 (Standard 30).
       Die zugrundeliegende Metrik ist Tier-1-deterministisch (WP-002 §3). Praktische Hinweise:
       (1) sehr lange Artikel (> 2000 Wörter) können den rechten Tail dominieren und die
@@ -56,8 +56,8 @@ registers:
       Asymmetrie gegenüber Episteme/Rhizome (die verweigern) ist beabsichtigt
       und in WP-005 §6.2 §8b dokumentiert.
 
-contentVersion: "v2026-05-a"
+contentVersion: "v2026-06-a"
 lastReviewedBy: "Engineering Team"
-lastReviewedDate: "2026-05-17"
+lastReviewedDate: "2026-06-24"
 workingPaperAnchors:
   - "WP-002 §3"
