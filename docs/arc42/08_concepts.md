@@ -612,7 +612,7 @@ Each YAML file is a `ContentRecord` with: `entityId`, `entityType`, `locale`, `r
 GET /api/v1/content/{entityType}/{entityId}?locale=en|de
 ```
 
-`entityType` is one of `metric`, `probe`, `discourse_function`, `refusal`. `locale` defaults to `en`. The response is a `ContentResponse` JSON object containing both registers and all metadata. Returns 404 if no entry exists for the requested entity and locale; 400 if `entityType` is not a valid enum value.
+`entityType` is one of `metric`, `field` (metadata-field methodology — Phase 148g / ADR-045), `probe`, `source`, `discourse_function`, `refusal`, `view_mode`, `empty_lane`, `open_research_question`, `primer`. `locale` defaults to `en`. The response is a `ContentResponse` JSON object containing both registers and all metadata. Returns 404 if no entry exists for the requested entity and locale; 400 if `entityType` is not a valid enum value.
 
 **i18n model.** Locale is a per-record attribute, not a shared index. EN and DE records are independent files with independent `contentVersion` and `lastReviewedDate` fields. A DE record that lags behind its EN counterpart carries an older `lastReviewedDate` — the frontend can use this to surface a "translation may be outdated" indicator without coupling the two files.
 

@@ -8,6 +8,12 @@ the original audit groundwork is preserved below it.
 
 ## 0. Phase 148g outcome (2026-06-24) — what shipped
 
+> **Durable records:** the architectural decision is **ADR-045** (`docs/arc42/09_architecture_decisions.md`);
+> the how-to-author guide is `docs/extending/add-an-extractor.md` §"Dashboard reading content";
+> the Content-Catalog `field` entityType is noted in arc42 §8.13. This file is the **phase outcome
+> record + the pending orphaned-pairing decision** — not the authoring guide.
+
+
 A material scope correction landed during execution. The per-(view×metric) deep prose is only
 ever fetched by `MeasureDetail` when the presentation has `usesMetric: true` — i.e. **only
 `distribution` and `time_series`**. The other "metric-bearing" views (`topic_distribution`,
