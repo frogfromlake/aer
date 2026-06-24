@@ -17,7 +17,7 @@
   } from '$lib/workbench/panel-controls-derive';
   import type { ScopeAvailableMetricsDto, ScopeAvailableMetadataDto } from '$lib/api/queries';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
-  import { metricLabel, fieldLabel, dimensionLabel } from '$lib/state/labels.svelte';
+  import { metricLabel, fieldLabel, dimensionLabel, sourceLabel } from '$lib/state/labels.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import LeverButton from './LeverButton.svelte';
 
@@ -36,6 +36,8 @@
     /** Task A — near-constant metrics + fields (kept offerable, disclosed). */
     lowSignalMetrics?: ScopeAvailableMetricsDto['lowSignal'];
     lowSignalMetadata?: ScopeAvailableMetadataDto['lowSignal'];
+    /** Phase 148g — fields constant for an individual source (Élysée's author). */
+    perSourceConstantMetadata?: ScopeAvailableMetadataDto['perSourceConstant'];
     scopedSourceNames: readonly string[];
     scopedSourceCount: number;
     scopeAvailableSet: Set<string> | null;
@@ -56,6 +58,7 @@
     degenerateMetadata,
     lowSignalMetrics,
     lowSignalMetadata,
+    perSourceConstantMetadata,
     scopedSourceNames,
     scopedSourceCount,
     scopeAvailableSet,
@@ -104,6 +107,22 @@
   ]);
 
   const activeShowWithheld = $derived(boundPanel.showWithheld === true);
+
+  // Phase 148g — per-source-constant disclosure rows (field-driven views only:
+  // grouping by a field is where a source's constant value matters). One row per
+  // (field, source): "<field> — <source> = <value>".
+  const perSourceConstantRows = $derived<
+    { key: string; label: string; source: string; value: string }[]
+  >(
+    viewUsesMetadataField
+      ? (perSourceConstantMetadata ?? []).map((p) => ({
+          key: `${p.field}:${p.source}`,
+          label: fieldLabel(p.field),
+          source: sourceLabel(p.source),
+          value: p.value
+        }))
+      : []
+  );
 
   function missingSourcesFor(have: readonly string[]): string[] {
     return missingSourcesForOf(have, scopedSourceNames);
@@ -248,22 +267,26 @@
   </details>
 {/if}
 
-<!-- Task A — degenerate (constant, "no signal") dimensions. Present but
-     signal-free, so dropped from the picker; disclosed here with the constant
-     value (ADR-039 DISCLOSE-NEVER-COERCE). Neutral hue — methodological, not a
-     warning (METHODOLOGICAL-NOT-WARNING). -->
-{#if degenerateRows.length > 0}
+<!-- Phase 148g — ONE "No signal" disclosure. Constant (degenerate) and
+     near-constant (≤2 distinct / dominant) dimensions are now treated identically
+     (both carry no usable signal and are dropped from the picker), so the former
+     two separate "No signal" + "Effectively constant" expandables are merged into
+     a single list — each row keeps its own detail (constant value vs dominant
+     share). Disclosed, never silently filtered (ADR-039 DISCLOSE-NEVER-COERCE);
+     neutral hue — methodological, not a warning (METHODOLOGICAL-NOT-WARNING). -->
+{#if degenerateRows.length + lowSignalRows.length > 0}
+  {@const noSignalCount = degenerateRows.length + lowSignalRows.length}
   <details class="hint-disclosure signal-note">
     <summary class="hint-summary">
       <span class="ctrl-eyebrow">{m.levers_degenerate_eyebrow()}</span>
-      <span class="hint-count">{degenerateRows.length}</span>
+      <span class="hint-count">{noSignalCount}</span>
       <span class="hint-chevron" aria-hidden="true">›</span>
     </summary>
     <div class="partial-hint-body">
       <p class="partial-hint-lead">
-        {degenerateRows.length === 1
-          ? m.levers_degenerate_lead_one({ count: degenerateRows.length })
-          : m.levers_degenerate_lead_other({ count: degenerateRows.length })}
+        {noSignalCount === 1
+          ? m.levers_lowsignal_lead_one({ count: noSignalCount })
+          : m.levers_lowsignal_lead_other({ count: noSignalCount })}
       </p>
       <ul class="partial-hint-list" role="list">
         {#each degenerateRows as row (row.name)}
@@ -274,28 +297,6 @@
             </span>
           </li>
         {/each}
-      </ul>
-    </div>
-  </details>
-{/if}
-
-<!-- Task A — low-signal (near-constant) metrics + fields. NOT dropped (a
-     rare-but-real minority is still real signal); disclosed so the reader knows
-     the dimension is effectively constant in THIS scope before binding it. -->
-{#if lowSignalRows.length > 0}
-  <details class="hint-disclosure signal-note">
-    <summary class="hint-summary">
-      <span class="ctrl-eyebrow">{m.levers_lowsignal_eyebrow()}</span>
-      <span class="hint-count">{lowSignalRows.length}</span>
-      <span class="hint-chevron" aria-hidden="true">›</span>
-    </summary>
-    <div class="partial-hint-body">
-      <p class="partial-hint-lead">
-        {lowSignalRows.length === 1
-          ? m.levers_lowsignal_lead_one({ count: lowSignalRows.length })
-          : m.levers_lowsignal_lead_other({ count: lowSignalRows.length })}
-      </p>
-      <ul class="partial-hint-list" role="list">
         {#each lowSignalRows as row (row.key)}
           <li class="partial-metric-row">
             <code class="partial-metric signal-chip">{row.label}</code>
@@ -313,6 +314,39 @@
   </details>
 {/if}
 
+<!-- Phase 148g — per-source constancy. A field that carries signal across the
+     scope but is CONSTANT for one source (e.g. Élysée's institutional `author`,
+     always its own name, while editorial sources vary) is disclosed here so the
+     reader sees that source contributes no WITHIN-source signal — symmetric with
+     the structural-absence note for a source that emits the field not at all
+     (ADR-039 DISCLOSE-NEVER-COERCE). The field stays fully offerable. -->
+{#if perSourceConstantRows.length > 0}
+  <details class="hint-disclosure signal-note">
+    <summary class="hint-summary">
+      <span class="ctrl-eyebrow">{m.levers_persourceconst_eyebrow()}</span>
+      <span class="hint-count">{perSourceConstantRows.length}</span>
+      <span class="hint-chevron" aria-hidden="true">›</span>
+    </summary>
+    <div class="partial-hint-body">
+      <p class="partial-hint-lead">
+        {perSourceConstantRows.length === 1
+          ? m.levers_persourceconst_lead_one({ count: perSourceConstantRows.length })
+          : m.levers_persourceconst_lead_other({ count: perSourceConstantRows.length })}
+      </p>
+      <ul class="partial-hint-list" role="list">
+        {#each perSourceConstantRows as row (row.key)}
+          <li class="partial-metric-row">
+            <code class="partial-metric signal-chip">{row.label}</code>
+            <span class="partial-metric-detail">
+              {m.levers_persourceconst_detail({ source: row.source, value: row.value })}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  </details>
+{/if}
+
 <style>
   /* Phase 148e — each withheld / no-signal note is a collapsed <details>: the
      eyebrow + count are always visible (disclosed, never silently filtered —
@@ -321,13 +355,25 @@
   .hint-disclosure {
     font-size: var(--font-size-xs);
   }
+  /* Phase 148g — the disclosure must READ as expandable: the chevron leads the
+     row (before the label, not glued to the far edge), and the whole summary
+     gets a hover surface + a "tap target" border so the user sees there is a
+     "show anyway" affordance behind it. */
   .hint-summary {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     cursor: pointer;
     list-style: none;
-    padding: 2px 0;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+  }
+  .hint-summary:hover {
+    background: color-mix(in srgb, var(--color-fg) 5%, transparent);
+    border-color: var(--color-border);
+    color: var(--color-fg);
   }
   .hint-summary::-webkit-details-marker {
     display: none;
@@ -338,6 +384,8 @@
     border-radius: var(--radius-sm);
   }
   .hint-count {
+    /* Pushed to the right edge; the chevron + label lead the row. */
+    margin-left: 0.5rem;
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
@@ -352,8 +400,11 @@
     background: color-mix(in srgb, var(--color-fg-subtle) 14%, transparent);
   }
   .hint-chevron {
-    margin-left: auto;
-    color: var(--color-fg-subtle);
+    /* Leads the row (flex order) so the disclosure clearly reads as expandable;
+       full-strength so it is not missed (was a far-right, dim arrow). */
+    order: -1;
+    flex-shrink: 0;
+    color: var(--color-fg);
     font-size: 1.1rem;
     line-height: 1;
     transition: transform var(--motion-duration-fast) var(--motion-ease-standard);

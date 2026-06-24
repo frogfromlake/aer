@@ -34,9 +34,13 @@
   "levers_degenerate_lead_other": "{count} Dimensionen sind im Scope konstant — vorhanden, aber signallos und daher aus der Auswahl entfernt:",
   "levers_degenerate_value": "= {value} (konstant)",
   "levers_lowsignal_eyebrow": "Effektiv konstant",
-  "levers_lowsignal_lead_one": "{count} Dimension ist im Scope nahezu konstant — weiter wählbar, trägt aber kaum Signal:",
-  "levers_lowsignal_lead_other": "{count} Dimensionen sind im Scope nahezu konstant — weiter wählbar, tragen aber kaum Signal:",
+  "levers_lowsignal_lead_one": "{count} Dimension trägt im Scope kein nutzbares Signal (≤2 verschiedene Werte oder ein Wert dominiert) — aus der Auswahl entfernt:",
+  "levers_lowsignal_lead_other": "{count} Dimensionen tragen im Scope kein nutzbares Signal (≤2 verschiedene Werte oder ein Wert dominiert) — aus der Auswahl entfernt:",
   "levers_lowsignal_detail": "{share}% {value} · {distinct} Werte",
+  "levers_persourceconst_eyebrow": "Pro Quelle konstant",
+  "levers_persourceconst_lead_one": "{count} Feld ist für eine einzelne Quelle konstant — vorhanden, aber dort ohne Within-Source-Signal:",
+  "levers_persourceconst_lead_other": "{count} Felder sind für einzelne Quellen konstant — vorhanden, aber dort ohne Within-Source-Signal:",
+  "levers_persourceconst_detail": "{source} = {value} (konstant)",
 
   "levers_composition_eyebrow": "Komposition",
   "levers_composition_aria": "Komposition",
@@ -160,6 +164,8 @@
 
   "levers_metric_set_eyebrow": "Metrik-Set",
   "levers_metric_set_aria": "Metrik-Set",
+  "levers_multiselect_selected": "{count} ausgewählt:",
+  "levers_multiselect_none": "Nichts ausgewählt",
 
   "levers_crosstab_eyebrow": "Metrik",
   "levers_crosstab_aria": "Kreuztabellen-Metrik",

@@ -17,6 +17,8 @@
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { metricLabel, fieldLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { cyclicMetricAxis, describeCyclicMean } from '$lib/presentations/metric-axis';
+  import { locale } from '$lib/state/locale.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
@@ -83,7 +85,16 @@
   let renderToken = 0;
 
   $effect(() => {
-    const r = rows;
+    // Phase 148g — the mean axis of a cyclic metric (publication_hour/weekday) is
+    // continuous (a mean of 13.7 is real), but bare ordinals are unreadable. We
+    // keep the bar at its honest position and (a) label the axis ticks as clock /
+    // weekday reference points and (b) add a "≈ 13:42" tooltip gloss so the
+    // decimal mean is explained, never rounded into a single discrete bucket.
+    const cyc = metric ? cyclicMetricAxis(metric) : null;
+    const baseRows = rows;
+    const r = cyc
+      ? baseRows.map((d) => ({ ...d, clock: describeCyclicMean(metric!, d.mean, locale()) }))
+      : baseRows;
     if (!host || r.length === 0) return;
     const token = ++renderToken;
     (async () => {
@@ -96,7 +107,8 @@
         marginRight: 16,
         x: {
           label: m.cells_ct_axis_mean({ metric: metric ? metricLabel(metric) : '' }),
-          grid: true
+          grid: true,
+          ...(cyc ? { tickFormat: (v: number) => cyc.format(v, locale()) } : {})
         },
         y: { domain: r.map((d) => d.value), label: null },
         color: {
@@ -111,7 +123,8 @@
             fill: 'mean',
             channels: {
               articles: { value: 'articles', label: m.cells_ct_channel_articles() },
-              std: { value: 'std', label: '±σ' }
+              std: { value: 'std', label: '±σ' },
+              ...(cyc ? { clock: { value: 'clock', label: '≈' } } : {})
             },
             tip: true
           }),

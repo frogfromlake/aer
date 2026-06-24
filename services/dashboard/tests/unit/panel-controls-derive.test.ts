@@ -195,6 +195,13 @@ describe('offerableMetadataFields / buildMetadataFields / firstMetadataField', (
     expect(firstMetadataField([])).toBe('');
   });
 
+  it('firstMetadataField prefers the editorial `ressort` field when offered', () => {
+    // Alphabetically 'author' < 'ressort', but ressort is the preferred default.
+    expect(firstMetadataField(['author', 'ressort', 'section'])).toBe('ressort');
+    // …and falls back to sorted-first when ressort is absent.
+    expect(firstMetadataField(['author', 'section'])).toBe('author');
+  });
+
   it('excludes degenerate (constant) fields from the offer, even in the intersection (Task A)', () => {
     expect(
       offerableMetadataFields({
@@ -426,6 +433,11 @@ describe('reconcilePanelForView', () => {
     offerableFields: ['author', 'paywall', 'section', 'kicker'],
     availableMetricNames: ['sentiment_score', 'word_count'],
     availableMetadataFields: ['section', 'author'],
+    // Phase 148g — scope-aware reset inputs. Default null/empty so the metric
+    // reset stays scope-agnostic (canonical backbone) unless a test opts in.
+    scopeAvailableSet: null as Set<string> | null,
+    scopes: [],
+    showWithheld: false,
     ...over
   });
 
@@ -488,13 +500,54 @@ describe('reconcilePanelForView', () => {
     expect(next.composition).toBe('split');
   });
 
-  it('seeds the first intersection field when switching into a field-driven view', () => {
+  it('seeds the first OFFERABLE field when switching into a field-driven view', () => {
     const next = reconcilePanelForView(
       panel(),
       'categorical_distribution' as Presentation,
       ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })])
     );
-    expect(next.metric).toBe('author'); // firstMetadataField(['section','author']) sorted
+    // Seeds from offerableFields (no-signal-excluded), sorted-first → 'author'.
+    expect(next.metric).toBe('author');
+  });
+
+  it('never auto-seeds a no-signal field: offerable excludes it (Task A)', () => {
+    // article_type is in the raw intersection but NOT in offerableFields (the
+    // component unions degenerate ∪ low-signal out), so the seed skips it.
+    const next = reconcilePanelForView(
+      panel(),
+      'categorical_distribution' as Presentation,
+      ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })], {
+        offerableFields: ['section', 'author'], // article_type already filtered out
+        availableMetadataFields: ['article_type', 'section', 'author']
+      })
+    );
+    expect(next.metric).toBe('author');
+    expect(next.metric).not.toBe('article_type');
+  });
+
+  it('seeds the preferred `ressort` field as the field-view default when offered', () => {
+    const next = reconcilePanelForView(
+      panel(),
+      'categorical_distribution' as Presentation,
+      ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })], {
+        offerableFields: ['author', 'ressort', 'section', 'kicker']
+      })
+    );
+    expect(next.metric).toBe('ressort');
+  });
+
+  it('snaps a carried-over field away when it has become no-signal in this scope', () => {
+    // Switching field-view → field-view keeps the field only if still offerable;
+    // a now-no-signal field (absent from offerableFields) is re-seeded.
+    const next = reconcilePanelForView(
+      panel({ metric: 'article_type' }),
+      'categorical_distribution' as Presentation,
+      ctx([pres({ id: 'categorical_distribution', usesMetadataField: true })], {
+        prevUsesMetadataField: true,
+        offerableFields: ['author', 'section']
+      })
+    );
+    expect(next.metric).toBe('author');
   });
 
   it('seeds the cross-tab numeric metric (channels.x), preferring sentiment', () => {
@@ -529,14 +582,15 @@ describe('reconcilePanelForView', () => {
     expect(next.metric).toBe('author');
   });
 
-  it('reconciles field → metric: a metric view re-seeds when coming from a field view', () => {
+  it('reconciles field → metric: re-seeds the SCOPE-AWARE backbone, not the German-only default', () => {
     const next = reconcilePanelForView(
       panel({ metric: 'section' }), // a field name, not a metric
       'distribution' as Presentation,
       ctx([pres({ id: 'distribution', usesMetric: true })], { prevUsesMetadataField: true })
     );
-    // firstMetricSupporting('distribution', ...) → canonical default.
-    expect(next.metric).toBe('sentiment_score_sentiws');
+    // Phase 148g — the reset is scope-aware (resetMetricForScope → canonical
+    // multilingual backbone), never the scope-blind German-only SentiWS.
+    expect(next.metric).toBe(CROSS_PROBE_DEFAULT_METRIC);
   });
 
   it('keeps a still-valid metric when staying within metric views', () => {
@@ -546,5 +600,35 @@ describe('reconcilePanelForView', () => {
       ctx([pres({ id: 'distribution', usesMetric: true })], { prevUsesMetadataField: false })
     );
     expect(next.metric).toBe('word_count'); // word_count supports distribution → kept
+  });
+
+  it('snaps a scope-WITHHELD metric to the backbone on a cross-probe view switch (the SentiWS bug)', () => {
+    // sentiment_score_sentiws is German-only → withheld (NOT in the cross-probe
+    // intersection). Switching INTO distribution while it is the active metric
+    // must snap to the multilingual backbone, never keep the withheld metric.
+    const next = reconcilePanelForView(
+      panel({ metric: 'sentiment_score_sentiws' }),
+      'distribution' as Presentation,
+      ctx([pres({ id: 'distribution', usesMetric: true })], {
+        prevUsesMetadataField: false,
+        availableMetricNames: ['sentiment_score_sentiws', CROSS_PROBE_DEFAULT_METRIC, 'word_count'],
+        scopeAvailableSet: new Set([CROSS_PROBE_DEFAULT_METRIC, 'word_count']) // SentiWS withheld
+      })
+    );
+    expect(next.metric).toBe(CROSS_PROBE_DEFAULT_METRIC);
+  });
+
+  it('keeps a scope-withheld metric on view switch when "show anyway" is on', () => {
+    const next = reconcilePanelForView(
+      panel({ metric: 'sentiment_score_sentiws' }),
+      'distribution' as Presentation,
+      ctx([pres({ id: 'distribution', usesMetric: true })], {
+        prevUsesMetadataField: false,
+        showWithheld: true,
+        availableMetricNames: ['sentiment_score_sentiws', CROSS_PROBE_DEFAULT_METRIC],
+        scopeAvailableSet: new Set([CROSS_PROBE_DEFAULT_METRIC])
+      })
+    );
+    expect(next.metric).toBe('sentiment_score_sentiws'); // explicit show-anyway selection kept
   });
 });

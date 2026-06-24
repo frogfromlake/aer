@@ -31,6 +31,7 @@
   import { urlState } from '$lib/state/url.svelte';
   import { metricLabel, fieldLabel, isRegisteredMetric } from '$lib/state/labels.svelte';
   import { locale } from '$lib/state/locale.svelte';
+  import { splitParagraphs } from '$lib/prose';
 
   interface Props {
     /** The cell's bound subjects (metrics + fields), from cellSubjects(). */
@@ -127,7 +128,11 @@
         {#if viewMethodology}
           <details class="meth-block" data-section="view-method">
             <summary class="meth-block-summary">{m.workbench_meth_view_method()}</summary>
-            <p class="cell-method-text">{viewMethodology.registers.methodological.long}</p>
+            <div class="cell-method-text">
+              {#each splitParagraphs(viewMethodology.registers.methodological.long) as para (para)}
+                <p>{para}</p>
+              {/each}
+            </div>
           </details>
         {/if}
 
@@ -246,7 +251,8 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: var(--font-weight-semibold);
-    color: var(--color-fg-subtle);
+    /* Phase 148g — full-strength section title (was dimmed) for overview. */
+    color: var(--color-fg);
   }
   .meth-block-summary::-webkit-details-marker {
     display: none;
@@ -264,10 +270,18 @@
     color: var(--color-fg);
   }
 
+  /* Phase 148g — stacked paragraphs + comfortable measure for readable prose. */
   .cell-method-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
     color: var(--color-fg);
-    line-height: var(--line-height-loose);
+    line-height: 1.65;
+    margin: 0;
+    max-inline-size: 70ch;
+  }
+  .cell-method-text p {
     margin: 0;
   }
 

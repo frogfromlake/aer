@@ -144,18 +144,31 @@ func TestGetScopeAvailableMetadata_DegenerateAndLowSignal(t *testing.T) {
 		{mdTS, "tagesschau", "a1", "article_type", []string{"NewsArticle"}, ""},
 		{mdTS, "tagesschau", "a2", "article_type", []string{"NewsArticle"}, ""},
 		{mdTS, "elysee", "e1", "article_type", []string{"NewsArticle"}, ""},
-		// section: two balanced values → neither degenerate nor low-signal.
+		// section: three balanced values → ≥3 distinct, no dominant → neither
+		// degenerate nor low-signal (a genuine multi-value categorical).
 		{mdTS, "tagesschau", "a1", "section", []string{"Politik"}, ""},
+		{mdTS, "tagesschau", "a2", "section", []string{"Wirtschaft"}, ""},
 		{mdTS, "elysee", "e1", "section", []string{"Sport"}, ""},
 	}
-	// kicker: present on both sources, 20 "Politik" vs 1 "Spezial" across scope
-	// → distinct=2, dominantShare=20/21≈0.952 ≥ 0.95 → LowSignal (NOT dropped).
+	// kicker: present on both sources, only two distinct values across scope
+	// (20 "Politik" vs 1 "Spezial") → low-signal by the ≤2-distinct rule
+	// (operator decision 2026-06-24); its share 20/21≈0.952 also clears ≥0.85.
 	for i := 0; i < 19; i++ {
 		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("k%d", i), "kicker", []string{"Politik"}, ""})
 	}
 	rows = append(rows,
 		metadataValueRow{mdTS, "elysee", "ek1", "kicker", []string{"Politik"}, ""},
 		metadataValueRow{mdTS, "elysee", "ek2", "kicker", []string{"Spezial"}, ""},
+	)
+	// rubrik: three distinct values but one dominates ≥85 % → low-signal by the
+	// dominance rule (exercises the ≥0.85 path independently of the ≤2 rule).
+	for i := 0; i < 17; i++ {
+		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("r%d", i), "rubrik", []string{"Inland"}, ""})
+	}
+	rows = append(rows,
+		metadataValueRow{mdTS, "elysee", "er1", "rubrik", []string{"Inland"}, ""},
+		metadataValueRow{mdTS, "elysee", "er2", "rubrik", []string{"Ausland"}, ""},
+		metadataValueRow{mdTS, "elysee", "er3", "rubrik", []string{"Kultur"}, ""},
 	)
 	seedArticleMetadata(t, ctx, s, rows)
 
@@ -171,17 +184,21 @@ func TestGetScopeAvailableMetadata_DegenerateAndLowSignal(t *testing.T) {
 	if res.Degenerate[0].Value != "NewsArticle" {
 		t.Errorf("Degenerate value: want NewsArticle, got %q", res.Degenerate[0].Value)
 	}
-	// LowSignal: exactly kicker, with its concentration disclosed and not dropped.
-	if len(res.LowSignal) != 1 || res.LowSignal[0].Field != "kicker" {
-		t.Fatalf("LowSignal: want [kicker], got %+v", res.LowSignal)
+	// LowSignal: kicker (≤2 distinct) AND rubrik (≥85 % dominant) — both dropped.
+	lowByField := map[string]LowSignalField{}
+	for _, l := range res.LowSignal {
+		lowByField[l.Field] = l
 	}
-	if res.LowSignal[0].DistinctValues != 2 || res.LowSignal[0].DominantValue != "Politik" {
-		t.Errorf("LowSignal kicker: want 2 distinct / Politik, got %+v", res.LowSignal[0])
+	if len(lowByField) != 2 || lowByField["kicker"].Field == "" || lowByField["rubrik"].Field == "" {
+		t.Fatalf("LowSignal: want [kicker, rubrik], got %+v", res.LowSignal)
 	}
-	if res.LowSignal[0].DominantShare < 0.95 {
-		t.Errorf("LowSignal kicker dominantShare: want ≥0.95, got %v", res.LowSignal[0].DominantShare)
+	if lowByField["kicker"].DistinctValues != 2 || lowByField["kicker"].DominantValue != "Politik" {
+		t.Errorf("LowSignal kicker: want 2 distinct / Politik, got %+v", lowByField["kicker"])
 	}
-	// section is balanced → flagged by neither list.
+	if lowByField["rubrik"].DistinctValues != 3 || lowByField["rubrik"].DominantShare < 0.85 {
+		t.Errorf("LowSignal rubrik: want 3 distinct / share≥0.85, got %+v", lowByField["rubrik"])
+	}
+	// section has ≥3 balanced values → flagged by neither list.
 	for _, d := range res.Degenerate {
 		if d.Field == "section" {
 			t.Errorf("section must not be degenerate")
@@ -191,6 +208,58 @@ func TestGetScopeAvailableMetadata_DegenerateAndLowSignal(t *testing.T) {
 		if l.Field == "section" {
 			t.Errorf("section must not be low-signal")
 		}
+	}
+}
+
+// TestGetScopeAvailableMetadata_StructuralArticleType verifies the structural
+// override for a PARTIAL field — the exact reported bug: article_type present on
+// only SOME scoped sources (here tagesschau, missing on elysee). Without the
+// override it would land only in Partial ("withheld"), and "show anyway" would
+// resurrect it as a default. The override classifies it no-signal (it describes
+// document FORMAT, not content) regardless of available/partial, AND prunes it
+// from Partial so it is disclosed ONLY under "no signal".
+func TestGetScopeAvailableMetadata_StructuralArticleType(t *testing.T) {
+	s, ctx := setupTestStore(t)
+	createArticleMetadataTable(t, ctx, s)
+
+	// article_type only on tagesschau (→ partial), three values none ≥85 %:
+	// 10 NewsArticle, 6 Article, 5 Blog → dominant share 10/21 ≈ 0.48 (the
+	// statistical rule would NOT trip — only the structural rule does).
+	rows := []metadataValueRow{}
+	for i := 0; i < 10; i++ {
+		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("n%d", i), "article_type", []string{"NewsArticle"}, ""})
+	}
+	for i := 0; i < 6; i++ {
+		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("a%d", i), "article_type", []string{"Article"}, ""})
+	}
+	for i := 0; i < 5; i++ {
+		rows = append(rows, metadataValueRow{mdTS, "tagesschau", fmt.Sprintf("b%d", i), "article_type", []string{"Blog"}, ""})
+	}
+	// elysee carries a different field so it is genuinely in scope (and article_type
+	// is genuinely partial, not just the only field).
+	rows = append(rows, metadataValueRow{mdTS, "elysee", "e1", "section", []string{"Politique"}, ""})
+	seedArticleMetadata(t, ctx, s, rows)
+
+	res, err := s.GetScopeAvailableMetadata(ctx, mdStart, mdEnd, []string{"tagesschau", "elysee"})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	// In LowSignal (structural), even though partial.
+	if len(res.LowSignal) != 1 || res.LowSignal[0].Field != "article_type" {
+		t.Fatalf("LowSignal: want [article_type] via structural override, got %+v", res.LowSignal)
+	}
+	if res.LowSignal[0].DominantShare >= lowSignalDominanceThreshold {
+		t.Errorf("test invalid: dominant share %v should be below the statistical threshold so the structural rule is what trips", res.LowSignal[0].DominantShare)
+	}
+	// Pruned from Partial — must NOT be offerable even under "show anyway".
+	for _, p := range res.Partial {
+		if p.Field == "article_type" {
+			t.Errorf("article_type must be pruned from Partial (no-signal), got %+v", res.Partial)
+		}
+	}
+	// And never in Available (it is missing on elysee).
+	if containsString(res.Available, "article_type") {
+		t.Errorf("article_type is partial → must not be Available, got %+v", res.Available)
 	}
 }
 

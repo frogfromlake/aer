@@ -137,7 +137,8 @@ func TestGetScopeAvailableMetrics_Degenerate(t *testing.T) {
 
 // TestGetScopeAvailableMetrics_LowSignal verifies the near-constant detection
 // (image_count = 3 on ~99 % of articles): distinct ≥ 2 but a dominant value
-// ≥ threshold → LowSignal (kept offerable), NOT Degenerate.
+// ≥ threshold → LowSignal (dropped from the picker on the frontend, disclosed),
+// NOT Degenerate.
 func TestGetScopeAvailableMetrics_LowSignal(t *testing.T) {
 	s, ctx := setupTestStore(t)
 
@@ -174,6 +175,88 @@ func TestGetScopeAvailableMetrics_LowSignal(t *testing.T) {
 	}
 	if ls.DominantShare < 0.95 {
 		t.Errorf("image_count dominantShare: want ≥0.95, got %v", ls.DominantShare)
+	}
+}
+
+// TestGetScopeAvailableMetrics_TwoValueBalanced verifies the ≤2-distinct rule
+// (operator decision 2026-06-24): a metric with exactly two distinct values is
+// low-signal even when they split evenly (no dominant value) — a near-binary
+// discrete metric is too weak to read as a distribution.
+func TestGetScopeAvailableMetrics_TwoValueBalanced(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	rows := [][]any{}
+	// has_image: 50× 0, 50× 1 → distinct=2, dominantShare=0.5 (< 0.85) → still
+	// low-signal via the ≤2-distinct rule.
+	for i := 0; i < 50; i++ {
+		rows = append(rows, []any{eqTS, 0.0, "tagesschau", "has_image", fmt.Sprintf("z%d", i)})
+		rows = append(rows, []any{eqTS, 1.0, "tagesschau", "has_image", fmt.Sprintf("o%d", i)})
+	}
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"}, rows); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	res, err := s.GetScopeAvailableMetrics(ctx, eqStart, eqEnd, []string{"tagesschau"})
+	if err != nil {
+		t.Fatalf("GetScopeAvailableMetrics: %v", err)
+	}
+	if len(res.Degenerate) != 0 {
+		t.Errorf("has_image has 2 distinct values → not degenerate, got %+v", res.Degenerate)
+	}
+	if len(res.LowSignal) != 1 || res.LowSignal[0].MetricName != "has_image" {
+		t.Fatalf("LowSignal: want [has_image] (≤2 distinct), got %+v", res.LowSignal)
+	}
+	if res.LowSignal[0].DistinctValues != 2 {
+		t.Errorf("has_image: want 2 distinct, got %+v", res.LowSignal[0])
+	}
+}
+
+// TestGetScopeAvailableMetrics_StructuralImageCount verifies the structural
+// override for a PARTIAL metric: image_count present on only SOME scoped sources
+// (tagesschau, missing on elysee) is still classified no-signal AND pruned from
+// Partial — so "show anyway" can never resurrect it. It describes document FORMAT
+// (a mis-read per-article count), not an editorial measure.
+func TestGetScopeAvailableMetrics_StructuralImageCount(t *testing.T) {
+	s, ctx := setupTestStore(t)
+
+	rows := [][]any{}
+	// image_count only on tagesschau (→ partial): 10× 1, 6× 2, 5× 3 → distinct=3,
+	// dominantShare 10/21 ≈ 0.48 (< 0.85) → only the structural rule trips.
+	for i := 0; i < 10; i++ {
+		rows = append(rows, []any{eqTS, 1.0, "tagesschau", "image_count", fmt.Sprintf("p%d", i)})
+	}
+	for i := 0; i < 6; i++ {
+		rows = append(rows, []any{eqTS, 2.0, "tagesschau", "image_count", fmt.Sprintf("q%d", i)})
+	}
+	for i := 0; i < 5; i++ {
+		rows = append(rows, []any{eqTS, 3.0, "tagesschau", "image_count", fmt.Sprintf("r%d", i)})
+	}
+	// elysee carries a different metric so image_count is genuinely partial.
+	rows = append(rows, []any{eqTS, 250.0, "elysee", "word_count", "e1"})
+	if err := bulkInsert(ctx, s, "aer_gold.metrics",
+		[]string{"timestamp", "value", "source", "metric_name", "article_id"}, rows); err != nil {
+		t.Fatalf("seed metrics: %v", err)
+	}
+
+	res, err := s.GetScopeAvailableMetrics(ctx, eqStart, eqEnd, []string{"tagesschau", "elysee"})
+	if err != nil {
+		t.Fatalf("GetScopeAvailableMetrics: %v", err)
+	}
+	if len(res.LowSignal) != 1 || res.LowSignal[0].MetricName != "image_count" {
+		t.Fatalf("LowSignal: want [image_count] via structural override, got %+v", res.LowSignal)
+	}
+	if res.LowSignal[0].DominantShare >= lowSignalDominanceThreshold {
+		t.Errorf("test invalid: dominant share %v should be below the statistical threshold", res.LowSignal[0].DominantShare)
+	}
+	// Pruned from Partial — must NOT be offerable even under "show anyway".
+	for _, p := range res.Partial {
+		if p.MetricName == "image_count" {
+			t.Errorf("image_count must be pruned from Partial (no-signal), got %+v", res.Partial)
+		}
+	}
+	if containsString(res.Available, "image_count") {
+		t.Errorf("image_count is partial → must not be Available, got %+v", res.Available)
 	}
 }
 

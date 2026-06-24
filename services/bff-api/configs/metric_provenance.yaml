@@ -113,18 +113,19 @@ publication_hour:
 publication_weekday:
   tier_classification: 1
   algorithm_description: >
-    ISO weekday (1=Monday, 7=Sunday) derived deterministically from the
-    document timestamp. Implemented by TemporalDistributionExtractor.
-  algorithm_description_de: >
-    ISO-Wochentag (1 = Montag, 7 = Sonntag), deterministisch aus dem
-    Dokument-Zeitstempel abgeleitet. Implementiert durch den
+    Weekday (0=Monday … 6=Sunday, from Python datetime.weekday()) derived
+    deterministically from the document timestamp. Implemented by
     TemporalDistributionExtractor.
+  algorithm_description_de: >
+    Wochentag (0 = Montag … 6 = Sonntag, aus Python datetime.weekday()),
+    deterministisch aus dem Dokument-Zeitstempel abgeleitet. Implementiert
+    durch den TemporalDistributionExtractor.
   known_limitations:
     - "UTC, not local clock — the weekday is derived from the published timestamp in UTC, so it does not reflect the publisher's local clock; a late-night local publication can fall on a different UTC weekday, and comparing weekday across sources in different timezones conflates timezone offset with editorial timing (WP-004 §3.4)."
-    - "Cyclic domain — this is a distribution over a bounded repeating domain (1–7 ISO weekday), not a series along the corpus time axis; a mean over the weekday is not meaningful, read the shape of the distribution instead (WP-002 §3)."
+    - "Cyclic domain — this is a distribution over a bounded repeating domain (0–6, 0=Monday), not a series along the corpus time axis; a mean over the weekday is not meaningful, read the shape of the distribution instead (WP-002 §3)."
   known_limitations_de:
     - "UTC, nicht Lokalzeit — der Wochentag wird aus dem Veröffentlichungszeitstempel in UTC abgeleitet und spiegelt daher nicht die lokale Uhrzeit des Herausgebers wider; eine späte lokale Veröffentlichung kann auf einen anderen UTC-Wochentag fallen, und der Vergleich des Wochentags über Quellen in unterschiedlichen Zeitzonen vermengt den Zeitzonen-Offset mit der redaktionellen Zeitplanung (WP-004 §3.4)."
-    - "Zyklische Domäne — dies ist eine Verteilung über eine begrenzte, sich wiederholende Domäne (1–7 ISO-Wochentag), keine Reihe entlang der Korpus-Zeitachse; ein Mittelwert über den Wochentag ist nicht aussagekräftig, lesen Sie stattdessen die Form der Verteilung (WP-002 §3)."
+    - "Zyklische Domäne — dies ist eine Verteilung über eine begrenzte, sich wiederholende Domäne (0–6, 0 = Montag), keine Reihe entlang der Korpus-Zeitachse; ein Mittelwert über den Wochentag ist nicht aussagekräftig, lesen Sie stattdessen die Form der Verteilung (WP-002 §3)."
   extractor_version_hash: v1
   wp_reference: WP-005 §3
 

@@ -21,6 +21,7 @@
   import type { components } from '$lib/api/types';
   import { SegmentedControl } from '$lib/components/base';
   import { m } from '$lib/paraglide/messages.js';
+  import { splitParagraphs } from '$lib/prose';
 
   type Registers = components['schemas']['ContentRegisters'];
   type RegisterId = 'semantic' | 'methodological';
@@ -84,7 +85,15 @@
       ? m.cells_ps_region_plain()
       : m.cells_ps_region_methodological()}
   >
-    <p class="primary">{detail === 'short' ? activeRegister.short : activeRegister.long}</p>
+    {#if detail === 'short'}
+      <p class="primary">{activeRegister.short}</p>
+    {:else}
+      <!-- Phase 148g — render authored paragraph breaks instead of one dense
+           block, so a long methodological register is readable. -->
+      {#each splitParagraphs(activeRegister.long) as para (para)}
+        <p class="primary">{para}</p>
+      {/each}
+    {/if}
   </div>
   <!-- Screen-reader-only copy of the inactive register so both remain
        addressable (Design Brief §5.7 "both registers in DOM"). -->
@@ -104,12 +113,18 @@
   .register-body {
     border-left: 2px solid var(--color-accent);
     padding-left: var(--space-3);
+    /* Phase 148g — stack paragraphs with breathing room + a comfortable
+       reading measure so the register is not one dense block. */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
   .primary {
     margin: 0;
+    max-inline-size: 68ch;
     color: var(--color-fg);
     font-size: var(--font-size-base);
-    line-height: 1.55;
+    line-height: 1.65;
   }
   .sr-only {
     position: absolute;

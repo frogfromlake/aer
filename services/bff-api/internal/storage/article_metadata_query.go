@@ -150,10 +150,14 @@ type DegenerateField struct {
 	Value string
 }
 
-// LowSignalField is a categorical field with ≥2 distinct values but a strongly
-// dominant one (near-constant). Unlike DegenerateField it is NOT dropped — a
-// rare-but-real minority category must stay reachable — only disclosed with its
-// concentration so the cell/picker can flag "effectively constant — NN% value".
+// LowSignalField is a categorical field that carries effectively no signal in
+// the scope: either it has only 2 distinct values (a near-binary categorical is
+// too weak to read as a distribution — operator decision 2026-06-24) or one
+// value dominates ≥ lowSignalDominanceThreshold of in-scope articles. Like
+// DegenerateField, the dashboard now DROPS it from the picker (never auto-shown)
+// and discloses it under "no signal" — only the disclosure detail differs (a
+// dominant value + share rather than a single constant). The flag is
+// scope-relative: a future source with real variance clears it automatically.
 type LowSignalField struct {
 	Field          string
 	DistinctValues int
@@ -162,12 +166,34 @@ type LowSignalField struct {
 }
 
 // lowSignalDominanceThreshold is the disclosed engineering-default *display*
-// cutoff (Task A): a field is reported as low-signal only when its single most
-// common value covers at least this fraction of in-scope articles. It is a
-// presentation affordance, NOT a methodological constant and NOT a drop
-// decision — low-signal fields stay fully offerable. Raising real variance
-// (a future source) drops a field below the threshold automatically.
-const lowSignalDominanceThreshold = 0.95
+// cutoff (Task A): a field with ≥3 distinct values is reported as low-signal
+// when its single most common value covers at least this fraction of in-scope
+// articles. (Fields with ≤2 distinct values are low-signal regardless of share —
+// a near-binary categorical carries too little signal to plot.) It is a
+// presentation affordance, NOT a methodological constant. Raising real variance
+// (a future source) clears the flag automatically.
+const lowSignalDominanceThreshold = 0.85
+
+// lowSignalMaxDistinct: a categorical dimension with at most this many distinct
+// values in scope is low-signal regardless of how evenly they split — a 1- or
+// 2-value categorical (e.g. article_type = newsArticle/NewsArticle) is too weak
+// to read as a distribution (operator decision 2026-06-24).
+const lowSignalMaxDistinct = 2
+
+// structuralNoSignalFields are categorical fields that describe a document's
+// FORMAT (schema.org structural annotations) rather than its editorial content,
+// so they carry no discourse signal by construction and are ALWAYS classified
+// no-signal — regardless of how their values split in a scope (operator decision
+// 2026-06-24). `article_type` is the schema.org @type, whose values
+// (Article / NewsArticle and case/synonym variants) are a publishing-format
+// artefact, not an editorial dimension; its variants split the dominant share
+// just under the statistical threshold, so the statistical rule alone misses it.
+// This is a deliberate, documented exception to the otherwise drift-free
+// "distinct field set IS the dimension set" rule — it classifies field SEMANTICS
+// (format vs content), not a transient value distribution.
+var structuralNoSignalFields = map[string]bool{
+	"article_type": true,
+}
 
 // ScopeMetadataAvailability splits the categorical metadata fields observed in a
 // scope's window into those present for every scoped source (Available) and
@@ -186,6 +212,20 @@ type ScopeMetadataAvailability struct {
 	Partial       []PartialMetadataField
 	Degenerate    []DegenerateField
 	LowSignal     []LowSignalField
+	// Phase 148g — per-source constancy: a field that carries signal across the
+	// scope (NOT degenerate/low-signal) yet is CONSTANT for one source (that
+	// source emits a single distinct value, e.g. Élysée's institutional `author`).
+	// Advisory disclosure only; the field stays offerable.
+	PerSourceConstant []PerSourceConstantField
+}
+
+// PerSourceConstantField names a (field, source) pair where the source emits a
+// single distinct value for an otherwise-varying field — the per-source analogue
+// of structural absence (the source carries no WITHIN-source signal for it).
+type PerSourceConstantField struct {
+	Field  string
+	Source string
+	Value  string
 }
 
 // GetScopeAvailableMetadata returns, for the given sources and window, which
@@ -268,7 +308,72 @@ func (s *ClickHouseStorage) GetScopeAvailableMetadata(
 	if err := s.classifyMetadataConcentration(ctx, where, args, availableSet, &out); err != nil {
 		return out, err
 	}
+	if err := s.classifyPerSourceConstant(ctx, where, args, &out); err != nil {
+		return out, err
+	}
 	return out, nil
+}
+
+// classifyPerSourceConstant fills the PerSourceConstant advisory list: for each
+// (field, source) where the source emits exactly ONE distinct value, the field is
+// constant for that source (no within-source signal). Fields that are constant
+// scope-WIDE (already in Degenerate/LowSignal) are excluded — there the whole
+// field is no-signal and the per-source detail is redundant. One cheap aggregation
+// (cardinality = #fields × #sources). `where`/`args` are the caller's shared scope
+// predicate so the window/source set never disagrees with availability.
+func (s *ClickHouseStorage) classifyPerSourceConstant(
+	ctx context.Context,
+	where string,
+	args []any,
+	out *ScopeMetadataAvailability,
+) error {
+	noSignal := map[string]bool{}
+	for _, d := range out.Degenerate {
+		noSignal[d.Field] = true
+	}
+	for _, l := range out.LowSignal {
+		noSignal[l.Field] = true
+	}
+
+	// `value` is Array(String) (list-valued fields), so unnest with arrayJoin
+	// before counting distinct values per (field, source) — exactly the rollup the
+	// concentration query uses. A source is constant for the field when it emits a
+	// single distinct value across all its articles' value arrays. FINAL mirrors
+	// the sibling reads so a transient cross-version row never skews the count.
+	query := `
+		SELECT Field, Source, any(v) AS Value
+		FROM (
+			SELECT field AS Field, source AS Source, arrayJoin(value) AS v
+			FROM aer_gold.article_metadata FINAL
+			WHERE ` + where + `
+		)
+		GROUP BY Field, Source
+		HAVING uniqExact(v) = 1
+		ORDER BY Field, Source
+	`
+	var rows []struct {
+		Field  string `ch:"Field"`
+		Source string `ch:"Source"`
+		Value  string `ch:"Value"`
+	}
+	if err := s.conn.Select(ctx, &rows, query, args...); err != nil {
+		slog.Error("Failed to query per-source-constant metadata", "error", err)
+		return err
+	}
+	for _, r := range rows {
+		// Skip a field that is constant scope-wide (no-signal) — the per-source
+		// breakdown adds nothing there; this list is for fields that DO vary across
+		// the scope but are constant on an individual source (e.g. Élysée's author).
+		if noSignal[r.Field] {
+			continue
+		}
+		out.PerSourceConstant = append(out.PerSourceConstant, PerSourceConstantField{
+			Field:  r.Field,
+			Source: r.Source,
+			Value:  r.Value,
+		})
+	}
+	return nil
 }
 
 // classifyMetadataConcentration computes, per field in scope, the distinct-value
@@ -338,13 +443,22 @@ func (s *ClickHouseStorage) classifyMetadataConcentration(
 	}
 
 	for _, r := range pvRows {
-		if r.Distinct <= 1 {
-			out.Degenerate = append(out.Degenerate, DegenerateField{Field: r.Field, Value: r.DominantValue})
+		structural := structuralNoSignalFields[r.Field]
+		// Phase 148g — no-signal classification (degenerate AND low-signal) applies
+		// to OFFERABLE (available) fields + STRUCTURAL fields only. A PARTIAL content
+		// field (present on some sources, not all) is already surfaced as "withheld"
+		// by the intersection gate; classifying it no-signal here — and pruning it
+		// from Partial below — wrongly EMPTIES the withheld list when a partial field
+		// happens to be constant over the scope union in the window, hiding a field
+		// like `author` that the user can still opt into (show-anyway). Its per-source
+		// constancy is disclosed separately (PerSourceConstant). A STRUCTURAL field
+		// (document format, e.g. article_type) is no-signal on ANY source set, so it
+		// IS classified even when partial — otherwise "show anyway" would resurrect it.
+		if !structural && !availableSet[r.Field] {
 			continue
 		}
-		// Low-signal is a disclosure for offerable (available) fields only — a
-		// partial field is already withheld by the intersection gate.
-		if !availableSet[r.Field] {
+		if r.Distinct <= 1 {
+			out.Degenerate = append(out.Degenerate, DegenerateField{Field: r.Field, Value: r.DominantValue})
 			continue
 		}
 		total := totals[r.Field]
@@ -352,7 +466,7 @@ func (s *ClickHouseStorage) classifyMetadataConcentration(
 			continue
 		}
 		share := float64(r.Dominant) / float64(total)
-		if share >= lowSignalDominanceThreshold {
+		if structural || r.Distinct <= lowSignalMaxDistinct || share >= lowSignalDominanceThreshold {
 			out.LowSignal = append(out.LowSignal, LowSignalField{
 				Field:          r.Field,
 				DistinctValues: int(r.Distinct), //nolint:gosec // bounded by field cardinality
@@ -360,6 +474,28 @@ func (s *ClickHouseStorage) classifyMetadataConcentration(
 				DominantValue:  r.DominantValue,
 			})
 		}
+	}
+
+	// A no-signal field (constant / near-constant / structural) belongs ONLY under
+	// the "no signal" disclosure — never the withheld (Partial) list, where "show
+	// anyway" would resurrect it and re-seed it as a default. Prune it from Partial
+	// so a partial-but-no-signal field (e.g. article_type missing on one source)
+	// can never be re-offered.
+	noSignal := make(map[string]bool, len(out.Degenerate)+len(out.LowSignal))
+	for _, d := range out.Degenerate {
+		noSignal[d.Field] = true
+	}
+	for _, l := range out.LowSignal {
+		noSignal[l.Field] = true
+	}
+	if len(noSignal) > 0 {
+		kept := out.Partial[:0]
+		for _, p := range out.Partial {
+			if !noSignal[p.Field] {
+				kept = append(kept, p)
+			}
+		}
+		out.Partial = kept
 	}
 	return nil
 }

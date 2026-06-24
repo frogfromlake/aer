@@ -92,6 +92,32 @@ properties:
         dominantValue:
           type: string
           description: The single most common value for the field across the scope.
+  perSourceConstant:
+    type: array
+    description: >
+      Phase 148g — fields that DO carry signal across the scope (so they are NOT
+      degenerate/low-signal and stay offerable) but are CONSTANT for an individual
+      scoped source: that source emits exactly one distinct value (e.g. an
+      institutional publisher whose `author` is always its own name — Élysée —
+      while editorial sources vary). Disclosed so the per-source no-within-source
+      signal is visible, symmetric with the structural-absence note for a source
+      that emits the field not at all (ADR-039 DISCLOSE-NEVER-COERCE). Advisory
+      only — never drops the field. One entry per (field, source).
+    items:
+      type: object
+      required:
+        - field
+        - source
+        - value
+      properties:
+        field:
+          type: string
+        source:
+          type: string
+          description: The scoped source for which the field is constant.
+        value:
+          type: string
+          description: The single constant value that source emits for the field.
   windowStart:
     type: string
     format: date-time

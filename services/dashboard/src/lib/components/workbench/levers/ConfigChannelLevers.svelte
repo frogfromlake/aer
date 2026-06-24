@@ -21,6 +21,7 @@
   import { m } from '$lib/paraglide/messages.js';
   import LeverRow from './LeverRow.svelte';
   import LeverButton from './LeverButton.svelte';
+  import MultiSelectControl from './MultiSelectControl.svelte';
 
   interface Props {
     panelPath: PanelPath;
@@ -271,7 +272,9 @@
   </div>
 {/if}
 
-<!-- Phase 125 — N-metric set picker (correlation matrix, parallel coords). -->
+<!-- Phase 125 — N-metric set picker (correlation matrix, parallel coords).
+     Phase 148g — collapsed multi-select dropdown (was an always-expanded chip
+     row) so it reads like the sibling single-selects and saves vertical space. -->
 {#if configParams.includes('metricSet')}
   <LeverRow
     eyebrow={m.levers_metric_set_eyebrow()}
@@ -279,18 +282,13 @@
     ariaLabel={m.levers_metric_set_aria()}
     rowClass="config-row"
   >
-    <div class="metric-set-options" onclick={(e) => e.stopPropagation()} role="presentation">
-      {#each scalarMetricOptions as mn (mn)}
-        <label class="metric-set-chip" class:active={activeMetricSet.includes(mn)}>
-          <input
-            type="checkbox"
-            checked={activeMetricSet.includes(mn)}
-            onchange={() => toggleMetricSetMember(mn)}
-          />
-          <code>{metricLabel(mn)}</code>
-        </label>
-      {/each}
-    </div>
+    <MultiSelectControl
+      options={scalarMetricOptions}
+      selected={activeMetricSet}
+      label={metricLabel}
+      onToggle={toggleMetricSetMember}
+      ariaLabel={m.levers_metric_set_aria()}
+    />
   </LeverRow>
 {/if}
 

@@ -1379,7 +1379,7 @@ export interface paths {
         };
         /**
          * Get Dual-Register content for an entity
-         * @description Returns the semantic and methodological register text for a single entity (metric, probe, discourse function, refusal, view-mode cell, empty-lane invitation, open research question, or primer). Content is sourced from versioned YAML files under `services/bff-api/configs/content/` and loaded at startup. The `locale` query parameter selects the language; defaults to `en`. Returns 404 if no content entry exists for the requested entity and locale combination.
+         * @description Returns the semantic and methodological register text for a single entity (metric, metadata field, probe, discourse function, refusal, view-mode cell, empty-lane invitation, open research question, or primer). Content is sourced from versioned YAML files under `services/bff-api/configs/content/` and loaded at startup. The `locale` query parameter selects the language; defaults to `en`. Returns 404 if no content entry exists for the requested entity and locale combination.
          */
         get: operations["getContent"];
         put?: never;
@@ -1615,7 +1615,7 @@ export interface components {
              * @example metric
              * @enum {string}
              */
-            entityType: "metric" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
+            entityType: "metric" | "field" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
             /**
              * @description Language of the returned content.
              * @example en
@@ -2013,6 +2013,14 @@ export interface components {
                 dominantShare: number;
                 /** @description The single most common value for the field across the scope. */
                 dominantValue: string;
+            }[];
+            /** @description Phase 148g — fields that DO carry signal across the scope (so they are NOT degenerate/low-signal and stay offerable) but are CONSTANT for an individual scoped source: that source emits exactly one distinct value (e.g. an institutional publisher whose `author` is always its own name — Élysée — while editorial sources vary). Disclosed so the per-source no-within-source signal is visible, symmetric with the structural-absence note for a source that emits the field not at all (ADR-039 DISCLOSE-NEVER-COERCE). Advisory only — never drops the field. One entry per (field, source). */
+            perSourceConstant?: {
+                field: string;
+                /** @description The scoped source for which the field is constant. */
+                source: string;
+                /** @description The single constant value that source emits for the field. */
+                value: string;
             }[];
             /** Format: date-time */
             windowStart?: string;
@@ -5420,7 +5428,10 @@ export interface operations {
     };
     getMetricProvenance: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Language of the prose fields (algorithmDescription, knownLimitations). Tier, extractor hash and validation status are locale-neutral. Defaults to "en"; a missing German translation falls back to English. */
+                locale?: "en" | "de";
+            };
             header?: never;
             path: {
                 /** @description The canonical metric name (e.g., "word_count"). */
@@ -8477,7 +8488,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description The category of the entity. */
-                entityType: "metric" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
+                entityType: "metric" | "field" | "probe" | "source" | "discourse_function" | "refusal" | "view_mode" | "empty_lane" | "open_research_question" | "primer";
                 /** @description The canonical identifier of the entity (e.g., "sentiment_score"). */
                 entityId: string;
             };

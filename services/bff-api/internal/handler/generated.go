@@ -12642,6 +12642,17 @@ type GetScopeAvailableMetadata200JSONResponse struct {
 		Sources []string `json:"sources"`
 	} `json:"partial"`
 
+	// PerSourceConstant Phase 148g — fields that DO carry signal across the scope (so they are NOT degenerate/low-signal and stay offerable) but are CONSTANT for an individual scoped source: that source emits exactly one distinct value (e.g. an institutional publisher whose `author` is always its own name — Élysée — while editorial sources vary). Disclosed so the per-source no-within-source signal is visible, symmetric with the structural-absence note for a source that emits the field not at all (ADR-039 DISCLOSE-NEVER-COERCE). Advisory only — never drops the field. One entry per (field, source).
+	PerSourceConstant *[]struct {
+		Field string `json:"field"`
+
+		// Source The scoped source for which the field is constant.
+		Source string `json:"source"`
+
+		// Value The single constant value that source emits for the field.
+		Value string `json:"value"`
+	} `json:"perSourceConstant,omitempty"`
+
 	// ScopedSources The resolved source names the availability was computed over.
 	ScopedSources []string   `json:"scopedSources"`
 	WindowEnd     *time.Time `json:"windowEnd,omitempty"`

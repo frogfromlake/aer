@@ -24,6 +24,8 @@
   import { type ExportRow, type ExportPayload } from '$lib/presentations/cell-export';
   import { composeHowToRead } from '$lib/presentations/how-to-read';
   import { isIntegerMetric } from '$lib/presentations/metric-presentation';
+  import { cyclicMetricAxis } from '$lib/presentations/metric-axis';
+  import { locale } from '$lib/state/locale.svelte';
   import {
     fmtValue,
     markIndexFromEvent,
@@ -65,7 +67,12 @@
 
   // Phase 131 — configurable histogram bin count (default 30, BFF-clamped to
   // [1, 200]). Threaded from PanelControls via the Panel state.
-  const activeBins = $derived(bins ?? 30);
+  // Phase 148g — a cyclic metric (publication_hour / publication_weekday) bins
+  // one bar per value (24 / 7) and labels its axis with real hours / weekday
+  // names; a non-cyclic metric keeps the configurable bin count. These are Gold
+  // temporal metrics (no Silver aggregation), so keying on `metricName` is exact.
+  const cyclicAxis = $derived(cyclicMetricAxis(metricName));
+  const activeBins = $derived(cyclicAxis ? cyclicAxis.bins : (bins ?? 30));
   const metricDisplay = $derived(metricLabel(metricName)); // friendly display label
 
   // Phase 122i revision (C6). Soft methodology note when the
@@ -248,7 +255,16 @@
         x: {
           label: metricDisplay,
           grid: false,
-          ...(integerValued ? { tickFormat: 'd' } : {}),
+          // Phase 148g — cyclic metrics get real hour / weekday tick labels at
+          // integer positions; otherwise the generic integer/numeric axis.
+          ...(cyclicAxis
+            ? {
+                ticks: cyclicAxis.ticks,
+                tickFormat: (v: number) => cyclicAxis.format(v, locale())
+              }
+            : integerValued
+              ? { tickFormat: 'd' }
+              : {}),
           ...(sharedX ? { domain: [...sharedX] } : plotDomain ? { domain: plotDomain } : {})
         },
         y: { label: m.cells_dist_axis_articles(), grid: true, tickFormat: 'd' },
@@ -316,9 +332,13 @@
       rows: [
         {
           label: m.cells_dist_readout_range(),
-          value: b.overflow
-            ? `> ${fmtBinRange(b.lower, b.lower, integerValued)}`
-            : fmtBinRange(b.lower, b.upper, integerValued)
+          // Phase 148g — a cyclic bin IS one hour / weekday: show that label, not
+          // an integer range, so the readout matches the axis.
+          value: cyclicAxis
+            ? cyclicAxis.format(Math.round(b.center), locale())
+            : b.overflow
+              ? `> ${fmtBinRange(b.lower, b.lower, integerValued)}`
+              : fmtBinRange(b.lower, b.upper, integerValued)
         },
         { label: m.cells_dist_readout_articles(), value: fmtValue(b.count) }
       ]

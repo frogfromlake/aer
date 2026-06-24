@@ -25,6 +25,8 @@
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
+  import { cyclicMetricAxis } from '$lib/presentations/metric-axis';
+  import { locale } from '$lib/state/locale.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
@@ -49,6 +51,10 @@
   // first-class metrics; size/colour stay unbound until chosen.
   const xMetric = $derived(channels?.x ?? 'word_count');
   const yMetric = $derived(channels?.y ?? DEFAULT_METRIC_NAME);
+  // Phase 148g — when an axis is bound to a cyclic metric (hour / weekday), label
+  // it with real hours / weekday names at integer tick positions.
+  const xCyclic = $derived(cyclicMetricAxis(xMetric));
+  const yCyclic = $derived(cyclicMetricAxis(yMetric));
   const sizeMetric = $derived(channels?.size);
   const colorMetric = $derived(channels?.color);
 
@@ -189,11 +195,17 @@
         x: {
           label: m.cells_scatter_axis_x({ metric: metricLabel(xMetric) }),
           labelAnchor: 'center',
+          ...(xCyclic
+            ? { ticks: xCyclic.ticks, tickFormat: (v: number) => xCyclic.format(v, locale()) }
+            : {}),
           ...(sharedX ? { domain: [...sharedX] } : {})
         },
         y: {
           label: m.cells_scatter_axis_y({ metric: metricLabel(yMetric) }),
           labelAnchor: 'center',
+          ...(yCyclic
+            ? { ticks: yCyclic.ticks, tickFormat: (v: number) => yCyclic.format(v, locale()) }
+            : {}),
           ...(sharedY ? { domain: [...sharedY] } : {})
         },
         ...(hasSize ? { r: { range: [2, 16] } } : {}),
@@ -219,7 +231,17 @@
             fillOpacity: (d: ScatterPointDto) =>
               selN === 0 ? 0.7 : selSet!.has(d.articleId ?? '') ? 0.95 : 0.08,
             channels: { source: { value: 'source', label: m.cells_scatter_channel_source() } },
-            tip: true
+            // Phase 148g — format a cyclic axis (hour / weekday) in the tooltip
+            // too, so it matches the axis instead of showing a raw integer.
+            tip:
+              xCyclic || yCyclic
+                ? {
+                    format: {
+                      ...(xCyclic ? { x: (v: number) => xCyclic.format(v, locale()) } : {}),
+                      ...(yCyclic ? { y: (v: number) => yCyclic.format(v, locale()) } : {})
+                    }
+                  }
+                : true
           }),
           // Phase 125b — emphasis ring on the brushed (selected) points.
           ...(selN > 0

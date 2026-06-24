@@ -307,5 +307,20 @@ func (s *Server) GetScopeAvailableMetadata(ctx context.Context, request GetScope
 		}
 		resp.LowSignal = &low
 	}
+	if len(avail.PerSourceConstant) > 0 {
+		psc := make([]struct {
+			Field  string `json:"field"`
+			Source string `json:"source"`
+			Value  string `json:"value"`
+		}, len(avail.PerSourceConstant))
+		for i, p := range avail.PerSourceConstant {
+			psc[i] = struct {
+				Field  string `json:"field"`
+				Source string `json:"source"`
+				Value  string `json:"value"`
+			}{Field: p.Field, Source: p.Source, Value: p.Value}
+		}
+		resp.PerSourceConstant = &psc
+	}
 	return resp, nil
 }

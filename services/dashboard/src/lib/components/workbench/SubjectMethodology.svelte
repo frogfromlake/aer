@@ -35,6 +35,7 @@
     isRegisteredMetric
   } from '$lib/state/labels.svelte';
   import { locale } from '$lib/state/locale.svelte';
+  import { splitParagraphs } from '$lib/prose';
 
   interface Props {
     /** Machine name of the bound metric or field. */
@@ -211,7 +212,11 @@
                 metric: subjectLabel
               })}</summary
             >
-            <p class="cell-method-text">{pairingContent.registers.methodological.long}</p>
+            <div class="cell-method-text">
+              {#each splitParagraphs(pairingContent.registers.methodological.long) as para (para)}
+                <p>{para}</p>
+              {/each}
+            </div>
           </details>
         {/if}
 
@@ -342,7 +347,9 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: var(--font-weight-semibold);
-    color: var(--color-fg-subtle);
+    /* Phase 148g — section titles are full-strength so the reader keeps an
+       overview of the methodology blocks (was dimmed/subtle). */
+    color: var(--color-fg);
   }
   .meth-block-summary::-webkit-details-marker {
     display: none;
@@ -420,10 +427,19 @@
     color: var(--color-fg-muted);
     line-height: var(--line-height-loose);
   }
+  /* Phase 148g — readable methodology prose: stacked paragraphs with breathing
+     room and a comfortable reading measure, not one dense block. */
   .cell-method-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
     color: var(--color-fg);
-    line-height: var(--line-height-loose);
+    line-height: 1.65;
+    margin: 0;
+    max-inline-size: 70ch;
+  }
+  .cell-method-text p {
     margin: 0;
   }
 

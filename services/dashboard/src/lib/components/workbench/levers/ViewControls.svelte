@@ -8,7 +8,7 @@
   // metric-set / field-chain. The reactive reconcile inputs are passed in as
   // props (the parent computes them once and shares them across levers).
   import type { PresentationDefinition } from '$lib/presentations';
-  import type { Presentation } from '$lib/state/url-internals';
+  import type { Presentation, ScopeGroup } from '$lib/state/url-internals';
   import { reconcilePanelForView } from '$lib/workbench/panel-controls-derive';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
   import { m } from '$lib/paraglide/messages.js';
@@ -21,6 +21,13 @@
     offerableFields: string[];
     availableMetricNames: string[];
     availableMetadataFields: readonly string[];
+    /** Phase 148g — the scope's all-source metric intersection + scope groups +
+     *  show-anyway flag, so the view-switch metric reset is SCOPE-AWARE (a
+     *  cross-probe panel defaults to the multilingual backbone, never a
+     *  scope-withheld German-only metric). */
+    scopeAvailableSet: Set<string> | null;
+    scopes: readonly ScopeGroup[];
+    showWithheld: boolean;
   }
 
   let {
@@ -30,7 +37,10 @@
     scalarMetricOptions,
     offerableFields,
     availableMetricNames,
-    availableMetadataFields
+    availableMetadataFields,
+    scopeAvailableSet,
+    scopes,
+    showWithheld
   }: Props = $props();
 
   function pickView(id: Presentation) {
@@ -42,7 +52,10 @@
         scalarMetricOptions,
         offerableFields,
         availableMetricNames,
-        availableMetadataFields
+        availableMetadataFields,
+        scopeAvailableSet,
+        scopes,
+        showWithheld
       })
     );
   }

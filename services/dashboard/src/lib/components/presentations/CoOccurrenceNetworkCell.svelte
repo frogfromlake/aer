@@ -44,6 +44,7 @@
     type ReadoutRow,
     type ReadoutState
   } from '$lib/presentations/cell-readout';
+  import { formatCyclicMeanReadout } from '$lib/presentations/metric-axis';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
@@ -430,14 +431,32 @@
     if (sizeMetricReq) {
       rows.push({
         label: m.cells_net_readout_size({ metric: sizeMetricReq }),
-        value: n.metricValue != null ? fmtValue(n.metricValue) : m.cells_net_readout_no_data()
+        // The node value is a MEAN over the node's articles — for a cyclic metric
+        // (publication_hour/weekday) attach a clock/weekday gloss so "13.7" reads
+        // as "≈ 13:42" rather than a bare ordinal (Phase 148g).
+        value:
+          n.metricValue != null
+            ? formatCyclicMeanReadout(
+                sizeMetricReq,
+                n.metricValue,
+                fmtValue(n.metricValue),
+                locale()
+              )
+            : m.cells_net_readout_no_data()
       });
     }
     if (colorMetricReq && colorMetricReq !== sizeMetricReq) {
       rows.push({
         label: m.cells_net_readout_colour({ metric: colorMetricReq }),
         value:
-          n.metricColorValue != null ? fmtValue(n.metricColorValue) : m.cells_net_readout_no_data()
+          n.metricColorValue != null
+            ? formatCyclicMeanReadout(
+                colorMetricReq,
+                n.metricColorValue,
+                fmtValue(n.metricColorValue),
+                locale()
+              )
+            : m.cells_net_readout_no_data()
       });
     }
     readout = {

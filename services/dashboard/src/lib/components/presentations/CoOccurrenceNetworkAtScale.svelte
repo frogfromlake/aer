@@ -24,6 +24,7 @@
   import type { PresentationCellProps } from '$lib/presentations';
   import type { ExportPayload } from '$lib/presentations/cell-export';
   import { HIDDEN_READOUT, fmtValue, type ReadoutState } from '$lib/presentations/cell-readout';
+  import { formatCyclicMeanReadout } from '$lib/presentations/metric-axis';
   import {
     computeMetricExtent,
     computeMetricColorExtent,
@@ -173,6 +174,15 @@
 
   let pointer = $state({ x: 0, y: 0 });
   let readout = $state<ReadoutState>(HIDDEN_READOUT);
+
+  /** A readout row for a node's bound-metric MEAN (3dp), with a clock/weekday
+   *  gloss for a cyclic metric so "13.7" reads as "≈ 13:42" (Phase 148g). Empty
+   *  when the metric or value is absent. */
+  function nodeMeanRow(metricName: string | undefined, raw: unknown, label: string) {
+    if (!metricName || raw == null) return [];
+    const v = Number(raw);
+    return [{ label, value: formatCyclicMeanReadout(metricName, v, v.toFixed(3), locale()) }];
+  }
 
   interface SelectedEntity {
     text: string;
@@ -339,21 +349,13 @@
             { label: m.cells_net_readout_type(), value: String(a.nerLabel ?? '') },
             { label: m.cells_net_readout_cooccurrences(), value: String(a.totalCount ?? 0) },
             { label: m.cells_net_readout_degree(), value: String(a.degree ?? 0) },
-            ...(sizeM && a.metricValue != null
-              ? [
-                  {
-                    label: m.cells_net_readout_size({ metric: sizeM }),
-                    value: Number(a.metricValue).toFixed(3)
-                  }
-                ]
-              : []),
-            ...(colorM && colorM !== sizeM && a.metricColorValue != null
-              ? [
-                  {
-                    label: m.cells_net_readout_colour({ metric: colorM }),
-                    value: Number(a.metricColorValue).toFixed(3)
-                  }
-                ]
+            ...nodeMeanRow(sizeM, a.metricValue, m.cells_net_readout_size({ metric: sizeM ?? '' })),
+            ...(colorM !== sizeM
+              ? nodeMeanRow(
+                  colorM,
+                  a.metricColorValue,
+                  m.cells_net_readout_colour({ metric: colorM ?? '' })
+                )
               : [])
           ]
         };

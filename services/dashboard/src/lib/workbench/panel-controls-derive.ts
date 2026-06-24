@@ -164,9 +164,21 @@ export function buildMetadataFields(i: {
   return out;
 }
 
-// The field to seed when switching into a field-driven view: the first
-// INTERSECTION field (deterministic, sorted), or '' when the scope shares none.
+// Substantive editorial dimensions preferred as the default grouping field, in
+// priority order, so the seed lands on a meaningful field (e.g. the editorial
+// desk `ressort`) instead of an alphabetically-first but low-information one
+// (operator decision 2026-06-24). Falls back to the sorted-first field.
+const PREFERRED_DEFAULT_FIELDS = ['ressort'];
+
+// The field to seed when switching into a field-driven view: a preferred
+// editorial field if the scope offers one, else the first field (deterministic,
+// sorted), or '' when the scope shares none. Callers pass the OFFERABLE fields
+// (no-signal already excluded), so a structural field like `article_type` is
+// never seeded.
 export function firstMetadataField(availableMetadataFields: readonly string[]): string {
+  for (const pref of PREFERRED_DEFAULT_FIELDS) {
+    if (availableMetadataFields.includes(pref)) return pref;
+  }
   return [...availableMetadataFields].sort()[0] ?? '';
 }
 
@@ -297,12 +309,25 @@ export interface ReconcileViewContext {
   prevUsesMetadataField: boolean;
   // Scope-available scalar metrics (scatter/cross/lead-lag/metricSet seeds).
   scalarMetricOptions: string[];
-  // Offerable categorical fields (Sankey field-chain seed).
+  // Offerable categorical fields (Sankey field-chain seed AND the field-driven
+  // default seed — already excludes no-signal degenerate/low-signal fields).
   offerableFields: string[];
   // Raw /metrics/available names (firstMetricSupporting fallback).
   availableMetricNames: string[];
-  // Scope-intersection categorical fields (firstMetadataField seed).
+  // Scope-intersection categorical fields (retained for callers; the field seed
+  // now uses `offerableFields` so a no-signal field is never auto-selected).
   availableMetadataFields: readonly string[];
+  // Phase 148g — the scope's all-source metric intersection (null while
+  // availability loads). Used so the metric reset is SCOPE-AWARE: a view switch
+  // must never default to a metric the whole scope cannot serve (e.g. the
+  // German-only `sentiment_score_sentiws` on a cross-probe DE+FR panel — that
+  // metric is withheld and the default must be the multilingual backbone).
+  scopeAvailableSet: Set<string> | null;
+  // The panel's scope groups — feeds the scope-aware default (backbone).
+  scopes: readonly ScopeGroup[];
+  // "show anyway" — when on, a withheld (partial) metric is a legitimate active
+  // selection and must NOT be snapped away on a view switch.
+  showWithheld: boolean;
 }
 
 // Compute the next Panel when switching INTO presentation `id`: discard
@@ -329,10 +354,17 @@ export function reconcilePanelForView(
   const usesMetric = pres?.usesMetric ?? true;
   const nextUsesMetadataField = pres?.usesMetadataField ?? false;
   const prevUsesMetadataField = ctx.prevUsesMetadataField;
-  // Reconcile `Panel.metric` across the field/metric boundary.
+  // Reconcile `Panel.metric` across the field/metric boundary. Seed from the
+  // OFFERABLE fields (intersection minus no-signal — degenerate/low-signal — and
+  // plus partials under "show anyway"), never the raw intersection, so a
+  // no-signal field (e.g. article_type) is never auto-selected. A field carried
+  // over from a prior field-driven view is also snapped away if it has since
+  // become no-signal in this scope.
   if (nextUsesMetadataField) {
-    if (!prevUsesMetadataField || !next.metric) {
-      next.metric = firstMetadataField(ctx.availableMetadataFields);
+    const keep =
+      prevUsesMetadataField && !!next.metric && ctx.offerableFields.includes(next.metric);
+    if (!keep) {
+      next.metric = firstMetadataField(ctx.offerableFields);
     }
   } else if (usesMetric) {
     // Phase 148g — `metricSupportsPresentation` defaults an UNKNOWN name to the
@@ -346,12 +378,31 @@ export function reconcilePanelForView(
     const registryLoaded = ctx.availableMetricNames.length > 0;
     const isRealMetric =
       next.metric === DEFAULT_METRIC_NAME || ctx.availableMetricNames.includes(next.metric);
+    // Phase 148g — also snap when the carried-over metric is NOT available across
+    // the whole scope (and the user has not opted into "show anyway"): otherwise a
+    // metric that is valid on one probe but withheld on a cross-probe scope (the
+    // German-only SentiWS on a DE+FR panel) would survive a view switch as the
+    // active default — exactly the cross-probe-backbone guarantee this restores.
+    const scopeUnavailable =
+      ctx.scopeAvailableSet !== null &&
+      !ctx.showWithheld &&
+      !!next.metric &&
+      !ctx.scopeAvailableSet.has(next.metric);
     if (
       prevUsesMetadataField ||
       !metricSupportsPresentation(next.metric, id) ||
-      (registryLoaded && !isRealMetric)
+      (registryLoaded && !isRealMetric) ||
+      scopeUnavailable
     ) {
-      next.metric = firstMetricSupporting(id, ctx.availableMetricNames);
+      // Scope-AWARE reset: the canonical scope default (multilingual backbone for
+      // a cross-probe scope), never the scope-blind `firstMetricSupporting`
+      // (which preferred the German-only default regardless of scope).
+      next.metric = resetMetricForScope({
+        view: id,
+        scopeAvailableSet: ctx.scopeAvailableSet,
+        scopes: ctx.scopes,
+        availableMetricNames: ctx.availableMetricNames
+      });
     }
   }
   // Reconcile a no-op overlay composition (only time-series renders overlay).

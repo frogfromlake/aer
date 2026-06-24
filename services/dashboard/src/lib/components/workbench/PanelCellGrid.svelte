@@ -1,12 +1,10 @@
 <script lang="ts">
-  // Phase 141 — the Panel's cell grid, extracted from PanelHost.svelte. Owns
-  // everything between the panel header and the panel-level methodology: the
-  // probe-scope + facet fan-out, the lazy cell-component load, the at-scale
-  // co-occurrence branch, the refusal / loading / empty states, the shared-axis
-  // comparison union (Phase 124/126), and the per-cell config open-state. Each
-  // resolved unit is rendered by a PanelCell child; the soft disclosures sit
-  // above the grid in PanelDisclosureNotes. Shared availability data is computed
-  // once by PanelHost (the queries must live there) and threaded in as props.
+  // Phase 141 — the Panel's cell grid (extracted from PanelHost). Owns everything
+  // between the panel header and the panel methodology: probe-scope + facet
+  // fan-out, lazy cell load, the at-scale co-occurrence branch, refusal/loading/
+  // empty states, the shared-axis comparison union (Phase 124/126), and per-cell
+  // config open-state. Units render via PanelCell children; soft disclosures sit
+  // above in PanelDisclosureNotes; availability is threaded in as props (PanelHost).
   import type { Component } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { fieldLabel } from '$lib/state/labels.svelte';
@@ -432,6 +430,8 @@
   {:else if noSharedDimension}
     <p class="muted">
       {m.workbench_grid_no_shared_dimension_pre()}
+      <strong>{m.workbench_grid_no_shared_dimension_ways()}</strong>
+      {m.workbench_grid_no_shared_dimension_action()}
       <strong>{m.workbench_grid_no_shared_dimension_show_anyway()}</strong>
       {m.workbench_grid_no_shared_dimension_post()}
     </p>

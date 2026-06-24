@@ -8,7 +8,7 @@
   //   - cross-panel brushing discoverability hint (Phase 125b).
   // Purely presentational — every condition is computed by PanelCellGrid.
   import { m } from '$lib/paraglide/messages.js';
-  import { metricLabel, fieldLabel } from '$lib/state/labels.svelte';
+  import { fieldLabel, dimensionLabel, sourceLabel } from '$lib/state/labels.svelte';
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
 
   interface Props {
@@ -51,9 +51,12 @@
 {#if droppedSources.length > 0 && !noSharedDimension}
   <p class="panel-drop-note" role="note">
     {m.workbench_disclosure_dropped_prefix()}
-    <strong>{droppedSources.join(', ')}</strong>
+    <strong>{droppedSources.map(sourceLabel).join(', ')}</strong>
     {m.workbench_disclosure_dropped_suffix()}
-    <code>{metricLabel(metric)}</code>
+    <!-- dimensionLabel resolves either a metric OR a categorical field (e.g.
+         a cross-tab group-by `author` → "Autor"), so a field-driven view never
+         shows the raw/humanised English name here (Phase 148g localize fix). -->
+    <code>{dimensionLabel(metric)}</code>
     {m.workbench_disclosure_dropped_not_emitted()}
   </p>
 {/if}

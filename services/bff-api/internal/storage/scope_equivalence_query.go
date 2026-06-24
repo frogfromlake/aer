@@ -97,16 +97,27 @@ type DegenerateMetric struct {
 	Value      float64
 }
 
-// LowSignalMetric is an available metric with ≥2 distinct values but a strongly
-// dominant one (near-constant in this scope, e.g. image_count = 3 on 99.8 % of
-// articles). The metric analogue of LowSignalField: NOT dropped (the rare
-// minority is real signal), only disclosed so the picker can flag it. The flag
-// is scope-relative — a source set with real variance clears it.
+// LowSignalMetric is an available metric that carries effectively no signal in
+// this scope: either ≤2 distinct values, or one value dominates ≥ the threshold
+// (e.g. image_count = 3 on 99.8 % of articles — a mis-read that is constant per
+// article). The metric analogue of LowSignalField: the dashboard now DROPS it
+// from the picker (never auto-shown) and discloses it under "no signal". The
+// flag is scope-relative — a source set with real variance clears it.
 type LowSignalMetric struct {
 	MetricName     string
 	DistinctValues int
 	DominantShare  float64
 	DominantValue  float64
+}
+
+// structuralNoSignalMetrics are scalar metrics that describe a document's FORMAT
+// rather than its discourse content and are ALWAYS classified no-signal,
+// regardless of how their values split in a scope (operator decision
+// 2026-06-24). `image_count` is a mis-read structural attribute (the extractor
+// returns a near-constant per-article count), not an editorial measure — the
+// metric analogue of structuralNoSignalFields in article_metadata_query.go.
+var structuralNoSignalMetrics = map[string]bool{
+	"image_count": true,
 }
 
 // ScopeMetricAvailability splits the metrics observed in a scope's window into
@@ -189,12 +200,13 @@ func (s *ClickHouseStorage) GetScopeAvailableMetrics(ctx context.Context, start,
 	}
 
 	// Task A: per-metric value concentration over the scope union — yields BOTH
-	// degenerate (distinct == 1, dropped) and low-signal (distinct ≥ 2 but a
-	// single value dominates ≥ threshold, e.g. image_count = 3 on 99.8 % of
-	// articles — kept but flagged). The nested (metric, value) rollup is bounded
-	// by each metric's distinct-value cardinality, so a continuous metric like
-	// sentiment_score has a near-uniform distribution (dominantShare ≈ 1/N) and
-	// is never flagged — only genuinely discrete, near-constant metrics surface.
+	// degenerate (distinct == 1, dropped) and low-signal (≤2 distinct values, or
+	// a single value dominating ≥ threshold, e.g. image_count = 3 on 99.8 % of
+	// articles — also dropped from the picker, disclosed under "no signal"). The
+	// nested (metric, value) rollup is bounded by each metric's distinct-value
+	// cardinality, so a continuous metric like sentiment_score has a near-uniform
+	// distribution (dominantShare ≈ 1/N, many distinct) and is never flagged —
+	// only genuinely discrete, near-constant metrics surface.
 	availableSet := map[string]bool{}
 	for _, mn := range out.Available {
 		availableSet[mn] = true
@@ -230,17 +242,24 @@ func (s *ClickHouseStorage) GetScopeAvailableMetrics(ctx context.Context, start,
 		return out, err
 	}
 	for _, r := range concRows {
+		structural := structuralNoSignalMetrics[r.Metric]
+		// Phase 148g — no-signal classification (degenerate AND low-signal) applies
+		// to OFFERABLE (available) metrics + STRUCTURAL metrics only. A PARTIAL
+		// metric is already surfaced as "withheld" by the intersection gate;
+		// classifying it no-signal here — and pruning it from Partial below — would
+		// wrongly empty the withheld list when a partial metric is constant over the
+		// scope union in the window. A STRUCTURAL metric (format, e.g. image_count)
+		// is no-signal on ANY source set, so it IS classified even when partial,
+		// otherwise "show anyway" would resurrect it.
+		if (!structural && !availableSet[r.Metric]) || r.Total == 0 {
+			continue
+		}
 		if r.Distinct <= 1 {
 			out.Degenerate = append(out.Degenerate, DegenerateMetric{MetricName: r.Metric, Value: r.DominantValue})
 			continue
 		}
-		// Low-signal is a disclosure for offerable (available) metrics only — a
-		// partial metric is already withheld by the intersection gate.
-		if !availableSet[r.Metric] || r.Total == 0 {
-			continue
-		}
 		share := float64(r.Dominant) / float64(r.Total)
-		if share >= lowSignalDominanceThreshold {
+		if structural || r.Distinct <= lowSignalMaxDistinct || share >= lowSignalDominanceThreshold {
 			out.LowSignal = append(out.LowSignal, LowSignalMetric{
 				MetricName:     r.Metric,
 				DistinctValues: int(r.Distinct), //nolint:gosec // bounded by metric value cardinality
@@ -248,6 +267,26 @@ func (s *ClickHouseStorage) GetScopeAvailableMetrics(ctx context.Context, start,
 				DominantValue:  r.DominantValue,
 			})
 		}
+	}
+
+	// A no-signal metric (constant / near-constant / structural) belongs ONLY
+	// under the "no signal" disclosure — never the withheld (Partial) list, where
+	// "show anyway" would resurrect it. Prune it from Partial.
+	noSignal := make(map[string]bool, len(out.Degenerate)+len(out.LowSignal))
+	for _, d := range out.Degenerate {
+		noSignal[d.MetricName] = true
+	}
+	for _, l := range out.LowSignal {
+		noSignal[l.MetricName] = true
+	}
+	if len(noSignal) > 0 {
+		kept := out.Partial[:0]
+		for _, p := range out.Partial {
+			if !noSignal[p.MetricName] {
+				kept = append(kept, p)
+			}
+		}
+		out.Partial = kept
 	}
 	return out, nil
 }

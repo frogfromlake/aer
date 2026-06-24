@@ -161,13 +161,21 @@
   const degenerateMetrics = $derived<ScopeAvailableMetricsDto['degenerate']>(
     scopeAvail?.degenerate ?? []
   );
-  // Task A (extended) — near-constant metrics (e.g. image_count = 3 on 99.8 % of
-  // articles in this scope): kept offerable, disclosed by MetricHints.
+  // Task A (extended, operator decision 2026-06-24) — near-constant metrics
+  // (≤2 distinct values, or one value ≥85 % of articles, e.g. a mis-read
+  // image_count): NO signal, so dropped from the picker exactly like degenerate
+  // (disclosed by MetricHints, never auto-shown).
   const lowSignalMetrics = $derived<ScopeAvailableMetricsDto['lowSignal']>(
     scopeAvail?.lowSignal ?? []
   );
+  // The picker exclusion set is degenerate ∪ low-signal: both are no-signal and
+  // must never be offered or auto-selected (the disclosure lists them separately
+  // with their constant / dominant-value detail).
   const degenerateMetricSet = $derived<Set<string>>(
-    new Set((degenerateMetrics ?? []).map((d) => d.metricName))
+    new Set([
+      ...(degenerateMetrics ?? []).map((d) => d.metricName),
+      ...(lowSignalMetrics ?? []).map((d) => d.metricName)
+    ])
   );
   // The scope-availability gate (ADR-038): no scope yet → all; else the all-source
   // intersection, plus partials only under "show anyway". Degenerate metrics are
@@ -213,7 +221,18 @@
   const lowSignalMetadata = $derived<ScopeAvailableMetadataDto['lowSignal']>(
     metadataAvail?.lowSignal ?? []
   );
-  const degenerateFieldNames = $derived<string[]>((degenerateMetadata ?? []).map((d) => d.field));
+  // Phase 148g — fields that carry signal across the scope but are CONSTANT for
+  // one source (e.g. Élysée's institutional `author`): disclosed per-source so
+  // the no-within-source signal is visible, symmetric with the absence note.
+  const perSourceConstantMetadata = $derived<ScopeAvailableMetadataDto['perSourceConstant']>(
+    metadataAvail?.perSourceConstant ?? []
+  );
+  // Degenerate ∪ low-signal: both are no-signal fields, excluded from the picker
+  // and from the default-field seed (the disclosure still lists each separately).
+  const degenerateFieldNames = $derived<string[]>([
+    ...(degenerateMetadata ?? []).map((d) => d.field),
+    ...(lowSignalMetadata ?? []).map((d) => d.field)
+  ]);
   // Offerable categorical fields (shared across Metric / View / Config levers).
   const offerableFields = $derived<string[]>(
     offerableMetadataFieldsOf({
@@ -356,6 +375,9 @@
           {offerableFields}
           {availableMetricNames}
           {availableMetadataFields}
+          {scopeAvailableSet}
+          scopes={boundPanel?.scopes ?? []}
+          showWithheld={activeShowWithheld}
         />
         <MetricControls
           {panelPath}
@@ -384,6 +406,7 @@
         {degenerateMetadata}
         {lowSignalMetrics}
         {lowSignalMetadata}
+        {perSourceConstantMetadata}
         {scopedSourceNames}
         {scopedSourceCount}
         {scopeAvailableSet}

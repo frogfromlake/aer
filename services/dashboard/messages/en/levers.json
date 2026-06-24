@@ -34,9 +34,13 @@
   "levers_degenerate_lead_other": "{count} dimensions are constant across this scope — present but signal-free, so dropped from the picker:",
   "levers_degenerate_value": "= {value} (constant)",
   "levers_lowsignal_eyebrow": "Effectively constant",
-  "levers_lowsignal_lead_one": "{count} dimension is near-constant in this scope — still selectable, but it carries little signal:",
-  "levers_lowsignal_lead_other": "{count} dimensions are near-constant in this scope — still selectable, but they carry little signal:",
+  "levers_lowsignal_lead_one": "{count} dimension carries no usable signal in this scope (≤2 distinct values, or one value dominates) — dropped from the picker:",
+  "levers_lowsignal_lead_other": "{count} dimensions carry no usable signal in this scope (≤2 distinct values, or one value dominates) — dropped from the picker:",
   "levers_lowsignal_detail": "{share}% {value} · {distinct} values",
+  "levers_persourceconst_eyebrow": "Constant per source",
+  "levers_persourceconst_lead_one": "{count} field is constant for an individual source — present, but no within-source signal there:",
+  "levers_persourceconst_lead_other": "{count} fields are constant for individual sources — present, but no within-source signal there:",
+  "levers_persourceconst_detail": "{source} = {value} (constant)",
 
   "levers_composition_eyebrow": "Composition",
   "levers_composition_aria": "Composition",
@@ -160,6 +164,8 @@
 
   "levers_metric_set_eyebrow": "Metric set",
   "levers_metric_set_aria": "Metric set",
+  "levers_multiselect_selected": "{count} selected:",
+  "levers_multiselect_none": "None selected",
 
   "levers_crosstab_eyebrow": "Metric",
   "levers_crosstab_aria": "Cross-tab metric",
