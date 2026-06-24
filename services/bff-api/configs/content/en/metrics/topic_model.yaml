@@ -1,0 +1,47 @@
+entityId: topic_model
+entityType: metric
+locale: en
+displayLabel: "Topic Model"
+registers:
+  semantic:
+    short: "The unsupervised model that groups articles into discourse topics by their wording — the method behind the topic distribution and topic evolution views."
+    long: >
+      Topic modelling reads the whole corpus and sorts articles into clusters that
+      share vocabulary and meaning, without anyone defining the topics in advance.
+      Each resulting topic is a recurring theme in the discourse — "what is being
+      talked about" — labelled by the handful of words that most distinguish it from
+      the rest. It is the engine behind two views: the synchronic topic distribution
+      (how much of the corpus discusses each theme right now) and the diachronic topic
+      evolution (how those themes rise and fall over time). Read a topic as a
+      statistical family resemblance between articles, not an editorial section: the
+      label is a fingerprint of the cluster, and one special topic collects the
+      articles that fit no coherent theme. Because the model learns from the text it
+      is given, the topic structure is only as stable and meaningful as the corpus is
+      large — and it is provisional, an engineering default not yet scientifically
+      validated.
+  methodological:
+    short: "BERTopic on pinned multilingual-e5-large embeddings + seeded UMAP/HDBSCAN; c-TF-IDF labels; outlier class -1; per-language partitions. Tier 2 (reproducible, not bit-deterministic). WP-002 §8.1."
+    long: >
+      Topics are produced by BERTopic over the corpus in scope. Each document is
+      embedded with the pinned multilingual sentence model (intfloat/multilingual-e5-large,
+      "passage:" inputs), the embeddings are reduced with a seeded UMAP projection, and
+      the result is clustered with HDBSCAN; each cluster is labelled by its c-TF-IDF
+      representation — the four words most over-represented in the cluster relative to
+      the rest — prefixed by a numeric topic id. Topic id -1 is the outlier class:
+      articles that fit no coherent cluster, shown rather than hidden because an outlier
+      is itself an observation. Topics are partitioned by language, because the
+      embeddings are language-specific — topic ids are NOT comparable across languages.
+      This is a Tier-2 method (WP-002 §8.1 Option C): reproducible for a pinned model
+      version and fixed seed, but not bit-for-bit deterministic across platforms or
+      library upgrades. The model hash is surfaced in the provenance footer; more than
+      one hash within a window means the topic identities may have rotated and must not
+      be read as a single stable basis. Known limits: small corpora yield a large
+      outlier class and unstable clusters; the c-TF-IDF label is a statistical
+      fingerprint, not an editorial title; and topic modelling is provisional —
+      operational but not yet validated for research use.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

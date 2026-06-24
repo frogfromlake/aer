@@ -1,0 +1,49 @@
+entityId: topic_model
+entityType: metric
+locale: de
+displayLabel: "Themenmodell"
+registers:
+  semantic:
+    short: "Das unüberwachte Modell, das Artikel anhand ihres Wortlauts zu Diskursthemen gruppiert — das Verfahren hinter der Themenverteilung und der Themenentwicklung."
+    long: >
+      Das Themenmodell liest den gesamten Korpus und sortiert Artikel in Cluster, die
+      Vokabular und Bedeutung teilen — ohne dass jemand die Themen vorab festlegt. Jedes
+      so entstandene Thema ist ein wiederkehrendes Motiv im Diskurs — „worüber gesprochen
+      wird" — benannt durch die wenigen Wörter, die es am stärksten vom Rest abheben. Es
+      ist der Motor hinter zwei Ansichten: der synchronen Themenverteilung (wie viel des
+      Korpus gerade welches Thema behandelt) und der diachronen Themenentwicklung (wie
+      diese Themen über die Zeit steigen und fallen). Lies ein Thema als statistische
+      Familienähnlichkeit zwischen Artikeln, nicht als redaktionelles Ressort: das Label
+      ist ein Fingerabdruck des Clusters, und ein besonderes Thema sammelt die Artikel,
+      die in kein kohärentes Motiv passen. Da das Modell aus dem ihm gegebenen Text lernt,
+      ist die Themenstruktur nur so stabil und aussagekräftig, wie der Korpus groß ist —
+      und sie ist provisorisch, ein Engineering-Default, noch nicht wissenschaftlich
+      validiert.
+  methodological:
+    short: "BERTopic auf gepinnten multilingual-e5-large-Embeddings + geseedetem UMAP/HDBSCAN; c-TF-IDF-Labels; Ausreißerklasse -1; Sprachpartitionen. Tier 2 (reproduzierbar, nicht bit-deterministisch). WP-002 §8.1."
+    long: >
+      Die Themen entstehen durch BERTopic über den Korpus im Geltungsbereich. Jedes
+      Dokument wird mit dem gepinnten multilingualen Satzmodell (intfloat/multilingual-e5-large,
+      „passage:"-Eingaben) eingebettet, die Embeddings werden mit einer geseedeten
+      UMAP-Projektion reduziert und das Ergebnis mit HDBSCAN geclustert; jedes Cluster
+      wird durch seine c-TF-IDF-Repräsentation benannt — die vier im Cluster gegenüber
+      dem Rest am stärksten überrepräsentierten Wörter — mit vorangestellter numerischer
+      Themen-ID. Themen-ID -1 ist die Ausreißerklasse: Artikel, die in kein kohärentes
+      Cluster passen, werden gezeigt statt verborgen, denn ein Ausreißer ist selbst eine
+      Beobachtung. Themen werden nach Sprache partitioniert, weil die Embeddings
+      sprachspezifisch sind — Themen-IDs sind NICHT sprachübergreifend vergleichbar. Dies
+      ist ein Tier-2-Verfahren (WP-002 §8.1 Option C): reproduzierbar bei gepinnter
+      Modellversion und festem Seed, aber nicht bit-für-bit deterministisch über
+      Plattformen oder Bibliotheks-Upgrades. Der Modell-Hash steht in der Provenienz-Fußzeile;
+      mehr als ein Hash innerhalb eines Fensters bedeutet, dass die Themenidentitäten
+      rotiert sein können und nicht als eine einzige stabile Basis gelesen werden dürfen.
+      Bekannte Grenzen: kleine Korpora erzeugen eine große Ausreißerklasse und instabile
+      Cluster; das c-TF-IDF-Label ist ein statistischer Fingerabdruck, kein redaktioneller
+      Titel; und die Themenmodellierung ist provisorisch — funktionsfähig, aber für den
+      Forschungseinsatz noch nicht validiert.
+contentVersion: "v2026-06-a"
+lastReviewedBy: "Engineering Team"
+lastReviewedDate: "2026-06-24"
+workingPaperAnchors:
+  - "WP-002 §8.1"
+  - "WP-004 §3.4"

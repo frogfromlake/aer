@@ -27,6 +27,7 @@
   "rg_role_lagging": "Lagging",
   "rg_role_node_size": "Node size",
   "rg_role_node_color": "Node colour",
+  "rg_role_node_identity": "Nodes · NER",
   "rg_role_field": "Category field",
   "rg_role_chain": "Chain step",
   "rg_role_facet": "Facet",

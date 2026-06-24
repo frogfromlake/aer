@@ -15,6 +15,11 @@
 //   sankey                → fieldChain[]
 //   + any faceting view   → facetField (a categorical field)
 //
+// Two views bind no per-article metric but ARE driven by a corpus-level model
+// whose Tier/provenance/limitations must still be disclosed (a "method subject"):
+//   topic_distribution / topic_evolution → the topic model (BERTopic) = `topic_model`
+//   cooccurrence_network                 → the NER behind the nodes = `entity_count`
+//
 // The methodology surface (MeasureDetail) enumerates these so every bound
 // metric and field gets its own methodology block — "every presentation ×
 // every metric × every field", not just the two single-metric views.
@@ -44,7 +49,14 @@ export type SubjectRole =
   | 'nodeColor' // co-occurrence node-colour metric
   | 'field' // categorical-distribution category field
   | 'chain' // sankey field-chain member
-  | 'facet'; // small-multiples facet field
+  | 'facet' // small-multiples facet field
+  // Phase 148g — "method subjects": the corpus-level analytical MODEL behind a
+  // view that binds no per-article metric. They carry Tier/provenance/limitations
+  // like a metric, so the model's reflexive disclosure is surfaced (not just the
+  // howto prose). Trusted by the enumerator (never a stale Panel.metric), so
+  // SubjectMethodology fetches their provenance/content directly.
+  | 'model' // topic_distribution / topic_evolution → the topic model (BERTopic)
+  | 'nodeIdentity'; // cooccurrence_network → the NER that identifies the nodes
 
 /** One bound subject: a machine name + the role(s) it plays. A name bound to
  *  more than one channel (e.g. a scatter metric on both x and colour) appears
@@ -101,10 +113,21 @@ export function cellSubjects(presentation: PresentationDefinition, panel: Panel)
       add(out, ch?.y, 'lagging');
       break;
     case 'cooccurrence_network':
-      // Node size / colour only carry a metric when their channel is bound to
-      // 'metric'. Colour falls back to the size metric when its own is unset.
+      // The nodes are named entities from NER — `entity_count` carries that
+      // method's Tier/provenance/limitations, so it is always the node-identity
+      // subject (the reader sees how nodes are recognised, not just the howto).
+      add(out, 'entity_count', 'nodeIdentity');
+      // Node size / colour additionally carry a metric when their channel is
+      // bound to 'metric'. Colour falls back to the size metric when its own is unset.
       if (ch?.netSize === 'metric') add(out, ch?.netMetric, 'nodeSize');
       if (ch?.netColor === 'metric') add(out, ch?.netColorMetric ?? ch?.netMetric, 'nodeColor');
+      break;
+    case 'topic_distribution':
+    case 'topic_evolution':
+      // No per-article metric — the subject is the topic model itself (BERTopic).
+      // `topic_model` carries Tier-2 provenance + limitations (metric_provenance.yaml,
+      // provenance-only, not in /metrics/available — like revision_count).
+      add(out, 'topic_model', 'model');
       break;
     case 'categorical_distribution':
       // The category field rides in Panel.metric (usesMetadataField).
@@ -115,8 +138,8 @@ export function cellSubjects(presentation: PresentationDefinition, panel: Panel)
       break;
     default:
       // revision_activity / revision_timeline / revision_discourse_shift /
-      // revision_edit_clusters / cross_probe_lead_lag / topic_* — no
-      // per-subject methodology; the per-view howto carries the method.
+      // revision_edit_clusters / cross_probe_lead_lag — no per-subject
+      // methodology; the per-view howto carries the method.
       break;
   }
 

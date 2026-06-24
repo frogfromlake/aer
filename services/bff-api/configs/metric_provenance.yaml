@@ -253,3 +253,26 @@ external_citation_count:
     - "Metadata-richness asymmetry — a source that declares no structured citations is structurally absent for this field (Negative Space), never recorded as zero citations (WP-003 §3.2)."
   extractor_version_hash: metadata-v1
   wp_reference: WP-003 §3.2
+
+# Topic modelling is a corpus-level analytical METHOD, not a per-article metric —
+# it is the model behind the topic_distribution + topic_evolution presentations.
+# Like revision_count it carries provenance without appearing in /metrics/available
+# (never selectable as a scalar metric); the topic_* views surface this entry so a
+# reader sees the model's Tier, algorithm, and limitations, not just prose.
+topic_model:
+  tier_classification: 2
+  algorithm_description: >
+    BERTopic over aer_gold.topic_assignments (Phase 120). Documents are embedded
+    with the pinned intfloat/multilingual-e5-large model ("passage:" inputs),
+    reduced with seeded UMAP, and clustered with HDBSCAN; each topic is labelled
+    by its c-TF-IDF representation (the four words most over-represented in the
+    cluster), prefixed by a numeric topic id. Topic id -1 is the outlier class.
+    Topics are partitioned by language because the embeddings are language-specific.
+  known_limitations:
+    - "Reproducible, not bit-for-bit deterministic — results are stable for a pinned model version + fixed UMAP/HDBSCAN seed, but not guaranteed identical across platforms or library upgrades (Tier 2, WP-002 §8.1 Option C)."
+    - "Model rotation breaks longitudinal comparability — more than one model hash within a window means the topic identities may have rotated; topic ids are not a stable basis across a model change (WP-002 §8.1)."
+    - "Topic ids do not align across languages — each language is clustered independently, so topic 0 in German and topic 0 in French are unrelated; never read across language partitions as if the ids matched (WP-004 §3.4)."
+    - "Labels are fingerprints, not titles — the c-TF-IDF words characterise a cluster statistically; they are not an editorial topic name and can read oddly for a small or mixed cluster."
+    - "Small-corpus instability — with few documents HDBSCAN produces a large outlier class (-1) and unstable clusters; the topic structure is meaningful only at sufficient corpus size."
+  extractor_version_hash: multilingual-e5-large
+  wp_reference: WP-002 §8.1

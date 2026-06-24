@@ -27,6 +27,7 @@
   "rg_role_lagging": "Nachlaufend",
   "rg_role_node_size": "Knotengröße",
   "rg_role_node_color": "Knotenfarbe",
+  "rg_role_node_identity": "Knoten · NER",
   "rg_role_field": "Kategorie-Feld",
   "rg_role_chain": "Kettenglied",
   "rg_role_facet": "Facette",

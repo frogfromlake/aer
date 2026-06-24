@@ -77,18 +77,36 @@ describe('cellSubjects (Phase 148g)', () => {
     ]);
   });
 
-  it('cooccurrence node metrics only count when their channel is bound to metric', () => {
+  it('cooccurrence always carries the NER node-identity method, plus any bound channel metric', () => {
+    // default channels (no metric bound) → just the NER node-identity subject
+    expect(subjectsFor('cooccurrence_network', {})).toEqual([
+      { name: 'entity_count', roles: ['nodeIdentity'] }
+    ]);
+    // node size bound to a metric → NER + that metric
     expect(
       subjectsFor('cooccurrence_network', {
         channels: { netSize: 'metric', netMetric: 'word_count', netColor: 'community' }
       })
-    ).toEqual([{ name: 'word_count', roles: ['nodeSize'] }]);
+    ).toEqual([
+      { name: 'entity_count', roles: ['nodeIdentity'] },
+      { name: 'word_count', roles: ['nodeSize'] }
+    ]);
     // colour falls back to the size metric when its own colour metric is unset
     expect(
       subjectsFor('cooccurrence_network', {
         channels: { netSize: 'metric', netColor: 'metric', netMetric: 'word_count' }
       })
-    ).toEqual([{ name: 'word_count', roles: ['nodeSize', 'nodeColor'] }]);
+    ).toEqual([
+      { name: 'entity_count', roles: ['nodeIdentity'] },
+      { name: 'word_count', roles: ['nodeSize', 'nodeColor'] }
+    ]);
+  });
+
+  it('topic views carry the topic model as a method subject', () => {
+    expect(subjectsFor('topic_distribution', { metric: 'stale_metric' })).toEqual([
+      { name: 'topic_model', roles: ['model'] }
+    ]);
+    expect(subjectsFor('topic_evolution', {})).toEqual([{ name: 'topic_model', roles: ['model'] }]);
   });
 
   it('categorical_distribution binds Panel.metric as a category field', () => {
@@ -112,8 +130,9 @@ describe('cellSubjects (Phase 148g)', () => {
     ]);
   });
 
-  it('returns no per-subject methodology for metric-agnostic views', () => {
+  it('returns no per-subject methodology for the metric-agnostic revision / lead-lag views', () => {
     expect(subjectsFor('revision_activity', { metric: 'whatever' })).toEqual([]);
-    expect(subjectsFor('topic_distribution', { metric: 'stale_metric' })).toEqual([]);
+    expect(subjectsFor('revision_timeline', {})).toEqual([]);
+    expect(subjectsFor('cross_probe_lead_lag', {})).toEqual([]);
   });
 });

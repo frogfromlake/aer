@@ -49,17 +49,24 @@
 
   const ctx: FetchContext = { baseUrl: '/api/v1' };
 
-  // Kind resolution — a real `/metrics/available` metric, else one of the fixed
-  // 22 metadata fields, else unknown (render nothing rather than a broken fetch).
-  const isMetric = $derived(isRegisteredMetric(name));
+  // Kind resolution — a real `/metrics/available` metric, a trusted "method
+  // subject" (the corpus model behind a metric-agnostic view — `topic_model`,
+  // entity NER), else one of the fixed 22 metadata fields, else unknown (render
+  // nothing rather than a broken fetch). Method subjects are NOT in
+  // /metrics/available, so they bypass the isRegisteredMetric gate — but they are
+  // emitted by cellSubjects (never a stale Panel.metric), so fetching their
+  // provenance/content directly is safe.
+  const isMethodSubject = $derived(roles.includes('model') || roles.includes('nodeIdentity'));
+  const isMetric = $derived(isMethodSubject || isRegisteredMetric(name));
   const fieldDesc = $derived(fieldDescription(name));
   const isField = $derived(!isMetric && fieldDesc !== null);
 
   const subjectLabel = $derived(isMetric ? metricLabel(name) : fieldLabel(name));
 
-  // Role chips ('primary' = the lone metric of a single-metric view → no chip).
+  // Role chips ('primary'/'model' = the lone subject of its view → no chip).
   const ROLE_LABELS: Record<SubjectRole, (() => string) | null> = {
     primary: null,
+    model: null,
     x: m.rg_role_x,
     y: m.rg_role_y,
     size: m.rg_role_size,
@@ -71,6 +78,7 @@
     lagging: m.rg_role_lagging,
     nodeSize: m.rg_role_node_size,
     nodeColor: m.rg_role_node_color,
+    nodeIdentity: m.rg_role_node_identity,
     field: m.rg_role_field,
     chain: m.rg_role_chain,
     facet: m.rg_role_facet
@@ -109,7 +117,11 @@
   });
 
   // Per-(view×metric) pairing prose — only the single-metric views ship it.
-  const hasPairing = $derived(isMetric && hasCellMethodologyContent(viewMode));
+  // Per-(view×metric) pairing prose applies to a real bound metric only — a
+  // method subject (the model behind a metric-agnostic view) has no pairing file
+  // (and its view IS in the pairing set, so this guard prevents a 404 / pulling
+  // an orphaned pairing).
+  const hasPairing = $derived(isMetric && !isMethodSubject && hasCellMethodologyContent(viewMode));
   const pairingId = $derived(cellContentId(viewMode, name));
   const pairingQ = createQuery<
     QueryOutcome<ContentResponseDto>,
@@ -229,12 +241,17 @@
           </details>
         {/if}
 
-        <div class="meth-links">
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
-          <a class="meth-link" href="/reflection/metric/{name}">
-            {m.workbench_meth_link_provenance_page()}
-          </a>
-        </div>
+        {#if !isMethodSubject}
+          <!-- A method subject (topic_model, NER) is not in the Reflection metric
+               catalogue, so it has no /reflection/metric/<name> page — its full
+               provenance is shown inline above. -->
+          <div class="meth-links">
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
+            <a class="meth-link" href="/reflection/metric/{name}">
+              {m.workbench_meth_link_provenance_page()}
+            </a>
+          </div>
+        {/if}
       {/if}
     {:else if isField}
       <details class="meth-block" data-section="field" open>
