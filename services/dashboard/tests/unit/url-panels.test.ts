@@ -241,6 +241,8 @@ describe('encodePillarState — preserves individual levers', () => {
       true
     ],
     ['showWithheld=true', { showWithheld: true }, (p) => p?.showWithheld, true],
+    // Phase 149 — human panel caption (pn) round-trips and rides in the analysis state.
+    ['label', { label: 'FR vs DE sentiment' }, (p) => p?.label, 'FR vs DE sentiment'],
     // Phase 148g — provenance-border mode (pv) round-trips for each non-default value.
     [
       'provenanceBorder=source',

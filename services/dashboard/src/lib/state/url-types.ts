@@ -293,6 +293,11 @@ export interface Panel {
   view: Presentation;
   metric: string;
   layer: DataLayer;
+  // Phase 149 — optional human label for the panel (e.g. "FR vs DE sentiment").
+  // Shown in the panel header next to the presentation title; editable inline.
+  // Rides in the saved-analysis state (it lives in the pillar payload). Encoded
+  // as `pn` in the compact payload; absent/empty when unset.
+  label?: string;
   resolution?: Resolution;
   normalization?: Normalization;
   topN?: number;
@@ -571,6 +576,7 @@ export interface CompactPanel {
   v: Presentation;
   m: string;
   l: 'g' | 's';
+  pn?: string; // label (Phase 149 — human panel caption)
   r?: Resolution;
   n?: Normalization;
   tN?: number;

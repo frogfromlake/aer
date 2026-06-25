@@ -516,8 +516,10 @@
   /* Variant 1 — disclosure counts on the collapsed header (always present so the
      negative space is never silently hidden). The withheld chip carries the calm
      warning hue; the no-signal/low-signal chips stay neutral (methodological). */
+  /* Phase 149 — sit directly to the right of the "Panel controls" label (a slight
+     gap via the header's own `gap`), not pushed to the centre/right. The
+     collapse-toggle keeps its `margin-left: auto` so it stays at the far edge. */
   .header-disclosures {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 4px;

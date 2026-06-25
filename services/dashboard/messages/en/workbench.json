@@ -46,6 +46,11 @@
   "workbench_panel_restore_title": "Restore (un-maximize) — Esc also works",
   "workbench_panel_maximize_title": "Maximize this panel",
   "workbench_panel_remove_title": "Remove this panel",
+  "workbench_panel_label_placeholder": "Name this panel…",
+  "workbench_panel_label_input_aria": "Panel caption",
+  "workbench_panel_label_save_title": "Save caption",
+  "workbench_panel_label_edit_title": "Rename panel",
+  "workbench_panel_label_add_title": "Add a caption",
 
   "workbench_scope_chips_aria_label": "Scope groups in this panel",
   "workbench_scope_chip_group": "Group {index}",

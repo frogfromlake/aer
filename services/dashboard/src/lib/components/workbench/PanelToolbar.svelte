@@ -19,6 +19,13 @@
     onEditScope: (e: MouseEvent) => void;
     onToggleMaximize: (e: MouseEvent) => void;
     onRemove: (e: MouseEvent) => void;
+    /** Phase 149 — commit a new panel caption (empty string clears it). Absent
+     *  for non-interactive (unfocused / read-only) panels — the label still
+     *  renders, but without the edit affordance. */
+    onRenameLabel?: (label: string) => void;
+    /** Phase 149 — the colour of the pillar this panel lives in; tints the
+     *  caption text (matches the PillarSwitch title colour). */
+    pillarColor?: string;
   }
 
   let {
@@ -30,72 +37,182 @@
     canRemove,
     onEditScope,
     onToggleMaximize,
-    onRemove
+    onRemove,
+    onRenameLabel,
+    pillarColor
   }: Props = $props();
+
+  // Phase 149 — inline caption editor (pencil → input → diskette). Local UI state;
+  // the committed value flows up via onRenameLabel and persists in the URL state.
+  let editing = $state(false);
+  let draft = $state('');
+  function startEdit(e: MouseEvent) {
+    e.stopPropagation();
+    draft = panel.label ?? '';
+    editing = true;
+  }
+  function commit(e: Event) {
+    e.stopPropagation();
+    onRenameLabel?.(draft.trim());
+    editing = false;
+  }
+  function cancel() {
+    editing = false;
+  }
+  function onKeydown(e: KeyboardEvent) {
+    e.stopPropagation();
+    if (e.key === 'Enter') commit(e);
+    else if (e.key === 'Escape') cancel();
+  }
 </script>
 
+<!-- Phase 149 — 3-column grid (1fr · auto · 1fr) so the caption is centred relative
+     to the FULL panel width, independent of the left title / right actions. -->
 <header class="panel-header">
-  <span class="panel-eyebrow">{presentation.label}</span>
-  {#if presentation.usesMetric !== false}
-    <span class="panel-sep" aria-hidden="true">·</span>
-    <code class="panel-metric">{panel.metric}</code>
-  {/if}
-  {#if panel.locked === true && panel.lockedFunction}
-    <span class="panel-lock" title={m.workbench_panel_lock_title()}>
-      {m.workbench_panel_locked_to({ function: panel.lockedFunction })}
-    </span>
-  {/if}
-  {#if isInteractive}
-    <!-- Each action button stops click + keydown propagation in its own
-         handler so the surrounding `<article>`'s focus handler does not also
-         fire. Phase 122i revision (B1): `locked` is scope-only; `Edit scope`
-         (scope mutation) is gated downstream when locked, `×Remove` and the
-         other panel-level actions remain available. -->
-    <div class="panel-actions">
-      <button
-        type="button"
-        class="panel-action"
-        onclick={onEditScope}
-        title={m.workbench_panel_edit_scope_title()}
-      >
-        {m.workbench_panel_edit_scope()}
-      </button>
-      {#if canMaximize || isMaximized}
-        <!-- Phase 122i revision (C3). Maximize is UI state, not scope editing,
-             so it stays enabled on locked panels. Hidden when there is nothing
-             else in the window to maximize against. -->
+  <div class="panel-header-left">
+    <span class="panel-eyebrow">{presentation.label}</span>
+    {#if presentation.usesMetric !== false}
+      <span class="panel-sep" aria-hidden="true">·</span>
+      <code class="panel-metric">{panel.metric}</code>
+    {/if}
+  </div>
+  <!-- Phase 149 — editable panel caption, CENTERED in the header, tinted in the
+       pillar colour. Click the label (or the pencil) to edit; save with the
+       diskette. Icons are monochrome inline SVGs so they take the SideRail accent
+       colour (the floppy emoji would ignore `color`). -->
+  <span class="panel-caption">
+    {#if isInteractive && onRenameLabel}
+      {#if editing}
+        <span class="panel-label-editor" role="presentation" onclick={(e) => e.stopPropagation()}>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="panel-label-input"
+            style:color={pillarColor}
+            bind:value={draft}
+            onkeydown={onKeydown}
+            placeholder={m.workbench_panel_label_placeholder()}
+            aria-label={m.workbench_panel_label_input_aria()}
+            autofocus
+          />
+          <button
+            type="button"
+            class="panel-label-btn"
+            onclick={commit}
+            title={m.workbench_panel_label_save_title()}
+            aria-label={m.workbench_panel_label_save_title()}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+              <path d="M17 21v-8H7v8" />
+              <path d="M7 3v5h8" />
+            </svg>
+          </button>
+        </span>
+      {:else}
+        {#if panel.label}
+          <button
+            type="button"
+            class="panel-label panel-label-button"
+            style:color={pillarColor}
+            onclick={startEdit}
+            title={m.workbench_panel_label_edit_title()}>{panel.label}</button
+          >
+        {/if}
+        <button
+          type="button"
+          class="panel-label-btn"
+          onclick={startEdit}
+          title={panel.label
+            ? m.workbench_panel_label_edit_title()
+            : m.workbench_panel_label_add_title()}
+          aria-label={panel.label
+            ? m.workbench_panel_label_edit_title()
+            : m.workbench_panel_label_add_title()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+        </button>
+      {/if}
+    {:else if panel.label}
+      <span class="panel-label" style:color={pillarColor}>{panel.label}</span>
+    {/if}
+  </span>
+  <div class="panel-header-right">
+    {#if panel.locked === true && panel.lockedFunction}
+      <span class="panel-lock" title={m.workbench_panel_lock_title()}>
+        {m.workbench_panel_locked_to({ function: panel.lockedFunction })}
+      </span>
+    {/if}
+    {#if isInteractive}
+      <!-- Each action button stops click + keydown propagation in its own
+           handler so the surrounding `<article>`'s focus handler does not also
+           fire. Phase 122i revision (B1): `locked` is scope-only; `Edit scope`
+           (scope mutation) is gated downstream when locked, `×Remove` and the
+           other panel-level actions remain available. -->
+      <div class="panel-actions">
         <button
           type="button"
           class="panel-action"
-          onclick={onToggleMaximize}
-          title={isMaximized
-            ? m.workbench_panel_restore_title()
-            : m.workbench_panel_maximize_title()}
-          aria-pressed={isMaximized}
+          onclick={onEditScope}
+          title={m.workbench_panel_edit_scope_title()}
         >
-          {isMaximized ? m.workbench_panel_restore() : m.workbench_panel_maximize()}
+          {m.workbench_panel_edit_scope()}
         </button>
-      {/if}
-      {#if canRemove}
-        <button
-          type="button"
-          class="panel-action panel-action-remove"
-          onclick={onRemove}
-          title={m.workbench_panel_remove_title()}
-        >
-          ×
-        </button>
-      {/if}
-    </div>
-  {/if}
+        {#if canMaximize || isMaximized}
+          <!-- Phase 122i revision (C3). Maximize is UI state, not scope editing,
+             so it stays enabled on locked panels. Hidden when there is nothing
+             else in the window to maximize against. -->
+          <button
+            type="button"
+            class="panel-action"
+            onclick={onToggleMaximize}
+            title={isMaximized
+              ? m.workbench_panel_restore_title()
+              : m.workbench_panel_maximize_title()}
+            aria-pressed={isMaximized}
+          >
+            {isMaximized ? m.workbench_panel_restore() : m.workbench_panel_maximize()}
+          </button>
+        {/if}
+        {#if canRemove}
+          <button
+            type="button"
+            class="panel-action panel-action-remove"
+            onclick={onRemove}
+            title={m.workbench_panel_remove_title()}
+          >
+            ×
+          </button>
+        {/if}
+      </div>
+    {/if}
+  </div>
 </header>
 
 <style>
   .panel-header {
-    display: flex;
-    align-items: baseline;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
     gap: var(--space-2);
-    flex-wrap: wrap;
+  }
+  /* Equal 1fr side columns → the centre `auto` column (caption) is centred
+     relative to the FULL header width, regardless of left/right content. */
+  .panel-header-left {
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .panel-header-right {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .panel-eyebrow {
@@ -118,16 +235,108 @@
   }
 
   .panel-lock {
-    margin-left: auto;
     font-size: var(--font-size-xs);
     color: var(--color-accent);
     font-style: italic;
   }
 
+  /* Phase 149 — panel caption: centered in the header, tinted in the pillar colour.
+     `flex: 1` lets the empty/short caption push the lock + actions to the right
+     edge without a `margin-left: auto` race. */
+  .panel-caption {
+    justify-self: center;
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+  }
+
+  .panel-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-fg);
+    max-width: 28rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The label doubles as an edit affordance (click to rename). */
+  .panel-label-button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .panel-label-button:hover,
+  .panel-label-button:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    outline: none;
+  }
+
+  .panel-label-editor {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .panel-label-input {
+    min-width: 10rem;
+    max-width: 28rem;
+    padding: 1px var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-fg);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+  }
+  .panel-label-input:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  /* Pencil / diskette — same accent colour as the SideRail icons, sized to read. */
+  .panel-label-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--color-accent);
+    cursor: pointer;
+  }
+  .panel-label-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .panel-label-btn:hover,
+  .panel-label-btn:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+    outline: none;
+  }
+
   .panel-actions {
     display: flex;
     gap: var(--space-1);
-    margin-left: auto;
   }
 
   .panel-action {

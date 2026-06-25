@@ -71,6 +71,7 @@ function compactPanel(p: Panel): CompactPanel {
     m: p.metric,
     l: p.layer === 'silver' ? 's' : 'g'
   };
+  if (p.label !== undefined && p.label !== '') c.pn = p.label;
   if (p.resolution !== undefined) c.r = p.resolution;
   if (p.normalization !== undefined) c.n = p.normalization;
   if (p.topN !== undefined) c.tN = p.topN;
@@ -236,6 +237,7 @@ function expandPanel(c: CompactPanel): Panel {
     metric: c.m,
     layer: c.l === 's' ? 'silver' : 'gold'
   };
+  if (typeof c.pn === 'string' && c.pn.length > 0) p.label = c.pn;
   if (c.r !== undefined) p.resolution = c.r;
   if (c.n !== undefined) p.normalization = c.n;
   if (c.tN !== undefined) p.topN = c.tN;
@@ -363,6 +365,7 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   if (typeof v.v !== 'string' || !(VIEW_MODES as readonly string[]).includes(v.v)) return false;
   if (typeof v.m !== 'string' || !METRIC_NAME_RE.test(v.m)) return false;
   if (v.l !== 'g' && v.l !== 's') return false;
+  if (v.pn !== undefined && typeof v.pn !== 'string') return false;
   if (v.r !== undefined && !(RESOLUTIONS as readonly string[]).includes(v.r as string))
     return false;
   if (v.n !== undefined && !(NORMALIZATIONS as readonly string[]).includes(v.n as string))

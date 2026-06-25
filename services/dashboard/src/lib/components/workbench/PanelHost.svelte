@@ -11,6 +11,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import {
     getPresentation,
+    getPillar,
     type PresentationDefinition,
     type PresentationCellProps
   } from '$lib/presentations';
@@ -115,8 +116,22 @@
     if (!path) return;
     toggleMaximizedPanel(path.pillar, path.windowIndex, path.panelIndex);
   }
+  // Phase 149 — set/clear the panel's human caption (empty string clears it so
+  // the URL/saved-analysis state stays clean). Persists via the pillar payload.
+  function onRenameLabel(label: string) {
+    if (!path) return;
+    updatePanel(path, (p) => {
+      const o = { ...p };
+      if (label) o.label = label;
+      else delete o.label;
+      return o;
+    });
+  }
 
   const presentation = $derived<PresentationDefinition>(getPresentation(panel.view));
+  // Phase 149 — the caption is tinted in the colour of the pillar this panel
+  // lives in (matches the active PillarSwitch title colour).
+  const pillarColor = $derived(getPillar(pillar ?? null).color);
 
   // Phase 148f — whether any cell overrides the panel's dimension (metric peek),
   // so the panel guide's title can note that those cells are excepted.
@@ -241,6 +256,8 @@
     onEditScope={onAddCompare}
     {onToggleMaximize}
     {onRemove}
+    {onRenameLabel}
+    {pillarColor}
   />
 
   {#if path}

@@ -46,6 +46,11 @@
   "workbench_panel_restore_title": "Wiederherstellen (Maximierung aufheben) — auch mit Esc",
   "workbench_panel_maximize_title": "Dieses Panel maximieren",
   "workbench_panel_remove_title": "Dieses Panel entfernen",
+  "workbench_panel_label_placeholder": "Panel benennen…",
+  "workbench_panel_label_input_aria": "Panel-Beschriftung",
+  "workbench_panel_label_save_title": "Beschriftung speichern",
+  "workbench_panel_label_edit_title": "Panel umbenennen",
+  "workbench_panel_label_add_title": "Beschriftung hinzufügen",
 
   "workbench_scope_chips_aria_label": "Bereichsgruppen in diesem Panel",
   "workbench_scope_chip_group": "Gruppe {index}",
