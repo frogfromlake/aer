@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreDependencies": ["@fontsource-variable/inter", "@fontsource/ibm-plex-mono"],
-  "ignore": ["lighthouserc.cjs"],
+  "ignore": ["lighthouserc.cjs", "static/theme-init.js"],
   "rules": {
     "files": "error",
     "dependencies": "error",

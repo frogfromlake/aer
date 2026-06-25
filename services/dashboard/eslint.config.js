@@ -41,7 +41,7 @@ const FILE_LENGTH_ALLOWLIST = [
   // are now thin orchestrators under the global cap (no entry needed). Phase 141
   // is COMPLETE: every remaining entry below is an operator-approved exception
   // (render-glue / data table / within-tolerance), not pending decomposition.
-  ['**/packages/engine-3d/src/engine.ts', 991], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable (+54 Phase 128 — render-loop gating: setActive/visibility pause + reduced-motion flyTo)
+  ['**/packages/engine-3d/src/engine.ts', 1003], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable (+54 Phase 128 — render-loop gating: setActive/visibility pause + reduced-motion flyTo; +12 Color Themes — theme-driven backdrop: setBackdrop + clear-colour wiring)
   ['**/open-questions.ts', 766], // DATA table (open research-question content); +23 Phase 144c — QuestionProse type + the locale-overlay accessors (DE prose lives in the sibling open-questions.de.ts)
   ['**/CoOccurrenceNetworkAtScale.svelte', 1267], // logic in cooccurrence-network-shared.ts + cooccurrence-query.ts (both tested); residual = sigma/FA2/WebGL glue. Phase 148g made this the SINGLE co-occurrence renderer (SVG path retired): cross-probe merge + cross-language confirm/disclosure, per-probe fill, node↔edge coupling, label toggle + uniform labels, cursor tooltip fix, colour legend + styles; +210 for the @sigma/node-border provenance-ring program (source/probe rings), the live border toggle, and the ring legend + styles. Tested logic stays in the shared modules.
   ['**/AtmosphereSurface.svelte', 657], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers (+15 Phase 144 banner/tooltip plurals)

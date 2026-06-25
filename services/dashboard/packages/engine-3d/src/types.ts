@@ -109,6 +109,14 @@ export interface EngineConfig {
   readonly landSdfUrl: string;
   /** Override the device pixel ratio cap. Defaults to `min(devicePixelRatio, 2)`. */
   readonly pixelRatioCap?: number;
+  /**
+   * Backdrop (WebGL clear) colour as a CSS hex string. Defaults to pure black.
+   * The host derives it from the active theme's `--globe-backdrop` token so the
+   * globe sits on a theme-coherent dark field — the additive-blended probe
+   * glyphs need a dark backdrop, so light themes use a *lifted* deep slate
+   * rather than a literal light background.
+   */
+  readonly backdropColor?: string;
 }
 
 export interface AtmosphereEngine {
@@ -162,6 +170,12 @@ export interface AtmosphereEngine {
    * with tab-visibility — the loop runs only when both allow it.
    */
   setActive(active: boolean): void;
+  /**
+   * Recolour the backdrop (WebGL clear colour) at runtime from a CSS hex string.
+   * Called on a theme switch so the globe's field tracks the active theme
+   * without a remount; the running render loop picks it up on the next frame.
+   */
+  setBackdrop(color: string): void;
   /** Tear down: stop the loop, dispose geometries/materials, release the GL context. */
   dispose(): void;
 }

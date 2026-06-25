@@ -239,11 +239,18 @@ class Engine implements AtmosphereEngine {
   private readonly pointerNdc = new Vector2();
   private pointerInsideCanvas = false;
 
+  // Backdrop (clear) colour. Theme-driven: pure black by default, a lifted deep
+  // slate for light themes (the additive probe glyphs need a dark field). Held
+  // as a reusable Color so `setBackdrop` can recolour live without allocating.
+  private readonly backdropColor = new Color('#000000');
+
   constructor(config: EngineConfig) {
     this.config = {
       landSdfUrl: config.landSdfUrl,
-      pixelRatioCap: config.pixelRatioCap ?? Math.min(globalThis.devicePixelRatio ?? 1, 2)
+      pixelRatioCap: config.pixelRatioCap ?? Math.min(globalThis.devicePixelRatio ?? 1, 2),
+      backdropColor: config.backdropColor ?? '#000000'
     };
+    this.backdropColor.set(this.config.backdropColor);
   }
 
   mount(canvas: HTMLCanvasElement): void {
@@ -257,7 +264,7 @@ class Engine implements AtmosphereEngine {
       powerPreference: 'high-performance'
     });
     this.renderer.setPixelRatio(this.config.pixelRatioCap);
-    this.renderer.setClearColor(0x000000, 1);
+    this.renderer.setClearColor(this.backdropColor, 1);
 
     this.scene = new Scene();
 
@@ -310,6 +317,13 @@ class Engine implements AtmosphereEngine {
     if (this.active === active) return;
     this.active = active;
     this.syncLoop();
+  }
+
+  setBackdrop(color: string): void {
+    this.backdropColor.set(color);
+    // Applies on the next frame of the running loop; harmless if not yet mounted
+    // (the mount path reads the same Color) or paused (re-clears on resume).
+    this.renderer?.setClearColor(this.backdropColor, 1);
   }
 
   private onVisibilityChange = (): void => {

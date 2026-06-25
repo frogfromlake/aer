@@ -509,7 +509,7 @@
   .stage {
     position: fixed;
     inset: 0;
-    background: #000;
+    background: var(--globe-backdrop, #000);
     transition: opacity 320ms ease-in-out;
   }
   .probe-tooltip {

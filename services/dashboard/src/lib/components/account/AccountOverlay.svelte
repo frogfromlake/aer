@@ -11,6 +11,7 @@
   import Button from '$lib/components/base/Button.svelte';
   import AdminPanel from '$lib/components/account/AdminPanel.svelte';
   import AccountIdentityCard from '$lib/components/account/AccountIdentityCard.svelte';
+  import AccountAppearance from '$lib/components/account/AccountAppearance.svelte';
   import AccountSessions from '$lib/components/account/AccountSessions.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { formatDate } from '$lib/localization/format';
@@ -205,6 +206,8 @@
           class="tabpanel"
         >
           <AccountIdentityCard {me} />
+
+          <AccountAppearance />
 
           <section class="block">
             <h3>{m.account_password_heading()}</h3>

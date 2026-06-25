@@ -17,6 +17,14 @@
   import { page } from '$app/state';
   import { m } from '$lib/paraglide/messages.js';
   import LocaleMenu from '$lib/components/chrome/LocaleMenu.svelte';
+  import ThemeMenu from '$lib/components/chrome/ThemeMenu.svelte';
+  import { user, doLogout } from '$lib/state/auth.svelte';
+
+  // Quick sign-out, reachable from every surface (the same `doLogout` the account
+  // overlay's identity card calls). Guarded on `user()` — the (app) layout only
+  // renders chrome once the session is confirmed, but the guard keeps the button
+  // out of any transient pre-auth frame.
+  const me = $derived(user());
 
   // History back/forward — Phase 127, moved to the scope bar in Phase 148e so
   // they sit centred in chrome reachable from every surface. The app mutates
@@ -123,7 +131,26 @@
       </button>
     </div>
 
-    <div class="scope-end"><LocaleMenu /></div>
+    <div class="scope-end">
+      <ThemeMenu />
+      <LocaleMenu />
+      {#if me}
+        <span class="utility-sep" aria-hidden="true"></span>
+        <button
+          type="button"
+          class="signout-btn"
+          onclick={() => doLogout()}
+          title={m.chrome_user_signout()}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+          <span>{m.chrome_user_signout()}</span>
+        </button>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -248,13 +275,63 @@
     min-width: 0;
   }
 
-  /* Trailing utility cluster — the UI-language globe. Mirrors the lead zone
-     (flex:1, right-aligned) so the centre history group stays centred. */
+  /* Trailing utility cluster — appearance + UI-language + quick sign-out.
+     Mirrors the lead zone (flex:1, right-aligned) so the centre history group
+     stays centred. */
   .scope-end {
     flex: 1 1 0;
     min-width: 0;
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: var(--space-1);
+  }
+  /* Hairline divider between the theme/language toggles and the sign-out. */
+  .utility-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: var(--space-2) var(--space-1);
+    background: var(--color-border);
+  }
+  /* Sign-out — muted AĒR red (terracotta), compact; mirrors the account card's
+     `.signout` so the affordance reads identically in chrome and overlay. */
+  .signout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    appearance: none;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--color-status-expired) 55%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-status-expired);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .signout-btn svg {
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .signout-btn:hover,
+  .signout-btn:focus-visible {
+    background: color-mix(in srgb, var(--color-status-expired) 14%, transparent);
+    outline: none;
+  }
+  .signout-btn:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .signout-btn {
+      transition: none;
+    }
   }
 </style>

@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="AĒR — atmospheric sensor for human discourse." />
     <title>AĒR</title>
+    <!-- Anti-FOUC: apply the persisted colour theme before first paint. Render-
+         blocking same-origin script (CSP `script-src 'self'` forbids inline). -->
+    <script src="%sveltekit.assets%/theme-init.js"></script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

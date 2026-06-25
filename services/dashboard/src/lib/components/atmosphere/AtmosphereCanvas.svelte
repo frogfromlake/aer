@@ -10,6 +10,7 @@
   // pre-filtered). Probe and satellite events are surfaced separately.
   import { onDestroy, onMount } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import { theme } from '$lib/state/theme.svelte';
   import type {
     AtmosphereEngine,
     EngineConfig,
@@ -73,12 +74,24 @@
   let engine: AtmosphereEngine | null = $state(null);
   let unsubscribers: Array<() => void> = [];
 
+  // The globe's backdrop tracks the active theme's `--globe-backdrop` token
+  // (pure black for dark themes, a lifted deep slate for light ones — the
+  // additive probe glyphs need a dark field). Read live from the resolved CSS.
+  function readBackdrop(): string {
+    if (typeof getComputedStyle === 'undefined') return '#000000';
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue('--globe-backdrop')
+      .trim();
+    return v || '#000000';
+  }
+
   onMount(async () => {
     if (!canvas) return;
     const mod = await import('@aer/engine-3d');
     if (!canvas) return; // unmounted while the chunk was downloading
     const config: EngineConfig = {
-      landSdfUrl: '/data/landmass.sdf.png'
+      landSdfUrl: '/data/landmass.sdf.png',
+      backdropColor: readBackdrop()
     };
     const e = mod.createEngine(config);
     e.mount(canvas);
@@ -93,6 +106,13 @@
     unsubscribers.push(e.on('satellite-hovered', (sel) => onSatelliteHovered?.(sel)));
     engine = e;
     onready?.(e);
+  });
+
+  // Re-tint the backdrop when the theme switches (reading `theme()` tracks the
+  // rune; the new `data-theme` is already applied so the token resolves fresh).
+  $effect(() => {
+    theme();
+    engine?.setBackdrop(readBackdrop());
   });
 
   $effect(() => {
@@ -159,7 +179,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    background: #000;
+    background: var(--globe-backdrop, #000);
     /* The engine paints over this background as soon as it has a frame. */
   }
 </style>

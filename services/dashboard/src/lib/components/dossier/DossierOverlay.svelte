@@ -326,7 +326,11 @@
     z-index: 3;
     background: var(--color-bg-elevated);
     margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
-    padding: var(--space-5) var(--space-5) var(--space-3);
+    /* Shallow top/bottom padding so the sticky bar stays compact and covers as
+       little of the scrolled catalogue as possible (the negative margins still
+       make it a full-width cover); side padding keeps aligning with the
+       container's --space-5 inset. */
+    padding: var(--space-3) var(--space-5) var(--space-2);
     border-top-left-radius: var(--radius-md);
     border-top-right-radius: var(--radius-md);
   }
