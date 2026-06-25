@@ -73,7 +73,7 @@
 
   "workbench_grid_cooccurrence_refusal": "The co-occurrence network renders a single relational graph, not a grid of small multiples. This panel resolves to more than one cell (multiple sources / groups / probes under a Split composition). Open the panel controls and switch the composition to Merged (all sources pooled into one graph) or scope a single source.",
   "workbench_grid_merged_cross_probe_refusal": "Merged composition pools more than one probe onto a single shared axis for \"{metric}\", a scaled metric — that reads as a cross-context ranking, which AĒR does not render (Brief §1.3). Switch this Panel to split or overlay, narrow it to one probe, or choose a pure-count metric.",
-  "workbench_grid_loading_at_scale": "Loading large-scale renderer…",
+  "workbench_grid_loading_at_scale": "Loading the co-occurrence map…",
   "workbench_grid_cell_failed": "Cell failed to load: {error}",
   "workbench_grid_loading_presentation": "Loading {presentation}…",
   "workbench_grid_no_shared_dimension_pre": "No categorical dimension is shared across the scoped sources — at least one source (e.g. a government press office) withholds all metadata, so no field is common to every source.",
