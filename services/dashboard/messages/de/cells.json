@@ -181,6 +181,7 @@
   "cells_revec_loading": "Koordinierte Bearbeitungen werden geladen…",
   "cells_revec_error": "Koordinierte Bearbeitungen konnten nicht geladen werden.",
   "cells_revec_empty": "Keine Entität wurde von ≥{count} Quellen im selben Bucket still bearbeitet. Koinzidenz ist die Ausnahme, nicht die Regel — eine leere Liste ist der Normalfall.",
+  "cells_revec_empty_detail": "Diese Darstellung zeigt ausschließlich Fälle, in denen ≥{count} Quellen dieselbe Entität im selben Zeitfenster still bearbeitet haben — eine offengelegte Koinzidenz, niemals eine Kausalbehauptung (WP-003 §5). Leer ist hier ein ehrliches Ergebnis, keine erzwungene Null: Über Sonden verschiedener Sprachen teilen Quellen kaum dieselben Entitäten, und institutionelle Quellen bearbeiten selten still. Signal entsteht, sobald sich Quellen mit überlappenden Entitäten im selben Fenster bewegen.",
   "cells_revec_click_hint": "Jede Zeile ist eine Entität, die ≥{count} Quellen im selben Bucket still bearbeitet haben — eine offengelegte Koinzidenz, keine Kausalbehauptung. Klicken Sie auf eine Quelle, um ihre bearbeiteten Artikel zu sehen.",
   "cells_revec_chip_title": "Artikel, die {source} in diesem Bucket bearbeitet hat",
   "cells_revec_edits": "{count} Bearbeitungen",

@@ -14,6 +14,7 @@ import {
 } from '../presentations';
 import type { PresentationDefinition } from '../presentations';
 import { defaultMetricForScopes } from './panel-queries';
+import { defaultCompositionForView, initialLeversForView } from '../state/url-internals';
 import type { CellChannelBinding, Panel, Presentation, ScopeGroup } from '$lib/state/url-internals';
 
 // ── Window / date math ──────────────────────────────────────────────────────
@@ -341,16 +342,44 @@ export function reconcilePanelForView(
   id: Presentation,
   ctx: ReconcileViewContext
 ): Panel {
-  const next = { ...p, view: id };
-  // A view change discards presentation-specific per-cell overrides.
-  delete next.cellOverrides;
+  // Phase 149 — a view switch reloads the NEW presentation's defaults as the
+  // user's starting point (operator decision): every RENDERING-shaped lever is
+  // reset so configuration never bleeds across presentations (the "why is
+  // Edit-Cluster still on Split / why is this on a free axis?" bug). The
+  // ANALYTICAL CONTEXT is preserved — scope, time window (windowStart/End), lock
+  // state, the human label, the controls-collapsed state, show-withheld, and the
+  // metric (reconciled compatibly just below). The config-lever lists that the
+  // seeds below re-derive (channels / metricSet / fieldChain) + per-cell overrides
+  // are OMITTED up front (omit, not `delete`, so TS keeps their optional type for
+  // the seed reads); the remaining scalar levers are reset to their cell default.
+  const { channels: _ch, metricSet: _ms, fieldChain: _fc, cellOverrides: _co, ...kept } = p;
+  const next: Panel = { ...kept, view: id };
+  delete next.resolution;
+  delete next.normalization;
+  delete next.topN;
+  delete next.maxNodes;
+  delete next.bins;
+  delete next.showBand;
+  delete next.showEdges;
+  delete next.showLabels;
+  delete next.labelRankBy;
+  delete next.provenanceBorder;
+  delete next.forceStrength;
+  delete next.settleSeconds;
+  delete next.displayLanguage;
+  delete next.splitDirection;
+  delete next.scales;
+  delete next.facetField;
+  next.layer = 'gold';
+  next.composition = defaultCompositionForView(id);
+  const initialLevers = initialLeversForView(id);
+  if (initialLevers.labelTopPercent !== undefined) {
+    next.labelTopPercent = initialLevers.labelTopPercent;
+  } else {
+    delete next.labelTopPercent;
+  }
   const pres = ctx.presentations.find((x) => x.id === id);
-  // Drop list-state the new view does not consume (so it neither lingers in the
-  // URL nor blocks the seed below).
   const nextParams = pres?.configurableParams ?? [];
-  if (!nextParams.includes('metricSet')) delete next.metricSet;
-  if (!nextParams.includes('sankeyFields')) delete next.fieldChain;
-  if (!(pres?.supportsFaceting ?? false)) delete next.facetField;
   const usesMetric = pres?.usesMetric ?? true;
   const nextUsesMetadataField = pres?.usesMetadataField ?? false;
   const prevUsesMetadataField = ctx.prevUsesMetadataField;
@@ -404,10 +433,6 @@ export function reconcilePanelForView(
         availableMetricNames: ctx.availableMetricNames
       });
     }
-  }
-  // Reconcile a no-op overlay composition (only time-series renders overlay).
-  if (next.composition === 'overlay' && !(pres?.supportsOverlay ?? false)) {
-    next.composition = 'split';
   }
   // Seed scatter position channels (sentiment on X, word_count on Y).
   if (id === 'metric_scatter' && (!next.channels?.x || !next.channels?.y)) {

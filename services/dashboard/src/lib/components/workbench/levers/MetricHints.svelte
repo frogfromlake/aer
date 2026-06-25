@@ -69,6 +69,13 @@
   // degeneracy is relevant only where the view binds metrics; metadata
   // degeneracy only where it groups by a field — so each is gated at the source.
   const metricBinds = $derived(viewUsesMetric || configParams.includes('scatterAxes'));
+  // Phase 149 — a view can bind a categorical field either as its primary
+  // dimension (`usesMetadataField` — categorical_distribution / cross_tab) OR
+  // via the Sankey field-chain lever (`sankeyFields`). Both must surface the
+  // withheld / no-signal / per-source-constant field disclosures, else a Sankey
+  // over a cross-probe scope whose categorical fields don't intersect shows an
+  // empty field picker with NO explanation (ADR-039 DISCLOSE-NEVER-COERCE).
+  const fieldBinds = $derived(viewUsesMetadataField || configParams.includes('sankeyFields'));
   const degenerateRows = $derived<{ name: string; value: string }[]>([
     ...(metricBinds
       ? (degenerateMetrics ?? []).map((d) => ({
@@ -76,7 +83,7 @@
           value: formatConstantValue(d.value)
         }))
       : []),
-    ...(viewUsesMetadataField
+    ...(fieldBinds
       ? (degenerateMetadata ?? []).map((d) => ({ name: d.field, value: d.value }))
       : [])
   ]);
@@ -95,7 +102,7 @@
           distinct: mm.distinctValues
         }))
       : []),
-    ...(viewUsesMetadataField
+    ...(fieldBinds
       ? (lowSignalMetadata ?? []).map((f) => ({
           key: `f:${f.field}`,
           label: fieldLabel(f.field),
@@ -114,7 +121,7 @@
   const perSourceConstantRows = $derived<
     { key: string; label: string; source: string; value: string }[]
   >(
-    viewUsesMetadataField
+    fieldBinds
       ? (perSourceConstantMetadata ?? []).map((p) => ({
           key: `${p.field}:${p.source}`,
           label: fieldLabel(p.field),
@@ -155,7 +162,7 @@
 <!-- ADR-038 — metadata withholding. Phase 148e: a collapsed disclosure — the
      eyebrow + count stay visible (never silently filtered), the per-field detail
      and "show anyway" toggle expand on demand so the strip stays shallow. -->
-{#if viewUsesMetadataField && partialMetadataFields.length > 0}
+{#if fieldBinds && partialMetadataFields.length > 0}
   <details class="hint-disclosure">
     <summary class="hint-summary">
       <span class="ctrl-eyebrow">{m.levers_withheld_eyebrow()}</span>

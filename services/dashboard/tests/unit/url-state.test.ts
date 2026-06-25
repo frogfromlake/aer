@@ -21,14 +21,22 @@ function state(overrides: Partial<UrlState> = {}): UrlState {
 }
 
 describe('defaultCompositionForView', () => {
-  it('opens the co-occurrence network merged (single relational graph)', () => {
+  it('opens pooled-relational Rhizome views merged (one cell pools all sources/probes)', () => {
+    // Co-occurrence is a single graph; edit-clusters needs ≥2 sources in a cell;
+    // cross-probe lead-lag needs a probe pair in a cell — all empty/refused split.
     expect(defaultCompositionForView('cooccurrence_network')).toBe('merged');
+    expect(defaultCompositionForView('revision_edit_clusters')).toBe('merged');
+    expect(defaultCompositionForView('cross_probe_lead_lag')).toBe('merged');
   });
 
   it('keeps split for every value-axis / per-scope presentation', () => {
     expect(defaultCompositionForView('distribution')).toBe('split');
     expect(defaultCompositionForView('time_series')).toBe('split');
     expect(defaultCompositionForView('metric_scatter')).toBe('split');
+    // Sankey + metric lead-lag are genuinely per-scope (per-source flows / two
+    // metrics over one scope), so they stay split.
+    expect(defaultCompositionForView('sankey')).toBe('split');
+    expect(defaultCompositionForView('metric_lead_lag')).toBe('split');
   });
 });
 

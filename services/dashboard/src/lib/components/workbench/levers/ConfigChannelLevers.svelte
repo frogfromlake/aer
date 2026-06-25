@@ -34,6 +34,11 @@
     offerableFields: string[];
     viewUsesMetadataField: boolean;
     viewSupportsFaceting: boolean;
+    /** Count of categorical fields present on SOME-not-all sources (withheld by
+        default). When the offerable (intersection) list is empty but this is > 0
+        the empty picker is not a true Negative Space — it is a cross-source
+        non-intersection the user can opt into via "show anyway". */
+    withheldFieldCount?: number;
   }
 
   let {
@@ -43,8 +48,20 @@
     scalarMetricOptions,
     offerableFields,
     viewUsesMetadataField,
-    viewSupportsFaceting
+    viewSupportsFaceting,
+    withheldFieldCount = 0
   }: Props = $props();
+
+  const activeShowWithheld = $derived(boundPanel.showWithheld === true);
+  // True when the picker is empty only because the scope's categorical fields do
+  // not intersect (fields DO exist, just not on every source) and withholding is
+  // still on — the actionable case, distinct from a genuine absence.
+  const fieldsWithheldNotAbsent = $derived(
+    offerableFields.length === 0 && !activeShowWithheld && withheldFieldCount > 0
+  );
+  function enableShowWithheld() {
+    updatePanel(panelPath, (p) => ({ ...p, showWithheld: true }));
+  }
 
   const activeMetric = $derived(boundPanel.metric);
   const activeChannels = $derived<CellChannelBinding>(boundPanel.channels ?? {});
@@ -332,7 +349,23 @@
         </label>
       {/each}
       {#if offerableFields.length === 0}
-        <span class="field-empty">{m.levers_sankey_empty()}</span>
+        {#if fieldsWithheldNotAbsent}
+          <div class="field-withheld">
+            <span class="field-empty">
+              {m.levers_fields_withheld_only({ count: withheldFieldCount })}
+            </span>
+            <LeverButton
+              variant="partial-toggle"
+              role="switch"
+              active={false}
+              onclick={enableShowWithheld}
+            >
+              {m.levers_withheld_show_anyway()}
+            </LeverButton>
+          </div>
+        {:else}
+          <span class="field-empty">{m.levers_sankey_empty()}</span>
+        {/if}
       {/if}
     </div>
   </LeverRow>
@@ -388,7 +421,23 @@
       {/each}
     </select>
     {#if facetFieldOptions.length === 0}
-      <span class="field-empty">{m.levers_facet_empty()}</span>
+      {#if fieldsWithheldNotAbsent}
+        <div class="field-withheld">
+          <span class="field-empty">
+            {m.levers_fields_withheld_only({ count: withheldFieldCount })}
+          </span>
+          <LeverButton
+            variant="partial-toggle"
+            role="switch"
+            active={false}
+            onclick={enableShowWithheld}
+          >
+            {m.levers_withheld_show_anyway()}
+          </LeverButton>
+        </div>
+      {:else}
+        <span class="field-empty">{m.levers_facet_empty()}</span>
+      {/if}
     {/if}
   </LeverRow>
 {/if}
@@ -436,5 +485,15 @@
   }
   .metric-set-chip code {
     font-family: var(--font-mono);
+  }
+  /* Phase 149 — actionable empty state: the cross-source non-intersection note
+     plus its inline "show anyway" button stack so the affordance is right where
+     the user expects fields, not buried in a separate disclosure. */
+  .field-withheld {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
   }
 </style>

@@ -123,20 +123,24 @@ export type Normalization = 'raw' | 'zscore' | 'percentile';
 export type Composition = 'merged' | 'split' | 'overlay';
 
 /**
- * Phase 148e — the composition a freshly-created or pillar-seeded Panel opens
- * with, given its presentation. `split` is the scientifically-honest default
- * everywhere (per-scope small-multiples; merge stays an explicit opt-in that
- * pools scopes onto one shared axis) — EXCEPT the co-occurrence network, which
- * is a SINGLE relational graph, not a small-multiple grid. A `split` fan-out of
- * a multi-source / multi-probe scope refuses (PanelCellGrid
- * `cooccurrenceMultiCellRefused`), so a new Rhizome panel over such a scope must
- * open `merged` (all sources pooled into one graph) instead of greeting the user
- * with a refusal they never asked for. Pure + leaf so both create-mode
- * (`buildPanelFromScopes`) and the pillar-switch seed (`seedPillarFromCurrent`)
- * agree on one rule.
+ * Phase 148e / 149 — the composition a freshly-created or pillar-seeded Panel
+ * opens with. `split` (per-scope small-multiples) is the honest default
+ * everywhere, merge an explicit opt-in — EXCEPT the POOLED-RELATIONAL Rhizome
+ * views, which only carry signal with all sources/probes in ONE cell:
+ * `cooccurrence_network` (single graph; split refuses), `revision_edit_clusters`
+ * (a cluster needs ≥2 sources in a cell → split's single-source cells are empty
+ * by construction), `cross_probe_lead_lag` (needs a probe pair in a cell → split
+ * shows "needs two probes"). Opening these split greets the user with a refusal /
+ * empty / notice they never asked for, so they open `merged`.
  */
+const MERGED_DEFAULT_VIEWS: ReadonlySet<Presentation> = new Set<Presentation>([
+  'cooccurrence_network',
+  'revision_edit_clusters',
+  'cross_probe_lead_lag'
+]);
+
 export function defaultCompositionForView(view: Presentation): Composition {
-  return view === 'cooccurrence_network' ? 'merged' : 'split';
+  return MERGED_DEFAULT_VIEWS.has(view) ? 'merged' : 'split';
 }
 
 // Phase 148e/148g — co-occurrence opening lever values for a freshly-created /

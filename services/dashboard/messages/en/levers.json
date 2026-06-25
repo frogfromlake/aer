@@ -28,6 +28,7 @@
   "levers_withheld_showing_fields": "✓ Showing withheld",
   "levers_withheld_showing_metrics": "✓ Showing withheld (only sources with data render)",
   "levers_withheld_show_anyway": "Show anyway",
+  "levers_fields_withheld_only": "These sources share no common categorical field. {count} field(s) exist on some sources only — use “Show anyway” to chart them (sources lacking the field show Negative Space, never a forced zero).",
 
   "levers_degenerate_eyebrow": "No signal",
   "levers_degenerate_lead_one": "{count} dimension is constant across this scope — present but signal-free, so dropped from the picker:",

@@ -22,7 +22,6 @@
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import CellExport from './CellExport.svelte';
-  import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
@@ -172,7 +171,16 @@
   {:else if clustersQ.isError || clustersQ.data?.kind === 'network-error'}
     <p class="muted">{m.cells_revec_error()}</p>
   {:else if clusters.length === 0}
-    <CellEmptyState />
+    <!-- Phase 149 — edit-clusters has a sparse-by-design empty state: a coordinated
+         silent edit needs ≥MIN_SOURCES sources changing the SAME entity in the SAME
+         bucket, which is genuinely rare (and near-impossible across different-language
+         Sonden that share no entities). Replace the generic empty note with a
+         presentation-specific explanation so an empty cell reads as honest Negative
+         Space + "here is when it would surface", not "the view is broken". -->
+    <div class="ec-empty" role="note">
+      <p class="ec-empty-lead">{m.cells_revec_empty({ count: MIN_SOURCES })}</p>
+      <p class="ec-empty-detail">{m.cells_revec_empty_detail({ count: MIN_SOURCES })}</p>
+    </div>
   {:else}
     <p class="click-hint" aria-hidden="true">
       {m.cells_revec_click_hint({ count: MIN_SOURCES })}
@@ -245,6 +253,26 @@
     color: var(--color-fg-subtle);
     margin: 0;
     font-style: italic;
+  }
+  /* Phase 149 — explanatory empty state: a calm two-tier note (what is missing,
+     then why-and-when-it-surfaces) so an empty edit-clusters cell reads as honest
+     Negative Space, never a defect (ADR-039 METHODOLOGICAL-NOT-WARNING). */
+  .ec-empty {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .ec-empty-lead {
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    margin: 0;
+    line-height: var(--line-height-loose);
+  }
+  .ec-empty-detail {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+    margin: 0;
+    line-height: var(--line-height-loose);
   }
   .cluster-list {
     list-style: none;

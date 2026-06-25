@@ -181,6 +181,7 @@
   "cells_revec_loading": "Loading coordinated edits…",
   "cells_revec_error": "Could not load coordinated edits.",
   "cells_revec_empty": "No entity was silently edited by ≥{count} sources in the same bucket. Coincidence is the exception, not the rule — an empty list is the ordinary case.",
+  "cells_revec_empty_detail": "This view shows only cases where ≥{count} sources silently edited the same entity within the same time window — a disclosed coincidence, never a causal claim (WP-003 §5). Empty is an honest result here, not a forced zero: across Sonden in different languages sources barely share the same entities, and institutional sources rarely silent-edit. Signal appears once sources with overlapping entities move within the same window.",
   "cells_revec_click_hint": "Each row is an entity ≥{count} sources quietly edited in the same bucket — a disclosed coincidence, not a causal claim. Click a source to see its edited articles.",
   "cells_revec_chip_title": "Articles {source} edited in this bucket",
   "cells_revec_edits": "{count} edits",

@@ -266,17 +266,17 @@
   // (and MetricHints) is closed (ADR-039 DISCLOSE-NEVER-COERCE). Mirrors the
   // per-section gating in MetricHints exactly.
   const metricBinds = $derived(viewUsesMetric || configParams.includes('scatterAxes'));
+  const fieldBinds = $derived(viewUsesMetadataField || configParams.includes('sankeyFields'));
   const withheldCount = $derived(
-    (viewUsesMetadataField ? partialMetadataFields.length : 0) +
-      (metricBinds ? partialMetrics.length : 0)
+    (fieldBinds ? partialMetadataFields.length : 0) + (metricBinds ? partialMetrics.length : 0)
   );
   const degenerateCount = $derived(
     (metricBinds ? (degenerateMetrics?.length ?? 0) : 0) +
-      (viewUsesMetadataField ? (degenerateMetadata?.length ?? 0) : 0)
+      (fieldBinds ? (degenerateMetadata?.length ?? 0) : 0)
   );
   const lowSignalCount = $derived(
     (metricBinds ? (lowSignalMetrics?.length ?? 0) : 0) +
-      (viewUsesMetadataField ? (lowSignalMetadata?.length ?? 0) : 0)
+      (fieldBinds ? (lowSignalMetadata?.length ?? 0) : 0)
   );
 
   // Compare gate (Phase 131 BUG1): deviation/percentile need a deviation/absolute
@@ -434,6 +434,7 @@
           {offerableFields}
           {viewUsesMetadataField}
           {viewSupportsFaceting}
+          withheldFieldCount={partialMetadataFields.length}
         />
       {/if}
 

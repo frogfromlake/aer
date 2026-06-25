@@ -491,13 +491,70 @@ describe('reconcilePanelForView', () => {
     expect(next.fieldChain).toEqual(['author', 'paywall', 'section']);
   });
 
-  it('falls a no-op overlay composition back to split', () => {
+  it('resets composition to the NEW view default (overlay → split for distribution)', () => {
     const next = reconcilePanelForView(
       panel({ composition: 'overlay' }),
       'distribution' as Presentation,
       ctx([pres({ id: 'distribution', supportsOverlay: false })])
     );
     expect(next.composition).toBe('split');
+  });
+
+  it('resets composition split → merged when switching into a pooled-relational view', () => {
+    // The reported bug: a split distribution carried Split into Edit-Cluster,
+    // which only carries signal merged. The view switch must snap to the new
+    // view's default composition (cross_probe_lead_lag / revision_edit_clusters /
+    // cooccurrence_network are MERGED_DEFAULT_VIEWS).
+    const next = reconcilePanelForView(
+      panel({ composition: 'split' }),
+      'revision_edit_clusters' as Presentation,
+      ctx([pres({ id: 'revision_edit_clusters' })])
+    );
+    expect(next.composition).toBe('merged');
+  });
+
+  it('resets every rendering-shaped lever to default but keeps analytical context', () => {
+    const p = panel({
+      composition: 'split',
+      scales: 'free',
+      normalization: 'zscore',
+      bins: 80,
+      resolution: 'monthly',
+      splitDirection: 'vertical',
+      topN: 5,
+      provenanceBorder: 'both',
+      displayLanguage: 'viewer',
+      // analytical context — must survive the switch
+      windowStart: '2026-01-01',
+      windowEnd: '2026-02-01',
+      label: 'FR vs DE',
+      locked: true,
+      lockedReason: 'df_entry',
+      cellControlsCollapsed: true,
+      scopes: [{ probeIds: ['probe-0-de-news-web'], sourceIds: [] }]
+    } as Partial<Panel>);
+    const next = reconcilePanelForView(
+      p,
+      'time_series' as Presentation,
+      ctx([pres({ id: 'time_series' })])
+    );
+    // rendering-shaped → reset
+    expect(next.scales).toBeUndefined();
+    expect(next.normalization).toBeUndefined();
+    expect(next.bins).toBeUndefined();
+    expect(next.resolution).toBeUndefined();
+    expect(next.splitDirection).toBeUndefined();
+    expect(next.topN).toBeUndefined();
+    expect(next.provenanceBorder).toBeUndefined();
+    expect(next.displayLanguage).toBeUndefined();
+    expect(next.layer).toBe('gold');
+    // analytical context → preserved
+    expect(next.windowStart).toBe('2026-01-01');
+    expect(next.windowEnd).toBe('2026-02-01');
+    expect(next.label).toBe('FR vs DE');
+    expect(next.locked).toBe(true);
+    expect(next.cellControlsCollapsed).toBe(true);
+    expect(next.scopes).toEqual([{ probeIds: ['probe-0-de-news-web'], sourceIds: [] }]);
   });
 
   it('seeds the first OFFERABLE field when switching into a field-driven view', () => {

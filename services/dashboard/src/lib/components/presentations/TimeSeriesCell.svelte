@@ -44,10 +44,18 @@
   const bandShown = $derived(showBand ?? true);
 
   // Phase 131 (BUG4) — the chart's effective resolution: per-panel override,
-  // else the global URL resolution, else hourly. Computed once here and passed
-  // down so the charts AND the export query stay consistent.
+  // else the global URL resolution, else the cell default. Computed once here
+  // and passed down so the charts AND the export query stay consistent.
+  // Phase 149 — the cell default is DAILY, not hourly: time_series is the
+  // Episteme (diachronic "climate record") landing view, where daily is the
+  // robust granularity across source cadences. Hourly is a rhythm grain (it
+  // belongs to lead-lag, which buckets hourly) and renders a near-empty, spiky
+  // line for low-cadence institutional sources (Élysée / Bundesregierung publish
+  // a few items per week). Daily aligns time_series with its Episteme siblings
+  // (RevisionTimeline / RevisionDiscourseShift default daily too); hourly stays
+  // freely selectable in the resolution lever.
   const url = $derived(urlState());
-  const effectiveResolution = $derived(resolution ?? url.resolution ?? 'hourly');
+  const effectiveResolution = $derived(resolution ?? url.resolution ?? 'daily');
 
   // Phase 148e — the cell title sits once at the cell level (eyebrow = Time
   // series, subject = metric with the model in its own dimmed slot, resolution
