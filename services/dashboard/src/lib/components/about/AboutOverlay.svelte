@@ -172,7 +172,18 @@
     justify-content: space-between;
     gap: var(--space-3);
     border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-4);
+    /* Keep the title + × reachable while the panel scrolls. `.about-overlay` is
+       the scroll container (padded by --space-6); the negative margins + re-added
+       padding make a full-width sticky bar that covers that padding so scrolled
+       content never peeks around it, with the top corners kept rounded. */
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg-elevated);
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) 0;
+    padding: var(--space-6) var(--space-6) var(--space-4);
+    border-top-left-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
   }
   .about-titles .eyebrow {
     margin: 0 0 var(--space-1);
