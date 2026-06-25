@@ -51,13 +51,21 @@ export const COOCCURRENCE_EDGE_MAX = 6000;
 export const COOCCURRENCE_EDGE_MIN = 5;
 export const COOCCURRENCE_DEFAULT_MAXNODES = 200;
 
-/** Node-count-scaled default for the layout settle cap (seconds): ~1 s per 100
- *  entities, clamped to [12, 120]. Used by BOTH the settle lever (so its
- *  displayed default is truthful) and the at-scale renderer (so the layout uses
- *  the same value) — they read the panel's maxNodes, so they always agree. The
- *  layout auto-stops earlier on convergence; this is only the upper bound. */
+// Phase 148g — the settle cap and the node count MUST scale together: a 10k-node
+// FA2 layout needs far longer to relax than a 200-node one, so a flat default
+// starves the big maps (the operator saw 10k stuck at 20 s). MAX 240 s (≈1 s per
+// 40 entities → 10k ≈ 4 min); the auto-stop still ends earlier on convergence, so
+// this is only the upper bound.
+export const SETTLE_SECONDS_MAX = 240;
+export const SETTLE_SECONDS_MIN = 12;
+
+/** Node-count-scaled default for the layout settle cap (seconds): ~1 s per 40
+ *  entities, clamped to [12, 240]. Used by BOTH the settle lever (so its displayed
+ *  default is truthful) and the at-scale renderer (so the layout uses the same
+ *  value) — they read the panel's maxNodes, so they always agree. */
 export function autoSettleSeconds(maxNodes: number): number {
-  return Math.min(120, Math.max(12, Math.round((maxNodes > 0 ? maxNodes : 200) / 100)));
+  const scaled = Math.round((maxNodes > 0 ? maxNodes : 200) / 40);
+  return Math.min(SETTLE_SECONDS_MAX, Math.max(SETTLE_SECONDS_MIN, scaled));
 }
 
 /** Effective edge cap for a node-first graph: an explicit user density when set,

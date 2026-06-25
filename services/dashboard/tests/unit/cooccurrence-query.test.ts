@@ -69,11 +69,11 @@ describe('effectiveEdgeCap (node↔edge coupling)', () => {
 });
 
 describe('autoSettleSeconds', () => {
-  it('scales ~1s per 100 nodes, clamped to [12, 120]', () => {
-    expect(autoSettleSeconds(200)).toBe(12); // 2 → clamped up
-    expect(autoSettleSeconds(5000)).toBe(50);
-    expect(autoSettleSeconds(10000)).toBe(100);
-    expect(autoSettleSeconds(20000)).toBe(120); // clamped down
+  it('scales ~1s per 40 nodes, clamped to [12, 240] (Phase 148g — big maps need long settle)', () => {
+    expect(autoSettleSeconds(200)).toBe(12); // 5 → clamped up to the floor
+    expect(autoSettleSeconds(5000)).toBe(125);
+    expect(autoSettleSeconds(10000)).toBe(240); // 250 → clamped down to the ceiling
+    expect(autoSettleSeconds(20000)).toBe(240); // clamped down
   });
 });
 

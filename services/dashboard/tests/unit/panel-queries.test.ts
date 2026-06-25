@@ -555,9 +555,11 @@ describe('buildPanelFromScopes — Phase 148e composition default', () => {
     });
     expect(p.composition).toBe('merged');
     expect(p.view).toBe('cooccurrence_network');
-    // Phase 148e — co-occurrence opens sparse-labelled + with a short fixed settle.
+    // Phase 148g — co-occurrence opens with the label-density filter pre-set (top
+    // 10%, for when the reader turns labels on) but NO pinned settle: settle now
+    // auto-scales with the node count, so the seed leaves it unset.
     expect(p.labelTopPercent).toBe(10);
-    expect(p.settleSeconds).toBe(20);
+    expect(p.settleSeconds).toBeUndefined();
   });
 
   it('keeps split + no co-occurrence levers for value-axis presentations', () => {

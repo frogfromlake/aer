@@ -33,10 +33,9 @@ describe('defaultCompositionForView', () => {
 });
 
 describe('initialLeversForView', () => {
-  it('gives co-occurrence a sparse label set + short settle on open', () => {
+  it('gives co-occurrence a sparse label-density filter on open (labels off, settle auto-scales)', () => {
     expect(initialLeversForView('cooccurrence_network')).toEqual({
-      labelTopPercent: 10,
-      settleSeconds: 20
+      labelTopPercent: 10
     });
   });
 

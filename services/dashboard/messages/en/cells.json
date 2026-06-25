@@ -469,7 +469,7 @@
   "cells_net_readout_cooccurrences": "Co-occurrences",
   "cells_net_selected_entity_aria": "Selected entity",
   "cells_net_atscale_hint_a": "Co-occurrence map. ",
-  "cells_net_atscale_hint_zoom": "Ctrl/⌘ + scroll to zoom",
+  "cells_net_atscale_hint_zoom": "Shift + scroll to zoom",
   "cells_net_atscale_hint_b": " · drag to pan · click a node for its articles. Colour = detected ",
   "cells_net_atscale_hint_cluster": "theme cluster",
   "cells_net_atscale_hint_c": " (the labelled node names each region). The layout settles automatically (Settle = the max wait); Entities sets how many nodes appear, Spread how far they fan out.",

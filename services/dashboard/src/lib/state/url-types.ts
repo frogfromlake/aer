@@ -139,27 +139,21 @@ export function defaultCompositionForView(view: Presentation): Composition {
   return view === 'cooccurrence_network' ? 'merged' : 'split';
 }
 
-// Phase 148e — co-occurrence opening lever values for a freshly-created / pillar-
-// seeded panel (beyond composition). A dense relational graph that labels every
-// node and runs a node-count-scaled settle is illegible on open, so a new
-// Rhizome panel starts with a sparse label set (top 10% by prominence) and a
-// short, fixed settle. These are the INITIAL panel values; the levers still let
-// the reader raise them (and an unset value continues to mean "all labels" /
-// "auto settle" for older deep-links — see ConfigValueLevers' `?? 100` / auto).
+// Phase 148e/148g — co-occurrence opening lever values for a freshly-created /
+// pillar-seeded panel (beyond composition). Labels now default OFF (a 10k-node map
+// is unreadable with labels) and the settle cap is left UNSET so it auto-scales
+// with the node count (`autoSettleSeconds`) — pinning a short settle starved big
+// maps. The only seeded value is the label-density filter (top 10% by prominence),
+// which takes effect WHEN the reader turns labels on; the lever still lets them
+// adjust it.
 export const DEFAULT_COOC_LABEL_TOP_PERCENT = 10;
-export const DEFAULT_COOC_SETTLE_SECONDS = 20;
 
 /** Phase 148e — the initial per-cell lever values a panel of `view` opens with
  *  (spread into the new Panel by both create-mode and the pillar-switch seed).
  *  Empty for every non-co-occurrence presentation. */
-export function initialLeversForView(
-  view: Presentation
-): Pick<Panel, 'labelTopPercent' | 'settleSeconds'> {
+export function initialLeversForView(view: Presentation): Pick<Panel, 'labelTopPercent'> {
   if (view === 'cooccurrence_network') {
-    return {
-      labelTopPercent: DEFAULT_COOC_LABEL_TOP_PERCENT,
-      settleSeconds: DEFAULT_COOC_SETTLE_SECONDS
-    };
+    return { labelTopPercent: DEFAULT_COOC_LABEL_TOP_PERCENT };
   }
   return {};
 }
@@ -589,7 +583,7 @@ export interface CompactPanel {
   ch?: CompactChannelBinding; // visual-channel binding
   sb?: 0; // showBand=false (default true → omitted)
   se?: 1; // showEdges=true (default hidden → omitted)
-  sl?: 0; // showLabels=false (default true → omitted) — Phase 148g
+  sl?: 1; // showLabels=true (default false → omitted) — Phase 148g
   lp?: number; // labelTopPercent (default 100 → omitted) — Phase 148g
   lk?: 0 | 1; // labelRankBy (0 = size, 1 = colour; default size → omitted) — Phase 148g
   pv?: 1 | 2 | 3; // provenanceBorder (1 source, 2 probe, 3 both; default none → omitted) — Phase 148g

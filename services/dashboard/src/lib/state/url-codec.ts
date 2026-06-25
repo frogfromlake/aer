@@ -103,7 +103,7 @@ function compactPanel(p: Panel): CompactPanel {
     if (cb) c.ch = cb;
   }
   if (p.showBand === false) c.sb = 0;
-  if (p.showLabels === false) c.sl = 0;
+  if (p.showLabels === true) c.sl = 1;
   if (p.labelTopPercent !== undefined && p.labelTopPercent !== 100) c.lp = p.labelTopPercent;
   if (p.labelRankBy === 'colour') c.lk = 1;
   {
@@ -273,7 +273,7 @@ function expandPanel(c: CompactPanel): Panel {
     if (cb) p.channels = cb;
   }
   if (c.sb === 0) p.showBand = false;
-  if (c.sl === 0) p.showLabels = false;
+  if (c.sl === 1) p.showLabels = true;
   if (typeof c.lp === 'number') p.labelTopPercent = c.lp;
   if (c.lk === 1) p.labelRankBy = 'colour';
   {

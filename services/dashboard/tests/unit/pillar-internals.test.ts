@@ -60,9 +60,10 @@ describe('seedPillarFromCurrent', () => {
     const p = seeded.windows[0]!.panels[0]!;
     expect(p.view).toBe('cooccurrence_network');
     expect(p.composition).toBe('merged');
-    // Phase 148e — the seed also carries the legible co-occurrence opening levers.
+    // Phase 148g — the seed carries the label-density filter (top 10%); labels
+    // default off and settle auto-scales with node count, so neither is pinned.
     expect(p.labelTopPercent).toBe(10);
-    expect(p.settleSeconds).toBe(20);
+    expect(p.settleSeconds).toBeUndefined();
   });
 
   it('deep-copies the scope arrays so the seed cannot alias the source panel', () => {

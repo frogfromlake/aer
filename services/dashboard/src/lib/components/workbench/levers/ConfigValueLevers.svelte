@@ -25,7 +25,11 @@
     FORCE_STEP
   } from '$lib/workbench/cell-levers';
   import { computeTopNMax } from '$lib/workbench/panel-controls-derive';
-  import { effectiveEdgeCap, autoSettleSeconds } from '$lib/presentations/cooccurrence-query';
+  import {
+    effectiveEdgeCap,
+    autoSettleSeconds,
+    SETTLE_SECONDS_MAX
+  } from '$lib/presentations/cooccurrence-query';
   import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
   import { locale } from '$lib/state/locale.svelte';
   import { updatePanel, type PanelPath } from '$lib/workbench/panel-mutators';
@@ -52,7 +56,7 @@
   const activeTopN = $derived(boundPanel.topN ?? effectiveEdgeCap(activeMaxNodes));
   const activeShowBand = $derived(boundPanel.showBand ?? true);
   const activeShowEdges = $derived(boundPanel.showEdges ?? false);
-  const activeShowLabels = $derived(boundPanel.showLabels ?? true);
+  const activeShowLabels = $derived(boundPanel.showLabels ?? false);
   const activeLabelPct = $derived(boundPanel.labelTopPercent ?? 100);
   const activeLabelRank = $derived(boundPanel.labelRankBy ?? 'size');
   const activeForceStrength = $derived(boundPanel.forceStrength ?? DEFAULT_FORCE_STRENGTH);
@@ -113,7 +117,7 @@
   }
   function setSettle(n: number) {
     if (!Number.isFinite(n)) return;
-    const clamped = Math.min(120, Math.max(3, Math.round(n)));
+    const clamped = Math.min(SETTLE_SECONDS_MAX, Math.max(3, Math.round(n)));
     if (clamped === activeSettle) return;
     updatePanel(panelPath, (p) => ({ ...p, settleSeconds: clamped }));
   }
@@ -139,9 +143,9 @@
     if (next === activeShowLabels) return;
     updatePanel(panelPath, (p) => {
       const o = { ...p };
-      // Default is ON, so store only the OFF state (URL stays clean by default).
-      if (next) delete o.showLabels;
-      else o.showLabels = false;
+      // Phase 148g — default is OFF, so store only the ON state (URL stays clean).
+      if (next) o.showLabels = true;
+      else delete o.showLabels;
       return o;
     });
   }
@@ -325,7 +329,7 @@
           <input
             type="range"
             min="3"
-            max="120"
+            max={SETTLE_SECONDS_MAX}
             step="1"
             value={activeSettle}
             oninput={(e) => (liveSettle = Number((e.currentTarget as HTMLInputElement).value))}

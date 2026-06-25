@@ -469,7 +469,7 @@
   "cells_net_readout_cooccurrences": "Kookkurrenzen",
   "cells_net_selected_entity_aria": "Ausgewählte Entität",
   "cells_net_atscale_hint_a": "Ko-Okkurrenz-Karte. ",
-  "cells_net_atscale_hint_zoom": "Strg/⌘ + Scrollen zum Zoomen",
+  "cells_net_atscale_hint_zoom": "Umschalt + Scrollen zum Zoomen",
   "cells_net_atscale_hint_b": " · ziehen zum Verschieben · Knoten anklicken für seine Artikel. Farbe = erkanntes ",
   "cells_net_atscale_hint_cluster": "Themencluster",
   "cells_net_atscale_hint_c": " (der beschriftete Knoten benennt jede Region). Das Layout setzt sich automatisch (Settle = die maximale Wartezeit); Entitäten legt fest, wie viele Knoten erscheinen, Spread wie weit sie auffächern.",

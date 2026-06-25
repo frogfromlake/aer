@@ -123,8 +123,11 @@
   // Connection lines on/off — default HIDDEN (a nodes-only theme map reads far
   // cleaner; clustering + colour carry the structure). Toggle in PanelControls.
   const edgesShown = $derived(showEdges ?? false);
-  // Phase 148g — node labels on/off (default ON). All labels at the same distance.
-  const labelsShown = $derived(showLabels ?? true);
+  // Phase 148g — node labels on/off. DEFAULT OFF: at scale (up to 10k nodes) even a
+  // few-percent label set is unreadable, so a fresh map opens clean; the reader
+  // turns labels on (+ the density filter) when they want them. All labels render
+  // at the same distance (no LOD mix).
+  const labelsShown = $derived(showLabels ?? false);
   // Phase 148g — label-density filter: label only the top N% of nodes ranked by
   // size or the colour metric (100 = all). Applied via forceLabel + a high size
   // threshold (so only the chosen nodes show), live without a re-layout.
@@ -550,13 +553,15 @@
           edgesShown ? attrs : { ...attrs, hidden: true }
       });
 
-      // Zoom only with Ctrl/⌘ held (mirrors the SVG cell) so a plain wheel
-      // scrolls the page instead of being swallowed by the map. Capture-phase on
-      // the container: without the modifier we stop the event before sigma's
-      // canvas handler sees it (page scrolls); with it we let sigma zoom and
-      // block the browser's ctrl-wheel page-zoom.
+      // Zoom only with SHIFT held so a plain wheel / two-finger scroll moves the
+      // page instead of being swallowed by the map. SHIFT is chosen over Ctrl/⌘
+      // because it is OS-agnostic (no Cmd-vs-Ctrl split) and works on a touchpad
+      // (Shift + two-finger scroll) — whereas Ctrl+wheel is the browser's own
+      // pinch-zoom gesture. Capture-phase on the container: without Shift we stop
+      // the event before sigma's canvas handler sees it (page scrolls); with Shift
+      // we preventDefault (no page scroll/zoom) and let it reach sigma → zoom.
       const onWheelCapture = (e: WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
+        if (e.shiftKey) {
           e.preventDefault();
           return;
         }
@@ -705,7 +710,7 @@
       // autoSettleSeconds(maxNodes) the lever displays, so the shown value is
       // truthful. The auto-stop ends earlier on convergence; this is the cap.
       const settle = settleSeconds ?? autoSettleSeconds(MAX_NODES_EFF);
-      const capMs = Math.max(2000, Math.min(120000, settle * 1000));
+      const capMs = Math.max(2000, Math.min(240000, settle * 1000));
       stopTimer = setTimeout(stopLayout, capMs);
       const convEps = 0.004 * seedR;
       // Plain object (not Map) — a non-reactive local position cache; the Svelte
@@ -1102,7 +1107,8 @@
     flex-direction: column;
     gap: var(--space-2);
     height: 100%;
-    min-height: 70vh;
+    /* Phase 148g — taller cell (≈+26%) so a dense 10k-node map has room to read. */
+    min-height: 88vh;
   }
   .muted {
     color: var(--color-fg-muted, #888);
@@ -1168,7 +1174,7 @@
   }
   .sigma-host {
     flex: 1;
-    min-height: 60vh;
+    min-height: 78vh;
     width: 100%;
     background: var(--color-surface, #0e1116);
     border: 1px solid var(--color-border, #2a2f37);
