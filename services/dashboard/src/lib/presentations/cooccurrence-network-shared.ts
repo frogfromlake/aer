@@ -40,6 +40,9 @@ export interface NetworkNode {
   degree: number;
   presenceCount: number;
   presence: string[];
+  /** Phase 148g — distinct-article count per source, aligned 1:1 with `presence`
+   *  (feeds the node tooltip's per-source/probe counts). [] when unavailable. */
+  presenceArticleCounts: number[];
   wikidataQid: string | null;
   /** Size-channel metric mean (BFF `metricValue`). */
   metricValue: number | null;
@@ -261,6 +264,7 @@ export function buildNetworkNodes(
       degree: n.degree ?? 0,
       presenceCount: n.presence?.length ?? 0,
       presence: n.presence ?? [],
+      presenceArticleCounts: n.presenceArticleCounts ?? [],
       wikidataQid: n.wikidataQid ?? null,
       metricValue: n.metricValue ?? null,
       metricColorValue: n.metricValueColor ?? n.metricValue ?? null,

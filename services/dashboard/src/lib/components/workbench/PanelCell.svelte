@@ -228,6 +228,8 @@
     normalization={panel.normalization}
     forceStrength={cfg.forceStrength}
     showLabels={cfg.showLabels}
+    labelTopPercent={cfg.labelTopPercent}
+    labelRankBy={cfg.labelRankBy}
     displayLanguage={cfg.displayLanguage}
     cellKey={unit.key}
     reportExtent={sharedAxisApplies ? reportExtent : undefined}

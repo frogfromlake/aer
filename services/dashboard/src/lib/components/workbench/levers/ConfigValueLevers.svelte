@@ -51,6 +51,8 @@
   const activeShowBand = $derived(boundPanel.showBand ?? true);
   const activeShowEdges = $derived(boundPanel.showEdges ?? false);
   const activeShowLabels = $derived(boundPanel.showLabels ?? true);
+  const activeLabelPct = $derived(boundPanel.labelTopPercent ?? 100);
+  const activeLabelRank = $derived(boundPanel.labelRankBy ?? 'size');
   const activeForceStrength = $derived(boundPanel.forceStrength ?? DEFAULT_FORCE_STRENGTH);
   // Phase 148g — when the user hasn't set it, the displayed default is the same
   // node-count-scaled value the renderer uses (truthful, not a static 12 s).
@@ -62,6 +64,8 @@
   let liveMaxNodes = $state<number | null>(null);
   let liveForce = $state<number | null>(null);
   let liveSettle = $state<number | null>(null);
+  let liveLabelPct = $state<number | null>(null);
+  const displayLabelPct = $derived(liveLabelPct ?? activeLabelPct);
   const displayBins = $derived(liveBins ?? activeBins);
   const displayTopN = $derived(liveTopN ?? activeTopN);
   const displayMaxNodes = $derived(liveMaxNodes ?? activeMaxNodes);
@@ -127,6 +131,27 @@
       // Default is ON, so store only the OFF state (URL stays clean by default).
       if (next) delete o.showLabels;
       else o.showLabels = false;
+      return o;
+    });
+  }
+  function setLabelPct(n: number) {
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(100, Math.max(5, Math.round(n / 5) * 5));
+    if (clamped === activeLabelPct) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      // 100% = all (the default) → drop the key so the URL stays clean.
+      if (clamped >= 100) delete o.labelTopPercent;
+      else o.labelTopPercent = clamped;
+      return o;
+    });
+  }
+  function setLabelRank(next: 'size' | 'colour') {
+    if (next === activeLabelRank) return;
+    updatePanel(panelPath, (p) => {
+      const o = { ...p };
+      if (next === 'size') delete o.labelRankBy;
+      else o.labelRankBy = next;
       return o;
     });
   }
@@ -290,6 +315,54 @@
       {activeShowLabels ? m.levers_labels_toggle_shown() : m.levers_labels_toggle_hidden()}
     </LeverButton>
   </LeverRow>
+{/if}
+
+{#if configParams.includes('labelFilter')}
+  <LeverRow
+    eyebrow={m.levers_labelpct_eyebrow()}
+    role="group"
+    ariaLabel={m.levers_labelpct_aria()}
+    rowClass="config-row"
+  >
+    <div
+      class="config-inline"
+      title={m.levers_labelpct_title()}
+      onclick={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      <input
+        type="range"
+        min="5"
+        max="100"
+        step="5"
+        value={activeLabelPct}
+        oninput={(e) => (liveLabelPct = Number((e.currentTarget as HTMLInputElement).value))}
+        onchange={(e) => {
+          setLabelPct(Number((e.currentTarget as HTMLInputElement).value));
+          liveLabelPct = null;
+        }}
+        aria-label={m.levers_labelpct_slider_aria()}
+      />
+      <output class="config-value">{m.levers_labelpct_value({ pct: displayLabelPct })}</output>
+    </div>
+  </LeverRow>
+  {#if activeLabelPct < 100}
+    <LeverRow
+      eyebrow={m.levers_labelrank_eyebrow()}
+      role="group"
+      ariaLabel={m.levers_labelrank_aria()}
+      rowClass="config-row"
+    >
+      <LeverButton
+        role="switch"
+        active={activeLabelRank === 'colour'}
+        onclick={() => setLabelRank(activeLabelRank === 'size' ? 'colour' : 'size')}
+        title={m.levers_labelrank_title()}
+      >
+        {activeLabelRank === 'colour' ? m.levers_labelrank_colour() : m.levers_labelrank_size()}
+      </LeverButton>
+    </LeverRow>
+  {/if}
 {/if}
 
 {#if configParams.includes('showEdges')}

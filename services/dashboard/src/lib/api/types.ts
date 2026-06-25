@@ -2139,6 +2139,8 @@ export interface components {
                 totalCount: number;
                 /** @description Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114). */
                 presence?: string[];
+                /** @description Phase 148g — distinct-article count per source, aligned 1:1 (same order) with `presence`, so the node tooltip can show how many articles each source/probe contributes. Same coverage as `presence` (multi-source scopes only). */
+                presenceArticleCounts?: number[];
                 /** @description Canonical Wikidata QID resolved by the Phase 118 entity-linking step, or null when the node could not be linked. Lets the frontend surface Wikipedia/Wikidata external links on graph nodes without a follow-up call. */
                 wikidataQid?: string | null;
                 /** @description Phase 123b cross-lingual relabel. The QID's display label in the requested `viewerLanguage`, or null when no viewer language was requested, the node has no QID, or no label exists for that language. The frontend relabels a node only when this is present; otherwise it keeps the source surface form (`text`). This is the per-language rdfs:label Wikidata publishes — never a machine translation. */

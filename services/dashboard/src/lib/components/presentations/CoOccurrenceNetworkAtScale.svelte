@@ -25,6 +25,7 @@
   import { wikidataHref, wikipediaHref } from './cooccurrence-network-internals';
   import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
   import { locale } from '$lib/state/locale.svelte';
+  import { sourceLabel } from '$lib/state/labels.svelte';
   import type { PresentationCellProps } from '$lib/presentations';
   import type { ExportPayload } from '$lib/presentations/cell-export';
   import { HIDDEN_READOUT, fmtValue, type ReadoutState } from '$lib/presentations/cell-readout';
@@ -72,6 +73,8 @@
     forceStrength,
     showEdges,
     showLabels,
+    labelTopPercent,
+    labelRankBy,
     settleSeconds,
     channels,
     displayLanguage,
@@ -116,6 +119,11 @@
   const edgesShown = $derived(showEdges ?? false);
   // Phase 148g — node labels on/off (default ON). All labels at the same distance.
   const labelsShown = $derived(showLabels ?? true);
+  // Phase 148g — label-density filter: label only the top N% of nodes ranked by
+  // size or the colour metric (100 = all). Applied via forceLabel + a high size
+  // threshold (so only the chosen nodes show), live without a re-layout.
+  const labelPct = $derived(labelTopPercent ?? 100);
+  const labelRank = $derived(labelRankBy ?? 'size');
   // Layout settle time (seconds) — the SAFETY CAP for the FA2 worker (it auto-
   // stops earlier once the map converges). User-set via PanelControls (up to
   // 120 s); when unset the default scales with the node count (computed in the
@@ -192,6 +200,36 @@
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let fa2: any = null;
   let renderedNodeCount = $state(0);
+
+  // Phase 148g — label-density filter. pct=100 → all labels (size threshold 0);
+  // pct<100 → forceLabel the top-pct% nodes by `rank` (size, or the colour metric
+  // with graceful fallback) and lift the size threshold so only those show. Live,
+  // no re-layout. Shared by the initial build and the reactive lever effect.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyLabelFilter(g: any, inst: any, pct: number, rank: string) {
+    if (!g || !inst) return;
+    if (pct >= 100) {
+      inst.setSetting('labelRenderedSizeThreshold', 0);
+      inst.refresh();
+      return;
+    }
+    const ranked = (g.nodes() as string[]).map((id) => {
+      const a = g.getNodeAttributes(id);
+      const colourVal =
+        typeof a.metricColorValue === 'number'
+          ? a.metricColorValue
+          : typeof a.metricValue === 'number'
+            ? a.metricValue
+            : a.size;
+      const v = rank === 'colour' ? colourVal : a.size;
+      return { id, val: typeof v === 'number' ? v : 0 };
+    });
+    ranked.sort((x, y) => y.val - x.val);
+    const keep = Math.max(1, Math.ceil((pct / 100) * ranked.length));
+    ranked.forEach((r, i) => g.setNodeAttribute(r.id, 'forceLabel', i < keep));
+    inst.setSetting('labelRenderedSizeThreshold', 1e9);
+    inst.refresh();
+  }
 
   function teardown() {
     try {
@@ -347,7 +385,10 @@
           degree: node.degree,
           community: node.community,
           metricValue: node.metricValue,
-          metricColorValue: node.metricColorValue
+          metricColorValue: node.metricColorValue,
+          // Phase 148g — per-source provenance for the hover tooltip.
+          presence: node.presence,
+          presenceArticleCounts: node.presenceArticleCounts
         });
       });
       for (const e of edges) {
@@ -416,6 +457,24 @@
       // decoupled from sigma's event coordinate shape for robustness).
       sigmaInstance.on('enterNode', ({ node }: { node: string }) => {
         const a = graph.getNodeAttributes(node);
+        // Phase 148g — per-source article counts (one row per source, with its
+        // probe in a cross-probe scope) + the theme cluster. `presence` and
+        // `presenceArticleCounts` are aligned 1:1 (BFF contract).
+        const pres = (a.presence as string[] | undefined) ?? [];
+        const cnts = (a.presenceArticleCounts as number[] | undefined) ?? [];
+        const s2p = probeLabels.sourceProbeMap();
+        const presenceRows = pres.map((src, i) => {
+          const pid = s2p[src];
+          const probe = pid ? probeLabels.labelFor(pid) : '';
+          return {
+            label: probe ? `${sourceLabel(src)} · ${probe}` : sourceLabel(src),
+            value: m.cells_net_readout_articles({ count: cnts[i] ?? 0 })
+          };
+        });
+        const clusterRows =
+          typeof a.community === 'number' && a.community >= 0
+            ? [{ label: m.cells_net_readout_cluster(), value: `#${a.community}` }]
+            : [];
         readout = {
           visible: true,
           x: pointerClient.x,
@@ -432,7 +491,9 @@
                   a.metricColorValue,
                   m.cells_net_readout_colour({ metric: colorM ?? '' })
                 )
-              : [])
+              : []),
+            ...clusterRows,
+            ...presenceRows
           ]
         };
       });
@@ -505,6 +566,15 @@
         }
       };
 
+      // Phase 148g — apply the initial label-density filter (untracked: a lever
+      // change must re-filter live, NOT rebuild + re-layout the graph).
+      applyLabelFilter(
+        graph,
+        sigmaInstance,
+        untrack(() => labelPct),
+        untrack(() => labelRank)
+      );
+
       fa2.start();
       // AUTO-STOP at the rest point: poll mean node movement; once it falls below
       // a small fraction of the layout scale for two consecutive checks, the map
@@ -570,6 +640,14 @@
     const show = labelsShown;
     sigmaInstance?.setSetting('renderLabels', show);
     sigmaInstance?.refresh();
+  });
+
+  // Phase 148g — label-density filter: re-apply live when the % or rank changes
+  // (read both first so the effect tracks them even before sigma exists).
+  $effect(() => {
+    const pct = labelPct;
+    const rank = labelRank;
+    if (sigmaInstance) applyLabelFilter(sigmaInstance.getGraph(), sigmaInstance, pct, rank);
   });
 
   // ── how-to-read + export (shared contract) ────────────────────────────────

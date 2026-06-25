@@ -211,6 +211,8 @@ export interface CellOverride {
   showBand?: boolean;
   showEdges?: boolean;
   showLabels?: boolean;
+  labelTopPercent?: number;
+  labelRankBy?: 'size' | 'colour';
   scales?: ScaleMode;
   displayLanguage?: 'source' | 'viewer';
   channels?: CellChannelBinding;
@@ -238,6 +240,8 @@ export type CellOverridePatch = {
   showBand?: boolean | undefined;
   showEdges?: boolean | undefined;
   showLabels?: boolean | undefined;
+  labelTopPercent?: number | undefined;
+  labelRankBy?: 'size' | 'colour' | undefined;
   scales?: ScaleMode | undefined;
   displayLanguage?: 'source' | 'viewer' | undefined;
   channels?: CellChannelPatch | undefined;
@@ -275,6 +279,11 @@ export interface Panel {
   // Phase 148g — co-occurrence node labels on/off (default ON). All labels render
   // at the same zoom distance (no LOD mix) so the map is never half-labelled.
   showLabels?: boolean;
+  // Phase 148g — label density filter: only the top labelTopPercent % of nodes
+  // (ranked by labelRankBy: 'size' or 'colour') are labelled. 100/undefined =
+  // all. Lets a dense 10k-node map show labels for just the most prominent nodes.
+  labelTopPercent?: number;
+  labelRankBy?: 'size' | 'colour';
   // Phase 131 (BUG1.7) — co-occurrence force-layout spread (0..100). Higher =
   // stronger node repulsion = more spread-out graph (less single-cluster
   // crowding). Layout-only, not a metric. Default 50.
@@ -503,6 +512,8 @@ export interface CompactCellOverride {
   sb?: 0 | 1; // showBand (0 = false, 1 = true)
   se?: 0 | 1; // showEdges (0 = false, 1 = true)
   sl?: 0 | 1; // showLabels (0 = false, 1 = true) — Phase 148g
+  lp?: number; // labelTopPercent (Phase 148g)
+  lk?: 0 | 1; // labelRankBy (0 = size, 1 = colour) — Phase 148g
   sc?: 0 | 1; // scales (0 = shared, 1 = free)
   dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
   ch?: CompactChannelBinding; // visual-channel binding
@@ -528,6 +539,8 @@ export interface CompactPanel {
   sb?: 0; // showBand=false (default true → omitted)
   se?: 1; // showEdges=true (default hidden → omitted)
   sl?: 0; // showLabels=false (default true → omitted) — Phase 148g
+  lp?: number; // labelTopPercent (default 100 → omitted) — Phase 148g
+  lk?: 0 | 1; // labelRankBy (0 = size, 1 = colour; default size → omitted) — Phase 148g
   fs?: number; // forceStrength (network spread)
   st?: number; // settleSeconds (large-scale FA2 settle time)
   dl?: 1; // displayLanguage='viewer' (default 'source' → omitted)

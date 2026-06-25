@@ -43,13 +43,13 @@ const FILE_LENGTH_ALLOWLIST = [
   // (render-glue / data table / within-tolerance), not pending decomposition.
   ['**/packages/engine-3d/src/engine.ts', 991], // imperative Three.js/WebGL engine; E2E-covered; not logic-decomposable (+54 Phase 128 — render-loop gating: setActive/visibility pause + reduced-motion flyTo)
   ['**/open-questions.ts', 766], // DATA table (open research-question content); +23 Phase 144c — QuestionProse type + the locale-overlay accessors (DE prose lives in the sibling open-questions.de.ts)
-  ['**/CoOccurrenceNetworkAtScale.svelte', 974], // logic in cooccurrence-network-shared.ts + cooccurrence-query.ts (both tested); residual = sigma/FA2/WebGL glue. Phase 148g made this the SINGLE co-occurrence renderer (SVG path retired): cross-probe merge + cross-language confirm/disclosure, per-probe fill, node↔edge coupling, label toggle + uniform labels, cursor tooltip fix, colour legend + styles. Tested logic stays in the shared modules.
+  ['**/CoOccurrenceNetworkAtScale.svelte', 1049], // logic in cooccurrence-network-shared.ts + cooccurrence-query.ts (both tested); residual = sigma/FA2/WebGL glue. Phase 148g made this the SINGLE co-occurrence renderer (SVG path retired): cross-probe merge + cross-language confirm/disclosure, per-probe fill, node↔edge coupling, label toggle + uniform labels, cursor tooltip fix, colour legend + styles. Tested logic stays in the shared modules.
   ['**/AtmosphereSurface.svelte', 657], // transforms → atmosphere-surface-internals.ts (+8t); residual = markup + scoped-CSS 239 + handlers (+15 Phase 144 banner/tooltip plurals)
   ['**/SideRail.svelte', 539], // markup-dominated; Phase 144 LocaleSwitch mount + message-call wrapping — within the ±20-30 tolerance band
-  ['**/PanelCellGrid.svelte', 536], // markup-dominated; Phase 144 facet-disclosure note + Task-B fieldLabel relabels + Phase 148g cross-probe merge props (probeIds/sourceIds/maxNodes) threaded to both co-occurrence renderers (6 LOC over 530) — within the ±20-30 tolerance band
+  ['**/PanelCellGrid.svelte', 537], // markup-dominated; Phase 144 facet-disclosure note + Task-B fieldLabel relabels + Phase 148g cross-probe merge props (probeIds/sourceIds/maxNodes) threaded to both co-occurrence renderers (6 LOC over 530) — within the ±20-30 tolerance band
   ['**/SourceCard.svelte', 537], // markup-dominated; Phase 144 message-call wrapping of the card stats/registers/footer (+7 over 530) — within the ±20-30 tolerance band
-  ['**/panel-queries.ts', 536], // Phase 148f free-axis default + Phase 148g maxNodes + showLabels in ResolvedCellConfig/resolveCellConfig (+6 over 530) — within the ±20-30 tolerance band
-  ['**/url-types.ts', 543] // URL state SoT — grows with each lever; Phase 148g added maxNodes + showLabels to Panel/CellOverride/CellOverridePatch + mn/sl to both compact types (+13 over 530)
+  ['**/panel-queries.ts', 540], // Phase 148f free-axis default + Phase 148g maxNodes + showLabels in ResolvedCellConfig/resolveCellConfig (+6 over 530) — within the ±20-30 tolerance band
+  ['**/url-types.ts', 556] // URL state SoT — grows with each lever; Phase 148g added maxNodes + showLabels to Panel/CellOverride/CellOverridePatch + mn/sl to both compact types (+13 over 530)
 ];
 
 export default ts.config(

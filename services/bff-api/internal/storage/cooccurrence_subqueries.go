@@ -121,15 +121,16 @@ func (s *ClickHouseStorage) queryArticlesInScopeForCoOccurrence(
 	return int64(rows[0].ArticlesInScope), nil //nolint:gosec // bounded by aggregation
 }
 
-// queryNodePresence returns a map from entity text to the sorted list of
-// distinct sources where that entity appears within the already-computed
-// WHERE window. Only called for multi-source scopes (Phase 114).
+// queryNodePresence returns a map from entity text to the per-source distinct-
+// article counts (ordered by source) where that entity appears within the
+// already-computed WHERE window. Only called for multi-source scopes (Phase
+// 114; Phase 148g added the per-source counts for the node tooltip).
 func (s *ClickHouseStorage) queryNodePresence(
 	ctx context.Context,
 	acc map[string]*nodeAccumulator,
 	args []any,
 	clauses []string,
-) (map[string][]string, error) {
+) (map[string][]NodeSourceCount, error) {
 	texts := make([]string, 0, len(acc))
 	for t := range acc {
 		texts = append(texts, t)
@@ -147,33 +148,38 @@ func (s *ClickHouseStorage) queryNodePresence(
 	windowFilter := strings.Join(clauses, " AND ")
 
 	presenceQuery := fmt.Sprintf(`
-		SELECT entity_text, groupArrayDistinct(source) AS Presence
+		SELECT entity_text, source, uniqExact(article_id) AS Cnt
 		FROM (
-			SELECT entity_a_text AS entity_text, source
+			SELECT entity_a_text AS entity_text, source, article_id
 			FROM aer_gold.entity_cooccurrences FINAL
 			WHERE %s AND entity_a_text IN (%s)
 			UNION ALL
-			SELECT entity_b_text AS entity_text, source
+			SELECT entity_b_text AS entity_text, source, article_id
 			FROM aer_gold.entity_cooccurrences FINAL
 			WHERE %s AND entity_b_text IN (%s)
 		)
-		GROUP BY entity_text
+		GROUP BY entity_text, source
+		ORDER BY entity_text ASC, source ASC
 	`, windowFilter, textIN, windowFilter, textIN)
 
 	allArgs := append(textArgs, textArgs...)
 
 	var rows []struct {
-		EntityText string   `ch:"entity_text"`
-		Presence   []string `ch:"Presence"`
+		EntityText string `ch:"entity_text"`
+		Source     string `ch:"source"`
+		Cnt        uint64 `ch:"Cnt"`
 	}
 	if err := s.conn.Select(ctx, &rows, presenceQuery, allArgs...); err != nil {
 		slog.Warn("Failed to query node presence (non-fatal)", "error", err)
 		return nil, err //nolint:wrapcheck // caller treats this as optional
 	}
 
-	result := make(map[string][]string, len(rows))
+	result := make(map[string][]NodeSourceCount, len(acc))
 	for _, r := range rows {
-		result[r.EntityText] = r.Presence
+		result[r.EntityText] = append(result[r.EntityText], NodeSourceCount{
+			Source: r.Source,
+			Count:  int64(r.Cnt), //nolint:gosec // bounded by aggregation
+		})
 	}
 	return result, nil
 }

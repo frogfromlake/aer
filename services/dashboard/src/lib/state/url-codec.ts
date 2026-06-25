@@ -94,6 +94,8 @@ function compactPanel(p: Panel): CompactPanel {
   }
   if (p.showBand === false) c.sb = 0;
   if (p.showLabels === false) c.sl = 0;
+  if (p.labelTopPercent !== undefined && p.labelTopPercent !== 100) c.lp = p.labelTopPercent;
+  if (p.labelRankBy === 'colour') c.lk = 1;
   if (p.showEdges === true) c.se = 1;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
   if (p.settleSeconds !== undefined) c.st = p.settleSeconds;
@@ -155,6 +157,8 @@ function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
   if (ov.forceStrength !== undefined) c.fs = ov.forceStrength;
   if (ov.showBand !== undefined) c.sb = ov.showBand ? 1 : 0;
   if (ov.showLabels !== undefined) c.sl = ov.showLabels ? 1 : 0;
+  if (ov.labelTopPercent !== undefined) c.lp = ov.labelTopPercent;
+  if (ov.labelRankBy !== undefined) c.lk = ov.labelRankBy === 'colour' ? 1 : 0;
   if (ov.showEdges !== undefined) c.se = ov.showEdges ? 1 : 0;
   if (ov.scales !== undefined) c.sc = ov.scales === 'free' ? 1 : 0;
   if (ov.displayLanguage !== undefined) c.dl = ov.displayLanguage === 'viewer' ? 1 : 0;
@@ -174,6 +178,8 @@ function expandCellOverride(c: CompactCellOverride): CellOverride {
   if (typeof c.fs === 'number') ov.forceStrength = c.fs;
   if (c.sb === 0 || c.sb === 1) ov.showBand = c.sb === 1;
   if (c.sl === 0 || c.sl === 1) ov.showLabels = c.sl === 1;
+  if (typeof c.lp === 'number') ov.labelTopPercent = c.lp;
+  if (c.lk === 0 || c.lk === 1) ov.labelRankBy = c.lk === 1 ? 'colour' : 'size';
   if (c.se === 0 || c.se === 1) ov.showEdges = c.se === 1;
   if (c.sc === 0 || c.sc === 1) ov.scales = c.sc === 1 ? 'free' : 'shared';
   if (c.dl === 0 || c.dl === 1) ov.displayLanguage = c.dl === 1 ? 'viewer' : 'source';
@@ -246,6 +252,8 @@ function expandPanel(c: CompactPanel): Panel {
   }
   if (c.sb === 0) p.showBand = false;
   if (c.sl === 0) p.showLabels = false;
+  if (typeof c.lp === 'number') p.labelTopPercent = c.lp;
+  if (c.lk === 1) p.labelRankBy = 'colour';
   if (c.se === 1) p.showEdges = true;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
   if (typeof c.st === 'number') p.settleSeconds = c.st;

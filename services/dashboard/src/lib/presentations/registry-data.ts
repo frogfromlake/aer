@@ -53,6 +53,7 @@ export const PRESENTATIONS: readonly PresentationDefinition[] = [
       'forceStrength',
       'settleTime',
       'showLabels',
+      'labelFilter',
       'showEdges',
       'displayLanguage'
     ],

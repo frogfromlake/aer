@@ -414,6 +414,8 @@
           forceStrength={cfg.forceStrength}
           showEdges={cfg.showEdges}
           showLabels={cfg.showLabels}
+          labelTopPercent={cfg.labelTopPercent}
+          labelRankBy={cfg.labelRankBy}
           settleSeconds={cfg.settleSeconds}
           channels={cfg.channels}
           displayLanguage={cfg.displayLanguage}

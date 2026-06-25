@@ -452,6 +452,8 @@
   "cells_net_articles_fallback": "Artikel",
   "cells_net_readout_weight": "Gewicht",
   "cells_net_readout_degree": "Grad",
+  "cells_net_readout_articles": "{count} Artikel",
+  "cells_net_readout_cluster": "Themencluster",
   "cells_net_readout_in_sources": "in Quellen",
   "cells_net_readout_size": "Größe · {metric}",
   "cells_net_readout_colour": "Farbe · {metric}",

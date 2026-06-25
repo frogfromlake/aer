@@ -76,6 +76,10 @@ type CoOccurrenceNode struct {
 	// returned edge set and the query window. Populated only when the scope
 	// covers multiple sources; nil for single-source requests (Phase 114).
 	Presence []string
+	// PresenceArticleCounts is the distinct-article count per source, aligned
+	// 1:1 (same order) with Presence — so the node tooltip can show how many
+	// articles each source/probe contributes (Phase 148g). nil when Presence is.
+	PresenceArticleCounts []int64
 	// WikidataQid is the canonical Wikidata identifier resolved by the Phase
 	// 118 entity-linking step, or "" when no link exists for the node's text.
 	WikidataQid string
@@ -123,6 +127,13 @@ type CoOccurrenceResult struct {
 	// lack a label in that language). Zero when no viewer language was
 	// requested.
 	LabeledNodeCount int64
+}
+
+// NodeSourceCount is one (source, distinct-article-count) entry for a node's
+// per-source presence (Phase 148g — feeds the node tooltip's per-source counts).
+type NodeSourceCount struct {
+	Source string
+	Count  int64
 }
 
 // nodeAccumulator tracks per-entity degree and total weight while building
@@ -388,7 +399,7 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 	// A second query collects the distinct source names each entity appears in
 	// within the window — this lets the frontend shade nodes by source without
 	// an additional round-trip (Phase 114).
-	var presenceMap map[string][]string
+	var presenceMap map[string][]NodeSourceCount
 	if len(sources) > 1 && len(acc) > 0 {
 		presenceMap, _ = s.queryNodePresence(ctx, acc, args, clauses)
 	}
@@ -447,8 +458,15 @@ func (s *ClickHouseStorage) GetEntityCoOccurrence(
 			Degree:     a.degree,
 			TotalCount: a.total,
 		}
-		if presenceMap != nil {
-			n.Presence = presenceMap[text]
+		if pc := presenceMap[text]; len(pc) > 0 {
+			names := make([]string, len(pc))
+			counts := make([]int64, len(pc))
+			for i, sc := range pc {
+				names[i] = sc.Source
+				counts[i] = sc.Count
+			}
+			n.Presence = names
+			n.PresenceArticleCounts = counts
 		}
 		if metricMap != nil {
 			if v, ok := metricMap[text]; ok {

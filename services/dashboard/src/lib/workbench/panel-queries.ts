@@ -109,6 +109,8 @@ export interface ResolvedCellConfig {
   showBand: boolean | undefined;
   showEdges: boolean | undefined;
   showLabels: boolean | undefined;
+  labelTopPercent: number | undefined;
+  labelRankBy: 'size' | 'colour' | undefined;
   scales: ScaleMode | undefined;
   displayLanguage: 'source' | 'viewer' | undefined;
   channels: CellChannelBinding | undefined;
@@ -138,6 +140,8 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
     showBand: ov?.showBand ?? panel.showBand,
     showEdges: ov?.showEdges ?? panel.showEdges,
     showLabels: ov?.showLabels ?? panel.showLabels,
+    labelTopPercent: ov?.labelTopPercent ?? panel.labelTopPercent,
+    labelRankBy: ov?.labelRankBy ?? panel.labelRankBy,
     // Phase 148f — metric-overridden cells default to a FREE axis (incomparable).
     scales:
       ov?.scales ??

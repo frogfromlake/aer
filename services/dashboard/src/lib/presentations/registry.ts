@@ -60,6 +60,8 @@ export type CellParamKind =
   | 'showEdges'
   // Phase 148g — co-occurrence node labels on/off (default on; uniform distance).
   | 'showLabels'
+  // Phase 148g — co-occurrence label-density filter (top N% by size/colour).
+  | 'labelFilter'
   // Co-occurrence redesign — large-scale layout settle time (seconds): how long
   // ForceAtlas2 runs before freezing. Lets the user give a big map more time to
   // relax into clusters.
@@ -261,6 +263,10 @@ export interface PresentationCellProps {
   /** Phase 148g — co-occurrence node labels on/off; undefined = on. All labels
    *  render at the same distance (no LOD mix). Network cell only. */
   showLabels?: boolean | undefined;
+  /** Phase 148g — label-density filter: only the top N% of nodes (ranked by
+   *  `labelRankBy`) are labelled; undefined/100 = all. Network cell only. */
+  labelTopPercent?: number | undefined;
+  labelRankBy?: 'size' | 'colour' | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
    *  the time-series cell previously read the global URL resolution, ignoring
    *  the panel control. */

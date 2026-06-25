@@ -10318,7 +10318,10 @@ type GetEntityCoOccurrence200JSONResponse struct {
 
 		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
 		Presence *[]string `json:"presence,omitempty"`
-		Text     string    `json:"text"`
+
+		// PresenceArticleCounts Phase 148g — distinct-article count per source, aligned 1:1 (same order) with `presence`, so the node tooltip can show how many articles each source/probe contributes. Same coverage as `presence` (multi-source scopes only).
+		PresenceArticleCounts *[]int64 `json:"presenceArticleCounts,omitempty"`
+		Text                  string   `json:"text"`
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`
@@ -10461,7 +10464,10 @@ type PostEntityCoOccurrenceQuery200JSONResponse struct {
 
 		// Presence Source names where this entity appears within the returned edge set and window. Populated when the scope covers multiple sources, so the frontend can render per-source incident shading without a follow-up call (Phase 114).
 		Presence *[]string `json:"presence,omitempty"`
-		Text     string    `json:"text"`
+
+		// PresenceArticleCounts Phase 148g — distinct-article count per source, aligned 1:1 (same order) with `presence`, so the node tooltip can show how many articles each source/probe contributes. Same coverage as `presence` (multi-source scopes only).
+		PresenceArticleCounts *[]int64 `json:"presenceArticleCounts,omitempty"`
+		Text                  string   `json:"text"`
 
 		// TotalCount Sum of edge weights incident on this node.
 		TotalCount int64 `json:"totalCount"`

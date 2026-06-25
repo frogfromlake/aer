@@ -56,6 +56,17 @@ properties:
             follow-up call (Phase 114).
           items:
             type: string
+        presenceArticleCounts:
+          type: array
+          description: >
+            Phase 148g — distinct-article count per source, aligned 1:1 (same
+            order) with `presence`, so the node tooltip can show how many articles
+            each source/probe contributes. Same coverage as `presence`
+            (multi-source scopes only).
+          items:
+            type: integer
+            format: int64
+            minimum: 0
         wikidataQid:
           type: string
           nullable: true

@@ -452,6 +452,8 @@
   "cells_net_articles_fallback": "Articles",
   "cells_net_readout_weight": "weight",
   "cells_net_readout_degree": "degree",
+  "cells_net_readout_articles": "{count} articles",
+  "cells_net_readout_cluster": "Theme cluster",
   "cells_net_readout_in_sources": "in sources",
   "cells_net_readout_size": "size · {metric}",
   "cells_net_readout_colour": "colour · {metric}",
