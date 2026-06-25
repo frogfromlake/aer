@@ -1,0 +1,39 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+
+  "boot_loading_label": "Die Atmosphäre wird erfasst …",
+
+  "welcome_ambient_line1": "Atmosphärischer Sensor für den menschlichen Diskurs",
+  "welcome_ambient_line2": "Ein Blick von außen auf das, was die vernetzte Welt bewegt.",
+  "welcome_ambient_skip": "Überspringen",
+
+  "about_open": "Über AĒR",
+  "about_eyebrow": "Über",
+  "about_title": "AĒR — ein atmosphärischer Sensor für den menschlichen Diskurs",
+  "about_close": "Schließen",
+  "about_lede": "AĒR beobachtet großflächige Muster im öffentlichen Diskurs — welche Themen hervortreten, in welchem Ton, wann und in welchem Zusammenhang — so wie ein Orbitalsensor atmosphärische Strömungen liest, nicht einzelne Schicksale.",
+
+  "about_what_title": "Was AĒR ist",
+  "about_what_body": "Ein Makroskop für gesellschaftliche Diskurse. AĒR beobachtet Diskurse, nicht Menschen: Es verdichtet die öffentlichen Beiträge bewusst gewählter Beobachtungspunkte zu aggregierten, prüfbaren Metriken. Es erfasst keine Verhaltensdaten, keine sozialen Graphen, keine Geräte-Fingerabdrücke und baut keine digitalen Zwillinge — das ist strukturell, keine bloße Richtlinie. Wo eine institutionelle Quelle ihre Autorinnen und Autoren nennt, ist das öffentliche, dokumentierte Rede im Amt: AĒR kann eine Kennzahl darauf zurückführen, fügt dahinter aber kein verborgenes Profil zusammen.",
+
+  "about_method_title": "Wie es beobachtet",
+  "about_method_body": "AĒR wählt das Beobachtete nach diskursiver Funktion — wer die Grenzen des Sagbaren steckt, wer Macht legitimiert, wer Zugehörigkeit stiftet, wer widerspricht — statt nach institutionellem Etikett, sodass Quellen aus verschiedenen Gesellschaften nebeneinandergestellt werden können, ohne sie in die Kategorien einer einzigen Gesellschaft zu pressen. Interkulturelle Äquivalenz wird nie vorausgesetzt: Sie ist durch ein explizites Register abgesichert, das leer bleibt, bis Forschende sie freigeben — auf expliziten Stufen (temporal, Abweichung, absolut), durch Begutachtung validiert —, und ein Vergleich ohne Freigabe wird verweigert, nicht still gezeichnet. Was das Instrument nicht sehen kann — Erhebungslücken, strukturell fehlende Felder, demografische blinde Flecken — wandert als offengelegter Negativraum mit den Daten, nie still zu einer Null verfälscht.",
+
+  "about_purpose_title": "Sein Zweck",
+  "about_purpose_body": "Verborgene gesellschaftliche Strömungen sichtbar machen — und dabei ehrlich über die eigenen Grenzen bleiben. Das Besondere an AĒR: Diese Ehrlichkeit ist in der Architektur verankert, nicht nur in einem Leitbild versprochen — das System legt offen, was es nicht sehen kann, verweigert Vergleiche, die es nicht rechtfertigen kann, und kennzeichnet den Validierungsstand seiner Metriken. Die Metriken werden so einfach wie möglich gehalten, bleiben aber vorläufig — kein Ergebnis ist als gesicherte Wahrheit zu lesen. AĒR ist so gebaut, dass es weiß, dass es ein Instrument ist: Es zeigt, dass, wann und wo sich Diskurse verschieben — nie warum; die Deutung gehört den Forschenden. Ein Instrument des Verstehens, nie der Überwachung — kein Orakel, sondern eine Frage.",
+
+  "about_who_title": "Für wen es ist",
+  "about_who_body": "Forschende der Geistes- und Sozialwissenschaften und alle, die neugierig sind, was das menschliche Kollektiv bewegt. Die Kalibrierung der Linse ist selbst eine offene, interdisziplinäre Frage.",
+
+  "about_power_title": "Was es Forschenden bringt",
+  "about_power_body": "Konkret: AĒR ist eine fertige, reproduzierbare Mess-Schicht über öffentlichem institutionellem Diskurs — ganz ohne selbst Crawling- oder NLP-Infrastruktur aufzubauen. Sie können nachzeichnen, wie sich Framing, Stimmung und Themen rund um ein Thema über die Zeit verschieben, nebeneinanderstellen, wie verschiedene Länder oder Institutionen dasselbe Ereignis artikulieren, und abbilden, welche Akteure und Begriffe zusammen auftreten — und die zugrunde liegenden Daten (CSV / JSON) für die eigene Analyse exportieren. In der Tradition der Digitalen Anthropologie und der Computational Social Science stellt AĒR Diskurse nebeneinander, statt sie zu ranken: Es legt sie zur Interpretation nebeneinander und behauptet interkulturelle Äquivalenz nur dort, wo sie sich rechtfertigen lässt, nie als Selbstverständlichkeit. Jede Kennzahl trägt ihre Provenienz — Methode, Tier, Version — und wird mit ihr exportiert; jede Ansicht ist deep-linkbar und reproduzierbar, mit vorab offengelegten Grenzen, sodass sie Peer-Review und Ethikkommissionen standhält. Es ist ein Instrument, um Hypothesen zu bilden und Diskurse zu lesen, keine Urteilsmaschine. Während es über mehr Sonden und Sprachen hinweg durch interdisziplinäre Zusammenarbeit validiert und erweitert wird, kann es zu einem Langzeit-Observatorium für gesellschaftliche Diskurse heranwachsen — und die offenen Fragen der Arbeitspapiere sind der Anfang dieser Arbeit.",
+
+  "about_state_title": "Wo es steht",
+  "about_state_body": "AĒR ist ein Proof of Concept, entwickelt von einer einzelnen Person ohne kommerzielle Förderung. Die Metriken sind bewusst transparent und deterministisch — aber noch nicht wissenschaftlich validiert; diese interdisziplinäre Arbeit steht noch aus und ist offen dokumentiert.",
+
+  "about_future_title": "Wohin es geht",
+  "about_future_body": "Geplant ist das Wachstum über viele Sonden und Sprachen hinweg — und die Kalibrierung der Linse gemeinsam mit den Geistes- und Sozialwissenschaften. Wenn dich das anspricht, sind die Arbeitspapiere eine offene Einladung.",
+
+  "about_links_title": "Weiterlesen",
+  "about_link_reflection": "Zur Reflexion →"
+}

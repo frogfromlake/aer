@@ -22,6 +22,8 @@ export function paperShortTitle(id: string): string {
       return m.reflection_paper_wp_005_short_title();
     case 'wp-006':
       return m.reflection_paper_wp_006_short_title();
+    case 'wp-007':
+      return m.reflection_paper_wp_007_short_title();
     default:
       return id.toUpperCase();
   }
@@ -42,6 +44,8 @@ export function paperAbstract(id: string): string {
       return m.reflection_paper_wp_005_abstract();
     case 'wp-006':
       return m.reflection_paper_wp_006_abstract();
+    case 'wp-007':
+      return m.reflection_paper_wp_007_abstract();
     default:
       return '';
   }

@@ -477,6 +477,10 @@ export interface UrlState {
   // (same model as the Dossier), so the globe never remounts on open/close.
   account: 'open' | null;
   admin: 'open' | null;
+  // Phase 149 — "About AĒR" intro panel as a global overlay (same model): the
+  // re-openable home of the welcome content (what / purpose / for whom / state /
+  // future). Driven by `?about=open` so it deep-links and round-trips.
+  about: 'open' | null;
   // Phase 135 — saved-analyses overlay. `save` opens it directly in the
   // save-current-view flow (a discoverable affordance from the Workbench).
   analyses: 'open' | 'save' | null;
@@ -504,6 +508,7 @@ export const EMPTY_URL_STATE: UrlState = {
   dossier: null,
   account: null,
   admin: null,
+  about: null,
   analyses: null,
   savedAnalysis: null
 };

@@ -112,12 +112,13 @@ export function pushUrl(next: Partial<UrlState>): void {
 // MUTUALLY EXCLUSIVE: only one window may be open at a time. Opening one always
 // clears the others and pushes a history entry, so browser back/forward steps
 // through the window stack. Closing/toggling-shut replaces (no new entry).
-export type OverlayName = 'account' | 'admin' | 'analyses' | 'dossier';
+export type OverlayName = 'account' | 'admin' | 'analyses' | 'dossier' | 'about';
 const OVERLAYS_CLEARED = {
   account: null,
   admin: null,
   analyses: null,
-  dossier: null
+  dossier: null,
+  about: null
 } satisfies Pick<UrlState, OverlayName>;
 
 /** True when `which` is the currently-open overlay. */

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+
+  "boot_loading_label": "Sensing the atmosphere…",
+
+  "welcome_ambient_line1": "An atmospheric sensor for human discourse",
+  "welcome_ambient_line2": "An external perspective on what moves the connected world.",
+  "welcome_ambient_skip": "Skip",
+
+  "about_open": "About AĒR",
+  "about_eyebrow": "About",
+  "about_title": "AĒR — an atmospheric sensor for human discourse",
+  "about_close": "Close",
+  "about_lede": "AĒR observes large-scale patterns in public discourse — which themes surface, in what tone, when, and in relation to what — the way an orbital sensor reads atmospheric currents rather than individual lives.",
+
+  "about_what_title": "What AĒR is",
+  "about_what_body": "A macroscope for societal discourse. AĒR watches discourse, not people: it condenses the public output of deliberately chosen observation points into aggregate, auditable metrics. It collects no behavioural metadata, no social graphs, no device fingerprints, and builds no digital twins — that is structural, not a matter of policy. Where an institutional source names its authors, that is public, on-the-record speech in an official role: AĒR can attribute a metric to it, but assembles no hidden profile behind it.",
+
+  "about_method_title": "How it observes",
+  "about_method_body": "AĒR chooses what it watches by discursive function — who sets the bounds of the sayable, who legitimates power, who builds belonging, who contests — rather than by institutional label, so sources from different societies can be set alongside one another without being forced into one society's categories. Cross-cultural equivalence is never assumed: it is gated by an explicit registry that stays empty until a researcher grants it — at explicit levels (temporal, deviation, absolute), validated by review — and a comparison without a grant is refused, not quietly drawn. What the instrument cannot see — collection gaps, structurally-absent fields, demographic blind spots — travels with the data as disclosed negative space, never quietly coerced into a zero.",
+
+  "about_purpose_title": "Its purpose",
+  "about_purpose_body": "To make hidden societal currents visible — and to stay honest about the instrument's own limits. What sets AĒR apart is that this honesty is enforced by its architecture, not just promised in a mission statement: it discloses what it cannot see, refuses comparisons it cannot justify, and marks the validation status of its metrics. The metrics are kept as simple as the question allows, but they remain provisional — no result should be read as settled truth. AĒR is built to know it is an instrument: it shows that, when and where discourse shifts — never why; the interpretation belongs to the researcher. An instrument of understanding, never of surveillance — not an oracle, but a question.",
+
+  "about_who_title": "Who it is for",
+  "about_who_body": "Researchers in the social sciences and humanities, and anyone curious about what moves the human collective. Calibrating the lens is itself an open, interdisciplinary question.",
+
+  "about_power_title": "What it gives a researcher",
+  "about_power_body": "Concretely: AĒR is a ready-made, reproducible measurement layer over public institutional discourse — no crawling or NLP infrastructure to stand up yourself. You can trace how framing, sentiment and topics around an issue shift over time, set side by side how different countries or institutions articulate the same event, and map which actors and concepts cluster together — then export the underlying data (CSV / JSON) into your own analysis. In the tradition of digital anthropology and computational social science, AĒR juxtaposes discourses rather than ranking them: it places them side by side for interpretation, and asserts cross-cultural equivalence only where it can be justified, never by assumption. Every figure carries its provenance — method, tier, version — and exports with it; every view is deep-linkable and reproducible, with its limitations disclosed up front, so it holds up to peer review and ethics boards. It is an instrument for generating hypotheses and reading discourse, not a verdict machine. As it is validated and extended across more probes and languages through interdisciplinary collaboration, it can grow into a longitudinal observatory for societal discourse — and the Working Papers' open questions are where that work begins.",
+
+  "about_state_title": "Where it stands",
+  "about_state_body": "AĒR is a proof of concept, built by a single developer with no commercial backing. Its metrics are deliberately transparent and deterministic — but not yet scientifically validated; that interdisciplinary work is still ahead and openly documented.",
+
+  "about_future_title": "Where it is going",
+  "about_future_body": "The plan is to grow across many probes and languages, and to calibrate the lens together with the social sciences and humanities. If that resonates with you, the Working Papers are an open invitation.",
+
+  "about_links_title": "Read further",
+  "about_link_reflection": "Open the Reflection surface →"
+}

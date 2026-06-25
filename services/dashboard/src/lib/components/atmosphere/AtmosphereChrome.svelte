@@ -11,6 +11,7 @@
   // AtmosphereSurface; this child only carries layout + scoped CSS, keeping
   // the surface file within its length budget.
   import StatReadout from '$lib/components/base/StatReadout.svelte';
+  import { openOverlay } from '$lib/state/url.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -56,7 +57,15 @@
   />
 </aside>
 
-<a class="atm-primer" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
+<div class="atm-corner">
+  <!-- Re-openable "About AĒR" intro (Phase 149) — the readable home of the
+       first-visit welcome. ⓘ keeps it discoverable without nagging. -->
+  <button type="button" class="atm-about" onclick={() => openOverlay('about')}>
+    <span class="atm-about-mark" aria-hidden="true">ⓘ</span>
+    {m.about_open()}
+  </button>
+  <a class="atm-primer" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
+</div>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
@@ -122,16 +131,49 @@
     pointer-events: auto;
   }
 
-  /* "How to read the globe" — bottom-right primer link. */
-  .atm-primer {
+  /* Bottom-right corner cluster: "About AĒR" trigger + "How to read" primer,
+     right-aligned and stacked. */
+  .atm-corner {
     position: absolute;
     right: var(--space-6);
     bottom: var(--space-6);
     z-index: 350;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    pointer-events: none;
+  }
+
+  .atm-about {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: var(--font-size-sm);
+    color: var(--color-fg-muted);
+    cursor: pointer;
+  }
+  .atm-about-mark {
+    font-size: 1em;
+    color: var(--color-fg-subtle);
+  }
+  .atm-about:hover,
+  .atm-about:focus-visible {
+    color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* "How to read the globe" — bottom-right primer link. */
+  .atm-primer {
+    pointer-events: auto;
     font-size: var(--font-size-sm);
     color: var(--color-accent);
     text-decoration: none;
-    pointer-events: auto;
   }
   .atm-primer:hover,
   .atm-primer:focus-visible {

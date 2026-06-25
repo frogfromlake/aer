@@ -27,7 +27,10 @@
   import DossierOverlay from '$lib/components/dossier/DossierOverlay.svelte';
   import AccountOverlay from '$lib/components/account/AccountOverlay.svelte';
   import AnalysesOverlay from '$lib/components/account/AnalysesOverlay.svelte';
+  import AboutOverlay from '$lib/components/about/AboutOverlay.svelte';
+  import BootSplash from '$lib/components/base/BootSplash.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
+  import { markSessionReady } from '$lib/state/boot.svelte';
   import { user, authChecked, refreshMe } from '$lib/state/auth.svelte';
   import type { MeResult } from '$lib/api/auth';
   import Button from '$lib/components/base/Button.svelte';
@@ -64,8 +67,12 @@
       state = (await refreshMe()).state;
     }
 
+    // Every terminal branch releases the boot splash's session gate — the page
+    // stops being blank here (renders the app, the /login bounce, or the retry
+    // surface), so the splash must not keep covering any of them.
     if (state === 'authenticated') {
       ready = true;
+      markSessionReady();
       return;
     }
     if (state === 'unauthenticated') {
@@ -73,12 +80,14 @@
       // `replaceState` so the unauthenticated bounce to /login does not pile an
       // auth entry onto the history stack; after sign-in the login page replaces
       // itself with the redirect target, keeping auth pages out of back/forward.
+      markSessionReady();
       await goto(`/login?redirect=${encodeURIComponent(here)}`, { replaceState: true });
       return;
     }
     // Still inconclusive after the retries — keep the user in place (do not
     // bounce a possibly-valid session) and offer a manual retry.
     unreachable = true;
+    markSessionReady();
   }
 
   onMount(resolveSession);
@@ -87,6 +96,11 @@
     rehydrateUrlState();
   });
 </script>
+
+<!-- Boot splash — self-gating (anti-flicker timing inside); always mounted so it
+     covers the blank session-probe + engine-load window and clears once the
+     globe is interactive. -->
+<BootSplash />
 
 {#if ready && user()}
   <SideRail />
@@ -99,6 +113,7 @@
   <DossierOverlay />
   <AccountOverlay />
   <AnalysesOverlay />
+  <AboutOverlay />
 {:else if unreachable}
   <div class="session-retry" role="alert">
     <p>{m.auth_session_unreachable()}</p>

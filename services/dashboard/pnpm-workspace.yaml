@@ -2,6 +2,16 @@ packages:
   - '.'
   - 'packages/*'
 
+# pnpm dependency-resolution settings. pnpm 10 reads these from here; keeping
+# them OUT of .npmrc stops npm/npx from emitting "Unknown project config"
+# warnings for pnpm-specific keys (npm never reads this file).
+#   - strictPeerDependencies: fail on unmet peer ranges (was strict-peer-dependencies=true)
+#   - autoInstallPeers: do NOT silently add missing peers (was auto-install-peers=false)
+#   - resolutionMode: prefer the highest matching version (pnpm default; kept explicit)
+strictPeerDependencies: true
+autoInstallPeers: false
+resolutionMode: highest
+
 # Pre-existing peer-dep mismatch: openapi-typescript@7 declares peer
 # typescript@^5.x but the project intentionally tracks typescript@6.0.3
 # (per .tool-versions, OPENAPI_TYPESCRIPT_VERSION is the SSoT pin and

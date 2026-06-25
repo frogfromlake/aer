@@ -203,5 +203,7 @@
   "reflection_paper_wp_005_short_title": "Zeitliche Granularität",
   "reflection_paper_wp_005_abstract": "Definiert die zeitlichen Signaturen von Diskursphänomenen (Eilereignisse, Normverschiebungen, strukturelle Muster), etabliert die drei zeitlichen Modi der Säulen und spezifiziert die Auflösungsparameter für die Zeitreihenarchitektur von AĒR.",
   "reflection_paper_wp_006_short_title": "Beobachtereffekt",
-  "reflection_paper_wp_006_abstract": "Behandelt den Beobachtereffekt in der sozialen Messung, schlägt eine reflexive Architektur für AĒR als „das Instrument, das weiß, dass es ein Instrument ist“ vor und spezifiziert die Verpflichtungen zum Datenschutz durch Technikgestaltung, einschließlich des k-Anonymitäts-Gates auf L5."
+  "reflection_paper_wp_006_abstract": "Behandelt den Beobachtereffekt in der sozialen Messung, schlägt eine reflexive Architektur für AĒR als „das Instrument, das weiß, dass es ein Instrument ist“ vor und spezifiziert die Verpflichtungen zum Datenschutz durch Technikgestaltung, einschließlich des k-Anonymitäts-Gates auf L5.",
+  "reflection_paper_wp_007_short_title": "Erhebungsvollständigkeit",
+  "reflection_paper_wp_007_abstract": "Definiert Erhebungsvollständigkeit und quellenübergreifende Fairness als Eigenschaft der Messvalidität: Sie unterscheidet einen echten Durchsatzunterschied zwischen Quellen von einem Crawl-Artefakt — über einen gemessenen deklarierten Nenner, Fairness als Regelsymmetrie (nicht gleiche Größe) und einen Übererfassungs-Schutz —, alles als Negativraum offengelegt und in das Quellen- und Sonden-Onboarding getragen."
 }

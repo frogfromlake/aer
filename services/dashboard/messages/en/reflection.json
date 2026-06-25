@@ -203,5 +203,7 @@
   "reflection_paper_wp_005_short_title": "Temporal Granularity",
   "reflection_paper_wp_005_abstract": "Defines the temporal signatures of discourse phenomena (breaking events, norm shifts, structural patterns), establishes the three Pillar temporal modes, and specifies the resolution parameters for the AĒR time-series architecture.",
   "reflection_paper_wp_006_short_title": "Observer Effect",
-  "reflection_paper_wp_006_abstract": "Addresses the observer effect in social measurement, proposes a reflexive architecture for AĒR as \"the instrument that knows it is an instrument,\" and specifies the data-protection-by-design commitments including the k-anonymity gate at L5."
+  "reflection_paper_wp_006_abstract": "Addresses the observer effect in social measurement, proposes a reflexive architecture for AĒR as \"the instrument that knows it is an instrument,\" and specifies the data-protection-by-design commitments including the k-anonymity gate at L5.",
+  "reflection_paper_wp_007_short_title": "Collection Completeness",
+  "reflection_paper_wp_007_abstract": "Defines collection completeness and cross-source fairness as a measurement-validity property: it distinguishes a genuine throughput difference between sources from a crawl artifact via a measured declared-denominator, symmetric-rules (not equal-size) fairness, and an over-collection guard — all disclosed as Negative Space and carried into source and probe onboarding."
 }

@@ -45,9 +45,11 @@
   import WebGLFallback from '$lib/components/atmosphere/WebGLFallback.svelte';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import AtmosphereChrome from '$lib/components/atmosphere/AtmosphereChrome.svelte';
+  import WelcomeAmbient from '$lib/components/atmosphere/WelcomeAmbient.svelte';
   import Button from '$lib/components/base/Button.svelte';
   import { ScopeBar } from '$lib/components/chrome';
   import { urlState, setUrl, toggleOverlay } from '$lib/state/url.svelte';
+  import { markGlobeReady } from '$lib/state/boot.svelte';
   import { buildSelectionWorkbenchUrl } from '$lib/workbench/panel-queries';
   import { DEFAULT_LOOKBACK_MS } from '$lib/state/url-internals';
   import {
@@ -95,6 +97,10 @@
     const params = new URLSearchParams(window.location.search);
     const forceFallback = params.get('fallback') === '1';
     decision = !forceFallback && hasWebGL2() ? 'engine' : 'fallback';
+
+    // No-WebGL2 path: there is no engine chunk to load, so the globe is "ready"
+    // the moment the fallback is chosen — release the boot splash's globe gate.
+    if (decision === 'fallback') markGlobeReady();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Shift') shiftHeld = true;
@@ -156,7 +162,8 @@
     url.dossier === 'open' ||
       url.account === 'open' ||
       url.admin === 'open' ||
-      url.analyses === 'open'
+      url.analyses === 'open' ||
+      url.about === 'open'
   );
   $effect(() => {
     engineHandle?.setActive(!overlayOpen);
@@ -343,6 +350,8 @@
         sources={formatNumber(statSources)}
         documents={docsDisplay}
       />
+      <!-- First-visit ambient greeting (once per device, self-dismissing). -->
+      <WelcomeAmbient />
     {/if}
     <AtmosphereCanvas
       probes={probeMarkers}
@@ -351,7 +360,12 @@
       {onProbeHovered}
       {onSatelliteSelected}
       {onSatelliteHovered}
-      onready={(e) => (engineHandle = e)}
+      onready={(e) => {
+        engineHandle = e;
+        // Engine mounted its first frame → the globe is interactive; clear the
+        // boot splash's globe gate.
+        markGlobeReady();
+      }}
       selection={engineSelection}
       selectedProbeIds={url.selectedProbes}
       hover={hoveredProbe}

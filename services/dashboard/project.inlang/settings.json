@@ -9,6 +9,7 @@
       "./messages/{locale}/base.json",
       "./messages/{locale}/chrome.json",
       "./messages/{locale}/atmosphere.json",
+      "./messages/{locale}/welcome.json",
       "./messages/{locale}/workbench.json",
       "./messages/{locale}/levers.json",
       "./messages/{locale}/cells.json",
