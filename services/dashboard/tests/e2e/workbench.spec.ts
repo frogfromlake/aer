@@ -340,6 +340,87 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     await expect(panel.locator('.panel-body.split')).toBeVisible();
     await expect(panel.locator('.panel-cell')).toHaveCount(2);
   });
+
+  // Phase 149 (Zen) — the ⛶ Zen action opens the panel full-screen in a modal
+  // overlay (which REPLACED Maximize-Mode); Esc returns to the grid.
+  test('⛶ Zen opens the panel full-screen and Esc leaves it', async ({ page }) => {
+    await page.goto(WORKBENCH_URL);
+
+    await page.locator('article.panel-host').getByRole('button', { name: '⛶ Zen' }).click();
+
+    // The full-screen overlay is a modal dialog holding the (only) panel; the
+    // grid is unmounted underneath, so exactly one panel-host is present.
+    const zen = page.getByRole('dialog', { name: 'Zen mode — full-screen panel' });
+    await expect(zen).toBeVisible();
+    await expect(page.locator('article.panel-host')).toHaveCount(1);
+    await expect(zen.locator('article.panel-host')).toBeVisible();
+    // Portalled to <body> — this is what lets its z-index beat the SideRail.
+    await expect(page.locator('body > .zen-overlay')).toHaveCount(1);
+
+    // Esc leaves Zen — the overlay is gone and the grid panel is back.
+    await page.keyboard.press('Escape');
+    await expect(zen).toHaveCount(0);
+    await expect(page.locator('article.panel-host')).toBeVisible();
+  });
+
+  // Phase 149 (Zen) — per-cell Zen: each cell in a split panel carries its own ⛶
+  // (left of "Adjust cell") that opens THAT cell full-screen in the same overlay.
+  test('per-cell ⛶ opens a single cell full-screen and Esc leaves it', async ({ page }) => {
+    await page.goto(WORKBENCH_URL);
+    await expandControls(page);
+
+    const panel = page.locator('article.panel-host');
+    const strip = page.getByRole('region', { name: 'Panel controls' });
+    // Split → two source cells, each with its own per-cell config bar (+ ⛶).
+    await strip
+      .getByRole('radiogroup', { name: 'Composition' })
+      .getByRole('radio', { name: 'Split', exact: true })
+      .click();
+    await expect(panel.locator('.panel-cell')).toHaveCount(2);
+
+    // Open the first cell full-screen via its ⛶.
+    await panel
+      .locator('.panel-cell')
+      .first()
+      .getByRole('button', { name: 'Open this cell full-screen (Zen mode) — Esc to leave' })
+      .click();
+
+    const zen = page.getByRole('dialog', { name: 'Zen mode — full-screen panel' });
+    await expect(zen).toBeVisible();
+    await expect(page.locator('body > .zen-overlay')).toHaveCount(1);
+    // Phase 149 — a non-overridden cell gains its OWN "How to read" pull-tab while
+    // zoomed (the panel guide isn't present in the cell overlay).
+    await expect(zen.getByRole('button', { name: 'How to read' })).toBeVisible();
+
+    // Esc leaves cell Zen — overlay gone (and with it the cell guide), both grid
+    // cells back.
+    await page.keyboard.press('Escape');
+    await expect(zen).toHaveCount(0);
+    await expect(panel.locator('.panel-cell')).toHaveCount(2);
+  });
+
+  // Phase 149 (Zen) — the third level: the whole multi-panel view full-screen,
+  // opened from the window-actions strip. Esc returns to the grid.
+  test('window ⛶ Zen opens the whole multi-panel view full-screen and Esc leaves it', async ({
+    page
+  }) => {
+    await page.goto(WORKBENCH_URL);
+
+    // The window-actions ⛶ (scoped — the panel toolbar carries the same glyph).
+    await page.locator('.window-actions').getByRole('button', { name: '⛶ Zen' }).click();
+
+    const zen = page.getByRole('dialog', { name: 'Zen mode — full-screen panel' });
+    await expect(zen).toBeVisible();
+    await expect(page.locator('body > .zen-overlay')).toHaveCount(1);
+    // The whole grid (actions strip + panel) is inside the overlay.
+    await expect(zen.locator('.panel-grid')).toBeVisible();
+    await expect(zen.locator('article.panel-host')).toBeVisible();
+
+    // Esc leaves window Zen — overlay gone, grid back inline.
+    await page.keyboard.press('Escape');
+    await expect(zen).toHaveCount(0);
+    await expect(page.locator('article.panel-host')).toBeVisible();
+  });
 });
 
 // ScopeEditor decomposition net (Phase 141). The PanelControls/PanelHost tests

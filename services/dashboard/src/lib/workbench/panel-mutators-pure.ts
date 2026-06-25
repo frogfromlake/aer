@@ -194,63 +194,6 @@ export function addScopeGroupPure(
   return setPillar(base, pillar, setWindow(pillarState, winIndex, nextWin));
 }
 
-// Phase 122i revision (C3) — Maximize-Mode mutators.
-
-/**
- * Set or clear the maximized-panel pointer on a window. Pass `null` (or
- * an out-of-bounds index) to clear. Setting the same index twice is a
- * no-op (returns the input by reference so callers can detect idempotent
- * toggles via referential equality).
- */
-export function setMaximizedPanelPure(
-  pillars: WorkbenchPillarsState | null,
-  pillar: PillarId,
-  windowIndex: number,
-  panelIndex: number | null
-): WorkbenchPillarsState | null {
-  const base = pillarsOrEmpty(pillars);
-  const pillarState = base[pillar];
-  if (!pillarState) return pillars;
-  const win = pillarState.windows[windowIndex];
-  if (!win) return pillars;
-  const next: number | null =
-    panelIndex !== null &&
-    Number.isInteger(panelIndex) &&
-    panelIndex >= 0 &&
-    panelIndex < win.panels.length
-      ? panelIndex
-      : null;
-  const current = win.maximizedPanelIndex ?? null;
-  if (current === next) return pillars;
-  const nextWin: WorkbenchWindow =
-    next === null
-      ? { ...win, maximizedPanelIndex: null }
-      : { ...win, maximizedPanelIndex: next, focusedPanelIndex: next };
-  return setPillar(base, pillar, setWindow(pillarState, windowIndex, nextWin));
-}
-
-/** Toggle: if the panel is currently maximized, un-maximize; otherwise
- *  maximize it. */
-export function toggleMaximizedPanelPure(
-  pillars: WorkbenchPillarsState | null,
-  pillar: PillarId,
-  windowIndex: number,
-  panelIndex: number
-): WorkbenchPillarsState | null {
-  const base = pillarsOrEmpty(pillars);
-  const pillarState = base[pillar];
-  if (!pillarState) return pillars;
-  const win = pillarState.windows[windowIndex];
-  if (!win) return pillars;
-  const isCurrentlyMaximized = win.maximizedPanelIndex === panelIndex;
-  return setMaximizedPanelPure(
-    pillars,
-    pillar,
-    windowIndex,
-    isCurrentlyMaximized ? null : panelIndex
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Phase 126 — per-cell override helpers (pure, Panel → Panel).
 //

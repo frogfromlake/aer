@@ -25,8 +25,6 @@ import {
   focusPanelPure,
   removeCellOverride,
   removePanelPure,
-  setMaximizedPanelPure,
-  toggleMaximizedPanelPure,
   updatePanelPure,
   type PanelPath
 } from './panel-mutators-pure';
@@ -110,27 +108,6 @@ export function resetAllCellOverrides(path: PanelPath): void {
 /** Reserved for future Window-Tab UI. */
 export function addWindow(pillar: PillarId, template?: WorkbenchWindow): void {
   const next = addWindowPure(urlState().pillars, pillar, template);
-  if (next) setUrl({ pillars: next });
-}
-
-/** Phase 122i revision (C3) — set or clear the maximized panel pointer
- *  on a window. Passing `null` clears. */
-export function setMaximizedPanel(
-  pillar: PillarId,
-  windowIndex: number,
-  panelIndex: number | null
-): void {
-  const next = setMaximizedPanelPure(urlState().pillars, pillar, windowIndex, panelIndex);
-  if (next) setUrl({ pillars: next });
-}
-
-/** Phase 122i revision (C3) — toggle the maximize state on a panel. */
-export function toggleMaximizedPanel(
-  pillar: PillarId,
-  windowIndex: number,
-  panelIndex: number
-): void {
-  const next = toggleMaximizedPanelPure(urlState().pillars, pillar, windowIndex, panelIndex);
   if (next) setUrl({ pillars: next });
 }
 

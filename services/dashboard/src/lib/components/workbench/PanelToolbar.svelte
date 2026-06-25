@@ -1,9 +1,9 @@
 <script lang="ts">
   // Phase 141 — PanelHost header, extracted from PanelHost.svelte. Presentation
   // eyebrow + bound metric + lock state + the interactive panel actions
-  // (Edit scope / Maximize / Remove). Purely presentational: the action
-  // handlers (which mutate panel state / toggle the scope editor and own their
-  // own stopPropagation) are passed in by PanelHost.
+  // (Edit scope / Zen / Remove). Purely presentational: the action handlers
+  // (which mutate panel state / toggle the scope editor and own their own
+  // stopPropagation) are passed in by PanelHost.
   import { m } from '$lib/paraglide/messages.js';
   import type { PresentationDefinition } from '$lib/presentations';
   import type { Panel } from '$lib/state/url-internals';
@@ -13,11 +13,12 @@
     panel: Panel;
     /** Interactive editing path resolved (focus on click, action buttons). */
     isInteractive: boolean;
-    canMaximize: boolean;
-    isMaximized: boolean;
+    /** Phase 149 (Zen) — whether this panel is currently the full-screen Zen
+     *  panel; flips the Zen action between enter and the (overlay-side) exit. */
+    isZen: boolean;
     canRemove: boolean;
     onEditScope: (e: MouseEvent) => void;
-    onToggleMaximize: (e: MouseEvent) => void;
+    onToggleZen: (e: MouseEvent) => void;
     onRemove: (e: MouseEvent) => void;
     /** Phase 149 — commit a new panel caption (empty string clears it). Absent
      *  for non-interactive (unfocused / read-only) panels — the label still
@@ -32,11 +33,10 @@
     presentation,
     panel,
     isInteractive,
-    canMaximize,
-    isMaximized,
+    isZen,
     canRemove,
     onEditScope,
-    onToggleMaximize,
+    onToggleZen,
     onRemove,
     onRenameLabel,
     pillarColor
@@ -160,22 +160,18 @@
         >
           {m.workbench_panel_edit_scope()}
         </button>
-        {#if canMaximize || isMaximized}
-          <!-- Phase 122i revision (C3). Maximize is UI state, not scope editing,
-             so it stays enabled on locked panels. Hidden when there is nothing
-             else in the window to maximize against. -->
-          <button
-            type="button"
-            class="panel-action"
-            onclick={onToggleMaximize}
-            title={isMaximized
-              ? m.workbench_panel_restore_title()
-              : m.workbench_panel_maximize_title()}
-            aria-pressed={isMaximized}
-          >
-            {isMaximized ? m.workbench_panel_restore() : m.workbench_panel_maximize()}
-          </button>
-        {/if}
+        <!-- Phase 149 (Zen) — Zen is UI state, not scope editing, so it stays
+             enabled on locked panels. Always available (a single panel can go
+             full-screen too); flips to an exit affordance while Zen is open. -->
+        <button
+          type="button"
+          class="panel-action"
+          onclick={onToggleZen}
+          title={isZen ? m.workbench_zen_exit_title() : m.workbench_panel_zen_title()}
+          aria-pressed={isZen}
+        >
+          {isZen ? m.workbench_zen_exit() : m.workbench_panel_zen()}
+        </button>
         {#if canRemove}
           <button
             type="button"

@@ -30,12 +30,7 @@
   // tests/unit/panel-host-layout.test.ts). The component reads the reactive
   // inputs (query data, panel) and passes them in.
   import * as layout from '$lib/workbench/panel-host-layout';
-  import {
-    focusPanel,
-    removePanel,
-    toggleMaximizedPanel,
-    updatePanel
-  } from '$lib/workbench/panel-mutators';
+  import { focusPanel, removePanel, updatePanel } from '$lib/workbench/panel-mutators';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import ReadingGuide from '$lib/components/presentations/ReadingGuide.svelte';
   import PanelControls from './PanelControls.svelte';
@@ -59,14 +54,12 @@
     panelIndex?: number;
     focused?: boolean;
     canRemove?: boolean;
-    /** Phase 122i revision (C3) — whether this panel is the maximized
-     *  member of its window. Drives the icon on the maximize button
-     *  (⤢ to maximize, ⤡ to restore). */
-    isMaximized?: boolean;
-    /** Phase 122i revision (C3) — whether a Maximize button should
-     *  appear on this panel. Suppressed when the window has only one
-     *  panel (nothing to compare against, no minimised tray would appear). */
-    canMaximize?: boolean;
+    /** Phase 149 (Zen) — whether this panel is the active full-screen Zen panel
+     *  (flips the toolbar's Zen action to an exit). */
+    isZen?: boolean;
+    /** Phase 149 (Zen) — toggle this panel's Zen state. Owned by WindowHost
+     *  (transient, not URL-persisted); PanelHost just relays the toolbar click. */
+    onToggleZen?: () => void;
     /** Phase 125b — Window-level cross-panel brushing selection, threaded to
      *  every cell. Per-article cells (scatter, parallel) use it; others ignore. */
     selection?: PresentationCellProps['selection'];
@@ -83,8 +76,8 @@
     panelIndex,
     focused = false,
     canRemove = false,
-    isMaximized = false,
-    canMaximize = false,
+    isZen = false,
+    onToggleZen,
     selection
   }: Props = $props();
 
@@ -111,10 +104,9 @@
     if (!path) return;
     scopeEditorOpen = true;
   }
-  function onToggleMaximize(e: MouseEvent) {
+  function onZenClick(e: MouseEvent) {
     e.stopPropagation();
-    if (!path) return;
-    toggleMaximizedPanel(path.pillar, path.windowIndex, path.panelIndex);
+    onToggleZen?.();
   }
   // Phase 149 — set/clear the panel's human caption (empty string clears it so
   // the URL/saved-analysis state stays clean). Persists via the pillar payload.
@@ -250,11 +242,10 @@
     {presentation}
     {panel}
     {isInteractive}
-    {canMaximize}
-    {isMaximized}
+    {isZen}
     {canRemove}
     onEditScope={onAddCompare}
-    {onToggleMaximize}
+    onToggleZen={onZenClick}
     {onRemove}
     {onRenameLabel}
     {pillarColor}

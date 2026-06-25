@@ -6,8 +6,6 @@ import {
   addWindowPure as _addWindowPure,
   focusPanelPure as _focusPanelPure,
   removePanelPure as _removePanelPure,
-  setMaximizedPanelPure as _setMaximizedPanelPure,
-  toggleMaximizedPanelPure as _toggleMaximizedPanelPure,
   updatePanelPure as _updatePanelPure,
   type PanelPath
 } from '../../src/lib/workbench/panel-mutators-pure';
@@ -226,68 +224,10 @@ describe('_addWindowPure', () => {
   });
 });
 
-// Phase 122i revision (C3) — Maximize-Mode mutators.
-
-describe('_setMaximizedPanelPure', () => {
-  it('sets the maximize pointer + focus on a valid panel index', () => {
-    const initial = pillars(pillarState([win([panel(), panel()], 0)]));
-    const next = _setMaximizedPanelPure(initial, 'aleph', 0, 1);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBe(1);
-    expect(next?.aleph?.windows[0]?.focusedPanelIndex).toBe(1);
-  });
-
-  it('clears the maximize pointer when passed null', () => {
-    const w = win([panel(), panel()]);
-    w.maximizedPanelIndex = 1;
-    const initial = pillars(pillarState([w]));
-    const next = _setMaximizedPanelPure(initial, 'aleph', 0, null);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBeNull();
-  });
-
-  it('clears when passed an out-of-bounds index', () => {
-    const initial = pillars(pillarState([win([panel(), panel()])]));
-    const next = _setMaximizedPanelPure(initial, 'aleph', 0, 5);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex ?? null).toBeNull();
-  });
-
-  it('is a no-op when the target equals the current state', () => {
-    const w = win([panel(), panel()]);
-    w.maximizedPanelIndex = 1;
-    const initial = pillars(pillarState([w]));
-    expect(_setMaximizedPanelPure(initial, 'aleph', 0, 1)).toBe(initial);
-  });
-
-  it('no-ops on missing pillar or invalid window', () => {
-    const initial: WorkbenchPillarsState = { aleph: null, episteme: null, rhizome: null };
-    expect(_setMaximizedPanelPure(initial, 'aleph', 0, 0)).toBe(initial);
-    const withPillar = pillars();
-    expect(_setMaximizedPanelPure(withPillar, 'aleph', 5, 0)).toBe(withPillar);
-  });
-});
-
-describe('_toggleMaximizedPanelPure', () => {
-  it('maximizes when not currently maximized', () => {
-    const initial = pillars(pillarState([win([panel(), panel()])]));
-    const next = _toggleMaximizedPanelPure(initial, 'aleph', 0, 1);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBe(1);
-  });
-
-  it('un-maximizes when the same panel is currently maximized', () => {
-    const w = win([panel(), panel()]);
-    w.maximizedPanelIndex = 1;
-    const initial = pillars(pillarState([w]));
-    const next = _toggleMaximizedPanelPure(initial, 'aleph', 0, 1);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBeNull();
-  });
-
-  it('swaps when a different panel is currently maximized', () => {
-    const w = win([panel(), panel(), panel()]);
-    w.maximizedPanelIndex = 1;
-    const initial = pillars(pillarState([w]));
-    const next = _toggleMaximizedPanelPure(initial, 'aleph', 0, 2);
-    expect(next?.aleph?.windows[0]?.maximizedPanelIndex).toBe(2);
-  });
-});
+// Phase 149 — the Maximize-Mode mutators (_setMaximizedPanelPure /
+// _toggleMaximizedPanelPure) were removed when Zen mode replaced Maximize. Zen is
+// transient WindowHost state, not a pure URL-state mutation, so it has no pure
+// helper to characterize here.
 
 // Phase 126 — per-cell override helpers (pure, Panel → Panel).
 import {

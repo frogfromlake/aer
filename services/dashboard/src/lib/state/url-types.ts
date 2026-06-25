@@ -406,11 +406,9 @@ export interface Panel {
 export interface WorkbenchWindow {
   panels: Panel[]; // 1..MAX_PANELS_PER_WINDOW
   focusedPanelIndex: number;
-  // Phase 122i revision (C3). When set, the window renders only the
-  // maximised panel at full canvas; the other panels live in a minimised
-  // tray for swap. Out-of-bounds values are treated as "no maximize"
-  // by the WindowHost render path. Absent / null = no maximize.
-  maximizedPanelIndex?: number | null;
+  // Phase 149 — the former `maximizedPanelIndex` (Maximize-Mode) was removed when
+  // Zen mode replaced it. Zen is transient view state owned by WindowHost, never
+  // URL-persisted, so the Window shape carries no zoom pointer.
   // Phase 122k §14 finding 6 — configurable panels-per-row. When set,
   // the panel raster uses `repeat(N, 1fr)` so N panels share each row.
   // Absent / undefined = auto-fill with the previous `minmax(28rem, 1fr)`
@@ -620,10 +618,9 @@ export interface CompactPanel {
 export interface CompactWindow {
   p: CompactPanel[];
   fi: number;
-  // Phase 122i revision (C3). maximizedPanelIndex — absent / undefined =
-  // no maximize. Encoded as a numeric index when set; out-of-bounds
-  // values are rejected by the type guard.
-  mp?: number;
+  // Phase 149 — the `mp` (maximizedPanelIndex) key was retired with Maximize-Mode
+  // (Zen mode is transient, not URL-encoded). A legacy `mp` in an old URL is
+  // simply ignored by the decoder.
   // Phase 122k §14 finding 6 — panels-per-row override.
   ppr?: number;
 }

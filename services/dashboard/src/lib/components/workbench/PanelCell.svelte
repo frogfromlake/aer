@@ -22,6 +22,7 @@
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import CellConfigPopover from './CellConfigPopover.svelte';
   import ReadingGuide from '$lib/components/presentations/ReadingGuide.svelte';
+  import ZenOverlay from './ZenOverlay.svelte';
 
   interface Props {
     unit: CellRenderUnit;
@@ -128,7 +129,27 @@
   const cellDimensionOptions = $derived(
     isConfigOpen ? layout.cellDimensionOptions(availFullData, openCellSources, fieldDriven) : []
   );
+
+  // Phase 149 (Zen) — this single cell can open full-screen, exactly like a panel
+  // (a CSS fixed overlay portalled above the SideRail, dimmed scrim). The cell
+  // body is rendered via the `cellInner` snippet either in the grid OR in the
+  // overlay (never both — so a heavy sigma/Plot cell is not double-mounted).
+  // Transient, local, never URL-persisted.
+  let cellZen = $state(false);
+  function toggleCellZen(e: MouseEvent) {
+    e.stopPropagation();
+    cellZen = !cellZen;
+  }
+  function exitCellZen() {
+    cellZen = false;
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && cellZen) exitCellZen();
+  }}
+/>
 
 <div
   class="panel-cell"
@@ -136,6 +157,26 @@
   class:cell-overridden={cfg.isOverridden}
   data-group={accentNum}
 >
+  {#if cellZen}
+    <!-- Phase 149 (Zen) — the body is in the full-screen overlay below; keep a
+         slot here so the split grid layout does not reflow behind the scrim. -->
+    <p class="cell-zen-placeholder" role="note">{m.workbench_cell_zen_placeholder()}</p>
+  {:else}
+    {@render cellInner()}
+  {/if}
+</div>
+
+{#if cellZen}
+  <!-- Phase 149 (Zen) — single-cell full-screen via the shared ZenOverlay
+       (portalled above the SideRail, dimmed scrim); `framed` gives the cell an
+       elevated card (it has no surface of its own). Esc / Leave / the cell's own
+       ⛶ toggle return to the grid. -->
+  <ZenOverlay onExit={exitCellZen} framed>
+    {@render cellInner()}
+  </ZenOverlay>
+{/if}
+
+{#snippet cellInner()}
   {#if perCellConfig}
     <div class="cell-config-bar">
       {#if cfg.isOverridden}
@@ -143,6 +184,19 @@
           {m.workbench_cell_custom_badge()}
         </span>
       {/if}
+      <!-- Phase 149 (Zen) — ⛶ opens THIS cell full-screen, left of "Configure
+           this cell"; flips to an exit while open. -->
+      <button
+        type="button"
+        class="cell-config-btn"
+        class:active={cellZen}
+        aria-pressed={cellZen}
+        title={cellZen ? m.workbench_zen_exit_title() : m.workbench_cell_zen_title()}
+        aria-label={cellZen ? m.workbench_zen_exit_title() : m.workbench_cell_zen_title()}
+        onclick={toggleCellZen}
+      >
+        ⛶
+      </button>
       <button
         type="button"
         class="cell-config-btn"
@@ -240,17 +294,19 @@
   />
   {#if cfg.dimensionOverridden}
     <!-- ADR-038 / Phase 148f — this cell peeks a DIFFERENT dimension than the
-         panel, so it is off-comparison. The (desaturated) banner marks that, and
-         the cell carries its OWN "How to read" over its effective config (not the
-         panel default). Cells that match the panel are covered by the panel guide. -->
+         panel, so it is off-comparison. The (desaturated) banner marks that. -->
     <p class="cell-peek-banner" role="note">
       {m.workbench_cell_peek_banner_pre()} <code>{metricLabel(cfg.metric)}</code>
       {m.workbench_cell_peek_banner_mid()}
       <code>{metricLabel(panel.metric)}</code>{m.workbench_cell_peek_banner_post()}
     </p>
-    <!-- Phase 149 — this overridden cell carries its OWN guide: the same labeled
-         pull-tab as the panel, pinned to the upper-right of THIS cell (anchored to
-         .panel-cell), opening the same glassy drawer over the cell. -->
+  {/if}
+  {#if cfg.dimensionOverridden || cellZen}
+    <!-- Phase 149 — this cell carries its OWN "How to read" (the same labeled
+         pull-tab as the panel, over the cell's effective config): always for an
+         overridden cell (off-comparison, no panel guide covers it), and — Phase
+         149 (Zen) — for ANY cell while it is zoomed full-screen, since the panel
+         guide is not present in the cell overlay. It disappears with Zen. -->
     <ReadingGuide
       panel={cellPanel}
       {presentation}
@@ -261,9 +317,25 @@
       variant="cell"
     />
   {/if}
-</div>
+{/snippet}
 
 <style>
+  /* Phase 149 (Zen) — the full-screen Zen chrome lives in the shared ZenOverlay
+     component; PanelCell only supplies the cell body (via the `cellInner`
+     snippet, `framed`) and this grid-slot placeholder left behind while zoomed
+     (hidden under the scrim, but keeps the split layout from reflowing). */
+  .cell-zen-placeholder {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: inherit;
+    color: var(--color-fg-subtle);
+    font-size: var(--font-size-xs);
+    font-style: italic;
+  }
+
   .panel-cell {
     /* Phase 149 — +10% floor now the reading-guide launcher no longer eats a strip. */
     min-height: 15.4rem;

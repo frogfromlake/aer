@@ -38,17 +38,8 @@ function compactPillarState(s: PillarState): CompactPillarState {
         p: win.panels.map(compactPanel),
         fi: win.focusedPanelIndex
       };
-      // Phase 122i revision (C3). Only emit `mp` when it's a valid
-      // in-bounds index; null / undefined / out-of-bounds → omitted.
-      if (
-        win.maximizedPanelIndex !== undefined &&
-        win.maximizedPanelIndex !== null &&
-        Number.isInteger(win.maximizedPanelIndex) &&
-        win.maximizedPanelIndex >= 0 &&
-        win.maximizedPanelIndex < win.panels.length
-      ) {
-        cw.mp = win.maximizedPanelIndex;
-      }
+      // Phase 149 — `mp` (maximizedPanelIndex) retired with Maximize-Mode; Zen is
+      // transient and never encoded.
       if (
         win.panelsPerRow !== undefined &&
         Number.isInteger(win.panelsPerRow) &&
@@ -221,7 +212,7 @@ function expandPillarState(c: CompactPillarState): PillarState {
         panels: w.p.map(expandPanel),
         focusedPanelIndex: w.fi
       };
-      if (w.mp !== undefined) win.maximizedPanelIndex = w.mp;
+      // Phase 149 — a legacy `w.mp` (maximizedPanelIndex) is intentionally ignored.
       if (w.ppr !== undefined) win.panelsPerRow = w.ppr;
       return win;
     }),
@@ -338,13 +329,9 @@ function isCompactWindow(v: unknown): v is CompactWindow {
   if (!Array.isArray(v.p) || v.p.length === 0 || v.p.length > MAX_PANELS_PER_WINDOW) return false;
   if (typeof v.fi !== 'number' || !Number.isInteger(v.fi) || v.fi < 0 || v.fi >= v.p.length)
     return false;
-  // Phase 122i revision (C3). Optional `mp`; when present must be a
-  // valid panel index. Out-of-bounds → reject (the URL is malformed,
-  // not just "no maximize").
-  if (v.mp !== undefined) {
-    if (typeof v.mp !== 'number' || !Number.isInteger(v.mp) || v.mp < 0 || v.mp >= v.p.length)
-      return false;
-  }
+  // Phase 149 — a legacy `mp` (maximizedPanelIndex) is neither validated nor
+  // read any more (Maximize-Mode was removed); it is silently ignored so old
+  // saved-analysis URLs still decode.
   if (v.ppr !== undefined) {
     if (
       typeof v.ppr !== 'number' ||

@@ -1,18 +1,16 @@
 <script lang="ts">
   // Phase 122i / ADR-034 — Multi-Panel Workbench: Window renderer.
   //
-  // A Window holds 1..8 Panels arranged side-by-side. WindowHost has two
-  // render modes:
+  // A Window holds 1..8 Panels arranged side-by-side in a CSS-grid raster (C1):
+  // up to 4 columns, wrapping to the next row at panel 5. Each panel is
+  // focusable; every panel hosts a (collapsed-by-default) PanelControls strip.
   //
-  //   - **Grid mode** (default): all panels in a CSS-grid raster (C1).
-  //     Up to 4 columns, wraps to next row at panel 5. Each panel is
-  //     focusable; the focused panel hosts PanelControls.
-  //
-  //   - **Maximize mode** (R4): when `window.maximizedPanelIndex` is set
-  //     (R2 URL-state field), only the maximized panel renders at full
-  //     canvas. A minimised tray sits at the bottom listing the other
-  //     panels as small tiles for quick swap. `Esc` un-maximizes;
-  //     clicking the maximize button on the active panel toggles back.
+  // Phase 149 (Zen) — any panel can open full-screen in **Zen mode**: a CSS
+  // fixed overlay above everything (incl. the SideRail) holding just that panel,
+  // still fully editable. Zen is transient view state (`zenPanelIndex`, NOT
+  // URL-persisted); `Esc` or the Leave button returns to the grid. This replaced
+  // the former Maximize mode (URL-state `maximizedPanelIndex` + minimised tray),
+  // which was removed in Phase 149.
   //
   // Per-window max panels is enforced at the URL-state layer
   // (MAX_PANELS_PER_WINDOW = 8).
@@ -21,7 +19,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import type { FetchContext, ProbeDossierDto } from '$lib/api/queries';
   import { MAX_PANELS_PER_WINDOW, type PillarState, type PillarId } from '$lib/state/url-internals';
-  import { addPanel, setMaximizedPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
+  import { addPanel, setPanelsPerRow } from '$lib/workbench/panel-mutators';
   import { openOverlay, pushUrl } from '$lib/state/url.svelte';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
   import { buildPanelFromScopes } from '$lib/workbench/panel-queries';
@@ -29,6 +27,7 @@
   import type { ScopeGroup } from '$lib/state/url-internals';
   import type { DiscourseFunction } from '$lib/discourse-function';
   import PanelHost from './PanelHost.svelte';
+  import ZenOverlay from './ZenOverlay.svelte';
   import ScopeEditor from './ScopeEditor.svelte';
   // Phase 122k §14b finding 2 — WorkbenchDatasetShape retired here; the
   // per-panel `PanelMetaStrip` surfaces scope info inside each panel.
@@ -76,24 +75,53 @@
       selectedArticleIds.clear();
     }
   };
-  // Clear the selection when the active window changes (a new comparison frame);
-  // stale ids from a prior scope are harmless but a fresh window starts clean.
+  // Phase 149 (Zen) — which panel (if any) is open full-screen in Zen mode.
+  // Transient view state, deliberately NOT URL-persisted (an ephemeral reading
+  // posture, not saved configuration — mirrors `selection`).
+  let zenPanelIndex = $state<number | null>(null);
+  // Phase 149 (Zen) — whole-window Zen: the entire multi-panel grid full-screen.
+  // The three Zen levels (cell / panel / window) are transient and never
+  // URL-persisted. Window- and panel-Zen are mutually exclusive (entering one
+  // clears the other), so the Esc/exit semantics stay unambiguous.
+  let windowZen = $state(false);
+  const zenPanel = $derived(
+    zenPanelIndex !== null ? (activeWindow?.panels[zenPanelIndex] ?? null) : null
+  );
+
+  // Clear the selection AND leave every Zen level when the active window changes
+  // (a new comparison frame); stale ids/zen state from a prior frame start clean.
   $effect(() => {
     void activeWindowIndex;
     selectedArticleIds.clear();
+    zenPanelIndex = null;
+    windowZen = false;
   });
 
-  // Phase 122i revision (C3). Validate the maximize pointer against the
-  // current panel count (defensive — URL surgery could leave a stale
-  // value). When valid, we render the maximize branch.
-  const maximizedPanelIndex = $derived.by<number | null>(() => {
-    if (!activeWindow) return null;
-    const raw = activeWindow.maximizedPanelIndex;
-    if (raw === undefined || raw === null) return null;
-    if (raw < 0 || raw >= activeWindow.panels.length) return null;
-    return raw;
+  // Defensive — if the zoomed target disappears (URL surgery / panels removed),
+  // drop back to the grid so we never hold a stale index or an empty overlay.
+  $effect(() => {
+    if (zenPanelIndex !== null && (!activeWindow || zenPanelIndex >= activeWindow.panels.length)) {
+      zenPanelIndex = null;
+    }
+    if (windowZen && (!activeWindow || activeWindow.panels.length === 0)) {
+      windowZen = false;
+    }
   });
-  const isMaximizing = $derived(maximizedPanelIndex !== null);
+
+  function enterZen(i: number) {
+    windowZen = false;
+    zenPanelIndex = i;
+  }
+  function exitZen() {
+    zenPanelIndex = null;
+  }
+  function toggleWindowZen() {
+    zenPanelIndex = null;
+    windowZen = !windowZen;
+  }
+  function exitWindowZen() {
+    windowZen = false;
+  }
 
   // Phase 122k F3 — `+ Panel` opens the ScopeEditor in create mode. On
   // Apply the editor's draft becomes a fresh Panel which is appended to
@@ -122,30 +150,24 @@
     addPanelEditorOpen = false;
   }
 
-  function pickTrayPanel(i: number) {
-    // Swap maximize target. Also focuses the panel so PanelControls
-    // follows automatically.
-    setMaximizedPanel(pillar, activeWindowIndex, i);
-  }
-
-  function unmaximize() {
-    setMaximizedPanel(pillar, activeWindowIndex, null);
-  }
-
-  // Phase 122i revision (C3). Escape un-maximizes. Window-scoped key
-  // handler — only active while a panel is maximized.
+  // Phase 149 (Zen) — Escape leaves Zen mode. Window-scoped key handler — only
+  // acts while a panel is open full-screen.
   onMount(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
-      // Avoid firing while a popover / modal is open (the ScopeEditor
-      // handles its own Escape internally — its target is the
-      // backdrop, not the document — so events that reach `document`
-      // mean no modal is active).
+      // Avoid firing while a field is focused (typing in a panel-control input
+      // or the caption editor); those own their own Escape semantics.
       if (e.target instanceof HTMLInputElement) return;
       if (e.target instanceof HTMLTextAreaElement) return;
-      // Only act if a panel is actually maximized; otherwise do nothing.
-      if (!isMaximizing) return;
-      unmaximize();
+      // Exit the active Zen level; panel-Zen takes precedence over window-Zen.
+      if (zenPanelIndex !== null) {
+        exitZen();
+        return;
+      }
+      if (windowZen) {
+        exitWindowZen();
+        return;
+      }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -156,69 +178,24 @@
   class="window-host"
   aria-label={m.workbench_window_aria_label()}
   data-panel-count={panelCount}
-  class:maximizing={isMaximizing}
 >
   {#if !activeWindow || panelCount === 0}
     <p class="muted">{m.workbench_window_no_panels()}</p>
-  {:else if isMaximizing && maximizedPanelIndex !== null}
-    {@const focusedPanel = activeWindow.panels[maximizedPanelIndex]}
-    {#if focusedPanel}
-      <div class="panel-maximized">
-        <PanelHost
-          panel={focusedPanel}
-          {dossier}
-          {ctx}
-          {windowStart}
-          {windowEnd}
-          {pillar}
-          windowIndex={activeWindowIndex}
-          panelIndex={maximizedPanelIndex}
-          focused
-          canRemove={panelCount > 1}
-          isMaximized
-          canMaximize={true}
-          {selection}
-        />
-      </div>
-
-      {#if panelCount > 1}
-        <!-- Phase 122i revision (C3). Minimised tray of sibling panels.
-             Each tile is a compact button: clicking swaps the maximize
-             target. Provides quick swap without leaving the canvas. -->
-        <aside class="panel-tray" aria-label={m.workbench_window_tray_aria_label()}>
-          <span class="tray-label">{m.workbench_window_tray_label()}</span>
-          <ul class="tray-list" role="list">
-            {#each activeWindow.panels as p, i (i)}
-              {#if i !== maximizedPanelIndex}
-                <li>
-                  <button
-                    type="button"
-                    class="tray-tile"
-                    onclick={() => pickTrayPanel(i)}
-                    title={m.workbench_window_tray_show_maximized()}
-                  >
-                    <span class="tray-tile-num">#{i + 1}</span>
-                    <span class="tray-tile-meta">
-                      <code>{p.view}</code>
-                      <span class="tray-tile-metric">{p.metric}</span>
-                    </span>
-                  </button>
-                </li>
-              {/if}
-            {/each}
-          </ul>
-          <button
-            type="button"
-            class="tray-action"
-            onclick={unmaximize}
-            title={m.workbench_window_tray_restore()}
-          >
-            {m.workbench_window_tray_restore_label()}
-          </button>
-        </aside>
-      {/if}
-    {/if}
+  {:else if zenPanelIndex !== null || windowZen}
+    <!-- Phase 149 (Zen) — a panel OR the whole window is open full-screen; the
+         grid is unmounted here so heavy cells (sigma/WebGL) are not double-
+         rendered. The fixed overlay (top-level sibling below) is the surface. -->
   {:else}
+    {@render windowBody()}
+  {/if}
+</section>
+
+<!-- Phase 149 (Zen) — the multi-panel grid + its actions strip, rendered EITHER
+     inline (grid mode) OR inside the window-Zen overlay (never both, so the heavy
+     panels mount once). `{#if activeWindow}` narrows the type inside the snippet
+     closure (the section's guard does not reach in here). -->
+{#snippet windowBody()}
+  {#if activeWindow}
     {@const ppr = activeWindow.panelsPerRow ?? null}
     <!-- Phase 122k §14b finding 3 — actions strip ABOVE the panels.
          `+ Panel` is the most-used affordance after panel configuration;
@@ -256,6 +233,17 @@
           : m.workbench_window_add_panel_max_title({ max: MAX_PANELS_PER_WINDOW })}
       >
         ＋ {m.workbench_window_add_panel()}
+      </button>
+      <!-- Phase 149 (Zen) — open the WHOLE multi-panel view full-screen; flips to
+           an exit while open. The third Zen level (cell · panel · window). -->
+      <button
+        type="button"
+        class="window-action"
+        onclick={toggleWindowZen}
+        aria-pressed={windowZen}
+        title={windowZen ? m.workbench_zen_exit_title() : m.workbench_window_zen_title()}
+      >
+        {windowZen ? m.workbench_zen_exit() : m.workbench_window_zen()}
       </button>
       <span class="ppr-eyebrow">{m.workbench_window_panels_per_row()}</span>
       <div class="ppr-row" role="radiogroup" aria-label={m.workbench_window_panels_per_row()}>
@@ -300,14 +288,49 @@
           panelIndex={i}
           focused={i === activeWindow.focusedPanelIndex}
           canRemove={panelCount > 1}
-          isMaximized={false}
-          canMaximize={panelCount > 1}
+          isZen={false}
+          onToggleZen={() => enterZen(i)}
           {selection}
         />
       {/each}
     </div>
   {/if}
-</section>
+{/snippet}
+
+{#if windowZen && activeWindow && panelCount > 0}
+  <!-- Phase 149 (Zen) — the WHOLE multi-panel view full-screen in the shared
+       ZenOverlay (portalled above the SideRail, dimmed scrim). Unframed — the
+       panels bring their own surfaces. Esc / Leave / the actions-strip toggle
+       return to the grid. -->
+  <ZenOverlay onExit={exitWindowZen}>
+    {@render windowBody()}
+  </ZenOverlay>
+{/if}
+
+{#if zenPanel && zenPanelIndex !== null}
+  <!-- Phase 149 (Zen) — the panel opens full-screen in the shared ZenOverlay
+       (portalled above the SideRail, dimmed scrim). The panel stays fully
+       interactive/editable; Esc / Leave / the toolbar's Zen toggle return to the
+       grid. The panel brings its own surface, so the stage stays unframed. -->
+  {@const zenIdx = zenPanelIndex ?? 0}
+  <ZenOverlay onExit={exitZen}>
+    <PanelHost
+      panel={zenPanel}
+      {dossier}
+      {ctx}
+      {windowStart}
+      {windowEnd}
+      {pillar}
+      windowIndex={activeWindowIndex}
+      panelIndex={zenIdx}
+      focused
+      canRemove={false}
+      isZen
+      onToggleZen={exitZen}
+      {selection}
+    />
+  </ZenOverlay>
+{/if}
 
 {#if addPanelEditorOpen}
   <ScopeEditor
@@ -347,105 +370,9 @@
     grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   }
 
-  /* Phase 122i revision (C3). Maximize-mode layout. */
-  .panel-maximized {
-    display: flex;
-    flex-direction: column;
-    min-height: 28rem;
-    flex: 1;
-  }
-
-  .panel-tray {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    padding: var(--space-2) var(--space-3);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-  }
-
-  .tray-label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-fg-subtle);
-    font-weight: var(--font-weight-semibold);
-    min-width: 5rem;
-  }
-
-  .tray-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    flex: 1 1 auto;
-  }
-
-  .tray-tile {
-    appearance: none;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 4px var(--space-2);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-fg);
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-  }
-
-  .tray-tile:hover,
-  .tray-tile:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
-    border-color: var(--color-accent);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .tray-tile-num {
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-accent);
-  }
-
-  .tray-tile-meta {
-    display: inline-flex;
-    align-items: baseline;
-    gap: var(--space-1);
-    color: var(--color-fg);
-  }
-
-  .tray-tile-meta code {
-    color: var(--color-fg-subtle);
-  }
-
-  .tray-tile-metric {
-    color: var(--color-fg-muted);
-  }
-
-  .tray-action {
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 4px var(--space-2);
-    color: var(--color-fg);
-    font-family: var(--font-ui);
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-  }
-
-  .tray-action:hover,
-  .tray-action:focus-visible {
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
-    border-color: var(--color-accent);
-  }
+  /* Phase 149 (Zen) — the full-screen Zen chrome lives in the shared ZenOverlay
+     component (overlay + scrim + bar + Leave + portal); WindowHost only supplies
+     the panel as its content. */
 
   /* Phase 122k §14c finding 3 — Panels-per-row toggle: prominenter so
      it reads as a peer to the `+ Panel` primary button. */

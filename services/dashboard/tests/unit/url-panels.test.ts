@@ -301,30 +301,16 @@ describe('encodePillarState / decodePillarState — edge behaviours', () => {
     expect(decodePillarState(encoded)).toBeNull();
   });
 
-  it('round-trips maximizedPanelIndex on a multi-panel window (C3)', () => {
-    const win = makeWindow([makePanel(), makePanel()]);
-    win.maximizedPanelIndex = 1;
-    const decoded = decodePillarState(encodePillarState(makePillarState([win])));
-    expect(decoded?.windows[0]?.maximizedPanelIndex).toBe(1);
-  });
-
-  it('omits maximizedPanelIndex when null/undefined', () => {
-    const win = makeWindow([makePanel(), makePanel()]);
-    win.maximizedPanelIndex = null;
-    const decoded = decodePillarState(encodePillarState(makePillarState([win])));
-    expect(decoded?.windows[0]?.maximizedPanelIndex).toBeUndefined();
-  });
-
-  it('drops out-of-bounds maximizedPanelIndex on encode (defensive)', () => {
-    const win = makeWindow([makePanel()]); // only 1 panel
-    win.maximizedPanelIndex = 5;
-    const decoded = decodePillarState(encodePillarState(makePillarState([win])));
-    expect(decoded?.windows[0]?.maximizedPanelIndex).toBeUndefined();
-  });
-
-  it('rejects an out-of-bounds maximizedPanelIndex on decode (malformed URL)', () => {
+  // Phase 149 — maximizedPanelIndex (`mp`) was removed with Maximize-Mode. A
+  // legacy `mp` in an old URL is now silently ignored (neither validated nor
+  // read) rather than round-tripped or rejected, so saved-analysis URLs keep
+  // decoding.
+  it('ignores a legacy `mp` key without rejecting the URL', () => {
     const encoded = encodeCompact({ w: [{ p: [COMPACT_PANEL], fi: 0, mp: 5 }], aw: 0 });
-    expect(decodePillarState(encoded)).toBeNull();
+    const decoded = decodePillarState(encoded);
+    expect(decoded?.windows[0]?.panels.length).toBe(1);
+    const win0 = decoded?.windows[0] as unknown as Record<string, unknown>;
+    expect(win0?.maximizedPanelIndex).toBeUndefined();
   });
 
   it('produces URL-safe base64 (no +, /, or =)', () => {
