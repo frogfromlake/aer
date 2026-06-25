@@ -16,8 +16,9 @@ import { expect, test, type Route, type Page } from './_fixtures';
 //                  c:'m', v:'distribution', m:'sentiment_score_sentiws',
 //                  l:'g' }], fi:0 }], aw:0 }
 // (computed once via encodePillarState; hardcoded so the spec needs no app-code
-// import). A focused Panel mounts PanelControls (PanelHost renders it only when
-// `focused`), so the lever strip is present on load.
+// import). Phase 149 (Zen 3.1) — PanelControls renders on EVERY panel, collapsed
+// by default, so the strip region is present on load but its levers need an
+// explicit expand (see `expandControls`).
 //
 // All BFF routes are mocked so the test runs against `pnpm preview` with no live
 // backend (mirrors atmosphere.spec.ts / topic-views.spec.ts).
@@ -205,6 +206,19 @@ async function mockBff(page: Page) {
   );
 }
 
+// Phase 149 (Zen 3.1) — PanelControls now renders on every panel COLLAPSED by
+// default (focus is a pure highlight, no layout jump). The lever assertions below
+// need the strip open, so expand it first. Language-independent: clicks the
+// control-strip header (its `aria-expanded` flips) rather than a localized label.
+async function expandControls(page: Page) {
+  const header = page.locator('.cell-controls-header').first();
+  await expect(header).toBeVisible();
+  if ((await header.getAttribute('aria-expanded')) === 'false') {
+    await header.click();
+    await expect(header).toHaveAttribute('aria-expanded', 'true');
+  }
+}
+
 test.describe('Phase 141 — Workbench PanelControls characterization', () => {
   test.beforeEach(async ({ page }) => {
     await mockBff(page);
@@ -213,9 +227,11 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
   test('renders the per-lever control strip for a focused distribution panel', async ({ page }) => {
     await page.goto(WORKBENCH_URL);
 
-    // The panel control strip is present (PanelHost mounts it for the focused panel).
+    // The panel control strip is present on every panel (Phase 149); expand it so
+    // the per-lever rows render.
     const strip = page.getByRole('region', { name: 'Panel controls' });
     await expect(strip).toBeVisible();
+    await expandControls(page);
 
     // View lever — Phase 151: a dropdown (combobox) with Distribution selected.
     const viewSelect = strip.getByRole('combobox', { name: 'View' });
@@ -246,6 +262,7 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
   // panel eyebrow all read "Verteilung" (Phase 151 — View is now a combobox).
   test('?lang=de localizes the registry-driven View lever + panel eyebrow', async ({ page }) => {
     await page.goto(`${WORKBENCH_URL}&lang=de`);
+    await expandControls(page);
 
     const viewSelect = page.getByRole('combobox', { name: 'Darstellung' });
     await expect(viewSelect).toHaveValue('distribution');
@@ -259,6 +276,7 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
     page
   }) => {
     await page.goto(WORKBENCH_URL);
+    await expandControls(page);
 
     const strip = page.getByRole('region', { name: 'Panel controls' });
     const compGroup = strip.getByRole('radiogroup', { name: 'Composition' });
@@ -306,6 +324,7 @@ test.describe('Phase 141 — Workbench PanelControls characterization', () => {
 
   test('Split fans the cell grid out to one cell per source', async ({ page }) => {
     await page.goto(WORKBENCH_URL);
+    await expandControls(page);
 
     const panel = page.locator('article.panel-host');
     const strip = page.getByRole('region', { name: 'Panel controls' });
@@ -424,6 +443,7 @@ test.describe('Phase 141 — Workbench CellConfigPopover characterization', () =
 
   async function openFirstCellPopover(page: Page) {
     await page.goto(WORKBENCH_URL);
+    await expandControls(page);
     const panel = page.locator('article.panel-host');
     const strip = page.getByRole('region', { name: 'Panel controls' });
     // Split → two source cells, each carrying the per-cell config affordance.

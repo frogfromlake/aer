@@ -270,7 +270,12 @@
     />
   {/if}
 
-  {#if focused && path}
+  {#if path}
+    <!-- Phase 149 (Zen 3.1) — render the control strip for EVERY panel, not just
+         the focused one. Panels are created collapsed, so this is a compact header
+         on each panel: focus becomes a pure highlight (the accent border) with no
+         layout jump as the strip appears/disappears. The user expands whichever
+         panel's controls they want via its own header. -->
     <PanelControls pillar={path.pillar} panelPath={path} />
   {/if}
 

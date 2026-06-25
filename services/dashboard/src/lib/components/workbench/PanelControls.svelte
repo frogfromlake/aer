@@ -9,8 +9,9 @@
   // /scope/available-metadata) and the derivations every lever shares, and
   // passes them down as props. Each child carries its own state reads, handlers,
   // markup, and CSS; the shared row/button styling lives in ./levers/LeverRow +
-  // LeverButton. The strip is panel-bound — PanelHost mounts it only for the
-  // focused panel, so an unbound (legacy) render shows no levers.
+  // LeverButton. The strip is panel-bound — Phase 149 (Zen 3.1) mounts it on EVERY
+  // panel (collapsed by default; focus is a pure highlight), so an unbound (legacy)
+  // render with no panelPath still shows no levers.
   import { createQuery } from '@tanstack/svelte-query';
   import { m } from '$lib/paraglide/messages.js';
   import {
@@ -72,7 +73,11 @@
     );
   });
   const isPanelLocked = $derived(boundPanel?.locked === true);
-  const isCollapsed = $derived(boundPanel?.cellControlsCollapsed === true);
+  // Phase 149 (Zen 3.1) — collapsed is the DEFAULT: the strip now renders on every
+  // panel (not just the focused one), so an unset flag must read as collapsed (only
+  // an explicit `false` — the user expanded it — keeps it open). This keeps every
+  // panel the same compact height regardless of which creation path made it.
+  const isCollapsed = $derived(boundPanel?.cellControlsCollapsed !== false);
 
   // ---- Window bounds (Phase 122k F5) -------------------------------------
   // Snapshot "now" ONCE per mount. Reading `Date.now()` inside the derived made
@@ -296,8 +301,10 @@
 
   function toggleCollapsed() {
     if (!panelPath || !boundPanel) return;
-    const next = !(boundPanel.cellControlsCollapsed === true);
-    updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: next }));
+    // Collapsed is the default (unset ⇒ collapsed), so toggle off the displayed
+    // state: an explicit `false` opens it, anything else closes it.
+    const currentlyCollapsed = boundPanel.cellControlsCollapsed !== false;
+    updatePanel(panelPath, (p) => ({ ...p, cellControlsCollapsed: !currentlyCollapsed }));
   }
 </script>
 
