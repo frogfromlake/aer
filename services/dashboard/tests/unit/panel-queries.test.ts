@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   availabilityScope,
+  buildPanelFromScopes,
   coOccurrencePostDescriptorForPanel,
   defaultMetricForScopes,
   expandProbeScopeFanout,
@@ -541,5 +542,32 @@ describe('resolveCellConfig (override-with-inheritance)', () => {
     const cfg = resolveCellConfig(p, 's:taz');
     expect(cfg.metric).toBe('word_count');
     expect(cfg.dimensionOverridden).toBe(false);
+  });
+});
+
+describe('buildPanelFromScopes — Phase 148e composition default', () => {
+  // The co-occurrence network is a single relational graph: a split fan-out over
+  // >1 source/probe refuses. A freshly-created Rhizome panel must therefore open
+  // `merged` so the user never lands in an unprompted refusal.
+  it('opens cooccurrence_network merged + with legible initial levers', () => {
+    const p = buildPanelFromScopes([group(['probe-0'], ['tagesschau', 'taz'])], {
+      view: 'cooccurrence_network'
+    });
+    expect(p.composition).toBe('merged');
+    expect(p.view).toBe('cooccurrence_network');
+    // Phase 148e — co-occurrence opens sparse-labelled + with a short fixed settle.
+    expect(p.labelTopPercent).toBe(10);
+    expect(p.settleSeconds).toBe(20);
+  });
+
+  it('keeps split + no co-occurrence levers for value-axis presentations', () => {
+    const p = buildPanelFromScopes([group(['probe-0'], ['tagesschau', 'taz'])], {
+      view: 'distribution'
+    });
+    expect(p.composition).toBe('split');
+    expect(p.labelTopPercent).toBeUndefined();
+    expect(p.settleSeconds).toBeUndefined();
+    // The literal fallback view (`distribution`) also splits.
+    expect(buildPanelFromScopes([group(['probe-0'])]).composition).toBe('split');
   });
 });

@@ -9,6 +9,11 @@ import {
   labelColor,
   buildSourceColorMap,
   buildProbeColorMap,
+  buildSourceBorderColorMap,
+  buildProbeBorderColorMap,
+  provenanceBorder,
+  SOURCE_BORDER_PALETTE,
+  PROBE_BORDER_PALETTE,
   sourceColor,
   probeColor,
   resolvedSourceCount,
@@ -170,6 +175,61 @@ describe('buildProbeColorMap / probeColor', () => {
   it('returns unknown-provenance when no source resolves to a probe', () => {
     expect(probeColor(['mystery'], sourceProbeMap, probeColorMap)).toBe(UNKNOWN_PROVENANCE_COLOR);
     expect(probeColor([], sourceProbeMap, probeColorMap)).toBe(UNKNOWN_PROVENANCE_COLOR);
+  });
+});
+
+describe('provenance border maps + provenanceBorder()', () => {
+  const srcBorderMap = buildSourceBorderColorMap(['tagesschau', 'franceinfo']);
+  const probeBorderMap = buildProbeBorderColorMap(['probe-0-de', 'probe-1-fr']);
+  const s2p = { tagesschau: 'probe-0-de', franceinfo: 'probe-1-fr' };
+
+  it('uses the VIVID border palettes, distinct from the fill palettes', () => {
+    expect(srcBorderMap['tagesschau']).toBe(SOURCE_BORDER_PALETTE[0]);
+    expect(probeBorderMap['probe-1-fr']).toBe(PROBE_BORDER_PALETTE[1]);
+    // The collision the operator warned about: a border colour must never equal a
+    // fill (SOURCE/PROBE) palette colour.
+    expect(SOURCE_BORDER_PALETTE).not.toContain(SOURCE_PALETTE[0]);
+    expect(PROBE_BORDER_PALETTE).not.toContain(PROBE_PALETTE[0]);
+  });
+
+  it('mode "none" draws no ring', () => {
+    const b = provenanceBorder(['tagesschau'], 'none', srcBorderMap, s2p, probeBorderMap);
+    expect(b.sourceActive).toBe(false);
+    expect(b.probeActive).toBe(false);
+  });
+
+  it('mode "source" activates only the source ring, coloured by the source', () => {
+    const b = provenanceBorder(['tagesschau'], 'source', srcBorderMap, s2p, probeBorderMap);
+    expect(b.sourceActive).toBe(true);
+    expect(b.sourceColor).toBe(SOURCE_BORDER_PALETTE[0]);
+    expect(b.probeActive).toBe(false);
+  });
+
+  it('mode "probe" activates only the probe ring, coloured by the owning probe', () => {
+    const b = provenanceBorder(['franceinfo'], 'probe', srcBorderMap, s2p, probeBorderMap);
+    expect(b.probeActive).toBe(true);
+    expect(b.probeColor).toBe(PROBE_BORDER_PALETTE[1]);
+    expect(b.sourceActive).toBe(false);
+  });
+
+  it('mode "both" activates both rings (outer probe, inner source)', () => {
+    const b = provenanceBorder(['tagesschau'], 'both', srcBorderMap, s2p, probeBorderMap);
+    expect(b.sourceActive).toBe(true);
+    expect(b.probeActive).toBe(true);
+    expect(b.sourceColor).toBe(SOURCE_BORDER_PALETTE[0]);
+    expect(b.probeColor).toBe(PROBE_BORDER_PALETTE[0]);
+  });
+
+  it('greys a ring shared across ≥2 sources / probes', () => {
+    const b = provenanceBorder(
+      ['tagesschau', 'franceinfo'],
+      'both',
+      srcBorderMap,
+      s2p,
+      probeBorderMap
+    );
+    expect(b.sourceColor).toBe(SHARED_COLOR);
+    expect(b.probeColor).toBe(SHARED_COLOR);
   });
 });
 

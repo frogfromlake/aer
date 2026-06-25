@@ -21,6 +21,16 @@ import {
   VIEW_MODES
 } from './url-types';
 
+// Phase 148g — provenance-border mode ↔ compact int (0 none, 1 source, 2 probe,
+// 3 both). `none`/undefined is the default and is never emitted.
+type ProvenanceBorderMode = NonNullable<Panel['provenanceBorder']>;
+function provBorderToInt(m: ProvenanceBorderMode | undefined): 1 | 2 | 3 | undefined {
+  return m === 'source' ? 1 : m === 'probe' ? 2 : m === 'both' ? 3 : undefined;
+}
+function provBorderFromInt(v: number | undefined): ProvenanceBorderMode | undefined {
+  return v === 1 ? 'source' : v === 2 ? 'probe' : v === 3 ? 'both' : v === 0 ? 'none' : undefined;
+}
+
 function compactPillarState(s: PillarState): CompactPillarState {
   return {
     w: s.windows.map((win) => {
@@ -96,6 +106,10 @@ function compactPanel(p: Panel): CompactPanel {
   if (p.showLabels === false) c.sl = 0;
   if (p.labelTopPercent !== undefined && p.labelTopPercent !== 100) c.lp = p.labelTopPercent;
   if (p.labelRankBy === 'colour') c.lk = 1;
+  {
+    const pv = provBorderToInt(p.provenanceBorder);
+    if (pv !== undefined) c.pv = pv;
+  }
   if (p.showEdges === true) c.se = 1;
   if (p.forceStrength !== undefined) c.fs = p.forceStrength;
   if (p.settleSeconds !== undefined) c.st = p.settleSeconds;
@@ -140,6 +154,8 @@ function expandChannels(c: CompactChannelBinding): CellChannelBinding | null {
     c.nc === 'presence' ||
     c.nc === 'uniform' ||
     c.nc === 'source_overlay' ||
+    // Phase 148g — per-probe FILL channel (was missing → dropped on URL round-trip).
+    c.nc === 'probe_overlay' ||
     c.nc === 'metric' ||
     c.nc === 'community'
   )
@@ -159,6 +175,8 @@ function compactCellOverride(ov: CellOverride): CompactCellOverride | null {
   if (ov.showLabels !== undefined) c.sl = ov.showLabels ? 1 : 0;
   if (ov.labelTopPercent !== undefined) c.lp = ov.labelTopPercent;
   if (ov.labelRankBy !== undefined) c.lk = ov.labelRankBy === 'colour' ? 1 : 0;
+  if (ov.provenanceBorder !== undefined)
+    c.pv = ov.provenanceBorder === 'none' ? 0 : (provBorderToInt(ov.provenanceBorder) ?? 0);
   if (ov.showEdges !== undefined) c.se = ov.showEdges ? 1 : 0;
   if (ov.scales !== undefined) c.sc = ov.scales === 'free' ? 1 : 0;
   if (ov.displayLanguage !== undefined) c.dl = ov.displayLanguage === 'viewer' ? 1 : 0;
@@ -180,6 +198,10 @@ function expandCellOverride(c: CompactCellOverride): CellOverride {
   if (c.sl === 0 || c.sl === 1) ov.showLabels = c.sl === 1;
   if (typeof c.lp === 'number') ov.labelTopPercent = c.lp;
   if (c.lk === 0 || c.lk === 1) ov.labelRankBy = c.lk === 1 ? 'colour' : 'size';
+  {
+    const pv = provBorderFromInt(c.pv);
+    if (pv !== undefined) ov.provenanceBorder = pv;
+  }
   if (c.se === 0 || c.se === 1) ov.showEdges = c.se === 1;
   if (c.sc === 0 || c.sc === 1) ov.scales = c.sc === 1 ? 'free' : 'shared';
   if (c.dl === 0 || c.dl === 1) ov.displayLanguage = c.dl === 1 ? 'viewer' : 'source';
@@ -254,6 +276,10 @@ function expandPanel(c: CompactPanel): Panel {
   if (c.sl === 0) p.showLabels = false;
   if (typeof c.lp === 'number') p.labelTopPercent = c.lp;
   if (c.lk === 1) p.labelRankBy = 'colour';
+  {
+    const pv = provBorderFromInt(c.pv);
+    if (pv !== undefined) p.provenanceBorder = pv;
+  }
   if (c.se === 1) p.showEdges = true;
   if (typeof c.fs === 'number') p.forceStrength = c.fs;
   if (typeof c.st === 'number') p.settleSeconds = c.st;
@@ -345,6 +371,8 @@ function isCompactPanel(v: unknown): v is CompactPanel {
   if (v.L !== undefined && v.L !== 1) return false;
   if (v.lr !== undefined && v.lr !== 'df_entry') return false;
   if (v.lf !== undefined && typeof v.lf !== 'string') return false;
+  // Phase 148g — provenance-border mode (1 source, 2 probe, 3 both).
+  if (v.pv !== undefined && v.pv !== 1 && v.pv !== 2 && v.pv !== 3) return false;
   // Phase 122i revision short keys.
   if (v.sd !== undefined && v.sd !== 'h' && v.sd !== 'v') return false;
   if (v.cc !== undefined && v.cc !== 1) return false;
@@ -378,6 +406,7 @@ function isCompactCellOverride(v: unknown): v is CompactCellOverride {
   if (v.fs !== undefined && (typeof v.fs !== 'number' || !Number.isFinite(v.fs))) return false;
   if (v.sb !== undefined && v.sb !== 0 && v.sb !== 1) return false;
   if (v.sl !== undefined && v.sl !== 0 && v.sl !== 1) return false;
+  if (v.pv !== undefined && v.pv !== 0 && v.pv !== 1 && v.pv !== 2 && v.pv !== 3) return false;
   if (v.sc !== undefined && v.sc !== 0 && v.sc !== 1) return false;
   if (v.dl !== undefined && v.dl !== 0 && v.dl !== 1) return false;
   // `ch` is expanded defensively (each field type-checked in expandChannels),

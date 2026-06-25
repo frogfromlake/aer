@@ -50,6 +50,7 @@ export const PRESENTATIONS: readonly PresentationDefinition[] = [
     configurableParams: [
       'maxNodes',
       'networkChannels',
+      'provenanceBorder',
       'forceStrength',
       'settleTime',
       'showLabels',

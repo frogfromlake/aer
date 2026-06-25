@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  defaultCompositionForView,
+  initialLeversForView,
   EMPTY_URL_STATE,
   readFromSearch,
   writeToSearch,
@@ -17,6 +19,32 @@ import {
 function state(overrides: Partial<UrlState> = {}): UrlState {
   return { ...EMPTY_URL_STATE, ...overrides };
 }
+
+describe('defaultCompositionForView', () => {
+  it('opens the co-occurrence network merged (single relational graph)', () => {
+    expect(defaultCompositionForView('cooccurrence_network')).toBe('merged');
+  });
+
+  it('keeps split for every value-axis / per-scope presentation', () => {
+    expect(defaultCompositionForView('distribution')).toBe('split');
+    expect(defaultCompositionForView('time_series')).toBe('split');
+    expect(defaultCompositionForView('metric_scatter')).toBe('split');
+  });
+});
+
+describe('initialLeversForView', () => {
+  it('gives co-occurrence a sparse label set + short settle on open', () => {
+    expect(initialLeversForView('cooccurrence_network')).toEqual({
+      labelTopPercent: 10,
+      settleSeconds: 20
+    });
+  });
+
+  it('returns no opening levers for other presentations', () => {
+    expect(initialLeversForView('distribution')).toEqual({});
+    expect(initialLeversForView('time_series')).toEqual({});
+  });
+});
 
 describe('readFromSearch', () => {
   it('returns the empty default for an empty search string', () => {

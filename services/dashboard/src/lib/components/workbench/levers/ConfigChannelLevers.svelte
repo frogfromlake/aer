@@ -9,9 +9,11 @@
   // offerable categorical fields (no-discovery-bias). Sibling ConfigValueLevers
   // owns the slider / toggle levers.
   import type { CellChannelBinding, Panel } from '$lib/state/url-internals';
-  import { NET_COLOR_CHANNELS, NET_SIZE_CHANNELS } from '$lib/workbench/cell-levers';
-  import { pickViewerLabelLanguage } from '$lib/presentations/viewer-language';
-  import { locale } from '$lib/state/locale.svelte';
+  import {
+    NET_COLOR_CHANNELS,
+    NET_SIZE_CHANNELS,
+    PROVENANCE_BORDER_MODES
+  } from '$lib/workbench/cell-levers';
   import {
     resetAllCellOverrides,
     updatePanel,
@@ -46,15 +48,10 @@
 
   const activeMetric = $derived(boundPanel.metric);
   const activeChannels = $derived<CellChannelBinding>(boundPanel.channels ?? {});
-  const activeDisplayLanguage = $derived<'source' | 'viewer'>(
-    boundPanel.displayLanguage ?? 'source'
-  );
-  // App UI locale (clamped to the index's label languages) — shown on the
-  // toggle so the reader knows which language the relabel resolves to.
-  const viewerLanguage = $derived(pickViewerLabelLanguage(locale()));
   const activeMetricSet = $derived<readonly string[]>(boundPanel.metricSet ?? []);
   const activeFieldChain = $derived<readonly string[]>(boundPanel.fieldChain ?? []);
   const activeFacetField = $derived<string>(boundPanel.facetField ?? '');
+  const activeProvBorder = $derived(boundPanel.provenanceBorder ?? 'none');
   const cellOverrideCount = $derived(Object.keys(boundPanel.cellOverrides ?? {}).length);
 
   // For a field-driven view the panel's own field rides in `metric`; faceting BY
@@ -83,21 +80,22 @@
       return out;
     });
   }
+  // Phase 148g — provenance-border mode (top-level Panel field, like showLabels);
+  // 'none' clears it so the default is never persisted.
+  function setProvBorder(mode: string) {
+    updatePanel(panelPath, (p) => {
+      const out = { ...p };
+      if (mode === 'source' || mode === 'probe' || mode === 'both') out.provenanceBorder = mode;
+      else delete out.provenanceBorder;
+      return out;
+    });
+  }
   function setFacetField(field: string) {
     updatePanel(panelPath, (p) => {
       const out = { ...p };
       if (field) out.facetField = field;
       else delete out.facetField;
       return out;
-    });
-  }
-  function setDisplayLanguage(next: 'source' | 'viewer') {
-    if (next === activeDisplayLanguage) return;
-    updatePanel(panelPath, (p) => {
-      const o = { ...p };
-      if (next === 'viewer') o.displayLanguage = 'viewer';
-      else delete o.displayLanguage;
-      return o;
     });
   }
   // Mutate one visual channel; empty string clears (unbinds) the channel.
@@ -196,24 +194,24 @@
   {/if}
 {/if}
 
-{#if configParams.includes('displayLanguage')}
-  <LeverRow
-    eyebrow={m.levers_labels_eyebrow()}
-    role="group"
-    ariaLabel={m.levers_labels_aria()}
-    rowClass="config-row"
-  >
-    <LeverButton
-      role="switch"
-      active={activeDisplayLanguage === 'viewer'}
-      onclick={() => setDisplayLanguage(activeDisplayLanguage === 'viewer' ? 'source' : 'viewer')}
-      title={m.levers_labels_title({ language: viewerLanguage })}
+<!-- Phase 148g — provenance border: per-node ring(s) for source / probe, drawn on
+     TOP of the metric/community fill so the reader sees who published a node and
+     its size + colour at once. Vivid border palette stays clear of the metric ramp. -->
+{#if configParams.includes('provenanceBorder')}
+  <div class="ctrl-row config-row" role="group" aria-label={m.levers_provborder_aria()}>
+    <span class="ctrl-eyebrow">{m.levers_provborder_eyebrow()}</span>
+    <select
+      class="config-select"
+      value={activeProvBorder}
+      onchange={(e) => setProvBorder((e.currentTarget as HTMLSelectElement).value)}
+      onclick={(e) => e.stopPropagation()}
+      aria-label={m.levers_provborder_select_aria()}
     >
-      {activeDisplayLanguage === 'viewer'
-        ? m.levers_labels_app({ language: viewerLanguage })
-        : m.levers_labels_source()}
-    </LeverButton>
-  </LeverRow>
+      {#each PROVENANCE_BORDER_MODES as mode (mode.id)}
+        <option value={mode.id}>{mode.label()}</option>
+      {/each}
+    </select>
+  </div>
 {/if}
 
 {#if configParams.includes('scatterAxes')}

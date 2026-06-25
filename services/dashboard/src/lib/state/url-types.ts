@@ -122,6 +122,48 @@ export type Normalization = 'raw' | 'zscore' | 'percentile';
 // own state in the URL so a pillar-switch is non-destructive.
 export type Composition = 'merged' | 'split' | 'overlay';
 
+/**
+ * Phase 148e — the composition a freshly-created or pillar-seeded Panel opens
+ * with, given its presentation. `split` is the scientifically-honest default
+ * everywhere (per-scope small-multiples; merge stays an explicit opt-in that
+ * pools scopes onto one shared axis) — EXCEPT the co-occurrence network, which
+ * is a SINGLE relational graph, not a small-multiple grid. A `split` fan-out of
+ * a multi-source / multi-probe scope refuses (PanelCellGrid
+ * `cooccurrenceMultiCellRefused`), so a new Rhizome panel over such a scope must
+ * open `merged` (all sources pooled into one graph) instead of greeting the user
+ * with a refusal they never asked for. Pure + leaf so both create-mode
+ * (`buildPanelFromScopes`) and the pillar-switch seed (`seedPillarFromCurrent`)
+ * agree on one rule.
+ */
+export function defaultCompositionForView(view: Presentation): Composition {
+  return view === 'cooccurrence_network' ? 'merged' : 'split';
+}
+
+// Phase 148e — co-occurrence opening lever values for a freshly-created / pillar-
+// seeded panel (beyond composition). A dense relational graph that labels every
+// node and runs a node-count-scaled settle is illegible on open, so a new
+// Rhizome panel starts with a sparse label set (top 10% by prominence) and a
+// short, fixed settle. These are the INITIAL panel values; the levers still let
+// the reader raise them (and an unset value continues to mean "all labels" /
+// "auto settle" for older deep-links — see ConfigValueLevers' `?? 100` / auto).
+export const DEFAULT_COOC_LABEL_TOP_PERCENT = 10;
+export const DEFAULT_COOC_SETTLE_SECONDS = 20;
+
+/** Phase 148e — the initial per-cell lever values a panel of `view` opens with
+ *  (spread into the new Panel by both create-mode and the pillar-switch seed).
+ *  Empty for every non-co-occurrence presentation. */
+export function initialLeversForView(
+  view: Presentation
+): Pick<Panel, 'labelTopPercent' | 'settleSeconds'> {
+  if (view === 'cooccurrence_network') {
+    return {
+      labelTopPercent: DEFAULT_COOC_LABEL_TOP_PERCENT,
+      settleSeconds: DEFAULT_COOC_SETTLE_SECONDS
+    };
+  }
+  return {};
+}
+
 // Phase 122i revision (D2). Split direction governs how a Panel arranges
 // its small-multiples when composition='split'. Horizontal = cells
 // side-by-side (default); vertical = stacked. Ignored when composition
@@ -213,6 +255,8 @@ export interface CellOverride {
   showLabels?: boolean;
   labelTopPercent?: number;
   labelRankBy?: 'size' | 'colour';
+  // Phase 148g — provenance-border mode (per-node ring(s) for source/probe).
+  provenanceBorder?: 'none' | 'source' | 'probe' | 'both';
   scales?: ScaleMode;
   displayLanguage?: 'source' | 'viewer';
   channels?: CellChannelBinding;
@@ -242,6 +286,7 @@ export type CellOverridePatch = {
   showLabels?: boolean | undefined;
   labelTopPercent?: number | undefined;
   labelRankBy?: 'size' | 'colour' | undefined;
+  provenanceBorder?: 'none' | 'source' | 'probe' | 'both' | undefined;
   scales?: ScaleMode | undefined;
   displayLanguage?: 'source' | 'viewer' | undefined;
   channels?: CellChannelPatch | undefined;
@@ -284,6 +329,11 @@ export interface Panel {
   // all. Lets a dense 10k-node map show labels for just the most prominent nodes.
   labelTopPercent?: number;
   labelRankBy?: 'size' | 'colour';
+  // Phase 148g — co-occurrence provenance BORDER. Orthogonal to the node FILL
+  // (`channels.netColor`): a coloured ring (source), a second ring (probe), or
+  // both, so a reader sees WHO published a node alongside its size + metric
+  // colour. 'none'/undefined = no ring. Encoded as `pv` in the compact payload.
+  provenanceBorder?: 'none' | 'source' | 'probe' | 'both';
   // Phase 131 (BUG1.7) — co-occurrence force-layout spread (0..100). Higher =
   // stronger node repulsion = more spread-out graph (less single-cluster
   // crowding). Layout-only, not a metric. Default 50.
@@ -514,6 +564,7 @@ export interface CompactCellOverride {
   sl?: 0 | 1; // showLabels (0 = false, 1 = true) — Phase 148g
   lp?: number; // labelTopPercent (Phase 148g)
   lk?: 0 | 1; // labelRankBy (0 = size, 1 = colour) — Phase 148g
+  pv?: 0 | 1 | 2 | 3; // provenanceBorder (0 none, 1 source, 2 probe, 3 both) — Phase 148g
   sc?: 0 | 1; // scales (0 = shared, 1 = free)
   dl?: 0 | 1; // displayLanguage (0 = source, 1 = viewer)
   ch?: CompactChannelBinding; // visual-channel binding
@@ -541,6 +592,7 @@ export interface CompactPanel {
   sl?: 0; // showLabels=false (default true → omitted) — Phase 148g
   lp?: number; // labelTopPercent (default 100 → omitted) — Phase 148g
   lk?: 0 | 1; // labelRankBy (0 = size, 1 = colour; default size → omitted) — Phase 148g
+  pv?: 1 | 2 | 3; // provenanceBorder (1 source, 2 probe, 3 both; default none → omitted) — Phase 148g
   fs?: number; // forceStrength (network spread)
   st?: number; // settleSeconds (large-scale FA2 settle time)
   dl?: 1; // displayLanguage='viewer' (default 'source' → omitted)

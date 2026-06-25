@@ -19,6 +19,10 @@ import type {
   Presentation,
   WorkbenchPillarsState
 } from '$lib/state/url-internals';
+// Phase 148e — the one VALUE dependency, imported RELATIVELY (not via the `$lib`
+// alias the node unit-runner cannot resolve). It is a pure leaf helper, so it
+// adds no rune/Svelte coupling to this node-testable module.
+import { defaultCompositionForView, initialLeversForView } from './state/url-types';
 
 /** Resolver for a pillar's default presentation — injected so this module stays
  *  free of the `$lib/presentations` value import. */
@@ -46,6 +50,7 @@ export function seedPillarFromCurrent(
   if (!sourceWindow) return null;
   const sourcePanel = sourceWindow.panels[sourceWindow.focusedPanelIndex] ?? sourceWindow.panels[0];
   if (!sourcePanel) return null;
+  const targetView = defaultPresentationForPillar(targetPillar);
   const seededPanel: Panel = {
     scopes: sourcePanel.scopes.map(
       (g): ScopeGroup => ({
@@ -57,13 +62,19 @@ export function seedPillarFromCurrent(
     // small-multiples instead of pooling probes/sources onto one shared
     // axis (which would imply a cross-frame commensurability the methodology
     // refuses for scaled/intensive metrics). Merged stays an explicit opt-in.
-    composition: 'split',
-    view: defaultPresentationForPillar(targetPillar),
+    // Phase 148e — EXCEPT the co-occurrence network (the Rhizome default): one
+    // relational graph, so a multi-source/-probe scope opens `merged` rather
+    // than splitting into a refusal the moment the user switches to Rhizome.
+    composition: defaultCompositionForView(targetView),
+    view: targetView,
     metric: sourcePanel.metric,
     layer: sourcePanel.layer,
     // Phase 148e — chart-first, like buildPanelFromScopes: a pillar-switch seed
     // opens with its control strip collapsed so the cell shows without scrolling.
-    cellControlsCollapsed: true
+    cellControlsCollapsed: true,
+    // Phase 148e — view-specific opening lever values (co-occurrence: sparse
+    // labels + short settle so the seeded Rhizome graph is legible on open).
+    ...initialLeversForView(targetView)
   };
   return {
     windows: [{ panels: [seededPanel], focusedPanelIndex: 0 }],

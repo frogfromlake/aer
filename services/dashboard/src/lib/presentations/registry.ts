@@ -62,6 +62,8 @@ export type CellParamKind =
   | 'showLabels'
   // Phase 148g — co-occurrence label-density filter (top N% by size/colour).
   | 'labelFilter'
+  // Phase 148g — co-occurrence provenance border (per-node source/probe ring(s)).
+  | 'provenanceBorder'
   // Co-occurrence redesign — large-scale layout settle time (seconds): how long
   // ForceAtlas2 runs before freezing. Lets the user give a big map more time to
   // relax into clusters.
@@ -267,6 +269,11 @@ export interface PresentationCellProps {
    *  `labelRankBy`) are labelled; undefined/100 = all. Network cell only. */
   labelTopPercent?: number | undefined;
   labelRankBy?: 'size' | 'colour' | undefined;
+  /** Phase 148g — provenance border: per-node ring(s) attributing a node to its
+   *  source ('source'), owning probe ('probe'), or both (outer probe + inner
+   *  source). Orthogonal to the metric/community FILL. undefined/'none' = no ring.
+   *  Network cell only. */
+  provenanceBorder?: 'none' | 'source' | 'probe' | 'both' | undefined;
   /** Time-series temporal bucketing (Episteme Resolution lever). Per-panel;
    *  the time-series cell previously read the global URL resolution, ignoring
    *  the panel control. */

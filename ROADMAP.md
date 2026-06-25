@@ -5251,36 +5251,6 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ---
 
-## Phase 148e: Frontend Test & Fix Pass (Pre-Deploy) [P0] - [ ] TODO
-
-*The last human-in-the-loop pass over the dashboard before it goes public. The pre-deploy code phases (148b/c/d) hardened the **data path**; this phase hardens the **surface a reader actually touches**. It is operator-driven: launch the app, walk every surface, log what's wrong, fix it, re-verify. **Findings are expected to be frontend-local** (Svelte components, view-model wiring, i18n strings, layout, a11y); a backend/worker change is **not excluded but unlikely** — if a fix needs the BFF or worker, treat it as a scoped sub-task with its own gate (codegen + that service's tests), not a silent drift. This phase is **not** a feature phase: no new analytical capability, only correctness/polish of what already ships.*
-
-**Grounding.** Read first: the **Phase-148d disclosure surface** (`DiscoveryCoveragePanel.svelte` completeness headline + funnel + per-channel `declared`, the 9th NS class `collection_completeness` in `negative-space.ts` / `NegativeSpaceBadge`) — it is brand-new and has **only unit-test + live-BFF coverage, no eyes-on-glass yet**; `docs/design/design_brief.md` (the visual authority); ADR-033/034 (the three surfaces + Workbench tree); the Phase-128 a11y/perf envelope (`docs/arc42/§10.3` + playbook checklist) whose **two manual passes — M1 fps + screen-reader EN/DE — were left to the operator**; `project_phase148d` + `project_phase128` memory. Preserve: contract-first (no hand-edited `generated.go`/`types.ts` — re-run codegen if a contract must change), the i18n parity gate (EN+DE), the NS register discipline (neutral dim, never red/warning), DISCLOSE-NEVER-COERCE. **Verify-first: rebuild the dashboard static build before testing — the running stack still serves the pre-148d bundle, so the new completeness panel + 9th NS badge are not yet visible in the live app.**
-
-### Setup
-* [ ] **Rebuild + serve the current frontend.** The 148d BFF/ingestion are deployed and the endpoint is live-validated, but the dashboard static build predates the panel + NS-class changes. Rebuild (`make fe-build` / `make debug-up` for a backend-attached run) so what you test is HEAD, not a stale bundle. Confirm `?negSpace=1` is reachable on every cell and the BFF is the 148d image.
-
-### Per-surface walk (log every finding; a screenshot per defect)
-* [ ] **Atmosphäre (`/`)** — globe single-click select + flyTo + top-center banner; SHIFT-click grows `selectedProbes`; reduced-motion path (Phase 128); the globe makes **no geographic coverage claim** (NS invariant). Probe markers show `shortName`, never the raw `probeId`.
-* [ ] **Workbench (`/workbench`)** — the four-level tree (Pillar → Window → Panel → ScopeGroup); ScopeEditor open/apply/cancel; per-panel Merged·Split + split-direction; Maximize-Mode + Esc-restore; every cell's **how-to-read** note + PNG/SVG/CSV/JSON export; the `merged` cross-probe refusal for scaled/intensive metrics; MethodologyBanner soft-notes. Each presentation in its right Pillar (registry SoT).
-* [ ] **Dossier overlay (`?dossier=open`)** — universal-attribute facets only (incl. `country`; **never** capability/metric-richness facets — the data-rich-West bias guard); per-row select feeds `selectedProbes`; `DateRangePicker`; single-probe focus via `?selectedProbes=`; ProbeCard capability matrix + `MetadataCoverageModal`; SourceCard dual-register (semantic + methodological authorship model). **The `DiscoveryCoveragePanel` is the Phase-148d focus:** completeness headline reads as a neutral % (or a clean "indeterminate" when no trustworthy denominator), the funnel rows render, per-channel `declared`/`≥declared (lower bound)` shows, and the `collection_completeness` NS badge sits with the data — dim/methodological, never a red warning.
-* [ ] **Reflexion (`/reflection/*`)** — Working Papers (incl. **WP-007** renders + its anchors resolve, since the new NS badge + panel link to `?section=4.1`/`§7`), primers, open-questions catalogue (EN+DE).
-* [ ] **Auth pages** — login / accept-invite / forgot-reset render + no `/login` back-flash (Phase 127); the whole app gated.
-* [ ] **Cross-cutting** — EN↔DE language switch on every new 148d string (completeness/funnel/NS labels) with **no untranslated key, no layout break** at German string lengths; the Negative-Space toggle self-discloses on every cell; mobile/narrow-viewport reflow of the new panel.
-
-### A11y + perf (close the Phase-128 manual residual)
-* [ ] **Screen-reader pass (EN + DE)** over the surfaces that changed since Phase 128 — at minimum the Dossier `DiscoveryCoveragePanel` (the completeness figure + funnel must be announced as data, the NS badge's `aria-label` reads its class label) and any cell touched.
-* [ ] **M1 fps pass** — globe + at-scale co-occurrence stay within the Phase-128 frame budget; reduced-motion honoured.
-* [ ] **Axe re-sweep** of the new `DiscoveryCoveragePanel` markup (contrast on the dim NS tokens, the `<details>` funnel disclosure, target sizes) — it post-dates the Phase-128 sweep.
-
-### Fix loop
-* [ ] **Fix findings frontend-first.** Component/VM/i18n/layout/a11y fixes land with `make fe-lint` (Paraglide + i18n parity) + `make fe-test` ($lib floor 90) green per fix. **If a finding genuinely needs the BFF or worker** (unlikely — the 148d contract is live-validated): scope it explicitly, change the OpenAPI SoT + `make codegen` (never the generated file by hand), and re-run that service's gate (Go Testcontainers / `test-python`). Log any such backend touch in this phase's notes so the deploy phase knows the image must be rebuilt.
-
-### Validation
-* [ ] Every surface walked with no open P0/P1 visual or interaction defect; the Phase-148d completeness panel + 9th NS badge render correctly and read as neutral methodological disclosure (never a warning); EN+DE parity holds with no layout break; the Phase-128 screen-reader + fps manual passes are signed off; `make lint` + touched-service tests + coverage floors green; **no hand-edited generated/contract files** (codegen re-run clean). Hand back to the operator to commit — the deployed bundle is now HEAD, unblocking Phase 149.
-
----
-
 ## Phase 149: Provisioning & First Deploy [P0] - [ ] TODO
 
 *Execute the Phase-148 ADR: provision the target, deploy the stack, onboard the first admin. **This is where the deployment-coupled Stage-B remediation lands and Go/No-Go closes.***
@@ -5294,6 +5264,7 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 * [ ] **First deploy + bootstrap** — stack up, healthchecks green, `make create-admin` first admin, public docs vs. internal (admin-gated) docs split live.
 * [ ] **Publish service images to GHCR + un-park the nightly smoke.** Provisioning needs pre-built images: publish ingestion / bff / analysis-worker / dashboard to GHCR (the worker-image build must solve the 10+ GB model-bake disk/time problem *here, once* — same constraint Phase-136 hit) so `compose` can reference `image:` (pull) instead of `build:`. With that, flip `e2e_smoke_nightly.yml` to **pull** (fast), **rewrite `scripts/build/e2e_smoke_test.sh` from the retired RSS flow to the web-crawler path**, and **re-enable its cron** (Phase 136 parked it). The nightly's unique value (compose-wiring / init-container / healthcheck-graph) is restored cheaply on top of the deployment image pipeline.
 * [ ] **Deployment runbook executed end-to-end** (first deploy / upgrade / rollback) and corrected against reality; a tested restore from backup on the real target.
+* [ ] **Frontend pre-deploy verification residual** (carried over when the standalone frontend test phase was retired — the dashboard polish/fix work now runs continuously without a phase, but these eyes-on/manual passes must be signed off against the deployed HEAD bundle): (a) the Phase-148d disclosure surface verified on glass — `DiscoveryCoveragePanel` completeness headline (neutral %, or a clean "indeterminate" when no trustworthy denominator), funnel rows, per-channel `declared`/`≥declared (lower bound)`, and the 9th NS class `collection_completeness` reading as dim/methodological (never a red warning); (b) the **Phase-128 screen-reader pass (EN + DE)** over the surfaces touched since Phase 128; (c) the **Phase-128 M1 fps pass** (globe + at-scale co-occurrence within frame budget, reduced-motion honoured). Confirm the deployed bundle is HEAD (rebuild if the running stack still serves a stale build).
 
 ### Validation
 * [ ] The app is reachable over TLS on the EU target, gated by auth; an admin can log in; a backup restores; the runbook matches what was actually done.
@@ -5435,7 +5406,6 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 ---
 
 ## Deferred: Node-First Co-occurrence — decouple node count from edge count [P2]
-
 *Status: **DEFERRED** (decision 2026-06-22). Placed outside Iteration 13 (Deployment & Infrastructure) on purpose — this is an analytical **feature** (a Phase-131 Configurable-Cells descendant on the Workbench), not deploy-readiness, and it is not deploy-blocking (the current network works well). Re-open as a post-deploy feature so it does not muddy the 148b→148c→148d→149→150 deploy sequence.*
 
 **The ask (operator, observing the live cell).** The co-occurrence `topN` lever controls **edges**, not nodes: the BFF returns the top-N strongest co-occurrence *pairs* (`ORDER BY sum(cooccurrence_count) DESC LIMIT topN`) and derives nodes as the union of incident entities — so `topN=6000` yields ~6000 edges but only ~777 nodes (hub structure: a few hundred frequent entities form thousands of pairwise links). The operator wants to drive toward **~5000 nodes** directly.

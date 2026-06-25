@@ -111,6 +111,7 @@ export interface ResolvedCellConfig {
   showLabels: boolean | undefined;
   labelTopPercent: number | undefined;
   labelRankBy: 'size' | 'colour' | undefined;
+  provenanceBorder: 'none' | 'source' | 'probe' | 'both' | undefined;
   scales: ScaleMode | undefined;
   displayLanguage: 'source' | 'viewer' | undefined;
   channels: CellChannelBinding | undefined;
@@ -142,6 +143,7 @@ export function resolveCellConfig(panel: Panel, cellKey: string): ResolvedCellCo
     showLabels: ov?.showLabels ?? panel.showLabels,
     labelTopPercent: ov?.labelTopPercent ?? panel.labelTopPercent,
     labelRankBy: ov?.labelRankBy ?? panel.labelRankBy,
+    provenanceBorder: ov?.provenanceBorder ?? panel.provenanceBorder,
     // Phase 148f — metric-overridden cells default to a FREE axis (incomparable).
     scales:
       ov?.scales ??
@@ -495,6 +497,8 @@ export function coOccurrencePostDescriptorForPanel(
 import {
   EMPTY_URL_STATE,
   writeToSearch,
+  defaultCompositionForView,
+  initialLeversForView,
   type DataLayer,
   type Panel as PanelType,
   type ScopeGroup as ScopeGroupType,
@@ -544,24 +548,31 @@ export function buildPanelFromScopes(
     lockedFunction?: string | null | undefined;
   } = {}
 ): PanelType {
+  // Phase 130 — callers pass the pillar-correct default view
+  // (`defaultPresentationForPillar`); the literal fallback is the registry-
+  // wide default `distribution`, never the diachronic `time_series`.
+  const view: PresentationType = opts.view ?? 'distribution';
   const panel: PanelType = {
     scopes: scopes.map((g) => ({ probeIds: [...g.probeIds], sourceIds: [...g.sourceIds] })),
     // Phase 122k §11 finding — Split is the more informative default
     // (per-source small-multiples reveal heterogeneity); merge collapses
     // multi-source scopes into a single aggregate, which makes sense
     // when the user explicitly asks for the union but not as a default.
-    composition: 'split',
-    // Phase 130 — callers pass the pillar-correct default view
-    // (`defaultPresentationForPillar`); the literal fallback is the registry-
-    // wide default `distribution`, never the diachronic `time_series`.
-    view: opts.view ?? 'distribution',
+    // Phase 148e — EXCEPT the co-occurrence network, a single relational graph
+    // whose split fan-out over >1 source/probe refuses; it opens `merged` so a
+    // new Rhizome panel never greets the user with an unprompted refusal.
+    composition: defaultCompositionForView(view),
+    view,
     // Phase 123c (Issue 4) — scope-aware default: cross-probe scopes get the
     // multilingual backbone so FR cells aren't empty under the DE-only default.
     metric: opts.metric ?? defaultMetricForScopes(scopes),
     layer: opts.layer ?? 'gold',
     // Phase 148e — chart-first: new panels open with the control strip collapsed
     // (cell visible without scrolling); the collapsed header still discloses counts.
-    cellControlsCollapsed: true
+    cellControlsCollapsed: true,
+    // Phase 148e — view-specific opening lever values (co-occurrence: sparse
+    // labels + short settle so a new Rhizome graph is legible on open).
+    ...initialLeversForView(view)
   };
   if (opts.lockedFunction) {
     panel.locked = true;

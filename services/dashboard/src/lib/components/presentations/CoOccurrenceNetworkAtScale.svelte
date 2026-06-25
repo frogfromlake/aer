@@ -38,6 +38,10 @@
     buildNetworkEdges,
     buildSourceColorMap,
     buildProbeColorMap,
+    buildSourceBorderColorMap,
+    buildProbeBorderColorMap,
+    provenanceBorder,
+    communityColor,
     computeCommunities,
     communityHeads,
     nodeFillColor,
@@ -48,7 +52,8 @@
     SHARED_COLOR,
     UNKNOWN_PROVENANCE_COLOR,
     type MetricExtent,
-    type NodeColorContext
+    type NodeColorContext,
+    type ProvenanceBorderMode
   } from '$lib/presentations/cooccurrence-network-shared';
   import CellExport from './CellExport.svelte';
   import CellReadout from './CellReadout.svelte';
@@ -75,6 +80,7 @@
     showLabels,
     labelTopPercent,
     labelRankBy,
+    provenanceBorder: provenanceBorderProp,
     settleSeconds,
     channels,
     displayLanguage,
@@ -124,6 +130,10 @@
   // threshold (so only the chosen nodes show), live without a re-layout.
   const labelPct = $derived(labelTopPercent ?? 100);
   const labelRank = $derived(labelRankBy ?? 'size');
+  // Phase 148g — provenance border mode (per-node source/probe ring(s)). Orthogonal
+  // to the FILL colour, so a reader sees WHO published a node + its size + metric
+  // colour at once. Default 'none' (a plain filled node).
+  const borderMode = $derived<ProvenanceBorderMode>(provenanceBorderProp ?? 'none');
   // Layout settle time (seconds) — the SAFETY CAP for the FA2 worker (it auto-
   // stops earlier once the map converges). User-set via PanelControls (up to
   // 120 s); when unset the default scales with the node count (computed in the
@@ -185,6 +195,13 @@
   // render only for the matching colour mode.
   const legendSourceColors = $derived(buildSourceColorMap(sources.map((s) => s.name)));
   const legendProbeColors = $derived(buildProbeColorMap(scopeProbeIds));
+  // Phase 148g — VIVID border colour maps (distinct from the fill maps), shared by
+  // the provenance-border legend AND the node tooltip's per-source colour swatch so
+  // a hovered row's chip matches the node's ring.
+  const legendSourceBorderColors = $derived(buildSourceBorderColorMap(sources.map((s) => s.name)));
+  const legendProbeBorderColors = $derived(buildProbeBorderColorMap(scopeProbeIds));
+  const borderSourceActive = $derived(borderMode === 'source' || borderMode === 'both');
+  const borderProbeActive = $derived(borderMode === 'probe' || borderMode === 'both');
   const metricExtent = $derived.by<MetricExtent | null>(() =>
     data ? computeMetricExtent(data) : null
   );
@@ -200,6 +217,59 @@
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let fa2: any = null;
   let renderedNodeCount = $state(0);
+
+  // Phase 148g — provenance-border ring sizes (fraction of node radius, `relative`
+  // mode). Outer = probe, inner = source; when both draw, the fill keeps the
+  // remaining ~0.32 of the radius (still clearly visible). A 'transparent' default
+  // colour + size 0 renders a node with no ring (mode 'none' / inactive ring).
+  const SOURCE_BORDER_FRAC = 0.2;
+  const PROBE_BORDER_FRAC = 0.2;
+  const BORDER_DEFAULT_COLOR = '#000000';
+
+  /** Phase 148g — set the four border attributes for one node from the active
+   *  provenance-border mode + the node's source presence. Pure-ish (reads only the
+   *  passed maps); shared by the initial build and the live toggle. */
+  function borderAttrsFor(
+    presence: string[],
+    mode: ProvenanceBorderMode,
+    srcMap: Record<string, string>,
+    s2p: Record<string, string>,
+    probeMap: Record<string, string>
+  ): {
+    sourceBorderColor: string;
+    sourceBorderSize: number;
+    probeBorderColor: string;
+    probeBorderSize: number;
+  } {
+    const b = provenanceBorder(presence, mode, srcMap, s2p, probeMap);
+    return {
+      sourceBorderColor: b.sourceActive ? b.sourceColor : BORDER_DEFAULT_COLOR,
+      sourceBorderSize: b.sourceActive ? SOURCE_BORDER_FRAC : 0,
+      probeBorderColor: b.probeActive ? b.probeColor : BORDER_DEFAULT_COLOR,
+      probeBorderSize: b.probeActive ? PROBE_BORDER_FRAC : 0
+    };
+  }
+
+  /** Phase 148g — re-apply provenance borders live (no re-layout) when the mode
+   *  changes: recompute each node's ring attrs from its `presence` + refresh. */
+  function applyProvenanceBorders(
+    g: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    inst: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    mode: ProvenanceBorderMode,
+    srcMap: Record<string, string>,
+    s2p: Record<string, string>,
+    probeMap: Record<string, string>
+  ) {
+    if (!g || !inst) return;
+    g.forEachNode((id: string, a: { presence?: string[] }) => {
+      const attrs = borderAttrsFor(a.presence ?? [], mode, srcMap, s2p, probeMap);
+      g.setNodeAttribute(id, 'sourceBorderColor', attrs.sourceBorderColor);
+      g.setNodeAttribute(id, 'sourceBorderSize', attrs.sourceBorderSize);
+      g.setNodeAttribute(id, 'probeBorderColor', attrs.probeBorderColor);
+      g.setNodeAttribute(id, 'probeBorderSize', attrs.probeBorderSize);
+    });
+    inst.refresh();
+  }
 
   // Phase 148g — label-density filter. pct=100 → all labels (size threshold 0);
   // pct<100 → forceLabel the top-pct% nodes by `rank` (size, or the colour metric
@@ -293,6 +363,14 @@
     // PanelControls. Read it UNTRACKED: a real source-set change always arrives
     // WITH a `data` change (the scope re-query), which is tracked above.
     const srcNames = untrack(() => sources.map((s) => s.name));
+    // Phase 148g — provenance-border maps + the active mode, read for the initial
+    // node attrs. `srcNames`/probe ids are already untracked above; the mode is
+    // tracked here so a fresh data load reflects the current border mode, while the
+    // live $effect below handles mode changes WITHOUT a re-layout.
+    const s2pMap = untrack(() => probeLabels.sourceProbeMap());
+    const srcBorderMap = buildSourceBorderColorMap(srcNames);
+    const probeBorderMap = buildProbeBorderColorMap(untrack(() => scopeProbeIds));
+    const bMode = untrack(() => borderMode);
     const colorCtx: NodeColorContext = {
       netColor,
       // ISSUE 7 — colour channel uses the COLOUR metric's extent.
@@ -314,13 +392,20 @@
     let detachWheel: (() => void) | undefined;
     const container = host;
     (async () => {
-      const [{ default: Graph }, { default: Sigma }, { default: FA2Layout }, fa2base] =
-        await Promise.all([
-          import('graphology'),
-          import('sigma'),
-          import('graphology-layout-forceatlas2/worker'),
-          import('graphology-layout-forceatlas2')
-        ]);
+      const [
+        { default: Graph },
+        { default: Sigma },
+        { default: FA2Layout },
+        fa2base,
+        { createNodeBorderProgram }
+      ] = await Promise.all([
+        import('graphology'),
+        import('sigma'),
+        import('graphology-layout-forceatlas2/worker'),
+        import('graphology-layout-forceatlas2'),
+        // Phase 148g — provenance-border node program (concentric coloured rings).
+        import('@sigma/node-border')
+      ]);
       if (cancelled || !container) return;
 
       // Kriesel effect — detect theme clusters (Louvain) when colouring by
@@ -388,7 +473,10 @@
           metricColorValue: node.metricColorValue,
           // Phase 148g — per-source provenance for the hover tooltip.
           presence: node.presence,
-          presenceArticleCounts: node.presenceArticleCounts
+          presenceArticleCounts: node.presenceArticleCounts,
+          // Phase 148g — provenance-border ring attrs (read by the node-border
+          // program); the live $effect re-derives these on a mode change.
+          ...borderAttrsFor(node.presence, bMode, srcBorderMap, s2pMap, probeBorderMap)
         });
       });
       for (const e of edges) {
@@ -413,7 +501,31 @@
       }
       renderedNodeCount = graph.order;
 
+      // Phase 148g — node-border program: outer ring = probe, inner ring = source,
+      // fill = the metric/community colour. Ring sizes/colours come from per-node
+      // attributes (0 size → that ring is invisible), so the provenance toggle
+      // animates live without swapping the program or re-laying-out. `drawHover`
+      // is a no-op (the cursor-following CellReadout is our tooltip — no empty box).
+      const NodeBorderProgram = createNodeBorderProgram({
+        drawHover: () => {},
+        borders: [
+          {
+            color: { attribute: 'probeBorderColor', defaultValue: BORDER_DEFAULT_COLOR },
+            size: { attribute: 'probeBorderSize', defaultValue: 0, mode: 'relative' }
+          },
+          {
+            color: { attribute: 'sourceBorderColor', defaultValue: BORDER_DEFAULT_COLOR },
+            size: { attribute: 'sourceBorderSize', defaultValue: 0, mode: 'relative' }
+          },
+          { color: { attribute: 'color' }, size: { fill: true } }
+        ]
+      });
+
       sigmaInstance = new Sigma(graph, container, {
+        // Phase 148g — every node uses the border program (rings are 0-sized until
+        // the provenance toggle activates them, so it renders as a plain disc).
+        defaultNodeType: 'border',
+        nodeProgramClasses: { border: NodeBorderProgram },
         // Phase 148g — UNIFORM labels: threshold 0 labels every node regardless of
         // size, and a very high labelDensity defeats sigma's grid declutter (which
         // otherwise caps labels-per-cell and reveals more only on zoom — the "some
@@ -467,13 +579,22 @@
           const pid = s2p[src];
           const probe = pid ? probeLabels.labelFor(pid) : '';
           return {
+            // Phase 148g — soft colour chip = the node's source ring colour, so the
+            // hovered row ties visually to the node's border (Task 1).
+            swatch: legendSourceBorderColors[src] ?? UNKNOWN_PROVENANCE_COLOR,
             label: probe ? `${sourceLabel(src)} · ${probe}` : sourceLabel(src),
             value: m.cells_net_readout_articles({ count: cnts[i] ?? 0 })
           };
         });
         const clusterRows =
           typeof a.community === 'number' && a.community >= 0
-            ? [{ label: m.cells_net_readout_cluster(), value: `#${a.community}` }]
+            ? [
+                {
+                  swatch: communityColor(a.community as number),
+                  label: m.cells_net_readout_cluster(),
+                  value: `#${a.community}`
+                }
+              ]
             : [];
         readout = {
           visible: true,
@@ -648,6 +769,22 @@
     const pct = labelPct;
     const rank = labelRank;
     if (sigmaInstance) applyLabelFilter(sigmaInstance.getGraph(), sigmaInstance, pct, rank);
+  });
+
+  // Phase 148g — provenance-border toggle: re-derive each node's ring attrs live
+  // (no re-layout) when the mode changes. Read `borderMode` UNCONDITIONALLY first
+  // so the effect tracks it even before sigma exists; the colour maps are read
+  // untracked (a real source/probe change always arrives with a `data` re-query,
+  // which rebuilds the graph and sets the rings afresh).
+  $effect(() => {
+    const mode = borderMode;
+    if (!sigmaInstance) return;
+    untrack(() => {
+      const srcMap = buildSourceBorderColorMap(sources.map((s) => s.name));
+      const s2p = probeLabels.sourceProbeMap();
+      const probeMap = buildProbeBorderColorMap(scopeProbeIds);
+      applyProvenanceBorders(sigmaInstance.getGraph(), sigmaInstance, mode, srcMap, s2p, probeMap);
+    });
   });
 
   // ── how-to-read + export (shared contract) ────────────────────────────────
@@ -825,6 +962,52 @@
       </ul>
     {:else if netColor === 'community'}
       <p class="muted colour-legend-note">{m.cells_net_legend_community_note()}</p>
+    {/if}
+    {#if borderMode !== 'none'}
+      <!-- Phase 148g — provenance-border legend: ring colours attribute each node
+           to its source (inner ring) and/or probe (outer ring), independent of the
+           metric/community FILL. Ring swatches (hollow) signal "this is a border". -->
+      <div class="border-legend" aria-label={m.cells_net_provborder_legend_aria()}>
+        {#if borderSourceActive}
+          <div class="border-legend-row">
+            <span class="border-legend-title">{m.cells_net_provborder_source_title()}</span>
+            {#each sources as src (src.name)}
+              <span class="border-legend-item">
+                <span
+                  class="ring-swatch"
+                  style:border-color={legendSourceBorderColors[src.name] ??
+                    UNKNOWN_PROVENANCE_COLOR}
+                  aria-hidden="true"
+                ></span>
+                <span>{src.emicDesignation ?? src.name}</span>
+              </span>
+            {/each}
+            <span class="border-legend-item">
+              <span class="ring-swatch" style:border-color={SHARED_COLOR} aria-hidden="true"></span>
+              <span>{m.cells_net_provborder_shared()}</span>
+            </span>
+          </div>
+        {/if}
+        {#if borderProbeActive}
+          <div class="border-legend-row">
+            <span class="border-legend-title">{m.cells_net_provborder_probe_title()}</span>
+            {#each scopeProbeIds as pid (pid)}
+              <span class="border-legend-item">
+                <span
+                  class="ring-swatch"
+                  style:border-color={legendProbeBorderColors[pid] ?? UNKNOWN_PROVENANCE_COLOR}
+                  aria-hidden="true"
+                ></span>
+                <span>{probeLabels.labelFor(pid)}</span>
+              </span>
+            {/each}
+            <span class="border-legend-item">
+              <span class="ring-swatch" style:border-color={SHARED_COLOR} aria-hidden="true"></span>
+              <span>{m.cells_net_provborder_shared()}</span>
+            </span>
+          </div>
+        {/if}
+      </div>
     {/if}
   {/if}
 
@@ -1020,6 +1203,38 @@
     margin: var(--space-2) 0 0;
     font-size: var(--font-size-xs);
     color: var(--color-fg-muted);
+  }
+  /* Phase 148g — provenance-border legend (hollow ring swatches). */
+  .border-legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-muted);
+  }
+  .border-legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+  }
+  .border-legend-title {
+    font-family: var(--font-mono);
+    color: var(--color-fg);
+  }
+  .border-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .ring-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid var(--color-fg-muted);
+    background: transparent;
+    box-sizing: border-box;
   }
   /* Phase 148g — cross-language merge confirmation + persistent disclosure. */
   .cross-lang-confirm,

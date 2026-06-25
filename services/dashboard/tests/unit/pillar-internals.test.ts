@@ -53,6 +53,18 @@ describe('seedPillarFromCurrent', () => {
     expect(seeded!.windows[0]!.focusedPanelIndex).toBe(0);
   });
 
+  it('seeds the Rhizome (co-occurrence) default merged, not split (Phase 148e)', () => {
+    // Co-occurrence is one relational graph: split over a multi-source scope
+    // refuses, so the pillar-switch seed must open merged.
+    const seeded = seedPillarFromCurrent(pillars(pillarState()), 'aleph', 'rhizome', resolve)!;
+    const p = seeded.windows[0]!.panels[0]!;
+    expect(p.view).toBe('cooccurrence_network');
+    expect(p.composition).toBe('merged');
+    // Phase 148e — the seed also carries the legible co-occurrence opening levers.
+    expect(p.labelTopPercent).toBe(10);
+    expect(p.settleSeconds).toBe(20);
+  });
+
   it('deep-copies the scope arrays so the seed cannot alias the source panel', () => {
     const src = pillarState();
     const seeded = seedPillarFromCurrent(pillars(src), 'aleph', 'rhizome', resolve)!;

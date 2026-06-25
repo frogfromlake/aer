@@ -416,6 +416,7 @@
           showLabels={cfg.showLabels}
           labelTopPercent={cfg.labelTopPercent}
           labelRankBy={cfg.labelRankBy}
+          provenanceBorder={cfg.provenanceBorder}
           settleSeconds={cfg.settleSeconds}
           channels={cfg.channels}
           displayLanguage={cfg.displayLanguage}

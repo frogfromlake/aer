@@ -240,7 +240,26 @@ describe('encodePillarState — preserves individual levers', () => {
       (p) => p?.cellControlsCollapsed,
       true
     ],
-    ['showWithheld=true', { showWithheld: true }, (p) => p?.showWithheld, true]
+    ['showWithheld=true', { showWithheld: true }, (p) => p?.showWithheld, true],
+    // Phase 148g — provenance-border mode (pv) round-trips for each non-default value.
+    [
+      'provenanceBorder=source',
+      { view: 'cooccurrence_network', provenanceBorder: 'source' },
+      (p) => p?.provenanceBorder,
+      'source'
+    ],
+    [
+      'provenanceBorder=probe',
+      { view: 'cooccurrence_network', provenanceBorder: 'probe' },
+      (p) => p?.provenanceBorder,
+      'probe'
+    ],
+    [
+      'provenanceBorder=both',
+      { view: 'cooccurrence_network', provenanceBorder: 'both' },
+      (p) => p?.provenanceBorder,
+      'both'
+    ]
   ];
 
   it.each(preserved)('round-trips %s', (_label, panel, read, want) => {

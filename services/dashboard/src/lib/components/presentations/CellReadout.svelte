@@ -119,7 +119,12 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    white-space: nowrap;
+    /* A long per-source/probe label (e.g. "Élysée (Présidence…) · FR") must wrap
+       inside the box rather than overflow it; `anywhere` breaks the longest token
+       so the column can shrink to the box max-width. Short labels are unaffected. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
 
   dd {
@@ -133,6 +138,7 @@
     display: inline-block;
     width: 9px;
     height: 9px;
+    flex-shrink: 0;
     border-radius: 2px;
     border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
   }

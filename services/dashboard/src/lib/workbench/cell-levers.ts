@@ -6,7 +6,7 @@
 // the channel option tables here (one source of truth) stops the two surfaces
 // from drifting (e.g. a new network colour channel added to one but not the
 // other, or a slider that opens at a different default than the cell renders).
-import type { NetworkColorChannel, NetworkSizeChannel } from '$lib/state/url-internals';
+import type { NetworkColorChannel, NetworkSizeChannel, Panel } from '$lib/state/url-internals';
 // Relative import (not `$lib/...`) so the module resolves in the node/vitest
 // environment as well as the bundler — mirrors the other localized `.ts`
 // helpers (e.g. `presentations/how-to-read.ts`).
@@ -37,7 +37,10 @@ export const TOPN_STEP = 5;
 // always meaningful; min 50 (a graph below that is not a "network").
 export const MAXNODES_MIN = 50;
 export const MAXNODES_MAX = 10000;
-export const MAXNODES_STEP = 50;
+// Phase 148e — fine (1-entity) granularity so the Entities slider tunes the node
+// count precisely (the old 50-step jumped in coarse blocks); keyboard + drag both
+// move by one entity. Range stays wide (50..10000).
+export const MAXNODES_STEP = 1;
 export const DEFAULT_MAXNODES = 200;
 export const FORCE_MIN = 0;
 export const FORCE_MAX = 100;
@@ -64,4 +67,19 @@ export const NET_COLOR_CHANNELS: ReadonlyArray<{ id: NetworkColorChannel; label:
   { id: 'uniform', label: () => m.levers_netcolor_uniform() },
   // Phase 125 — colour by a per-article metric.
   { id: 'metric', label: () => m.levers_netcolor_metric() }
+];
+
+// Phase 148g — provenance-border modes. A coloured ring (or two concentric rings)
+// attributes each node to its source and/or probe WITHOUT touching the metric/
+// community FILL, so size + colour + provenance read at once. Vivid border
+// palettes keep the rings clear of the metric ramp (see cooccurrence-network-shared).
+export type ProvenanceBorderMode = NonNullable<Panel['provenanceBorder']>;
+export const PROVENANCE_BORDER_MODES: ReadonlyArray<{
+  id: ProvenanceBorderMode;
+  label: () => string;
+}> = [
+  { id: 'none', label: () => m.levers_provborder_none() },
+  { id: 'source', label: () => m.levers_provborder_source() },
+  { id: 'probe', label: () => m.levers_provborder_probe() },
+  { id: 'both', label: () => m.levers_provborder_both() }
 ];

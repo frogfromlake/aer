@@ -219,5 +219,12 @@
   "levers_netcolor_source_overlay": "Source overlay",
   "levers_netcolor_probe_overlay": "Probe overlay",
   "levers_netcolor_uniform": "Uniform",
-  "levers_netcolor_metric": "Metric"
+  "levers_netcolor_metric": "Metric",
+  "levers_provborder_eyebrow": "Provenance border",
+  "levers_provborder_aria": "Provenance border mode",
+  "levers_provborder_select_aria": "Choose the provenance-border mode",
+  "levers_provborder_none": "None",
+  "levers_provborder_source": "Source (ring)",
+  "levers_provborder_probe": "Probe (ring)",
+  "levers_provborder_both": "Both (probe + source)"
 }

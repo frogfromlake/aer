@@ -21,6 +21,16 @@ export type NetColorChannel =
   | 'metric'
   | 'community';
 
+// Phase 148g — provenance BORDER mode. Orthogonal to the node FILL (`netColor`):
+// the fill keeps the metric / community / presence reading, while a coloured ring
+// (or two concentric rings) attributes each node to its source and/or probe. Lets
+// a reader see WHO published an entity AND its size + metric colour at once.
+//   'none'   — no border (a plain filled node).
+//   'source' — one ring, coloured by the node's source provenance.
+//   'probe'  — one ring, coloured by the node's owning probe.
+//   'both'   — two rings: outer = probe, inner = source.
+export type ProvenanceBorderMode = 'none' | 'source' | 'probe' | 'both';
+
 export interface MetricExtent {
   min: number;
   max: number;
@@ -95,6 +105,33 @@ export const PROBE_PALETTE = [
 ];
 export const SHARED_COLOR = '#9aa1ab';
 export const UNKNOWN_PROVENANCE_COLOR = '#3b3f47';
+
+// Phase 148g — VIVID, high-chroma border palettes, deliberately kept clear of the
+// blue→amber metric ramp (METRIC_LO/HI) and the muted community/source/probe FILL
+// palettes so a provenance RING never reads as a metric fill (the operator's
+// explicit "must not collide with the metric colour" constraint). Source = inner
+// ring, probe = outer ring; the two lists differ so a node carrying both reads as
+// two distinct rings even before position disambiguates them.
+export const SOURCE_BORDER_PALETTE = [
+  '#ff2d95',
+  '#00e5ff',
+  '#c724ff',
+  '#76ff03',
+  '#ff1744',
+  '#ffea00',
+  '#1de9b6',
+  '#ff6d00'
+];
+export const PROBE_BORDER_PALETTE = [
+  '#ff5252',
+  '#18ffff',
+  '#e040fb',
+  '#b2ff59',
+  '#ff4081',
+  '#eeff41',
+  '#64ffda',
+  '#ffab40'
+];
 const METRIC_LO = [82, 131, 184];
 const METRIC_HI = [224, 160, 80];
 
@@ -180,6 +217,57 @@ export function probeColor(
   if (probes.size === 0) return UNKNOWN_PROVENANCE_COLOR;
   if (probes.size === 1) return probeColorMap[[...probes][0]!] ?? UNKNOWN_PROVENANCE_COLOR;
   return SHARED_COLOR;
+}
+
+/** Phase 148g — vivid per-source / per-probe BORDER colour maps (distinct from the
+ *  FILL maps so a ring never matches the fill). Same index-stable assignment. */
+export function buildSourceBorderColorMap(sourceNames: readonly string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  sourceNames.forEach((name, i) => {
+    map[name] =
+      SOURCE_BORDER_PALETTE[i % SOURCE_BORDER_PALETTE.length] ?? SOURCE_BORDER_PALETTE[0]!;
+  });
+  return map;
+}
+
+export function buildProbeBorderColorMap(probeIds: readonly string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  probeIds.forEach((id, i) => {
+    map[id] = PROBE_BORDER_PALETTE[i % PROBE_BORDER_PALETTE.length] ?? PROBE_BORDER_PALETTE[0]!;
+  });
+  return map;
+}
+
+/** Phase 148g — the per-node provenance-border instruction for the active mode.
+ *  `*Active` flags say which ring(s) to draw; the colours reuse the same
+ *  single→colour / multi→shared-grey / none→unknown logic as the FILL provenance
+ *  channels ({@link sourceColor}/{@link probeColor}), so a node spanning sources
+ *  (or probes) reads as a neutral "shared" ring rather than an arbitrary pick.
+ *  Pure → unit-testable; the renderer maps the flags to ring sizes. */
+export interface ProvenanceBorder {
+  sourceActive: boolean;
+  sourceColor: string;
+  probeActive: boolean;
+  probeColor: string;
+}
+
+export function provenanceBorder(
+  presence: string[],
+  mode: ProvenanceBorderMode,
+  sourceBorderMap: Record<string, string>,
+  sourceProbeMap: Record<string, string>,
+  probeBorderMap: Record<string, string>
+): ProvenanceBorder {
+  const wantSource = mode === 'source' || mode === 'both';
+  const wantProbe = mode === 'probe' || mode === 'both';
+  return {
+    sourceActive: wantSource,
+    sourceColor: wantSource ? sourceColor(presence, sourceBorderMap) : UNKNOWN_PROVENANCE_COLOR,
+    probeActive: wantProbe,
+    probeColor: wantProbe
+      ? probeColor(presence, sourceProbeMap, probeBorderMap)
+      : UNKNOWN_PROVENANCE_COLOR
+  };
 }
 
 // Exported so the node-fill ramp can be pinned in unit tests (the blue→amber

@@ -219,5 +219,12 @@
   "levers_netcolor_source_overlay": "Quellen-Overlay",
   "levers_netcolor_probe_overlay": "Sonden-Overlay",
   "levers_netcolor_uniform": "Einheitlich",
-  "levers_netcolor_metric": "Metrik"
+  "levers_netcolor_metric": "Metrik",
+  "levers_provborder_eyebrow": "Herkunfts-Rand",
+  "levers_provborder_aria": "Modus des Herkunfts-Rands",
+  "levers_provborder_select_aria": "Modus des Herkunfts-Rands wählen",
+  "levers_provborder_none": "Keiner",
+  "levers_provborder_source": "Quelle (Ring)",
+  "levers_provborder_probe": "Sonde (Ring)",
+  "levers_provborder_both": "Beide (Sonde + Quelle)"
 }
