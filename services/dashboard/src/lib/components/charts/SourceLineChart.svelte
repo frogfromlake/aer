@@ -171,7 +171,7 @@
       yHigh={chartData.high}
       yLabel={metricName}
       ariaLabel={m.cells_chart_series_aria({ metric: metricName, name: displayName })}
-      height={180}
+      height={198}
       {yDomain}
     />
   {:else}
@@ -211,7 +211,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 180px;
+    min-height: 198px;
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);

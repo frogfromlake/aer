@@ -140,7 +140,7 @@
       if (!host || token !== renderToken) return;
       const next = Plot.plot({
         width: host.clientWidth,
-        height: 260,
+        height: 286,
         marginLeft: 52,
         marginBottom: 40,
         x: { label: null, type: 'time', grid: false },
@@ -327,7 +327,7 @@
   }
   .plot-host {
     width: 100%;
-    min-height: 260px;
+    min-height: 286px;
   }
   .plot-host :global(text) {
     fill: var(--color-fg-muted);

@@ -13,6 +13,8 @@
   "rg_q_limits": "What's not shown",
   "rg_cell_heading": "This cell",
   "rg_methodology_hint": "provenance, tier & limitations — click to expand",
+  "rg_close": "Close the reading guide",
+  "rg_tab_label": "How to read",
   "rg_title_panel": "How to read this panel",
   "rg_title_panel_overrides": "How to read this panel (overridden cells excepted)",
   "rg_title_cell": "How to read this cell",

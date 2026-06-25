@@ -342,6 +342,9 @@
 
 <style>
   .panel-host {
+    /* Phase 149 — positioning anchor for the panel-level Reading drawer (which
+       absolutely overlays the panel from the right). */
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--space-3);

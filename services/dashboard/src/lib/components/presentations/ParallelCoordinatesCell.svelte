@@ -122,7 +122,7 @@
       if (!host || token !== renderToken) return;
       const next = Plot.plot({
         width: host.clientWidth || 720,
-        height: 320,
+        height: 352,
         marginLeft: 40,
         marginRight: 40,
         marginBottom: 84,
@@ -246,7 +246,7 @@
   }
   .plot-host {
     width: 100%;
-    min-height: 320px;
+    min-height: 352px;
   }
   .plot-host :global(text) {
     fill: var(--color-fg-muted);

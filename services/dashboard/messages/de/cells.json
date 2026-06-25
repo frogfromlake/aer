@@ -13,6 +13,8 @@
   "rg_q_limits": "Was nicht gezeigt wird",
   "rg_cell_heading": "Diese Zelle",
   "rg_methodology_hint": "Provenienz, Tier & Einschränkungen — zum Ausklappen klicken",
+  "rg_close": "Lese-Anleitung schließen",
+  "rg_tab_label": "So lesen Sie das",
   "rg_title_panel": "So lesen Sie dieses Panel",
   "rg_title_panel_overrides": "So lesen Sie dieses Panel (überschriebene Zelle(n) ausgenommen)",
   "rg_title_cell": "So lesen Sie diese Zelle",

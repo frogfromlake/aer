@@ -171,85 +171,148 @@
   }
 </script>
 
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape' && expanded) expanded = false;
+  }}
+/>
+
 <aside class="reading-guide" aria-label={m.cells_howto_aria()}>
-  <button
-    type="button"
-    class="rg-toggle"
-    aria-expanded={expanded}
-    onclick={() => (expanded = !expanded)}
-  >
-    <span class="rg-chevron" class:expanded aria-hidden="true">›</span>
-    <span class="rg-title">{titleText}</span>
-  </button>
+  {#if !expanded}
+    <!-- Phase 149 — the launcher is ONE labeled pull-tab pinned to the right edge,
+         where the drawer emerges (book glyph + "How to read"). The panel guide
+         centres it on the panel's right edge; an overridden cell's own guide rides
+         the UPPER-right of that cell — the same button, clear of the cell's export
+         row (top) and the override note (bottom). -->
+    <button
+      type="button"
+      class="rg-tab"
+      class:rg-tab--cell={variant === 'cell'}
+      aria-expanded={expanded}
+      title={titleText}
+      onclick={(e) => {
+        e.stopPropagation();
+        expanded = true;
+      }}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </svg>
+      <span class="rg-tab-label">{m.rg_tab_label()}</span>
+    </button>
+  {/if}
 
   {#if expanded}
-    <div class="rg-content">
-      <ol class="rg-ladder">
-        {#each STEPS as step (step.q)}
-          {@const notes = notesFor(step.q)}
-          {#if notes.length > 0}
-            <li class="rg-step" style="--step-color: {step.color}">
-              <span class="rg-step-eyebrow">{step.heading()}</span>
-              <ul class="rg-notes">
-                {#each notes as note (note.text)}
-                  <li class="rg-note">
-                    <span class="rg-text">{note.text}</span>
-                    {#if note.anchor}
-                      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
-                      <a class="rg-anchor" href={note.anchor.href}>{note.anchor.label}</a>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </li>
-          {/if}
-        {/each}
-      </ol>
-      <!-- Phase 148f Step 7 — the deep methodology, folded in under the ladder as
+    <!-- Phase 149 — the guide is a glassy drawer that slides in from the RIGHT,
+         overlaying the panel/cell at full height (anchored to the positioned
+         .panel-host / .panel-cell ancestor) so the reader sees the chart while
+         reading. Close via ×, Esc, or the toggle. No backdrop → the chart under
+         the left portion stays interactive. -->
+    <div class="rg-drawer" role="region" aria-label={titleText}>
+      <div class="rg-drawer-head">
+        <span class="rg-title">{titleText}</span>
+        <button
+          type="button"
+          class="rg-close"
+          aria-label={m.rg_close()}
+          title={m.rg_close()}
+          onclick={() => (expanded = false)}>×</button
+        >
+      </div>
+      <div class="rg-content">
+        <ol class="rg-ladder">
+          {#each STEPS as step (step.q)}
+            {@const notes = notesFor(step.q)}
+            {#if notes.length > 0}
+              <li class="rg-step" style="--step-color: {step.color}">
+                <span class="rg-step-eyebrow">{step.heading()}</span>
+                <ul class="rg-notes">
+                  {#each notes as note (note.text)}
+                    <li class="rg-note">
+                      <span class="rg-text">{note.text}</span>
+                      {#if note.anchor}
+                        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Reflection route -->
+                        <a class="rg-anchor" href={note.anchor.href}>{note.anchor.label}</a>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
+              </li>
+            {/if}
+          {/each}
+        </ol>
+        <!-- Phase 148f Step 7 — the deep methodology, folded in under the ladder as
            the MEASURE detail (METHODIK header + default-collapsed blocks + links). -->
-      <MeasureDetail
-        subjects={cellSubjects(presentation, panel)}
-        viewMode={presentation.id}
-        viewLabel={presentation.label}
-      />
+        <MeasureDetail
+          subjects={cellSubjects(presentation, panel)}
+          viewMode={presentation.id}
+          viewLabel={presentation.label}
+        />
+      </div>
     </div>
   {/if}
 </aside>
 
 <style>
+  /* Phase 149 — the wrapper is transparent: the launcher (tab / cell icon) and the
+     drawer are absolutely / inline positioned, so the wrapper itself takes no
+     layout box (no bottom strip). `display: contents` lets the panel-tab anchor to
+     .panel-host and the cell-icon flow inline in the override-notice row. */
   .reading-guide {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-bg-elevated);
+    display: contents;
   }
 
-  .rg-toggle {
+  /* Panel launcher — a vertical pull-tab pinned to the panel's right edge, where
+     the drawer emerges. Hidden while the drawer is open (the drawer covers it). */
+  .rg-tab {
+    position: absolute;
+    top: 60%;
+    right: 0;
+    transform: translateY(-50%);
+    z-index: 20;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    background: none;
-    border: none;
+    writing-mode: vertical-rl;
+    padding: var(--space-3) 5px;
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-bg-elevated));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+    border-right: none;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    color: var(--color-accent);
     cursor: pointer;
-    color: var(--color-fg-muted);
-    text-align: left;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
   }
-  .rg-toggle:hover,
-  .rg-toggle:focus-visible {
-    color: var(--color-fg);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+  .rg-tab:hover,
+  .rg-tab:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 22%, var(--color-bg-elevated));
+    outline: none;
   }
-  .rg-chevron {
-    display: inline-flex;
-    width: 0.9rem;
-    transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
-    color: var(--color-fg-subtle);
+  .rg-tab svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .rg-chevron.expanded {
-    transform: rotate(90deg);
+  .rg-tab-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-weight-semibold);
   }
+
+  /* Cell variant — the same labeled tab, but anchored to the UPPER third of the
+     cell's right edge (anchors to .panel-cell): high enough to clear the panel
+     guide's centred tab, low enough to clear the cell's own export header. */
+  .rg-tab--cell {
+    top: 40%;
+  }
+
   .rg-title {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -259,12 +322,89 @@
     color: var(--color-fg-muted);
   }
 
+  /* Phase 149 — glassy drawer: slides in from the RIGHT, anchored to the nearest
+     positioned ancestor (.panel-host for the panel guide, .panel-cell for a cell
+     guide), full height, scrollable. Overlays only the right portion so the chart
+     stays visible (and interactive — there is no backdrop). */
+  .rg-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: clamp(19rem, 38%, 27rem);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-overlay);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-left: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    box-shadow: -8px 0 24px -12px rgba(0, 0, 0, 0.55);
+    overflow-y: auto;
+    animation: rg-slide-in var(--motion-duration-base, 180ms) var(--motion-ease-standard, ease-out);
+  }
+  @keyframes rg-slide-in {
+    from {
+      transform: translateX(8%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  .rg-drawer-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) var(--space-2) var(--space-5);
+    background: linear-gradient(
+      to bottom,
+      var(--color-bg-overlay),
+      color-mix(in srgb, var(--color-bg-overlay) 70%, transparent)
+    );
+  }
+  .rg-close {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    min-height: 26px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--color-fg-muted);
+    font-size: var(--font-size-md);
+    line-height: 1;
+    cursor: pointer;
+  }
+  .rg-close:hover,
+  .rg-close:focus-visible {
+    color: var(--color-fg);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+    outline: none;
+  }
+
   /* Unified breathing room for the expanded content (ladder + measure detail). */
   .rg-content {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
     padding: var(--space-2) var(--space-5) var(--space-5);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rg-drawer {
+      animation: none;
+    }
   }
 
   .rg-ladder {
@@ -327,11 +467,5 @@
   .rg-anchor:focus-visible {
     color: var(--color-accent);
     text-decoration: underline;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rg-chevron {
-      transition: none;
-    }
   }
 </style>

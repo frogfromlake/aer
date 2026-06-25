@@ -248,6 +248,9 @@
       {m.workbench_cell_peek_banner_mid()}
       <code>{metricLabel(panel.metric)}</code>{m.workbench_cell_peek_banner_post()}
     </p>
+    <!-- Phase 149 — this overridden cell carries its OWN guide: the same labeled
+         pull-tab as the panel, pinned to the upper-right of THIS cell (anchored to
+         .panel-cell), opening the same glassy drawer over the cell. -->
     <ReadingGuide
       panel={cellPanel}
       {presentation}
@@ -262,7 +265,8 @@
 
 <style>
   .panel-cell {
-    min-height: 14rem;
+    /* Phase 149 — +10% floor now the reading-guide launcher no longer eats a strip. */
+    min-height: 15.4rem;
     /* Phase 126 — anchor for the per-cell config popover. */
     position: relative;
   }
@@ -395,8 +399,12 @@
   /* Phase 148f — desaturated: the warm-neutral "unvalidated" token (a muted gold)
      instead of the loud amber, so the off-comparison cell reads as a calm
      methodological note (still visible via the solid left border), not an alarm. */
+  /* Phase 149 — override notice. The cell's own reading-guide launcher is a
+     pull-tab on the cell's upper-right edge (ReadingGuide, variant="cell"), not
+     part of this row. */
   .cell-peek-banner {
     margin: var(--space-3) 0 0;
+    min-width: 0;
     padding: var(--space-2) var(--space-3);
     border: 1px solid color-mix(in srgb, var(--color-status-unvalidated) 45%, var(--color-border));
     border-left: 3px solid var(--color-status-unvalidated);

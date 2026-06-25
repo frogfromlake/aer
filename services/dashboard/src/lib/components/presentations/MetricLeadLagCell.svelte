@@ -165,7 +165,7 @@
       }
       const next = Plot.plot({
         width: host.clientWidth,
-        height: 240,
+        height: 264,
         marginLeft: 52,
         marginBottom: 40,
         x: {
@@ -303,7 +303,7 @@
   }
   .plot-host {
     width: 100%;
-    min-height: 240px;
+    min-height: 264px;
   }
   .plot-host :global(text) {
     fill: var(--color-fg-muted);

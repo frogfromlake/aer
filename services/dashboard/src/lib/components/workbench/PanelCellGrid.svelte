@@ -536,7 +536,8 @@
   /* The at-scale branch renders its own .panel-cell wrapper inline (PanelCell
      styles the per-unit cells). */
   .panel-cell {
-    min-height: 14rem;
+    /* Phase 149 — +10% floor now the reading-guide launcher no longer eats a strip. */
+    min-height: 15.4rem;
     position: relative;
   }
 

@@ -1108,8 +1108,9 @@
     flex-direction: column;
     gap: var(--space-2);
     height: 100%;
-    /* Phase 148g — taller cell (≈+26%) so a dense 10k-node map has room to read. */
-    min-height: 88vh;
+    /* Phase 148g — taller cell so a dense 10k-node map has room to read. Phase 149
+       — +10% again now the reading-guide launcher no longer eats a bottom strip. */
+    min-height: 97vh;
   }
   .muted {
     color: var(--color-fg-muted, #888);
@@ -1175,7 +1176,7 @@
   }
   .sigma-host {
     flex: 1;
-    min-height: 78vh;
+    min-height: 86vh;
     width: 100%;
     background: var(--color-surface, #0e1116);
     border: 1px solid var(--color-border, #2a2f37);

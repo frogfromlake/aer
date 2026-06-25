@@ -52,7 +52,7 @@
     windowStart,
     windowEnd,
     metricName,
-    height = 220,
+    height = 242,
     resolution,
     normalization
   }: Props = $props();

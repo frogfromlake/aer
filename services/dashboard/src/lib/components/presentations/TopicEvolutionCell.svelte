@@ -226,7 +226,7 @@
       const labelFor = (row: PlotRow): string =>
         row.label.length > 32 ? `${row.label.slice(0, 29)}…` : row.label;
 
-      const height = facetMulti ? Math.max(160 * languages.length, 300) : 300;
+      const height = facetMulti ? Math.max(176 * languages.length, 330) : 330;
 
       const commonChannels = {
         x: 'bucket' as const,

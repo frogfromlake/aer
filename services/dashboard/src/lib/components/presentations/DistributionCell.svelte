@@ -250,7 +250,7 @@
       if (!host || token !== renderToken) return;
       const next = Plot.plot({
         width: host.clientWidth,
-        height: 220,
+        height: 242,
         marginLeft: 56,
         marginBottom: 36,
         x: {
@@ -502,7 +502,7 @@
 
   .plot-host {
     width: 100%;
-    min-height: 220px;
+    min-height: 242px;
   }
 
   .overflow-note {
