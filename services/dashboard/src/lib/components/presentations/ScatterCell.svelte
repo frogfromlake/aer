@@ -24,6 +24,7 @@
   import CellExport from './CellExport.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
   import { cyclicMetricAxis } from '$lib/presentations/metric-axis';
   import { locale } from '$lib/state/locale.svelte';
@@ -374,7 +375,7 @@
   </CellTitleBar>
 
   {#if scatterQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_scatter_loading()}</p>
+    <CellLoadingState label={m.cells_scatter_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

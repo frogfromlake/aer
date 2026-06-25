@@ -43,6 +43,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
@@ -409,7 +410,7 @@
   {#if dataLayer === 'silver' && scope !== 'source'}
     <p class="muted">{m.cells_dist_silver_narrow()}</p>
   {:else if isPending}
-    <p class="muted" aria-busy="true">{m.cells_dist_loading()}</p>
+    <CellLoadingState label={m.cells_dist_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

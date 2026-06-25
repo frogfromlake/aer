@@ -37,6 +37,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
 
@@ -275,7 +276,7 @@
   </CellTitleBar>
 
   {#if shiftQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_revds_loading()}</p>
+    <CellLoadingState label={m.cells_revds_loading()} />
   {:else if shiftQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={shiftQ.data} {ctx} />
   {:else if shiftQ.isError || shiftQ.data?.kind === 'network-error'}

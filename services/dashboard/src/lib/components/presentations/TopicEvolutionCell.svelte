@@ -34,6 +34,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
   import { JOINT_CORPUS_MIN_SOURCES } from '$lib/config/topic-thresholds';
@@ -346,7 +347,7 @@
   {#if buckets.length === 0}
     <p class="muted">{m.cells_topicevo_no_window()}</p>
   {:else if isPending}
-    <p class="muted" aria-busy="true">{m.cells_topicevo_loading()}</p>
+    <CellLoadingState label={m.cells_topicevo_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

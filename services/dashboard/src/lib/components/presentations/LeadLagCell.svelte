@@ -28,6 +28,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
 
   let { ctx, probeIds, windowStart, windowEnd }: PresentationCellProps = $props();
 
@@ -260,7 +261,7 @@
   {#if !hasPair}
     <p class="muted">{m.cells_leadlag_need_pair()}</p>
   {:else if leadLagQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_leadlag_computing()}</p>
+    <CellLoadingState label={m.cells_leadlag_computing()} />
   {:else if leadLagQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={leadLagQ.data} {ctx} />
   {:else if leadLagQ.isError || leadLagQ.data?.kind === 'network-error'}

@@ -17,6 +17,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import type { Component } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { formatNumber } from '$lib/localization/format';
   import {
     probeDossierQuery,
@@ -196,7 +197,7 @@
 
 <section class="aleph-shell" aria-label={m.workbench_aleph_aria_label()}>
   {#if dossierQ.isPending}
-    <p class="muted" aria-busy="true">{m.workbench_aleph_loading_dataset()}</p>
+    <CellLoadingState label={m.workbench_aleph_loading_dataset()} />
   {:else if datasetShape}
     {#if pillarState && dossier}
       <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. The
@@ -257,9 +258,9 @@
           {#if loadError}
             <p class="muted">{m.workbench_aleph_cell_failed({ error: loadError })}</p>
           {:else if !CellComponent}
-            <p class="muted" aria-busy="true">
-              {m.workbench_aleph_loading_presentation({ presentation: presentation.label })}
-            </p>
+            <CellLoadingState
+              label={m.workbench_aleph_loading_presentation({ presentation: presentation.label })}
+            />
           {:else if cellSources.length === 0}
             <p class="muted">{m.workbench_aleph_no_sources()}</p>
           {:else if dossier}

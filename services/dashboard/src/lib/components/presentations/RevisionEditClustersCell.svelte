@@ -25,6 +25,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { formatDate } from '$lib/localization/format';
 
   let { ctx, scope, scopeId, windowStart, windowEnd, resolution }: PresentationCellProps = $props();
@@ -165,7 +166,7 @@
   </CellTitleBar>
 
   {#if clustersQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_revec_loading()}</p>
+    <CellLoadingState label={m.cells_revec_loading()} />
   {:else if clustersQ.data?.kind === 'refusal'}
     <RefusalSurface refusal={clustersQ.data} {ctx} />
   {:else if clustersQ.isError || clustersQ.data?.kind === 'network-error'}

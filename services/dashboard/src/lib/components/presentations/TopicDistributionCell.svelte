@@ -35,6 +35,7 @@
   import MethodologyBanner from '$lib/components/base/MethodologyBanner.svelte';
   import { methodologyNotes } from '$lib/methodology-copy';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
@@ -306,7 +307,7 @@
   {/if}
 
   {#if isPending}
-    <p class="muted" aria-busy="true">{m.cells_topicdist_loading()}</p>
+    <CellLoadingState label={m.cells_topicdist_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

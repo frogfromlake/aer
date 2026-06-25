@@ -16,6 +16,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import type { Component } from 'svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import {
     probeDossierQuery,
     type FetchContext,
@@ -129,7 +130,7 @@
 
 <section class="rhizome-shell" aria-label={m.workbench_rhizome_aria_label()}>
   {#if dossierQ.isPending}
-    <p class="muted" aria-busy="true">{m.workbench_rhizome_loading_dataset()}</p>
+    <CellLoadingState label={m.workbench_rhizome_loading_dataset()} />
   {:else if pillarState && dossier}
     <!-- Phase 122i / ADR-034 — Multi-Panel rendering path. -->
     <WindowHost
@@ -152,9 +153,9 @@
         {#if loadError}
           <p class="muted">{m.workbench_rhizome_cell_failed({ error: loadError })}</p>
         {:else if !CellComponent}
-          <p class="muted" aria-busy="true">
-            {m.workbench_rhizome_loading_presentation({ presentation: presentation.label })}
-          </p>
+          <CellLoadingState
+            label={m.workbench_rhizome_loading_presentation({ presentation: presentation.label })}
+          />
         {:else if cellSources.length === 0}
           <p class="muted">{m.workbench_rhizome_no_sources()}</p>
         {:else}

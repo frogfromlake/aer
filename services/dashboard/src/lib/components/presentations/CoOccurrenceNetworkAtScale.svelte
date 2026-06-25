@@ -59,6 +59,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { m } from '$lib/paraglide/messages.js';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
@@ -883,7 +884,7 @@
       </button>
     </aside>
   {:else if graphQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_net_loading_atscale()}</p>
+    <CellLoadingState label={m.cells_net_loading_atscale()} />
   {:else if refusal}
     <RefusalSurface {refusal} {ctx} />
   {:else if isNetworkError}

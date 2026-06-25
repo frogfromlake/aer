@@ -36,6 +36,7 @@
   import type { PanelPath } from '$lib/workbench/panel-mutators';
   import RefusalSurface from '$lib/components/RefusalSurface.svelte';
   import PanelCell from './PanelCell.svelte';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import PanelDisclosureNotes from './PanelDisclosureNotes.svelte';
 
   interface Props {
@@ -424,14 +425,14 @@
         />
       </div>
     {:else}
-      <p class="muted" aria-busy="true">{m.workbench_grid_loading_at_scale()}</p>
+      <CellLoadingState label={m.workbench_grid_loading_at_scale()} />
     {/if}
   {:else if loadError}
     <p class="muted">{m.workbench_grid_cell_failed({ error: loadError })}</p>
   {:else if !CellComponent}
-    <p class="muted" aria-busy="true">
-      {m.workbench_grid_loading_presentation({ presentation: presentation.label })}
-    </p>
+    <CellLoadingState
+      label={m.workbench_grid_loading_presentation({ presentation: presentation.label })}
+    />
   {:else if noSharedDimension}
     <p class="muted">
       {m.workbench_grid_no_shared_dimension_pre()}
@@ -441,9 +442,7 @@
       {m.workbench_grid_no_shared_dimension_post()}
     </p>
   {:else if facetPending}
-    <p class="muted" aria-busy="true">
-      {m.workbench_grid_loading_facet_values()} <code>{fieldLabel(facetField)}</code>…
-    </p>
+    <CellLoadingState label={m.workbench_grid_loading_facet_values()} />
   {:else if facetEmpty}
     <p class="muted">
       {m.workbench_grid_facet_empty_pre()} <code>{fieldLabel(facetField)}</code>

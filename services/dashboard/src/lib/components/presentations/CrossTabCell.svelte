@@ -16,6 +16,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { metricLabel, fieldLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
   import { cyclicMetricAxis, describeCyclicMean } from '$lib/presentations/metric-axis';
   import { locale } from '$lib/state/locale.svelte';
@@ -195,7 +196,7 @@
   {:else if !metric}
     <p class="muted">{m.cells_ct_need_metric()}</p>
   {:else if ctQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_ct_loading()}</p>
+    <CellLoadingState label={m.cells_ct_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

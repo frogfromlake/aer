@@ -16,6 +16,7 @@
   import CellEmptyState from './CellEmptyState.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
 
@@ -217,7 +218,7 @@
   {#if !enoughMetrics}
     <p class="muted">{m.cells_pc_need_metrics()}</p>
   {:else if pcQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_pc_loading()}</p>
+    <CellLoadingState label={m.cells_pc_loading()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}

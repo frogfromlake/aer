@@ -23,6 +23,7 @@
   import CellReadout from './CellReadout.svelte';
   import CellTitleBar from './CellTitleBar.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import CellLoadingState from '$lib/components/base/CellLoadingState.svelte';
   import { metricLabel, metricSubjectAndModel } from '$lib/state/labels.svelte';
   import { useProbeLabels } from '$lib/presentations/use-probe-labels.svelte';
   import type { CellTitleSpec } from '$lib/presentations/cell-title';
@@ -267,7 +268,7 @@
   </CellTitleBar>
 
   {#if llQ.isPending}
-    <p class="muted" aria-busy="true">{m.cells_mll_computing()}</p>
+    <CellLoadingState label={m.cells_mll_computing()} />
   {:else if refusalData}
     <RefusalSurface refusal={refusalData} {ctx} />
   {:else if isNetworkError}
