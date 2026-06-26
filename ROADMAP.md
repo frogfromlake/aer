@@ -5289,6 +5289,23 @@ Six boundaries enumerated and STRIDE'd (detail in the private register): **Inter
 
 ---
 
+## Phase 151: Post-Deploy Hardening Tail [P2] - [ ] TODO
+
+*The committed-but-deliberately-deferred remainder of the Stage-B security remediation (`.security/REMEDIATION_PLAN.md`). None of these block the first deploy — they were sequenced AFTER it on purpose (lower severity, or a refactor better done against a known-good running box than as a pre-deploy risk). This phase exists so the deferral is not silent; each item is committed work with a clear scope, not an open question.*
+
+> **Context.** Phase 149 closed every deploy-coupled finding (all 8 BLOCKERs + the SHOULD/LATER items that were cheap or deploy-relevant). The three items below were the explicit "do it after the box is live" set (operator decision 2026-06-26). The SEC-052 **dedicated datastore exporters** (postgres_exporter / nats-exporter / cadvisor) are tracked separately in **Phase 150** (live-guardrail alerting), not here.
+
+**Grounding.** Read first: `.security/REMEDIATION_PLAN.md` (the per-finding detail + file lists), `services/bff-api/cmd/server/main.go` (the global rate limiter), the per-service compose `environment:` blocks, `services/analysis-worker/main.py` (the operator tunables). Preserve: the boot-time secret validation, the session-OR-key auth gate, IaC-only provisioning, the single-SSoT compose discipline. Verify-first: confirm each finding is still open against HEAD before implementing (several adjacent ones were closed in 149).
+
+* [ ] **SEC-014 — per-client rate limiting (`SHOULD·medium`, DoS).** The BFF currently shares ONE global `rate.NewLimiter` across all callers (`cmd/server/main.go`), so a single noisy/abusive client (pre-auth) can exhaust the whole app's request budget and lock everyone out. Replace with a per-client (keyed by the SEC-003 right-most-XFF client IP) limiter — e.g. `httprate.LimitByIP` or a keyed token-bucket map with eviction — keeping the existing `RATE_LIMIT_RPS` / `RATE_LIMIT_BURST` knobs as the per-client budget. Pre-auth endpoints (`/auth/*`) get the tighter budget. (Was SR-3; deferred because it is a request-path rework better validated against a live box than rushed pre-deploy.)
+* [ ] **SEC-043 — expose the 8 worker operator tunables (`SHOULD·medium`).** The worker reads several env vars that have no `.env.example` entry and no compose passthrough, so an operator cannot tune them without reading the source: the analytical-window cutoff, the re-attempt framework knobs, and the Wayback/CDX lookup controls. Document each in `.env.example` with its default + effect and forward them in the `analysis-worker` compose `environment:` block. Pure config-surface exposure — no behaviour change; defaults already ship.
+* [ ] **D9 — per-service generated `env_file` refactor (the durable F3 fix).** Replace the hand-maintained per-service `environment:` lists with generated per-service `env_file`s, so a new secret is forwarded by construction instead of by remembering to add a line to compose. This is the structural fix behind the cluster of "var X not forwarded" findings (SEC-032/036-forward/040/043/046 were each closed surgically in 149); doing the refactor now collapses the class. Deferred post-deploy deliberately: it touches every service's wiring and is far safer to land + verify against a running known-good box than as the last change before a first deploy. Must preserve boot-time secret validation and the no-secret-in-image rule.
+
+### Validation
+* [ ] A single abusive client can no longer 429 the whole app (per-client limit verified); every worker tunable is settable from `.env`; the env_file refactor boots all services with no missing-secret regression (the boot validators stay green).
+
+---
+
 # Deferred Phases
 
 *Recorded decisions, not committed work. Each carries explicit trigger conditions so the deferral is not silent.*

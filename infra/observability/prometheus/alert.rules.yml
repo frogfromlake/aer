@@ -1,5 +1,12 @@
 # Prometheus alert rules for the AĒR pipeline. Loaded by prometheus.yml via
-# rule_files.
+# rule_files. These evaluate in Prometheus (visible in its /alerts UI) and are
+# validated offline by promtool (`make observability-validate`).
+#
+# DELIVERY (email→Brevo) is owned by the Grafana-managed MIRROR of these rules in
+# ../grafana/provisioning/alerting/rules.yaml (SEC-037 — contact points only fire
+# from Grafana-managed rules; no Alertmanager container per D4). The two are kept
+# in lockstep BY HAND: change a threshold/expr here AND in the Grafana mirror, or
+# they drift. Prometheus = validated local view; Grafana = delivery + graphical.
 groups:
   - name: aer_pipeline
     rules:

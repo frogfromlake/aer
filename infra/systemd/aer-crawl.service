@@ -1,0 +1,22 @@
+# SEC-041 — scheduled production crawl (paired with aer-crawl.timer).
+#
+# The web-crawler is profile-gated out of the default `up` (it is a periodic job,
+# not a long-running service), so a deployed box needs this timer to ingest at
+# all. Install on the host (see docs/operations/scheduled_work.md):
+#   1. Edit WorkingDirectory below to the repo path on the box (default /opt/aer).
+#   2. sudo cp infra/systemd/aer-crawl.{service,timer} /etc/systemd/system/
+#   3. sudo systemctl daemon-reload && sudo systemctl enable --now aer-crawl.timer
+[Unit]
+Description=AĒR scheduled crawl (all probes)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# The repo checkout on the box. backup.sh / scheduled_crawl.sh self-load .env.
+WorkingDirectory=/opt/aer
+# Target the production composition so the crawl runs against the prod stack.
+Environment=COMPOSE_FILE=compose.yaml:compose.prod.yaml
+ExecStart=/usr/bin/env bash scripts/operations/scheduled_crawl.sh
+# A single crawl pass must not run unbounded into the next 6-hour window.
+TimeoutStartSec=3600

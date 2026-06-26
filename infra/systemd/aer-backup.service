@@ -1,0 +1,24 @@
+# SEC-041 / SEC-031 — scheduled off-box backup (paired with aer-backup.timer).
+#
+# backup.sh is host-orchestrated (it needs host `restic` + the host's SSH to the
+# Storage Box + `docker compose exec/run` against the live stack), so it runs as
+# a HOST timer, not an in-container scheduler — the simplest correct fit for a
+# host-orchestrated script (no extra container, survives reboots). Install:
+#   1. Edit WorkingDirectory below to the repo path on the box (default /opt/aer).
+#   2. Ensure host prereqs from docs/operations/backup_restore.md §3 (restic,
+#      Storage Box SSH/known_hosts, /var/lib/aer/textfile, RESTIC_* in .env).
+#   3. sudo cp infra/systemd/aer-backup.{service,timer} /etc/systemd/system/
+#   4. sudo systemctl daemon-reload && sudo systemctl enable --now aer-backup.timer
+[Unit]
+Description=AĒR off-box backup (restic → Hetzner Storage Box)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/aer
+Environment=COMPOSE_FILE=compose.yaml:compose.prod.yaml
+# backup.sh self-loads .env (RESTIC_*, POSTGRES_*, …) and writes the
+# BackupStale/Failed heartbeat metric on every run, success or fail.
+ExecStart=/usr/bin/env bash scripts/operations/backup.sh
+TimeoutStartSec=7200

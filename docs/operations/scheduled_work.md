@@ -108,6 +108,8 @@ The default is the **in-worker NATS-cron** pattern wherever possible. Standalone
 | Script | Purpose | Trigger | Cadence | Phase |
 | :--- | :--- | :--- | :--- | :--- |
 | `scripts/build/build_wikidata_index.py` | Build Wikidata alias SQLite index from a streaming N-Triples parse over `latest-truthy.nt.bz2` (Phase 118b dump-stream pipeline; superseded the Phase 118 SPARQL path), package into `aer-wikidata-index` Docker image | `.github/workflows/wikidata_index_rebuild.yml` (manual dispatch through the Phase 118b validation cycle; quarterly schedule activated in a separate post-merge commit) | Quarterly (1st of Jan/Apr/Jul/Oct, 02:00 UTC) plus on-demand for new-language additions. Wikidata publishes a fresh truthy dump every Wednesday; quarterly cadence balances freshness against build cost. Refresh procedure: `docs/operations/operations_playbook.md#building-and-refreshing-the-wikidata-alias-index`. | 118 / 118b |
+| `scripts/operations/scheduled_crawl.sh` | Crawl every configured probe against the deployed stack (pre-built image, no rebuild), feeding the Bronze→worker→Gold pipeline. Probes auto-discovered from `crawlers/web-crawler/probes/`. | **Host systemd-timer** `infra/systemd/aer-crawl.timer` (on the deployed box) | Every 6 hours (00/06/12/18, +≤5 min jitter). Operator decision (Phase 149): cheap via conditional GETs, captures intra-day publication rhythm + silent-edit revisions. | 149 |
+| `scripts/operations/backup.sh` | Off-box backup of Postgres + ClickHouse + MinIO bronze/silver to the encrypted restic repo on the Hetzner Storage Box; writes the BackupStale/Failed heartbeat. | **Host systemd-timer** `infra/systemd/aer-backup.timer` (on the deployed box) | Daily (04:00, +≤10 min jitter), after the 00:00 crawl drains. | 149 / SR-6 |
 
 ### In-worker scheduled extractors (NATS-cron pattern)
 
@@ -138,6 +140,36 @@ The reference workflow is `.github/workflows/wikidata_index_rebuild.yml`. It def
 3. A single job that runs the build script, verifies the output hash, and (when Phase 118's image distribution work is in place) builds and pushes the `aer-wikidata-index` Docker image to GHCR.
 
 When a new Category C workload is introduced, mirror this workflow pattern: create a dedicated `.github/workflows/<workload>_<verb>.yml`, with `workflow_dispatch` for manual runs and `schedule` for the regular cadence. Do not pile multiple unrelated cron jobs into one workflow file.
+
+## Production runtime scheduling — host systemd-timers (Phase 149 / SEC-041)
+
+The GitHub-Actions mechanism above is for workloads that produce a **CI-buildable
+artefact** (the Wikidata index). It does **not** fit the two production-runtime
+jobs introduced at first deploy, because both must run **on the deployed box,
+against the live stack** — something a GitHub runner cannot reach:
+
+- **`scheduled_crawl.sh`** needs the running `web-crawler` profile + the
+  `aer-backend` network + the box's `crawler_state`.
+- **`backup.sh`** is host-orchestrated: it needs host `restic`, the box's SSH to
+  the Storage Box, and `docker compose exec/run` against the live containers.
+
+So these two run as **host systemd-timers** (`infra/systemd/aer-*.{service,timer}`),
+NOT GitHub Actions and NOT an in-Compose scheduler container (Occam: a host timer
+is the simplest correct fit for a host-orchestrated script; it survives reboots
+via `Persistent=true` and adds no container). This does not reverse the
+2026-05-02 decision — it scopes it: **CI-buildable artefacts → GitHub Actions;
+on-box runtime jobs → host systemd-timers.** A silently-missed run is backstopped
+by the `BackupStale` / `CrawlStale` alerts (see [monitoring.md](monitoring.md)).
+
+**Install (once, at deploy — see the deploy runbook):**
+```bash
+# In each unit, set WorkingDirectory to the repo path on the box (default /opt/aer).
+sudo cp infra/systemd/aer-crawl.{service,timer}  /etc/systemd/system/
+sudo cp infra/systemd/aer-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now aer-crawl.timer aer-backup.timer
+systemctl list-timers 'aer-*'      # confirm next-run times
+```
 
 ---
 

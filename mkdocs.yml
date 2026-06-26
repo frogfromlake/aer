@@ -266,6 +266,8 @@ nav:
   - "Operations":
       - "Developer Quickstart": operations/developer_quickstart.md
       - "Operations Playbook": operations/operations_playbook.md
+      - "Monitoring & Alerting": operations/monitoring.md
+      - "Backup & Restore Runbook": operations/backup_restore.md
       - "GitHub Repository Configuration": operations/github_repository_configuration.md
       - "Scientific Operations Guide": operations/scientific_operations_guide.md
       - "Scheduled Work Inventory": operations/scheduled_work.md

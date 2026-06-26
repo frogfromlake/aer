@@ -21,8 +21,21 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # SEC-042 — ACME CA toggle. Defaults to the Let's Encrypt PRODUCTION
+      # directory. Let's Encrypt enforces tight rate limits (e.g. 5 duplicate-cert
+      # failures/hour, 50 certs/week per domain); a misconfigured first deploy can
+      # burn the week's quota and lock you out. For a first run / DNS-still-
+      # propagating dry-run, set ACME_CA_SERVER to the STAGING directory
+      # (https://acme-staging-v02.api.letsencrypt.org/directory) — untrusted certs
+      # but unlimited retries — then unset it and `up` again for a real cert.
+      # Switching CA requires clearing the old acme.json (see backup_restore /
+      # operations playbook): `docker compose run --rm traefik rm -f /letsencrypt/acme.json`.
+      - "--certificatesresolvers.myresolver.acme.caserver=${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # acme.json lives in this named volume; Traefik creates it 0600 and refuses
+      # to start if a bind-mounted acme.json is more permissive. Keep it a named
+      # volume (not a host bind) so the permission is managed for you (SEC-042).
       - traefik-certs:/letsencrypt
 
   # SEC-001: the MinIO console gets NO public router in production. It stays on
@@ -37,8 +50,13 @@ services:
 
   bff-api:
     labels:
+      # SEC-040 — scope the router to the canonical app host. A Host-less
+      # catch-all answers for ANY Host header (incl. the raw IP / a stray
+      # domain), which both leaks the app to unintended names and makes the ACME
+      # certresolver's hostname non-deterministic. `${DASHBOARD_HOST}` is the
+      # deployed apex (e.g. aer-project.eu); preflight.sh requires it in prod.
       - "traefik.enable=true"
-      - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.bff-api.rule=Host(`${DASHBOARD_HOST}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.bff-api.entrypoints=websecure"
       - "traefik.http.routers.bff-api.tls.certresolver=myresolver"
       - "traefik.http.services.bff-api.loadbalancer.server.port=8080"
@@ -48,8 +66,9 @@ services:
 
   dashboard:
     labels:
+      # SEC-040 — same host scoping for the static frontend catch-all.
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=PathPrefix(`/`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_HOST}`) && PathPrefix(`/`) && !PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
       - "traefik.http.routers.dashboard.priority=1"
@@ -63,6 +82,30 @@ services:
   grafana:
     labels: !override
       - "traefik.enable=false"
+
+  # SEC-064 — harden the MkDocs services for production. The base compose runs a
+  # dev livereload server with the WHOLE repo bind-mounted (`.:/docs`), which (a)
+  # gives the docs container read access to .env and every other repo file and
+  # (b) runs a file-watching livereload websocket — neither belongs on a prod box.
+  # The overlay drops livereload and `!override`s the mount down to ONLY what
+  # MkDocs needs (docs/ + the two configs, all read-only). Access is unchanged:
+  # internal docs stay loopback-only (127.0.0.1:8001, SEC-018) → SSH tunnel
+  # `ssh -L 8001:localhost:8001 <box>`; see docs/operations/monitoring.md.
+  # (Public routing of the :8000 portal is a separate, deliberate decision — the
+  # gated POC keeps it firewall-blocked, not Traefik-routed.)
+  docs:
+    command: serve -f mkdocs.public.yml --dev-addr=0.0.0.0:8000 --no-livereload
+    volumes: !override
+      - ./docs:/docs/docs:ro
+      - ./mkdocs.yml:/docs/mkdocs.yml:ro
+      - ./mkdocs.public.yml:/docs/mkdocs.public.yml:ro
+
+  docs-internal:
+    command: serve -f mkdocs.yml --dev-addr=0.0.0.0:8001 --no-livereload
+    volumes: !override
+      - ./docs:/docs/docs:ro
+      - ./mkdocs.yml:/docs/mkdocs.yml:ro
+      - ./mkdocs.public.yml:/docs/mkdocs.public.yml:ro
 
 volumes:
   traefik-certs:

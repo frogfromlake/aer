@@ -1,0 +1,21 @@
+# SEC-037 — Grafana unified-alerting contact point. Where alerts are delivered.
+#
+# A single email contact point pointed at the operator (ALERT_EMAIL_TO, supplied
+# via env — never hardcoded, the repo is public). Grafana sends through its own
+# SMTP (GF_SMTP_* in compose.yaml), which targets the same Brevo relay as the app
+# (Phase 153). In dev (GF_SMTP_ENABLED=false) the contact point still exists and
+# alerts show in the UI; only the email send is inert.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: aer-email
+    receivers:
+      - uid: aer_email_receiver
+        type: email
+        settings:
+          addresses: ${ALERT_EMAIL_TO}
+          # One email per alert group (singleEmail=false would split). Keep the
+          # group summary so a disk-fill storm is one mail, not fifty.
+          singleEmail: false
+        disableResolveMessage: false

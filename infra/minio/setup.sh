@@ -9,6 +9,48 @@ until /usr/bin/mc alias set myminio "http://${MINIO_ENDPOINT}" "${MINIO_ROOT_USE
   sleep 1
 done
 
+# SEC-060 — run an idempotent mc command without swallowing real errors. The old
+# blanket `|| true` hid auth failures, an unreachable broker, and malformed
+# policies just as silently as the benign "already configured" case. This helper
+# tolerates ONLY the idempotent re-run outcome and aborts (set -e) on anything
+# else, so a genuinely broken event-notification or policy-attach fails the init
+# container loudly instead of leaving the pipeline silently mis-provisioned.
+mc_idempotent() {
+  if out="$("$@" 2>&1)"; then
+    return 0
+  fi
+  case "$out" in
+    *already*|*Already*|*exists*|*attached*|*in\ effect*)
+      echo "  (idempotent no-op: $out)"
+      return 0 ;;
+    *)
+      echo "ERROR: mc command failed: $* :: $out" >&2
+      return 1 ;;
+  esac
+}
+
+# SEC-057 — read the lifecycle config back after import and assert the expected
+# expiry is actually stored. `mc ilm import` can succeed-but-no-op or store a
+# malformed rule; without this read-back the Bronze/Silver/Quarantine TTLs (the
+# ILM that bounds disk growth — Data Lifecycle in CLAUDE.md) could be silently
+# absent. Hard-fail on a present-but-wrong config; soft-warn only if the read-back
+# tool itself yields nothing (so a future mc output-format change cannot wedge
+# the boot on a false negative — the import's own exit still gates correctness).
+assert_ilm_days() {
+  bucket="$1"; want="$2"
+  dump="$(/usr/bin/mc ilm rule export "myminio/${bucket}" 2>/dev/null || true)"
+  if [ -z "$dump" ]; then
+    echo "  ! WARN: could not read back ILM for '${bucket}' (mc output empty); relying on import exit status" >&2
+    return 0
+  fi
+  if echo "$dump" | grep -Eq "\"Days\"[ :]*${want}([^0-9]|$)"; then
+    echo "  ✔ ${bucket} ILM: ${want}-day expiry confirmed"
+  else
+    echo "ERROR: ILM applied but '${bucket}' is missing the expected ${want}-day expiry. Dump: ${dump}" >&2
+    exit 1
+  fi
+}
+
 # Create required buckets
 echo "Creating buckets..."
 /usr/bin/mc mb myminio/bronze --ignore-existing
@@ -60,11 +102,19 @@ EOF
 }
 EOF
 
+# SEC-057 — verify the three lifecycle policies actually landed (TTLs that bound
+# disk growth). Aborts the init container if any expected expiry is missing.
+echo "Verifying ILM policies were applied..."
+assert_ilm_days bronze 90
+assert_ilm_days bronze-quarantine 30
+assert_ilm_days silver 365
+
 # Enable Event Notifications
 echo "Linking bucket events to NATS..."
-# Force the event addition. We use '|| true' to ensure the script continues
-# even if the event notification is already configured.
-/usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put || true
+# SEC-060 — was `|| true`, which hid a broken NATS event wiring (the pipeline's
+# Bronze→worker trigger). mc_idempotent tolerates the already-configured re-run
+# but fails the init on a real error.
+mc_idempotent /usr/bin/mc event add myminio/bronze arn:minio:sqs::aer:nats --event put
 
 # ----------------------------------------------------------------------------
 # Service accounts (Phase 79)
@@ -162,9 +212,12 @@ EOF
 /usr/bin/mc admin policy create myminio aer_bff_policy /tmp/aer_bff_policy.json || \
   /usr/bin/mc admin policy update myminio aer_bff_policy /tmp/aer_bff_policy.json
 
-/usr/bin/mc admin policy attach myminio aer_ingestion_policy --user "${INGESTION_MINIO_ACCESS_KEY}" || true
-/usr/bin/mc admin policy attach myminio aer_worker_policy --user "${WORKER_MINIO_ACCESS_KEY}" || true
-/usr/bin/mc admin policy attach myminio aer_bff_policy --user "${BFF_MINIO_ACCESS_KEY}" || true
+# SEC-060 — was `|| true`, which silently left a service account with NO policy
+# (every authd request would then 403). mc_idempotent tolerates the
+# already-attached re-run but fails the init on a real attach error.
+mc_idempotent /usr/bin/mc admin policy attach myminio aer_ingestion_policy --user "${INGESTION_MINIO_ACCESS_KEY}"
+mc_idempotent /usr/bin/mc admin policy attach myminio aer_worker_policy --user "${WORKER_MINIO_ACCESS_KEY}"
+mc_idempotent /usr/bin/mc admin policy attach myminio aer_bff_policy --user "${BFF_MINIO_ACCESS_KEY}"
 
 rm -f /tmp/aer_ingestion_policy.json /tmp/aer_worker_policy.json /tmp/aer_bff_policy.json
 

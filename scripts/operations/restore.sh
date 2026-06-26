@@ -14,6 +14,23 @@
 #
 set -euo pipefail
 
+# Load .env safely (NOT `. ./.env` — the WEB_CRAWLER_USER_AGENT parens parse-
+# error; mirrors backup.sh / reset_validate.sh). Self-loading so this works from
+# the systemd context or a manual incident shell alike.
+load_env() {
+  env_file="$1"
+  [ -f "$env_file" ] || return 0
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in ''|\#*) continue ;; esac
+    [ -z "${_line// }" ] && continue
+    if [[ "$_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+    fi
+  done < "$env_file"
+  unset _line
+}
+load_env "$(cd "$(dirname "$0")/../.." && pwd)/.env"
+
 : "${RESTIC_REPOSITORY:?}"
 : "${RESTIC_PASSWORD:?}"
 : "${POSTGRES_USER:?}"; : "${POSTGRES_PASSWORD:?}"; : "${POSTGRES_DB:?}"

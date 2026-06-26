@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-python lint-go lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check backup
+.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-python lint-go lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check backup preflight
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-lighthouse fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -345,8 +345,17 @@ backup:
 		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env not found. Copy .env.example to .env and set RESTIC_REPOSITORY + RESTIC_PASSWORD."; exit 1; \
 	fi
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Running off-box backup (restic → Storage Box)...$(RESET)"
-	@set -a; . ./.env; set +a; ./scripts/operations/backup.sh
+	@./scripts/operations/backup.sh
 	@echo -e "$(SYMBOL_SUCCESS) Backup complete."
+
+# SEC-045 — production pre-flight: refuse a deploy with empty/placeholder secrets
+# or incoherent public-host vars. Run BEFORE the prod-overlay up (see the deploy
+# runbook). Loads .env so the script sees the real values.
+preflight:
+	@if [ ! -f .env ]; then \
+		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env not found. Copy .env.example to .env and fill in production values first."; exit 1; \
+	fi
+	@./scripts/operations/preflight.sh
 
 swagger-up:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling OpenAPI specs for Swagger UI...$(RESET)"

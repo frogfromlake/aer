@@ -1,0 +1,14 @@
+# SEC-041 / SEC-031 — daily off-box backup. Runs in the early morning, after the
+# 00:00 crawl has drained, so the snapshot reflects a fresh corpus. The
+# BackupStale alert (>26h) backstops a silently-missed run.
+[Unit]
+Description=Daily AĒR off-box backup
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+# Catch up a missed backup if the box was down at 04:00.
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

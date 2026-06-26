@@ -59,9 +59,11 @@ make backup          # loads .env, runs scripts/operations/backup.sh
 The first run runs `restic init` automatically. Subsequent runs are incremental
 (dedup). The script writes its heartbeat metric on every run (success or fail).
 
-**Scheduling:** in production the backup runs daily, driven by the bundled
-scheduler (Phase-149 SR-7 — `ofelia`). Until SR-7 wires it, run it manually or
-via a host cron/systemd timer calling `make backup`.
+**Scheduling:** in production the backup runs **daily at 04:00** via the host
+systemd-timer `infra/systemd/aer-backup.timer` (SEC-041 — install steps in
+[scheduled_work.md](scheduled_work.md#production-runtime-scheduling-host-systemd-timers-phase-149-sec-041)).
+The `BackupStale`/`BackupFailed` alerts backstop a missed or failed run. You can
+always take an out-of-band backup with `make backup`.
 
 **Verify a backup exists off-box:**
 ```bash

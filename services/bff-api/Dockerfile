@@ -37,6 +37,15 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=aer-go-modcache \
     --mount=type=cache,target=/root/.cache/go-build,id=aer-go-buildcache \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/bff-api ./cmd/server/main.go
 
+# SEC-033 — the first-admin bootstrap tool is baked into the same image so it
+# can be run on a prod box where there is no host Go toolchain and Postgres is
+# not host-reachable: `docker compose exec bff-api /app/bootstrap-admin`. It
+# reads the container's env (BFF_AUTH_DB_*, POSTGRES_HOST=postgres,
+# BFF_PUBLIC_BASE_URL, ADMIN_BOOTSTRAP_EMAIL), so no host .env is required.
+RUN --mount=type=cache,target=/go/pkg/mod,id=aer-go-modcache \
+    --mount=type=cache,target=/root/.cache/go-build,id=aer-go-buildcache \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/bootstrap-admin ./cmd/bootstrap-admin/main.go
+
 # Runtime — digest pinned for reproducibility (Phase 84).
 # Upstream: https://hub.docker.com/_/alpine — alpine:3.23.3
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
@@ -46,6 +55,8 @@ RUN apk upgrade --no-cache zlib libcrypto3 libssl3 musl musl-utils \
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/bff-api /app/bff-api
+# SEC-033 — first-admin bootstrap tool, runnable via `docker compose exec`.
+COPY --from=builder /bin/bootstrap-admin /app/bootstrap-admin
 COPY --from=builder /workspace/services/bff-api/configs /app/configs
 
 WORKDIR /app

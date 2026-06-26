@@ -1319,10 +1319,21 @@ runs). The public build *excludes* the internal directories entirely (they are
 not rendered, not merely hidden), so the engineering internals never ship in
 the public site.
 
-> **Deployment (deferred).** The internal build MUST be access-controlled to the
-> `admin` role (Traefik forward-auth to the BFF) and not publicly routed. That
-> gating lands with deployment; locally it is a plain second build on `:8001`.
-> Do not expose `:8001` publicly.
+> **Deployment access (Phase 149).** The internal docs are **not** publicly
+> routed and never should be. In production:
+> - `docs-internal` publishes only to the box loopback (`127.0.0.1:8001`,
+>   SEC-018); the firewall exposes only 22/80/443. Reach it via an SSH tunnel —
+>   the same pattern as the Grafana/MinIO consoles:
+>   ```bash
+>   ssh -L 8001:localhost:8001 <box>   # then open http://localhost:8001
+>   ```
+> - The prod overlay hardens the container (SEC-064): livereload is off and only
+>   `docs/` + the two `mkdocs.*.yml` configs are mounted **read-only** — no
+>   whole-repo mount, so the docs container cannot read `.env`.
+> - The public `:8000` portal is firewall-blocked in the gated POC (not
+>   Traefik-routed). Routing it publicly is a separate, deliberate decision.
+>
+> See `docs/operations/monitoring.md` for the full remote-access surface map.
 
 ---
 
@@ -1744,6 +1755,98 @@ Adding a new domain is a one-PR change: append a YAML entry, run a workflow_disp
 * simultaneous worker + BFF reader updates (so neither component can be partially-upgraded against an incompatible manifest).
 
 A worker (or BFF) reading a manifest with an unrecognised `manifest_version` refuses to start. This is the wedge that lets us evolve the schema safely without grandfather code paths.
+
+---
+
+## Production recovery & operations (non-wiping)
+
+> On a production box, `make reset` is **refused** (SEC-034) — it wipes all data
+> and drops TLS. The recoveries below are the non-destructive alternatives, plus
+> the resource budget and credential-rotation procedures for a single-box deploy.
+
+### Re-running a single init container (SEC-062)
+
+Init containers (`minio-init`, `clickhouse-init`, `postgres-init-roles`,
+`nats-init`, `wikidata-labels-load`) provision buckets, schema, roles, and
+streams idempotently — so re-running one is safe and **does not wipe data**. When
+a provisioning step needs to be re-applied (e.g. you rotated a credential, or one
+flaked on a cold first boot), re-run just that container — never `make reset`:
+
+```bash
+# Re-run one init container against the live stack (idempotent):
+docker compose up -d --no-deps --force-recreate minio-init
+docker compose up -d --no-deps --force-recreate postgres-init-roles
+docker compose up -d --no-deps --force-recreate clickhouse-init
+# Watch its exit:
+docker compose logs --tail=50 -f minio-init
+```
+
+Because each script is idempotent (`mb --ignore-existing`, `CREATE … IF NOT
+EXISTS`, `CREATE ROLE … WHERE NOT EXISTS` + `ALTER ROLE`, `ilm import`), a re-run
+reconciles the live state to the desired state without touching stored objects,
+rows, or messages.
+
+### Recovering a dirty Postgres migration (SEC-059)
+
+The ingestion-api runs the Postgres schema migrations in-process at startup
+(golang-migrate). If a migration fails mid-way, golang-migrate marks the version
+**dirty** and every subsequent boot refuses to migrate (`Dirty database version
+N`), so the ingestion-api crash-loops and the BFF — which needs the schema — is
+affected downstream. Recover **without wiping**:
+
+```bash
+# 1. Inspect the dirty state (debug-up or on-box psql):
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT * FROM schema_migrations;"   # version + dirty flag
+
+# 2. Inspect what the failed migration left behind; finish or undo it BY HAND
+#    so the schema matches the migration's intended end-state.
+
+# 3. Clear the dirty flag so the runner re-attempts from the right version:
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "UPDATE schema_migrations SET dirty = false WHERE version = <N>;"
+#    If migration N must be re-run, also set version to N-1.
+
+# 4. Restart ingestion-api so it re-runs the migration cleanly:
+docker compose up -d --force-recreate ingestion-api
+```
+
+If the schema is too far gone to reconcile by hand, the safe path is **restore
+from the last backup** (`docs/operations/backup_restore.md` §5), never a reset.
+
+### Single-box memory budget (SEC-038)
+
+The compose `deploy.resources.limits` sum to roughly **12–13 GB** of RAM across
+all services (the worker dominates — BERT/BERTopic + a 1-year co-occurrence
+window load into RAM). On the **16 GB** production box (Hetzner CX43) this fits
+with headroom; the limits are caps, not reservations, and the worker is the only
+heavy steady-state consumer. If you deploy on a smaller box, the OOM-killer will
+reap whichever service spikes first (typically postgres/bff/minio while the
+worker holds its model memory) — the `HostMemoryLow` alert (see
+[monitoring.md](monitoring.md)) fires at <10% available as the early warning.
+Do **not** raise the worker's limit above host RAM; scale OUT (more probes →
+horizontal workers) rather than UP.
+
+### Rotating a MinIO service-account secret (SEC-044)
+
+`infra/minio/setup.sh` provisions service accounts with `mc admin user add`,
+which is a **no-op if the user already exists** — so simply changing
+`WORKER_MINIO_SECRET_KEY` in `.env` and re-running the init does **not** rotate
+the secret (asymmetric with `postgres-init-roles`, which re-syncs via `ALTER
+ROLE`). To actually rotate a MinIO service-account secret:
+
+```bash
+# Set the new secret explicitly on the existing user, then restart consumers:
+docker compose exec -T minio sh -c '
+  mc alias set m http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+  mc admin user svcacct edit --secret-key "<NEW_SECRET>" m <ACCESS_KEY>'   # or:
+  # mc admin user remove m <ACCESS_KEY> && re-run minio-init with the new .env value
+docker compose up -d --force-recreate analysis-worker bff-api ingestion-api
+```
+
+Update `.env` to the new secret in the same change so a later init re-run stays
+consistent. (Root credentials `MINIO_ROOT_*` rotate by restarting the `minio`
+server with the new value — they are read at server start, not stored.)
 
 ---
 

@@ -370,6 +370,9 @@ services:
       dockerfile: services/ingestion-api/Dockerfile
     container_name: aer_ingestion_api
     restart: unless-stopped
+    # Graceful shutdown grace must exceed INGESTION_SHUTDOWN_TIMEOUT_SECONDS (65s)
+    # + WriteTimeout (60s); Docker's default 10s would SIGKILL mid-drain.
+    stop_grace_period: 70s
     environment:
       - APP_ENV=${APP_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
@@ -493,6 +496,11 @@ services:
       dockerfile: services/analysis-worker/Dockerfile
     container_name: aer_analysis_worker
     restart: unless-stopped
+    # Graceful shutdown: the worker drains for up to WORKER_SHUTDOWN_TIMEOUT_SECONDS
+    # (65s) on SIGTERM, closing ClickHouse + Postgres pools. Docker's DEFAULT grace
+    # is only 10s — it would SIGKILL mid-drain on every redeploy/down. Grace must
+    # exceed the drain window.
+    stop_grace_period: 70s
     environment:
       - NATS_URL=nats://nats:4222
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
@@ -704,6 +712,9 @@ services:
       dockerfile: services/bff-api/Dockerfile
     container_name: aer_bff_api
     restart: unless-stopped
+    # Graceful shutdown grace must exceed BFF_SHUTDOWN_TIMEOUT_SECONDS (65s) +
+    # WriteTimeout (60s); Docker's default 10s would SIGKILL mid-drain.
+    stop_grace_period: 70s
     # SEC-002: loopback-only host publish. Traefik reaches the BFF over the
     # aer-frontend docker network (container :8080); this host port is a dev
     # convenience only. It must never bind 0.0.0.0 — a published port bypasses
@@ -756,6 +767,25 @@ services:
       - BFF_K_ANONYMITY_THRESHOLD=${BFF_K_ANONYMITY_THRESHOLD:-10}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
+      # SEC-046 — forward the CORS allow-list. Without this the BFF falls back to
+      # its `*` default, which the SEC-010 boot guard REFUSES in production — so a
+      # prod box would not boot until CORS_ALLOWED_ORIGINS is set to the real
+      # origin(s) (e.g. https://${DASHBOARD_HOST}).
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
+      # SEC-032 — Transactional email (Phase 153 / ADR-043). Without these the
+      # SMTP relay is never reachable inside the container, so invite/reset mail
+      # is structurally inert in prod and the all-or-nothing validator (config.go)
+      # has nothing to validate. Empty SMTP_HOST → LogSender fallback (dev).
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_ADDRESS=${SMTP_FROM_ADDRESS:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-AĒR}
+      # SEC-033 — first-admin seeding runs INSIDE this container on a prod box
+      # (`docker compose exec bff-api /app/bootstrap-admin`); carry the target
+      # email here so the baked-in tool reads it without a host .env.
+      - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL:-}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"
@@ -918,6 +948,21 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      # SEC-037 — alert DELIVERY. Grafana unified alerting is the SoT for who gets
+      # alerted (D4: no extra Alertmanager container). The provisioned email
+      # contact point sends via Grafana's own SMTP, pointed at the same Brevo relay
+      # as the app (Phase 153). Empty/disabled in dev → alerts still show in the
+      # Grafana UI, just no email. ALERT_EMAIL_TO is the recipient (env, not in the
+      # public repo). GF_SERVER_ROOT_URL makes the "View alert" links resolve.
+      - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
+      - GF_SMTP_HOST=${GF_SMTP_HOST:-smtp-relay.brevo.com:587}
+      - GF_SMTP_USER=${GF_SMTP_USER:-}
+      - GF_SMTP_PASSWORD=${GF_SMTP_PASSWORD:-}
+      - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-}
+      - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-AĒR Alerts}
+      - GF_SMTP_STARTTLS_POLICY=${GF_SMTP_STARTTLS_POLICY:-MandatoryStartTLS}
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
+      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://localhost:3000}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOST}`)"
@@ -927,6 +972,11 @@ services:
     volumes:
       - ./infra/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./infra/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      # SEC-037 — provisioned unified-alerting: contact point (email→Brevo),
+      # notification policy, and the alert rules (Grafana-managed, mirrors the
+      # promtool-validated Prometheus rules). Read-only; mutable state (silences,
+      # alert instances) lives in grafana_data below.
+      - ./infra/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting
       # SEC-051: persist Grafana's own DB (unified-alerting state, silences,
       # annotations, the admin user). Dashboards + datasources stay file-
       # provisioned (read-only above); this volume holds the mutable state the

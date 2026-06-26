@@ -1,0 +1,17 @@
+# SEC-041 — crawl every 6 hours (operator decision, Phase 149). The crawler is
+# polite (ROBOTSTXT_OBEY, DOWNLOAD_DELAY, conditional GETs + dedup), so a 6-hour
+# cadence is cheap (mostly 304s) and captures intra-day publication rhythm +
+# silent-edit revisions without hammering sources.
+[Unit]
+Description=Run the AĒR crawl every 6 hours
+
+[Timer]
+# 00:00, 06:00, 12:00, 18:00 (host local time).
+OnCalendar=*-*-* 00/6:00:00
+# Catch up one missed run if the box was down at the scheduled time.
+Persistent=true
+# Spread load / avoid hitting every source at the exact same wall-clock second.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

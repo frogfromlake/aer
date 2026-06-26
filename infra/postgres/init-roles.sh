@@ -85,6 +85,21 @@ GRANT SELECT ON TABLE public.crawler_discovery_alerts TO :"bff_user";
 GRANT SELECT ON TABLE public.crawler_funnel_runs TO :"bff_user";
 SQL
 
+# SEC-063 — make a forgotten grant VISIBLE. The whitelist above must be extended
+# by hand for every new BFF-queried table; a miss otherwise surfaces only as a
+# runtime 500 (permission denied for table X) when that endpoint is first hit.
+# List the public tables bff_readonly currently CANNOT read, so a missing grant
+# shows up in the init log at provision time. Informational only — auth + write-
+# side tables are intentionally excluded — but a BFF-READ table appearing here is
+# a bug to fix in THIS file (the single point of truth for BFF Postgres grants).
+echo "postgres-init-roles: public tables NOT readable by '${BFF_DB_USER}' (review for a missing BFF grant):"
+psql -q -v ON_ERROR_STOP=1 -v bff_user="${BFF_DB_USER}" -tAc "
+  SELECT coalesce(string_agg(c.relname, ', ' ORDER BY c.relname), '(none — every public table is readable)')
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relkind = 'r'
+    AND NOT has_table_privilege(:'bff_user', format('public.%I', c.relname), 'SELECT');
+" 2>/dev/null || echo "  (could not compute grant diff — non-fatal)"
+
 # ---------------------------------------------------------------------------
 # Phase 134 (ADR-040): the BFF's auth WRITE role.
 #

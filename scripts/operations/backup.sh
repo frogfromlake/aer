@@ -36,6 +36,27 @@
 #
 set -euo pipefail
 
+# Load .env WITHOUT shell-sourcing it. The WEB_CRAWLER_USER_AGENT value carries
+# unescaped parens + a semicolon (WP-006 §5.1), so `. ./.env` parse-errors —
+# which is why this reads the file the way Docker Compose does: flat KEY=VALUE,
+# value verbatim to end-of-line, exporting only well-formed identifiers (mirrors
+# scripts/operations/reset_validate.sh). Self-loading means this works the same
+# whether invoked by `make backup`, the systemd timer, or directly; values already
+# in the environment (e.g. COMPOSE_FILE from the unit) survive unless .env sets them.
+load_env() {
+  env_file="$1"
+  [ -f "$env_file" ] || return 0
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in ''|\#*) continue ;; esac
+    [ -z "${_line// }" ] && continue
+    if [[ "$_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+    fi
+  done < "$env_file"
+  unset _line
+}
+load_env "$(cd "$(dirname "$0")/../.." && pwd)/.env"
+
 # --- required configuration (fail fast, never silently skip a store) ---------
 : "${RESTIC_REPOSITORY:?set RESTIC_REPOSITORY, e.g. sftp:u123456@u123456.your-storagebox.de:/aer-backups}"
 : "${RESTIC_PASSWORD:?set RESTIC_PASSWORD (client-side encryption key — ESCROW OFF-BOX; losing it = unrecoverable backups)}"

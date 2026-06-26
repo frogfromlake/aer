@@ -258,5 +258,27 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS must not be '*' when APP_ENV=%s; set explicit origin(s)", cfg.Environment)
 	}
 
+	// SEC-036 / SEC-039 — production link + WebAuthn coherence. The dev defaults
+	// (empty BFF_PUBLIC_BASE_URL, WebAuthn RP = localhost) silently survive into
+	// a prod boot and produce invite/reset links that don't resolve in a mail
+	// client and a relying-party browsers reject at origin verification — i.e. a
+	// box that cannot onboard even its first admin. Fail fast instead.
+	if cfg.Environment == "production" {
+		switch {
+		case cfg.PublicBaseURL == "":
+			return nil, fmt.Errorf("BFF_PUBLIC_BASE_URL must be set when APP_ENV=production")
+		case !strings.HasPrefix(cfg.PublicBaseURL, "https://"):
+			return nil, fmt.Errorf("BFF_PUBLIC_BASE_URL must be an https:// origin when APP_ENV=production")
+		case strings.Contains(cfg.PublicBaseURL, "localhost"):
+			return nil, fmt.Errorf("BFF_PUBLIC_BASE_URL must be the deployed domain, not localhost, when APP_ENV=production")
+		}
+		if cfg.WebAuthnRPID == "" || cfg.WebAuthnRPID == "localhost" {
+			return nil, fmt.Errorf("BFF_WEBAUTHN_RP_ID must be the deployed domain (not localhost) when APP_ENV=production")
+		}
+		if strings.Contains(cfg.WebAuthnRPOrigins, "localhost") {
+			return nil, fmt.Errorf("BFF_WEBAUTHN_RP_ORIGINS must not contain localhost when APP_ENV=production")
+		}
+	}
+
 	return &cfg, nil
 }

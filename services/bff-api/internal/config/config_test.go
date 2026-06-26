@@ -22,6 +22,16 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("BFF_AUTH_DB_PASSWORD", "auth-secret")
 }
 
+// setProdLinkEnv supplies the production link + WebAuthn coherence values that
+// SEC-036/039 require, so a prod happy-path test can boot. Tests exercising a
+// single missing/invalid value clear or override one after calling this.
+func setProdLinkEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("BFF_PUBLIC_BASE_URL", "https://aer-project.eu")
+	t.Setenv("BFF_WEBAUTHN_RP_ID", "aer-project.eu")
+	t.Setenv("BFF_WEBAUTHN_RP_ORIGINS", "https://aer-project.eu")
+}
+
 // chdirEmpty moves into a fresh temp dir so Load()'s best-effort ReadInConfig
 // (".env") finds no file and falls back to env + defaults only. This keeps the
 // test independent of any .env the developer happens to have at the repo root.
@@ -260,6 +270,7 @@ func TestLoad_SecureCookiesRequiredInProduction(t *testing.T) {
 		// BFF_SECURE_COOKIES defaults to true. A non-wildcard CORS origin is
 		// required in production (SEC-010), so set one for this happy path.
 		t.Setenv("CORS_ALLOWED_ORIGINS", "https://aer.example")
+		setProdLinkEnv(t) // SEC-036/039: prod also requires real base URL + RP.
 
 		cfg, err := Load()
 		if err != nil {
@@ -302,6 +313,7 @@ func TestLoad_CORSWildcardRefusedOutsideDevelopment(t *testing.T) {
 		setRequiredEnv(t)
 		t.Setenv("APP_ENV", "production")
 		t.Setenv("CORS_ALLOWED_ORIGINS", "https://aer.example")
+		setProdLinkEnv(t) // SEC-036/039: prod also requires real base URL + RP.
 
 		if _, err := Load(); err != nil {
 			t.Fatalf("explicit origin in production must boot: %v", err)
@@ -314,6 +326,60 @@ func TestLoad_CORSWildcardRefusedOutsideDevelopment(t *testing.T) {
 
 		if _, err := Load(); err != nil {
 			t.Fatalf("development must tolerate the wildcard default: %v", err)
+		}
+	})
+}
+
+// TestLoad_ProductionLinkCoherence exercises the SEC-036/039 prod guards: the
+// localhost/empty dev defaults must not survive into a production boot, and a
+// coherent set of real values boots.
+func TestLoad_ProductionLinkCoherence(t *testing.T) {
+	// A correct prod base config the failure cases mutate one field of.
+	base := func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t)
+		t.Setenv("APP_ENV", "production")
+		t.Setenv("CORS_ALLOWED_ORIGINS", "https://aer-project.eu")
+		setProdLinkEnv(t)
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(t *testing.T)
+		wantSub string
+	}{
+		{"empty base URL", func(t *testing.T) { t.Setenv("BFF_PUBLIC_BASE_URL", "") }, "BFF_PUBLIC_BASE_URL"},
+		{"non-https base URL", func(t *testing.T) { t.Setenv("BFF_PUBLIC_BASE_URL", "http://aer-project.eu") }, "https://"},
+		{"localhost base URL", func(t *testing.T) { t.Setenv("BFF_PUBLIC_BASE_URL", "https://localhost") }, "localhost"},
+		{"localhost RP id", func(t *testing.T) { t.Setenv("BFF_WEBAUTHN_RP_ID", "localhost") }, "BFF_WEBAUTHN_RP_ID"},
+		{"localhost RP origin", func(t *testing.T) { t.Setenv("BFF_WEBAUTHN_RP_ORIGINS", "https://localhost") }, "BFF_WEBAUTHN_RP_ORIGINS"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			base(t)
+			c.mutate(t)
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("expected Load to fail for %s in production", c.name)
+			}
+			if !strings.Contains(err.Error(), c.wantSub) {
+				t.Errorf("error = %q, want substring %q", err.Error(), c.wantSub)
+			}
+		})
+	}
+
+	t.Run("coherent prod values boot", func(t *testing.T) {
+		base(t)
+		if _, err := Load(); err != nil {
+			t.Fatalf("coherent prod link config must boot: %v", err)
+		}
+	})
+
+	t.Run("development tolerates localhost defaults", func(t *testing.T) {
+		chdirEmpty(t)
+		setRequiredEnv(t) // APP_ENV defaults to development; RP defaults to localhost
+		if _, err := Load(); err != nil {
+			t.Fatalf("development must tolerate localhost RP + empty base URL: %v", err)
 		}
 	})
 }

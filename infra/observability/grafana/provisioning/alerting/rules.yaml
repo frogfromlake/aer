@@ -1,0 +1,436 @@
+# SEC-037 — Grafana-managed alert rules (delivery SoT). These MIRROR the
+# promtool-validated Prometheus rules in ../../prometheus/alert.rules.yml: same
+# PromQL, same thresholds, same severities. Prometheus keeps evaluating them too
+# (its UI shows firing state + promtool validates the expressions); Grafana owns
+# EMAIL delivery + the graphical view because contact points only fire from
+# Grafana-managed rules (no Alertmanager container — D4).
+#
+# Uniform shape per rule: query A runs the PromQL (instant) against the
+# Prometheus datasource; condition C fires when A returns ≥1 series
+# (classic_conditions / reducer=count / evaluator gt 0). This matches
+# Prometheus's "fire when the expr yields any series" semantics for every rule,
+# independent of the series VALUE sign (so an already-expired TLS cert, whose
+# seconds-to-expiry is negative, still fires). noDataState=OK → a PromQL that
+# yields nothing is simply "not firing".
+#
+# EDITING: change a threshold here AND in the Prometheus mirror, or they drift.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: aer_pipeline
+    folder: AER Alerts
+    interval: 1m
+    rules:
+      - uid: aer_worker_down
+        title: WorkerDown
+        condition: C
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Analysis Worker is down"
+          description: "The analysis-worker Prometheus scrape target has been unreachable for more than 1 minute."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: up{job="analysis-worker"} == 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_dlq_overflow
+        title: DLQOverflow
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead Letter Queue overflow detected"
+          description: "bronze-quarantine bucket exceeds the threshold of 50 objects."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: dlq_size > 50
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_high_proc_latency
+        title: HighEventProcessingLatency
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High event processing latency (p95)"
+          description: "95th percentile processing duration exceeds the 5s threshold."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: histogram_quantile(0.95, rate(event_processing_duration_seconds_bucket[5m])) > 5
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+  - orgId: 1
+    name: aer_infra
+    folder: AER Alerts
+    interval: 1m
+    rules:
+      - uid: aer_target_down
+        title: TargetDown
+        condition: C
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrape target down"
+          description: "A Prometheus target has been unreachable for more than 2 minutes."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: up == 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_disk_space_low
+        title: DiskSpaceLow
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk below 15% free"
+          description: "Root filesystem is below 15% free. Logs/volumes share this disk — investigate before the data layer loses write space."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 0.15
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_disk_space_critical
+        title: DiskSpaceCritical
+        condition: C
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host disk below 5% free"
+          description: "Root filesystem is below 5% free. Postgres/ClickHouse/MinIO write failures are imminent."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 0.05
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_host_memory_low
+        title: HostMemoryLow
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory below 10% available"
+          description: "Available memory is below 10%. Under load the OOM-killer may reap postgres/bff/minio."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_tls_expiring_soon
+        title: TLSCertExpiringSoon
+        condition: C
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expiring within 7 days"
+          description: "A Traefik-served certificate expires in less than 7 days and has not auto-renewed."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (min(traefik_tls_certs_not_after) by (sans)) - time() < 7 * 86400
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_tls_expiring_critical
+        title: TLSCertExpiringCritical
+        condition: C
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate expiring within 2 days"
+          description: "A Traefik-served certificate expires in less than 2 days — ACME renewal is failing; the public site will go offline."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (min(traefik_tls_certs_not_after) by (sans)) - time() < 2 * 86400
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+  - orgId: 1
+    name: aer_backup
+    folder: AER Alerts
+    interval: 1m
+    rules:
+      - uid: aer_backup_stale
+        title: BackupStale
+        condition: C
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No successful backup in over 26 hours"
+          description: "The last successful off-box backup is more than 26h old. The recovery point is aging — investigate before relying on it."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: time() - aer_backup_last_success_timestamp_seconds > 26 * 3600
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_backup_never_ran
+        title: BackupNeverRan
+        condition: C
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup heartbeat metric present"
+          description: "aer_backup_last_success_timestamp_seconds is absent — the backup job has never succeeded or the node-exporter textfile path is wrong."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: absent(aer_backup_last_success_timestamp_seconds)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_backup_failed
+        title: BackupFailed
+        condition: C
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Last backup run failed"
+          description: "backup.sh exited non-zero on its last run. Off-box backups are not being taken; check the host scheduler + Storage Box reachability."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: aer_backup_last_exit_code != 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_crawl_stale
+        title: CrawlStale
+        condition: C
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No documents processed in 6 hours (corpus frozen)"
+          description: "The worker is up but has processed zero events for 6h — the crawl has likely stopped. The dashboard keeps serving aging Gold that looks current."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(increase(events_processed_total[6h])) == 0 and sum(up{job="analysis-worker"}) > 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }

@@ -214,6 +214,28 @@ if docker compose ps clickhouse --format '{{.State}}' 2>/dev/null | grep -q runn
     else
         fail "aer_gold.metric_equivalence not seeded (count=$grants) — seed migration did not apply"
     fi
+
+    # SEC-057 — lifecycle structures read-back. The three AggregatingMergeTree
+    # resolution MVs carry the long-term retention (WP-005 §5.4: hourly 365d,
+    # daily 1825d, monthly indefinite) and the raw `metrics` TTL bounds disk on
+    # the article published_date. If a migration silently no-ops, retention +
+    # disk-bounding break invisibly — so assert the structures exist here.
+    for mv in metrics_hourly metrics_daily metrics_monthly; do
+        present=$(docker compose exec -T clickhouse clickhouse-client -q "
+            SELECT count() FROM system.tables WHERE database='aer_gold' AND name='${mv}';" 2>/dev/null || echo "")
+        if [[ "$present" == "1" ]]; then
+            ok "resolution MV present: aer_gold.${mv}"
+        else
+            fail "resolution MV missing: aer_gold.${mv} — Phase 122c migration 000019 did not apply"
+        fi
+    done
+    ttl=$(docker compose exec -T clickhouse clickhouse-client -q "
+        SHOW CREATE TABLE aer_gold.metrics;" 2>/dev/null | grep -c "TTL" || true)
+    if [[ "$ttl" -ge 1 ]]; then
+        ok "aer_gold.metrics carries a TTL (disk-bounding ILM present)"
+    else
+        fail "aer_gold.metrics has NO TTL — the 365d retention did not apply"
+    fi
 else
     note "ClickHouse container not running — skipping"
 fi
