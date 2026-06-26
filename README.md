@@ -63,17 +63,27 @@ anthropology, STS, or area studies, the open questions are real — see
 
 Three surfaces ([ADR-033](docs/arc42/09_architecture_decisions.md)): **Atmosphère** (the globe), the **Workbench** (the analytical surface), and **Reflexion** (the methodology).
 
-| Atmosphère — the globe | Reflexion — the methodology |
-| :---: | :---: |
-| ![Atmosphère globe surface](docs/assets/readme/atmosphere.png) | ![Reflexion working paper](docs/assets/readme/reflection.png) |
-| Active probes on a live day/night globe. | Working Papers, primers, open questions. |
+**Atmosphère — the globe.** Active probes on a live day/night globe.
+
+![Atmosphère globe surface](docs/assets/readme/atmosphere.png)
+
+**Reflexion — the methodology.** Working Papers, primers, and the open research questions.
+
+![Reflexion surface](docs/assets/readme/reflection.png)
 
 The **Workbench** holds the three analytical Pillars ([ADR-035](docs/arc42/09_architecture_decisions.md)):
 
-| Aleph — *the weather now* | Episteme — *the climate over time* | Rhizome — *the currents between* |
-| :---: | :---: | :---: |
-| ![Workbench Aleph pillar](docs/assets/readme/workbench-aleph.png) | ![Workbench Episteme pillar](docs/assets/readme/workbench-episteme.png) | ![Workbench Rhizome pillar](docs/assets/readme/workbench-rhizome.png) |
-| Synchronic — distributions *now*. | Diachronic — metrics over time. | Relational — entity co-occurrence network. |
+**Aleph — *the weather now*.** Synchronic — distributions, scatters, and mixes of the active window. No time axis.
+
+![Workbench Aleph pillar](docs/assets/readme/workbench-aleph.png)
+
+**Episteme — *the climate over time*.** Diachronic — metrics over time, with ±1σ bands.
+
+![Workbench Episteme pillar](docs/assets/readme/workbench-episteme.png)
+
+**Rhizome — *the currents between*.** Relational — an entity co-occurrence network (here ~5,000 nodes).
+
+![Workbench Rhizome pillar](docs/assets/readme/workbench-rhizome.png)
 
 ---
 

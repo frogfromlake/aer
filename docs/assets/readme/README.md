@@ -1,18 +1,20 @@
 # README screenshots
 
-These four images are referenced by the top-level `README.md`
+These five images are referenced by the top-level `README.md`
 "Screenshots" section. Keep the **exact** filenames — the README embeds them directly.
 
 | Filename | Surface | What it shows |
 | :--- | :--- | :--- |
-| `atmosphere.png` | Atmosphère | The 3D globe with the SideRail chrome (`/`). |
-| `workbench-aleph.png` | Workbench · Aleph | A synchronic distribution histogram over Probe 0 (the "weather now"). |
-| `workbench-episteme.png` | Workbench · Episteme | A diachronic time-series cell (metric over time). |
-| `workbench-rhizome.png` | Workbench · Rhizome | A relational entity co-occurrence network. |
-| `reflection.png` | Reflexion | A rendered Working Paper (WP-001). |
+| `atmosphere.png` | Atmosphère | The 3D day/night globe with the active-probe markers and the SideRail chrome (`/`). |
+| `workbench-aleph.png` | Workbench · Aleph | A synchronic cell over Probe 0/1 (the "weather now") — e.g. a sentiment × word-count scatter. |
+| `workbench-episteme.png` | Workbench · Episteme | A diachronic time-series cell (metric over time, with ±1σ bands). |
+| `workbench-rhizome.png` | Workbench · Rhizome | A relational entity co-occurrence network (dense, theme-coloured). |
+| `reflection.png` | Reflexion | The Reflexion surface — Working Papers, primers, open research questions. |
 
-Captured at a 1600×900 viewport, `deviceScaleFactor: 1.5`, dark theme. Re-capture
-when the UI changes; keep each PNG well under ~500 KB.
+Re-capture when the UI changes, dark theme, at a wide (~21:9) viewport so the full
+surface chrome + the cell content both fit. The current set was captured manually at
+~2557×1232. Keep each PNG reasonably small (the dense Rhizome network is the one
+heavy exception); run them through `pngquant`/`oxipng` if a lossless optimiser is to hand.
 
 ## Reproducible capture recipe
 
