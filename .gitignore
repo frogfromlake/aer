@@ -84,3 +84,6 @@ infra/wikidata-index/data/
 
 # Private security findings — NEVER commit (public repo). Stage-A register, threat models, repro notes.
 .security/
+
+# Deploy-prep guide (local only, not project docs)
+aer_deploy_tasks.md
