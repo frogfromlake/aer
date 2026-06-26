@@ -43,12 +43,17 @@ assert_ilm_days() {
     echo "  ! WARN: could not read back ILM for '${bucket}' (mc output empty); relying on import exit status" >&2
     return 0
   fi
-  if echo "$dump" | grep -Eq "\"Days\"[ :]*${want}([^0-9]|$)"; then
-    echo "  ✔ ${bucket} ILM: ${want}-day expiry confirmed"
-  else
-    echo "ERROR: ILM applied but '${bucket}' is missing the expected ${want}-day expiry. Dump: ${dump}" >&2
-    exit 1
-  fi
+  # The minio/mc image is minimal — no grep/tr/awk. Match with the POSIX shell
+  # `case` builtin only (same approach as mc_idempotent). The export is compact
+  # JSON, e.g. {"Expiration":{"Days":90},...}; require a non-digit boundary
+  # ("}" or ",") after the value so 90 cannot match 900.
+  case "$dump" in
+    *"\"Days\":${want}}"*|*"\"Days\":${want},"*|*"\"Days\": ${want}}"*|*"\"Days\": ${want},"*)
+      echo "  ✔ ${bucket} ILM: ${want}-day expiry confirmed" ;;
+    *)
+      echo "ERROR: ILM applied but '${bucket}' is missing the expected ${want}-day expiry. Dump: ${dump}" >&2
+      exit 1 ;;
+  esac
 }
 
 # Create required buckets
