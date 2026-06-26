@@ -80,10 +80,16 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=aer-analysis-worker-pip \
 
 # Download SentiWS lexicon (CC-BY-SA 4.0, Leipzig University).
 # Hash-pinned (Phase 84) — supply-chain integrity for a build-time download.
+# SENTIWS_URL is overridable (compose build arg / .env) so a byte-identical
+# fallback mirror (e.g. an Internet Archive snapshot) can be used when the
+# canonical Leipzig server is down; the SHA256 check below guarantees integrity
+# regardless of source. The wget is retried (flaky academic mirror).
 ARG SENTIWS_SHA256=4dd6ce99a44b5122c04fe0e7ca36db1f94d738201095edabb0a16cc98f160b91
+ARG SENTIWS_URL=https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip
 RUN apt-get update && apt-get install -y --no-install-recommends unzip wget \
     && mkdir -p /sentiws \
-    && wget -q -O /tmp/sentiws.zip https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip \
+    && wget -q --tries=5 --waitretry=10 --timeout=30 --retry-connrefused \
+        -O /tmp/sentiws.zip "${SENTIWS_URL}" \
     && echo "${SENTIWS_SHA256}  /tmp/sentiws.zip" | sha256sum -c - \
     && unzip /tmp/sentiws.zip -d /sentiws \
     && rm /tmp/sentiws.zip \

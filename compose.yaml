@@ -494,6 +494,14 @@ services:
     build:
       context: .
       dockerfile: services/analysis-worker/Dockerfile
+      args:
+        # SentiWS lexicon source. Default = the canonical Leipzig mirror; that
+        # academic server has occasional outages. When it is down, set
+        # SENTIWS_URL in .env to a byte-identical fallback (e.g. an Internet
+        # Archive snapshot of the same file). The SHA256 pin in the Dockerfile
+        # verifies integrity regardless of source — a wrong/mutated file fails
+        # the build — so this never weakens the supply-chain guarantee.
+        SENTIWS_URL: ${SENTIWS_URL:-https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip}
     container_name: aer_analysis_worker
     restart: unless-stopped
     # Graceful shutdown: the worker drains for up to WORKER_SHUTDOWN_TIMEOUT_SECONDS
