@@ -574,6 +574,28 @@ jobs:
       - name: Validate observability configs
         run: make observability-validate
 
+  compose-security-guard:
+    name: Compose Security Guard
+    runs-on: ubuntu-latest
+    # SEC-011 — enforce the "do not re-add gateway-injected X-API-Key" warning
+    # that lives in compose.yaml as code. Phase 134 / ADR-040 removed the
+    # Traefik customRequestHeaders.X-API-Key middleware; re-adding it would
+    # attach a static machine key to every anonymous browser request and turn
+    # the session-OR-key gate into always-allow. This guard fails CI if the
+    # forbidden middleware reappears in any compose file. Trivial grep, no deps.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Forbid gateway-injected X-API-Key in compose labels
+        run: |
+          if grep -rniE 'customrequestheaders\.X-API-Key' compose.yaml compose.prod.yaml; then
+            echo "::error::SEC-011: a Traefik customRequestHeaders.X-API-Key label was re-added. This defeats the session-OR-key auth gate (ADR-040). Remove it."
+            exit 1
+          fi
+          echo "OK: no gateway-injected X-API-Key middleware in compose files."
+
 # E2E smoke test moved to .github/workflows/e2e_smoke_nightly.yml.
 # Rationale: testcontainer suites cover service-level integration; the
 # Compose-wiring smoke check is unique value but not a per-push regression

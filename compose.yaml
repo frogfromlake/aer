@@ -43,8 +43,13 @@ services:
     image: squidfunk/mkdocs-material:9.7.6
     container_name: aer_docs_internal
     restart: unless-stopped
+    # SEC-018: loopback-only host publish. The internal corpus (Arc42, ADRs,
+    # design, operations + security model) must never be internet-reachable. In
+    # production reach it via an SSH tunnel (`ssh -L 8001:localhost:8001 …`); the
+    # firewall exposes only 80/443. (SR-7 / SEC-064 will replace this dev
+    # livereload server with a hardened static build.)
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     volumes:
       - .:/docs
     command: serve -f mkdocs.yml --dev-addr=0.0.0.0:8001 --livereload --watch /docs
@@ -682,8 +687,14 @@ services:
       dockerfile: services/bff-api/Dockerfile
     container_name: aer_bff_api
     restart: unless-stopped
+    # SEC-002: loopback-only host publish. Traefik reaches the BFF over the
+    # aer-frontend docker network (container :8080); this host port is a dev
+    # convenience only. It must never bind 0.0.0.0 — a published port bypasses
+    # Traefik TLS/HSTS and the host firewall (Docker DNAT precedes UFW), which
+    # would expose /auth/login (plaintext credentials) and the unauthenticated
+    # /metrics endpoint directly to the internet.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - APP_ENV=${APP_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
@@ -915,18 +926,22 @@ services:
     container_name: aer_debug_ports
     profiles: ["debug"]
     restart: unless-stopped
+    # SEC-024: bind every forward to loopback (matching swagger-ui above) so a
+    # direct `docker compose --profile debug up` on a public host can never
+    # expose a backend service to 0.0.0.0. Local debugging connects to
+    # localhost:<port>; remote debug access goes through an SSH tunnel.
     ports:
-      - "5432:5432"     # PostgreSQL
-      - "8123:8123"     # ClickHouse HTTP
-      - "9002:9002"     # ClickHouse native (host 9002 → container 9000)
-      - "4222:4222"     # NATS client
-      - "8222:8222"     # NATS monitoring
-      - "9000:9000"     # MinIO API
-      - "9001:9001"     # MinIO Console
-      - "4317:4317"     # OTel Collector gRPC
-      - "4318:4318"     # OTel Collector HTTP
-      - "3000:3000"     # Grafana
-      - "8081:8081"     # Ingestion API
+      - "127.0.0.1:5432:5432"     # PostgreSQL
+      - "127.0.0.1:8123:8123"     # ClickHouse HTTP
+      - "127.0.0.1:9002:9002"     # ClickHouse native (host 9002 → container 9000)
+      - "127.0.0.1:4222:4222"     # NATS client
+      - "127.0.0.1:8222:8222"     # NATS monitoring
+      - "127.0.0.1:9000:9000"     # MinIO API
+      - "127.0.0.1:9001:9001"     # MinIO Console
+      - "127.0.0.1:4317:4317"     # OTel Collector gRPC
+      - "127.0.0.1:4318:4318"     # OTel Collector HTTP
+      - "127.0.0.1:3000:3000"     # Grafana
+      - "127.0.0.1:8081:8081"     # Ingestion API
     entrypoint: ["sh", "-c"]
     command:
       - |

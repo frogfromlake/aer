@@ -14,8 +14,10 @@ type clientIPCtxKey struct{}
 
 // ClientIP injects the client IP into the request context so strict handlers
 // (which receive no *http.Request) can key the login throttle by IP. Traefik is
-// the sole ingress and sets X-Forwarded-For; the left-most entry is the
-// original client. Falls back to RemoteAddr.
+// the sole edge proxy; it appends the real TCP peer as the RIGHT-MOST
+// X-Forwarded-For entry after any client-supplied value, so that hop — not the
+// attacker-controllable left-most entry — is the trustworthy client IP
+// (SEC-003). Falls back to RemoteAddr.
 func ClientIP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientIPCtxKey{}, clientIPFromRequest(r))))
@@ -30,7 +32,13 @@ func ClientIPFromContext(ctx context.Context) string {
 
 func clientIPFromRequest(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
+		// A client can pre-seed X-Forwarded-For with arbitrary spoofed hops, but
+		// Traefik (the sole edge) always appends the actual peer address after
+		// them, so the right-most entry is the only one an attacker cannot forge.
+		// Trusting the left-most entry instead would let a rotating spoofed XFF
+		// evade the per-IP login throttle and poison audit logs (SEC-003).
+		hops := strings.Split(xff, ",")
+		return strings.TrimSpace(hops[len(hops)-1])
 	}
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return host

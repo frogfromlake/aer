@@ -38,7 +38,9 @@ func TestClientIPFromRequest(t *testing.T) {
 		remoteAddr string
 		want       string
 	}{
-		{"x-forwarded-for left-most wins", "203.0.113.7, 10.0.0.1", "10.0.0.2:5555", "203.0.113.7"},
+		{"right-most XFF hop wins (Traefik-appended real peer)", "203.0.113.7, 10.0.0.1", "10.0.0.2:5555", "10.0.0.1"},
+		{"spoofed left-most entries are ignored", "1.1.1.1, 2.2.2.2, 198.51.100.9", "10.0.0.2:5555", "198.51.100.9"},
+		{"single XFF entry returned", "198.51.100.9", "10.0.0.2:5555", "198.51.100.9"},
 		{"x-forwarded-for trims whitespace", "  198.51.100.9  ", "10.0.0.2:5555", "198.51.100.9"},
 		{"remote addr host:port fallback", "", "192.0.2.4:443", "192.0.2.4"},
 		{"remote addr without port returned verbatim", "", "192.0.2.55", "192.0.2.55"},
@@ -64,13 +66,15 @@ func TestClientIP_InjectsAndRoundTrips(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
+	// "203.0.113.42" is a spoofed left-most hop; "10.0.0.1" is the peer Traefik
+	// appends — the right-most entry is the one that round-trips (SEC-003).
 	req.Header.Set("X-Forwarded-For", "203.0.113.42, 10.0.0.1")
 	rec := httptest.NewRecorder()
 
 	ClientIP(next).ServeHTTP(rec, req)
 
-	if seen != "203.0.113.42" {
-		t.Fatalf("ClientIPFromContext = %q, want %q", seen, "203.0.113.42")
+	if seen != "10.0.0.1" {
+		t.Fatalf("ClientIPFromContext = %q, want %q", seen, "10.0.0.1")
 	}
 }
 

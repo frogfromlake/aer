@@ -25,13 +25,15 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-certs:/letsencrypt
 
+  # SEC-001: the MinIO console gets NO public router in production. It stays on
+  # the internal aer-backend network; reach it via an SSH tunnel
+  # (`ssh -L 9001:localhost:9001 <box>` after `docker compose --profile debug up`,
+  # or `ssh -L 9001:<minio-container-ip>:9001`). `!override` replaces the base
+  # service's Traefik labels so no router is ever created from MINIO_CONSOLE_HOST.
+  # (Requires Docker Compose v2.24.4+ for the !override tag.)
   minio:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.minio-console.rule=Host(`${MINIO_CONSOLE_HOST}`)"
-      - "traefik.http.routers.minio-console.entrypoints=websecure"
-      - "traefik.http.routers.minio-console.tls.certresolver=myresolver"
-      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+    labels: !override
+      - "traefik.enable=false"
 
   bff-api:
     labels:
@@ -53,13 +55,14 @@ services:
       - "traefik.http.routers.dashboard.priority=1"
       - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
 
+  # SEC-001: Grafana dashboards get NO public router in production. Alerts still
+  # leave the box by email (Grafana → Brevo, Phase 153); operators view dashboards
+  # via an SSH tunnel (`ssh -L 3000:localhost:3000 <box>` after a debug-profile up,
+  # or `ssh -L 3000:<grafana-container-ip>:3000`). `!override` drops the base
+  # Traefik labels so no router is created from GRAFANA_HOST.
   grafana:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOST}`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    labels: !override
+      - "traefik.enable=false"
 
 volumes:
   traefik-certs:
