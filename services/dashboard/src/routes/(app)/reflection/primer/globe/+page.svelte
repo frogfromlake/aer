@@ -5,6 +5,7 @@
   // falls back to static embedded prose when the API is unavailable.
   import { createQuery } from '@tanstack/svelte-query';
   import { ScopeBar } from '$lib/components/chrome';
+  import ReflectionBackLink from '$lib/components/reflection/ReflectionBackLink.svelte';
   import ProgressiveSemantics from '$lib/components/ProgressiveSemantics.svelte';
   import {
     contentQuery,
@@ -66,6 +67,9 @@
 </ScopeBar>
 
 <main class="primer-main" id="main-primer-globe">
+  <!-- Always-reachable back-to-Reflection control, same as the other Reflection
+       pages (open-questions / WP). Sticky pill in the top-left gutter. -->
+  <ReflectionBackLink />
   <div class="primer-inner">
     <header class="primer-header">
       <p class="primer-eyebrow">{m.reflection_primer_eyebrow()}</p>

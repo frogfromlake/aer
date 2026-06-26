@@ -162,7 +162,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-6);
+    /* No top padding — the sticky header supplies the top inset itself. Padding
+       the top here AND negative-margining the header into it double-counted with
+       the flex gap and pulled the first content (lede) up under the header. */
+    padding: 0 var(--space-6) var(--space-6);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   }
 
@@ -173,14 +176,15 @@
     gap: var(--space-3);
     border-bottom: 1px solid var(--color-border);
     /* Keep the title + × reachable while the panel scrolls. `.about-overlay` is
-       the scroll container (padded by --space-6); the negative margins + re-added
-       padding make a full-width sticky bar that covers that padding so scrolled
-       content never peeks around it, with the top corners kept rounded. */
+       the scroll container (no top padding); the header bleeds to the left/right
+       edges (negative side margins over the overlay's side padding) and supplies
+       the top inset via its own padding, so scrolled content never peeks around
+       it and the top corners stay rounded. */
     position: sticky;
     top: 0;
     z-index: 3;
     background: var(--color-bg-elevated);
-    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) 0;
+    margin: 0 calc(-1 * var(--space-6));
     padding: var(--space-6) var(--space-6) var(--space-4);
     border-top-left-radius: var(--radius-md);
     border-top-right-radius: var(--radius-md);

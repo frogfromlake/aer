@@ -59,12 +59,13 @@
 
 <div class="atm-corner">
   <!-- Re-openable "About AĒR" intro (Phase 149) — the readable home of the
-       first-visit welcome. ⓘ keeps it discoverable without nagging. -->
+       first-visit welcome. ⓘ keeps it discoverable without nagging. The globe
+       primer ("How to read the globe") was removed from this corner — it lives
+       on in Reflection; this leaves About as the sole accent affordance here. -->
   <button type="button" class="atm-about" onclick={() => openOverlay('about')}>
     <span class="atm-about-mark" aria-hidden="true">ⓘ</span>
     {m.about_open()}
   </button>
-  <a class="atm-primer" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
 </div>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
@@ -145,6 +146,10 @@
     pointer-events: none;
   }
 
+  /* The sole bottom-right affordance now — coloured in the (theme-aware) accent
+     so it reads as the primary "start here" entry point. `--color-accent` is
+     redefined per theme (dark / light / high-contrast), so this adapts on its
+     own; the mark inherits it. */
   .atm-about {
     pointer-events: auto;
     display: inline-flex;
@@ -154,29 +159,15 @@
     border: 0;
     background: transparent;
     font-size: var(--font-size-sm);
-    color: var(--color-fg-muted);
+    color: var(--color-accent);
     cursor: pointer;
   }
   .atm-about-mark {
     font-size: 1em;
-    color: var(--color-fg-subtle);
+    color: inherit;
   }
   .atm-about:hover,
   .atm-about:focus-visible {
-    color: var(--color-accent);
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  /* "How to read the globe" — bottom-right primer link. */
-  .atm-primer {
-    pointer-events: auto;
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
-    text-decoration: none;
-  }
-  .atm-primer:hover,
-  .atm-primer:focus-visible {
     text-decoration: underline;
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);

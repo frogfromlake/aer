@@ -490,12 +490,8 @@
 {:else if decision === 'fallback' && onAtmosphere}
   <div class="centered">
     <WebGLFallback probes={probeDtos} {activity} loading={probesQ.isPending} />
-    <!-- The globe primer stays reachable without WebGL2 (it explains the
-         probe concept, not just the 3D view). Phase 151 moved the primer to
-         the globe's bottom-right corner via AtmosphereChrome, which renders
-         only on the engine path — so the fallback keeps its own copy here. -->
-    <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal Surface III primer route -->
-    <a class="fallback-primer" href="/reflection/primer/globe">{m.atmosphere_primer_link()}</a>
+    <!-- The "How to read the globe" primer link was removed from the Atmosphere
+         surface (engine + fallback alike); it stays reachable from Reflection. -->
   </div>
 
   {#if probesQ.data?.kind === 'refusal'}
@@ -611,17 +607,6 @@
     max-width: 28rem;
     z-index: 500;
   }
-  .fallback-primer {
-    margin-top: var(--space-5);
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
-    text-decoration: none;
-  }
-  .fallback-primer:hover,
-  .fallback-primer:focus-visible {
-    text-decoration: underline;
-  }
-
   /* Multi-probe Selection Banner (Phase 151 design) — a solid, elevated strip
      centered at the bottom of the globe stage, bottom-aligned with the
      quick-stats window. Slighter rounding than the design's pill (radius-lg,
