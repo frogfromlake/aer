@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+  SEC-031 / SEC-047 — native ClickHouse BACKUP destination.
+
+  Defines a local `backups` disk (mounted from the clickhouse_backups named
+  volume at /backups) and allows BACKUP/RESTORE to target it. The off-box
+  backup script (scripts/operations/backup.sh) runs
+  `BACKUP DATABASE aer_gold TO Disk('backups', '<name>')`, which captures the
+  AggregatingMergeTree partitions DIRECTLY (the metrics_hourly/daily/monthly
+  resolution MVs) — the indefinite "climate record" Episteme product that is
+  unrebuildable by re-crawl or Bronze replay once raw metrics age past the 365d
+  TTL. restic then ships the artifact off-box. Restore is RESTORE … FROM the same
+  disk (see docs/operations/backup_restore.md), NEVER a pipeline replay.
+-->
+<clickhouse>
+    <storage_configuration>
+        <disks>
+            <backups>
+                <type>local</type>
+                <path>/backups/</path>
+            </backups>
+        </disks>
+    </storage_configuration>
+    <backups>
+        <allowed_disk>backups</allowed_disk>
+    </backups>
+</clickhouse>

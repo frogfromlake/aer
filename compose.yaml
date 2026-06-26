@@ -107,13 +107,25 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
+      # SEC-052: expose Prometheus metrics on a dedicated INTERNAL entrypoint
+      # (:8082, never host-published) so Prometheus can scrape Traefik —
+      # `traefik_tls_certs_not_after` makes ACME cert-expiry/renewal-failure
+      # alertable (the 90-day TLS boundary is a whole-site outage with no other
+      # signal source).
+      - "--entrypoints.metrics.address=:8082"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
+      # SEC-052: also on aer-backend so Prometheus (backend-only) can reach the
+      # :8082 metrics entrypoint. Only :80/:443 are host-published; the metrics
+      # port stays internal to the docker networks.
       - aer-frontend
+      - aer-backend
     deploy:
       resources:
         limits:
@@ -311,6 +323,11 @@ services:
       # SEC-099 — disable high-volume internal system logs + TTL the rest so they
       # cannot fill the disk (they ballooned to 1.27 GiB vs ~46 MiB of real data).
       - ./infra/clickhouse/config.d/system_log_ttl.xml:/etc/clickhouse-server/config.d/system_log_ttl.xml:ro
+      # SEC-031/047 — native BACKUP destination disk (captures AggregatingMergeTree
+      # partitions directly; the backup script tars artifacts out of here and
+      # restic ships them off-box, then they are pruned from the volume).
+      - ./infra/clickhouse/config.d/backup_disk.xml:/etc/clickhouse-server/config.d/backup_disk.xml:ro
+      - clickhouse_backups:/backups
     networks:
       - aer-backend
     healthcheck:
@@ -873,10 +890,18 @@ services:
     image: prom/prometheus:v3.4.2
     container_name: aer_prometheus
     restart: unless-stopped
-    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    # SEC-051: persist the TSDB on a named volume (metrics history survives a
+    # redeploy — symmetry with tempo_data) and cap retention by BOTH time and
+    # size so the TSDB can never slow-fill the shared budget disk.
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=8GB"
     volumes:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./infra/observability/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+      - prometheus_data:/prometheus
     networks:
       - aer-backend
     deploy:
@@ -902,6 +927,11 @@ services:
     volumes:
       - ./infra/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./infra/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      # SEC-051: persist Grafana's own DB (unified-alerting state, silences,
+      # annotations, the admin user). Dashboards + datasources stay file-
+      # provisioned (read-only above); this volume holds the mutable state the
+      # SEC-037 alerting layer will need.
+      - grafana_data:/var/lib/grafana
     depends_on:
       - tempo
       - prometheus
@@ -913,6 +943,35 @@ services:
         limits:
           memory: 256M
           cpus: "0.25"
+
+  # SEC-056 / SEC-052 — host filesystem + memory + CPU metrics. Disk-fill (logs +
+  # data volumes on the shared disk) is the #1 single-box killer; without a host
+  # metric source a DiskSpaceLow alert would reference a never-scraped series and
+  # silently never fire. Read-only host mount; internal-only (Prometheus scrapes
+  # :9100 on aer-backend — no host-published port).
+  node-exporter:
+    logging: *default-logging
+    image: prom/node-exporter:v1.8.2
+    container_name: aer_node_exporter
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|run)($$|/)"
+      # SEC-049/053 — read the backup heartbeat metric that backup.sh writes to
+      # the host (aer_backup_last_success_timestamp_seconds / _exit_code). The
+      # host root is mounted at /host (read-only), so the textfile dir is read
+      # from there. The deploy runbook creates /var/lib/aer/textfile on the host.
+      - "--collector.textfile.directory=/host/var/lib/aer/textfile"
+    pid: host
+    volumes:
+      - "/:/host:ro,rslave"
+    networks:
+      - aer-backend
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.10"
 
   # ----------------------------------------------------
   # 5. DEBUG PORT FORWARDER (opt-in via --profile debug)
@@ -991,7 +1050,10 @@ volumes:
   minio_data:
   postgres_data:
   clickhouse_data:
+  clickhouse_backups:  # SEC-031/047: native CH BACKUP staging (tarred off-box, then pruned)
   tempo_data:
+  prometheus_data:   # SEC-051: persistent Prometheus TSDB (metrics history)
+  grafana_data:      # SEC-051: persistent Grafana state (unified-alerting/silences)
   wikidata_data:
 
 networks:

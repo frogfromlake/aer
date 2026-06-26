@@ -29,3 +29,126 @@ groups:
         annotations:
           summary: "High event processing latency (p95)"
           description: "95th percentile processing duration is {{ $value }}s, exceeding the 5s threshold."
+
+  # SEC-052 / SEC-056 — host & ingress signals. Without these the most likely
+  # single-box outages (disk-fill, OOM, silent TLS-cert expiry, a dead scrape
+  # target) are invisible until a user complains. Delivery to the operator is
+  # wired in SEC-037 (Batch D); these rules evaluate in Prometheus regardless.
+  - name: aer_infra
+    rules:
+      # Generic liveness for every scrape target (WorkerDown stays as the
+      # critical-severity specialisation for the worker).
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrape target {{ $labels.job }} is down"
+          description: "Prometheus target {{ $labels.job }} ({{ $labels.instance }}) has been unreachable for more than 2 minutes."
+
+      # Disk-fill — the #1 single-box killer. node-exporter reports the host root
+      # as mountpoint "/" (the rootfs is bind-mounted at /host with
+      # --path.rootfs=/host). Logs + all data volumes share this filesystem.
+      - alert: DiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"}
+            / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk below 15% free"
+          description: "Root filesystem has {{ $value | humanizePercentage }} space left. Logs/volumes share this disk — investigate before the data layer loses write space."
+
+      - alert: DiskSpaceCritical
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"}
+            / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host disk below 5% free"
+          description: "Root filesystem has {{ $value | humanizePercentage }} space left. Postgres/ClickHouse/MinIO write failures are imminent."
+
+      # Memory pressure (proxy for the OOM-killer reaping a service — SEC-038).
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory below 10% available"
+          description: "{{ $value | humanizePercentage }} memory available. Under load the OOM-killer may reap postgres/bff/minio."
+
+      # TLS cert expiry — a whole-site outage at the ACME boundary, otherwise
+      # signal-less. The series only exists once Traefik has loaded a cert, so
+      # this never false-fires pre-issuance.
+      - alert: TLSCertExpiringSoon
+        expr: (min(traefik_tls_certs_not_after) by (sans)) - time() < 7 * 86400
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expiring within 7 days"
+          description: "A Traefik-served certificate ({{ $labels.sans }}) expires in less than 7 days and has not auto-renewed."
+
+      - alert: TLSCertExpiringCritical
+        expr: (min(traefik_tls_certs_not_after) by (sans)) - time() < 2 * 86400
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate expiring within 2 days"
+          description: "A Traefik-served certificate ({{ $labels.sans }}) expires in less than 2 days — ACME renewal is failing; the public site will go offline."
+
+  # SEC-049 / SEC-053 — data-integrity heartbeats. A backup that silently stops
+  # and a corpus that silently freezes are the two "looks fine until you need it"
+  # failures; both are surfaced here off metrics backup.sh / the worker emit.
+  - name: aer_backup
+    rules:
+      # backup.sh writes aer_backup_last_success_timestamp_seconds via the
+      # node-exporter textfile collector. Daily backup + a generous grace.
+      - alert: BackupStale
+        expr: time() - aer_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No successful backup in over 26 hours"
+          description: "Last successful off-box backup was {{ $value | humanizeDuration }} ago. The off-box recovery point is aging — investigate before relying on it."
+
+      # The metric is entirely absent → backup.sh has never run (or the textfile
+      # path is misconfigured). Distinct from a stale-but-present series.
+      - alert: BackupNeverRan
+        expr: absent(aer_backup_last_success_timestamp_seconds)
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup heartbeat metric present"
+          description: "aer_backup_last_success_timestamp_seconds is absent — the backup job has never succeeded or the node-exporter textfile path is wrong."
+
+      - alert: BackupFailed
+        expr: aer_backup_last_exit_code != 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Last backup run failed"
+          description: "backup.sh exited {{ $value }} on its last run. Off-box backups are not being taken; check the host scheduler + Storage Box reachability."
+
+      # Pipeline alive (worker up) but no new Gold for 6h → the corpus has
+      # silently frozen (no crawl / discovery gap), distinct from WorkerDown.
+      # The most dangerous failure for a data-quality-supreme system.
+      - alert: CrawlStale
+        expr: |
+          sum(increase(events_processed_total[6h])) == 0
+            and sum(up{job="analysis-worker"}) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No documents processed in 6 hours (corpus frozen)"
+          description: "The worker is up but has processed zero events for 6h — the crawl has likely stopped. The dashboard keeps serving aging Gold that looks current."

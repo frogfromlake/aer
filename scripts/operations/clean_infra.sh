@@ -53,10 +53,31 @@ RUNTIME_STATE_VOLUMES=(
 
 # Volumes deliberately preserved across resets. Listed here for visibility
 # and post-wipe assertion only — the script never deletes these names.
+# (prometheus_data / grafana_data / clickhouse_backups are also untouched — the
+# wipe is an explicit allow-list, so any volume not in RUNTIME_STATE_VOLUMES
+# survives by default.)
 PRESERVED_VOLUMES=(
     "${PROJECT_NAME}_wikidata_data"
     "${PROJECT_NAME}_tempo_data"
 )
+
+# SEC-034: refuse the destructive wipe in production. This script wipes ALL data
+# (auth, crawler_state, every medallion layer) and `make reset` then re-ups with
+# the DEV profile — no TLS, debug ports reopened. Production recovery is
+# restore-from-backup, never a reset. The guard lives HERE (the SoT) so a direct
+# `clean_infra.sh` call is covered too, not only `make reset` (mirrors the
+# debug-up hard refusal; the Makefile-only guard the register flagged is not
+# enough). To wipe a prod box deliberately, unset APP_ENV first — an explicit act.
+APP_ENV_VALUE="${APP_ENV:-}"
+if [[ -z "$APP_ENV_VALUE" && -f .env ]]; then
+    APP_ENV_VALUE="$(grep -E '^APP_ENV=' .env | cut -d'=' -f2 || true)"
+fi
+if [[ "$APP_ENV_VALUE" == "production" ]]; then
+    echo -e "${RED}✖ REFUSING: a state wipe is forbidden when APP_ENV=production.${RESET}"
+    echo -e "${GRAY}  It deletes all data (auth, crawler_state, medallion) AND re-ups without TLS.${RESET}"
+    echo -e "${GRAY}  Production recovery is restore-from-backup: docs/operations/backup_restore.md${RESET}"
+    exit 1
+fi
 
 confirm_deletion() {
     local label=$1
