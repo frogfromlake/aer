@@ -232,10 +232,22 @@ The `.env` file (copied from `.env.example`) serves as the central configuration
 For full-stack containerized deployment (e.g., on a VPS), all three application services also have Dockerfile definitions and compose entries. Running `docker compose up -d` brings up the entire stack with self-signed TLS (suitable for internal/staging use). For production with real domains and Let's Encrypt:
 
 ```bash
-docker compose -f compose.yaml -f compose.prod.yaml up -d
+# 1. Validate the production .env (refuses non-prod / placeholder secrets).
+make preflight
+
+# 2. Generate the OpenAPI bundle — it is generated + .gitignored, and the
+#    dashboard image COPYs it. Needs Python 3 + PyYAML on the host
+#    (pip install pyyaml). `make up` does this automatically; the raw prod
+#    compose invocation below does not, so run it explicitly.
+make openapi-bundle
+
+# 3. Build + start the production overlay (TLS via ACME / Let's Encrypt).
+#    --build builds the four app images locally; the public aer-wikidata-index
+#    image is pulled from GHCR (no login needed unless a fork made it private).
+docker compose -f compose.yaml -f compose.prod.yaml --profile dashboard up -d --build
 ```
 
-Ensure `GRAFANA_HOST`, `MINIO_CONSOLE_HOST`, and `ACME_EMAIL` are set to real values in `.env`.
+`make preflight` (SEC-045) is the authoritative pre-deploy gate for the production `.env` — it checks `APP_ENV=production`, every required secret, and `DASHBOARD_HOST` / `BFF_PUBLIC_BASE_URL` / `ACME_EMAIL` / `ADMIN_BOOTSTRAP_EMAIL` coherence. A full step-by-step first-deploy runbook (provisioning → deploy → first admin → tested restore → timers) is tracked for **Phase 151**; until then this is the minimal prod bring-up.
 
 ## 7.8 Exposed Ports (Localhost)
 

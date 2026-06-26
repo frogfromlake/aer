@@ -51,7 +51,12 @@ COMPOSE_DASHBOARD_PROFILE := --profile dashboard
 # Always-on debug port forwarder for host-side tooling (psql, mc, curl).
 COMPOSE_DEBUG_PROFILE := --profile debug
 
-up:
+# `openapi-bundle` is a prerequisite so a FRESH clone builds the dashboard image
+# cleanly: services/bff-api/api/openapi.bundle.yaml is generated + .gitignored,
+# and the dashboard Dockerfile COPYs it. Without this, `make up` on a machine
+# that has never run codegen fails the dashboard build with "openapi.bundle.yaml:
+# not found". The bundle is cheap to regenerate and stays in sync with the spec.
+up: openapi-bundle
 	@echo -e "$(BOLD)$(GRAY)--- STARTING FULL STACK (containerized) ---$(RESET)"
 	@docker compose $(COMPOSE_DEBUG_PROFILE) $(COMPOSE_DASHBOARD_PROFILE) up -d --wait
 	@echo ""
@@ -317,10 +322,11 @@ tidy:
 
 openapi-bundle:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling modular OpenAPI specs (scripts/build/openapi_bundle.py)...$(RESET)"
-	@for svc in services/bff-api services/ingestion-api; do \
+	@PYBIN=python3; [ -x services/analysis-worker/.venv/bin/python ] && PYBIN=services/analysis-worker/.venv/bin/python; \
+	for svc in services/bff-api services/ingestion-api; do \
 		if [ -f $$svc/api/openapi.yaml ]; then \
 			echo -e "$(SYMBOL_INFO) $(GRAY)→ $$svc/api/openapi.yaml$(RESET)"; \
-			python3 scripts/build/openapi_bundle.py $$svc/api/openapi.yaml $$svc/api/openapi.bundle.yaml; \
+			$$PYBIN scripts/build/openapi_bundle.py $$svc/api/openapi.yaml $$svc/api/openapi.bundle.yaml; \
 		fi; \
 	done
 	@echo -e "$(SYMBOL_SUCCESS) $(BOLD)$(GREEN)OpenAPI bundles produced.$(RESET)"

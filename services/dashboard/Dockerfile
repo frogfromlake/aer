@@ -25,7 +25,14 @@ COPY services/bff-api/api/openapi.bundle.yaml /workspace/bff-openapi.bundle.yaml
 WORKDIR /workspace/dashboard
 
 # Dependency install layer (cached independently of source changes).
-COPY services/dashboard/package.json services/dashboard/pnpm-lock.yaml services/dashboard/.npmrc ./
+# pnpm-workspace.yaml carries the pnpm-10 resolution settings (autoInstallPeers,
+# strictPeerDependencies — moved here from .npmrc to silence npm's "Unknown
+# project config" warnings) AND declares the workspace, so it MUST be present at
+# install time or --frozen-lockfile aborts with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+# The workspace member manifest (packages/engine-3d) is copied too so pnpm can
+# resolve the `@aer/engine-3d: workspace:*` link before the full sources land.
+COPY services/dashboard/package.json services/dashboard/pnpm-lock.yaml services/dashboard/.npmrc services/dashboard/pnpm-workspace.yaml ./
+COPY services/dashboard/packages/engine-3d/package.json ./packages/engine-3d/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 

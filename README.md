@@ -262,9 +262,11 @@ digital anthropology, global studies) to validate and contextualise the instrume
 A Docker-Compose stack; the [Makefile](Makefile) is the primary interface. The
 services build and run in containers — `make up` compiles them on first run.
 
-**To run the stack you need:** Docker (with the Compose plugin), GNU Make, and
-**Go 1.26.4+** (the `make create-admin` helper runs on the host). Everything else
-runs in containers.
+**To run the stack you need:** Docker (with the Compose plugin), GNU Make,
+**Go 1.26.4+** (the `make create-admin` helper runs on the host), and **Python 3
+with PyYAML** (`make up` regenerates the OpenAPI bundle on the host before building
+the dashboard image — `pip install pyyaml`, or it is provided by the worker venv
+that `make setup` creates). Everything else runs in containers.
 
 ```bash
 git clone <repository-url> && cd aer
@@ -276,6 +278,14 @@ make crawl                 # ingest data — crawls both probes (Probe 0 DE + Pr
 
 The dashboard is served behind Traefik at `https://localhost/` (self-signed TLS in
 dev); the docs portal is at `http://localhost:8000`.
+
+> **Fresh-machine note.** The build pulls one prebuilt image —
+> **`aer-wikidata-index`** (the entity-linking index, rebuilt quarterly by CI) —
+> from the GitHub Container Registry. It is published **public**, so a clean clone
+> builds with no registry login. If you fork and your GHCR package is private,
+> either flip its visibility to public or run `docker login ghcr.io` once before
+> `make up`. All four application images (`ingestion-api`, `analysis-worker`,
+> `bff-api`, `dashboard`) are built locally from the repo — never pulled.
 
 **Contributing?** One command prepares the whole dev environment:
 
