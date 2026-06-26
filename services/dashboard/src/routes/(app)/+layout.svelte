@@ -28,6 +28,7 @@
   import AccountOverlay from '$lib/components/account/AccountOverlay.svelte';
   import AnalysesOverlay from '$lib/components/account/AnalysesOverlay.svelte';
   import AboutOverlay from '$lib/components/about/AboutOverlay.svelte';
+  import TutorialOverlay from '$lib/components/tutorial/TutorialOverlay.svelte';
   import BootSplash from '$lib/components/base/BootSplash.svelte';
   import { rehydrateUrlState } from '$lib/state/url.svelte';
   import { markSessionReady } from '$lib/state/boot.svelte';
@@ -114,6 +115,7 @@
   <AccountOverlay />
   <AnalysesOverlay />
   <AboutOverlay />
+  <TutorialOverlay />
 {:else if unreachable}
   <div class="session-retry" role="alert">
     <p>{m.auth_session_unreachable()}</p>

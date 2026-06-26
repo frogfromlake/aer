@@ -54,7 +54,7 @@
     <ReflectionBackLink href="/" label={m.reflection_landing_back_label()} />
     <div class="landing-inner">
       <!-- Surface identity -->
-      <header class="landing-header">
+      <header class="landing-header" data-tutorial-id="reflect-overview">
         <p class="surface-eyebrow">{m.reflection_landing_eyebrow()}</p>
         <h1 class="landing-title">{m.reflection_landing_title()}</h1>
         <p class="landing-abstract">
@@ -63,7 +63,7 @@
       </header>
 
       <!-- Entry points grid -->
-      <div class="entry-grid" id="landing-entry">
+      <div class="entry-grid" id="landing-entry" data-tutorial-id="reflect-entry">
         <!-- Open Research Questions -->
         <section class="entry-card" aria-labelledby="oq-heading">
           <h2 id="oq-heading" class="entry-title">{m.reflection_landing_oq_heading()}</h2>
@@ -92,7 +92,12 @@
       </div>
 
       <!-- Working Papers index -->
-      <section class="section" id="landing-wps" aria-labelledby="wps-heading">
+      <section
+        class="section"
+        id="landing-wps"
+        aria-labelledby="wps-heading"
+        data-tutorial-id="reflect-papers"
+      >
         <h2 id="wps-heading" class="section-title">{m.reflection_landing_wps_heading()}</h2>
         <p class="section-sub">
           {m.reflection_landing_wps_sub()}
@@ -117,7 +122,7 @@
 
       <!-- Catalogue entry points — one tile each into the probe + metric
          aggregates, where every dossier / provenance record is read inline. -->
-      <div class="entry-grid" id="landing-catalogues">
+      <div class="entry-grid" id="landing-catalogues" data-tutorial-id="reflect-catalogues">
         <!-- Probe dossiers -->
         <section class="entry-card" aria-labelledby="probes-heading">
           <h2 id="probes-heading" class="entry-title">{m.reflection_landing_probes_heading()}</h2>

@@ -236,6 +236,7 @@
   class:interactive={isInteractive}
   data-composition={panel.composition}
   data-view={panel.view}
+  data-tutorial-id="wb-panel"
   onclick={isInteractive ? onFocusClick : undefined}
 >
   <PanelToolbar

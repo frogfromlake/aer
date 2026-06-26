@@ -30,6 +30,18 @@ const json = (body: unknown) => ({
 
 export const test = base.extend({
   page: async ({ page }, use) => {
+    // The guided tour auto-starts once for a first-time visitor (no
+    // `aer.guide_completed`). In a fresh Playwright context every test would
+    // qualify, so the spotlight overlay would block clicks / inject unexpected
+    // DOM into unrelated specs. Mark it completed by default; the tour spec
+    // launches explicitly (Guide button / `?guide=open`), unaffected by this.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('aer.guide_completed', '1');
+      } catch {
+        /* storage unavailable — nothing to seed */
+      }
+    });
     await page.route('**/api/v1/auth/me', (route) =>
       route.fulfill(
         json({ id: 'e2e-user', email: 'e2e@aer.test', role: 'researcher', status: 'active' })

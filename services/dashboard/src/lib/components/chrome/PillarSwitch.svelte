@@ -66,7 +66,11 @@
   });
 </script>
 
-<section class="pillar-switch" aria-label={m.chrome_pillar_switch_aria()}>
+<section
+  class="pillar-switch"
+  aria-label={m.chrome_pillar_switch_aria()}
+  data-tutorial-id="wb-pillars"
+>
   <div class="tiles" role="radiogroup" aria-label={m.chrome_pillar_radiogroup_aria()}>
     {#each pillars as p (p.id)}
       {@const isActive = p.id === activeId}

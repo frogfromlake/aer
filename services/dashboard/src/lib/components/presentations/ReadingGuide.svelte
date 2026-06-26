@@ -188,6 +188,7 @@
       type="button"
       class="rg-tab"
       class:rg-tab--cell={variant === 'cell'}
+      data-tutorial-id={variant === 'panel' ? 'wb-reading-guide' : undefined}
       aria-expanded={expanded}
       title={titleText}
       onclick={(e) => {

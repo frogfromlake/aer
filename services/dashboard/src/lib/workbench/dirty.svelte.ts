@@ -21,3 +21,20 @@ export function setCleanBaseline(deepLink: string): void {
 export function isWorkbenchDirty(currentDeepLink: string): boolean {
   return baseline !== null && currentDeepLink !== baseline;
 }
+
+// Guided-tour escape hatch. The tour seeds an EPHEMERAL demo Workbench (and
+// briefly visits the bare surface for the ScopeEditor step) and snapshots +
+// restores the user's real URL itself, so its programmatic navigation must not
+// trip the unsaved-work confirm modal. The tour suppresses the guard for its
+// whole run; the workbench `beforeNavigate` consults this before anything else.
+let suppressed = false;
+
+/** Suppress (or re-enable) the leave-guard. Set by the guided tour. */
+export function setLeaveGuardSuppressed(value: boolean): void {
+  suppressed = value;
+}
+
+/** True while the leave-guard is suppressed (tour running). */
+export function isLeaveGuardSuppressed(): boolean {
+  return suppressed;
+}

@@ -307,6 +307,7 @@
     aria-modal="true"
     aria-label={m.workbench_scope_editor_aria_label()}
     tabindex="-1"
+    data-tutorial-id="wb-scopeeditor"
   >
     <header class="editor-header">
       <div class="header-titles">
@@ -326,7 +327,7 @@
       </button>
     </header>
 
-    <div class="groups">
+    <div class="groups" data-tutorial-id="wb-scope-groups">
       {#each draftScopes as group, groupIndex (groupIndex)}
         <ScopeGroupCard
           {group}
@@ -361,6 +362,7 @@
       <button
         type="button"
         class="apply-btn"
+        data-tutorial-id="wb-scope-apply"
         onclick={apply}
         disabled={!canApply}
         title={canApply ? '' : m.workbench_scope_editor_apply_disabled_title()}

@@ -313,10 +313,10 @@
   aria-label={m.workbench_controls_aria_label()}
   class:locked={isPanelLocked}
   class:collapsed={isCollapsed}
+  data-tutorial-id="wb-panelcontrols"
 >
   {#if panelPath && boundPanel}
-    <!-- Full-header click toggles collapse; always rendered so a collapsed
-         strip can be re-opened. -->
+    <!-- Full-header click toggles collapse; always rendered so a collapsed strip can be re-opened. -->
     <button
       type="button"
       class="cell-controls-header"

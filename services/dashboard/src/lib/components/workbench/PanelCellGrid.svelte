@@ -466,7 +466,7 @@
         >{showing}{cap}{m.workbench_grid_facet_disclosure_post()}
       </p>
     {/if}
-    {#each expandedUnits as unit (unit.key)}
+    {#each expandedUnits as unit, cellIndex (unit.key)}
       {@const groupNum = unit.groupIndex !== undefined ? unit.groupIndex + 1 : null}
       {@const probeNum =
         unit.probeId !== undefined && isMultiProbeFanout
@@ -499,6 +499,7 @@
         cellScale={effectiveCellScale(unit.key)}
         {sharedDomains}
         reportExtent={sharedAxisApplies ? reportExtentFor(unit.key) : undefined}
+        tutorialTarget={cellIndex === 0}
       />
     {/each}
   {/if}

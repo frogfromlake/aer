@@ -56,6 +56,7 @@ export function readFromSearch(search: string): UrlState {
     account: p.get('account') === 'open' ? 'open' : null,
     admin: p.get('admin') === 'open' ? 'open' : null,
     about: p.get('about') === 'open' ? 'open' : null,
+    guide: p.get('guide') === 'open' ? 'open' : null,
     analyses: p.get('analyses') === 'open' ? 'open' : p.get('analyses') === 'save' ? 'save' : null,
     savedAnalysis: p.get('savedAnalysis') || null
   };
@@ -107,6 +108,8 @@ export function writeToSearch(state: UrlState): string {
   if (state.admin === 'open') p.set('admin', 'open');
   // Phase 149 — About AĒR overlay.
   if (state.about === 'open') p.set('about', 'open');
+  // Guided tour launch trigger (consumed + cleared by the TutorialOverlay).
+  if (state.guide === 'open') p.set('guide', 'open');
   // Phase 135 — analyses overlay.
   if (state.analyses) p.set('analyses', state.analyses);
   // Phase 135 — preserve the "loaded saved analysis" marker across mutations.

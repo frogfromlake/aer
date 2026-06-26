@@ -80,7 +80,7 @@
        pillar colour. Click the label (or the pencil) to edit; save with the
        diskette. Icons are monochrome inline SVGs so they take the SideRail accent
        colour (the floppy emoji would ignore `color`). -->
-  <span class="panel-caption">
+  <span class="panel-caption" data-tutorial-id="wb-panel-label">
     {#if isInteractive && onRenameLabel}
       {#if editing}
         <span class="panel-label-editor" role="presentation" onclick={(e) => e.stopPropagation()}>
@@ -169,6 +169,7 @@
           onclick={onToggleZen}
           title={isZen ? m.workbench_zen_exit_title() : m.workbench_panel_zen_title()}
           aria-pressed={isZen}
+          data-tutorial-id="wb-zen"
         >
           {isZen ? m.workbench_zen_exit() : m.workbench_panel_zen()}
         </button>

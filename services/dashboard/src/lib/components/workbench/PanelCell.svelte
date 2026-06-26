@@ -58,6 +58,9 @@
     reportExtent:
       | ((axis: 'value' | 'x', extent: readonly [number, number] | null) => void)
       | undefined;
+    /** Guided-tour hook: the grid marks its FIRST cell so the tour's `cell`
+     *  step has a stable target (the demo panel's leading cell). */
+    tutorialTarget?: boolean;
   }
 
   let {
@@ -85,7 +88,8 @@
     sharedAxisApplies,
     cellScale,
     sharedDomains,
-    reportExtent
+    reportExtent,
+    tutorialTarget = false
   }: Props = $props();
 
   const Cell = $derived(CellComponent);
@@ -156,6 +160,7 @@
   class:has-group={accentNum !== null}
   class:cell-overridden={cfg.isOverridden}
   data-group={accentNum}
+  data-tutorial-id={tutorialTarget ? 'wb-cell' : undefined}
 >
   {#if cellZen}
     <!-- Phase 149 (Zen) — the body is in the full-screen overlay below; keep a

@@ -209,6 +209,7 @@
         class="window-action window-action-primary"
         onclick={() => openOverlay('analyses', 'save')}
         title={m.workbench_page_save_analysis_title()}
+        data-tutorial-id="wb-save"
       >
         <span aria-hidden="true">★</span>
         {m.workbench_page_save_analysis()}
@@ -228,6 +229,7 @@
         class="window-action window-action-primary panel-action-trailing"
         onclick={onAddPanel}
         disabled={!canAddPanel}
+        data-tutorial-id="wb-add-panel"
         title={canAddPanel
           ? m.workbench_window_add_panel_title()
           : m.workbench_window_add_panel_max_title({ max: MAX_PANELS_PER_WINDOW })}

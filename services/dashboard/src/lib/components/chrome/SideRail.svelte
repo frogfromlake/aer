@@ -127,7 +127,7 @@
   </div>
 
   <!-- Surface anchors -->
-  <ul class="rail-group" role="list">
+  <ul class="rail-group" role="list" data-tutorial-id="rail-surfaces">
     {#each SURFACES as s (s.label)}
       <li>
         {#if s.disabled}
@@ -150,6 +150,7 @@
             aria-current={isActiveSurface(s.href) ? 'page' : undefined}
             title={s.hint}
             data-sveltekit-preload-data="hover"
+            data-tutorial-id={s.href === '/reflection' ? 'rail-reflection' : undefined}
             onclick={(e) => onSurfaceClick(e, s.href)}
           >
             <span class="rail-icon" aria-hidden="true">{s.glyph}</span>
@@ -188,6 +189,7 @@
       class:has-selection={selectedCount > 0}
       onclick={openDossier}
       title={m.chrome_dossier_open_title()}
+      data-tutorial-id="rail-dossier"
     >
       <span class="rail-mini-glyph" aria-hidden="true">❒</span>
       <span class="rail-mini-label">
@@ -201,6 +203,7 @@
       class="rail-mini"
       onclick={openAnalyses}
       title={m.chrome_library_open_title()}
+      data-tutorial-id="rail-analyses"
     >
       <span class="rail-mini-glyph" aria-hidden="true">★</span>
       <span class="rail-mini-label">{m.chrome_library_label()}</span>
@@ -210,6 +213,7 @@
       class="rail-mini rail-account"
       onclick={openAccount}
       title={m.chrome_user_account()}
+      data-tutorial-id="rail-account"
     >
       <UserAvatar firstName={me?.firstName} lastName={me?.lastName} email={me?.email} size={26} />
       <span class="rail-mini-label">{m.chrome_user_account()}</span>

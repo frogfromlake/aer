@@ -15,6 +15,7 @@
   // briefly, statically, then removed).
   import { onMount } from 'svelte';
   import { bootReady } from '$lib/state/boot.svelte';
+  import { settleWelcomeForTour } from '$lib/state/tutorial.svelte';
   import { m } from '$lib/paraglide/messages.js';
 
   // sessionStorage (not localStorage): the greeting survives a reload within the
@@ -65,6 +66,11 @@
     timers.push(
       setTimeout(() => {
         showing = false;
+        // Hand off to the guided tour only now — the greeting has fully faded
+        // out and unmounted, so a first-visit auto-start cannot overlap this
+        // layer. (Calling this at the START of the fade let the tour card appear
+        // during the 700 ms exit, overlaying the still-visible greeting.)
+        settleWelcomeForTour();
       }, FADE_MS)
     );
   }
@@ -87,7 +93,13 @@
   // Begin only once the boot splash has cleared (globe interactive). The effect
   // re-checks on readiness changes; `started` makes it one-shot.
   $effect(() => {
-    if (bootReady()) start();
+    if (!bootReady()) return;
+    if (alreadySeen()) {
+      // Greeting won't play this session → open the tour's auto-start gate now.
+      settleWelcomeForTour();
+    } else {
+      start();
+    }
   });
 
   onMount(() => {
@@ -172,7 +184,10 @@
   .wa-skip {
     pointer-events: auto;
     position: absolute;
-    right: var(--space-6);
+    /* Centred along the bottom edge so it never overlaps the corner chrome
+       (theme/account controls bottom-right, SideRail bottom-left). */
+    left: 50%;
+    transform: translateX(-50%);
     bottom: var(--space-6);
     padding: var(--space-1) var(--space-3);
     border: 1px solid var(--color-border);

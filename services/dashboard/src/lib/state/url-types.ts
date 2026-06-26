@@ -481,6 +481,10 @@ export interface UrlState {
   // re-openable home of the welcome content (what / purpose / for whom / state /
   // future). Driven by `?about=open` so it deep-links and round-trips.
   about: 'open' | null;
+  // Guided-tour launch trigger (`?guide=open`): the TutorialOverlay consumes +
+  // clears it on mount; live step state is the `tutorial.svelte.ts` rune (NOT in
+  // OverlayName — the tour navigates routes, it is not a mutually-exclusive modal).
+  guide: 'open' | null;
   // Phase 135 — saved-analyses overlay. `save` opens it directly in the
   // save-current-view flow (a discoverable affordance from the Workbench).
   analyses: 'open' | 'save' | null;
@@ -509,6 +513,7 @@ export const EMPTY_URL_STATE: UrlState = {
   account: null,
   admin: null,
   about: null,
+  guide: null,
   analyses: null,
   savedAnalysis: null
 };

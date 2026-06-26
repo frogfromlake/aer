@@ -18,6 +18,7 @@
   import { m } from '$lib/paraglide/messages.js';
   import LocaleMenu from '$lib/components/chrome/LocaleMenu.svelte';
   import ThemeMenu from '$lib/components/chrome/ThemeMenu.svelte';
+  import { startTour } from '$lib/state/tutorial.svelte';
   import { user, doLogout } from '$lib/state/auth.svelte';
 
   // Quick sign-out, reachable from every surface (the same `doLogout` the account
@@ -90,6 +91,7 @@
     <div class="scope-lead">
       <span
         class="surface-chip"
+        data-tutorial-id="scope-chip"
         aria-label={m.chrome_scopebar_chip_aria({
           surface: breadcrumb.surface,
           surfaceName: breadcrumb.surfaceName,
@@ -131,7 +133,19 @@
       </button>
     </div>
 
-    <div class="scope-end">
+    <div class="scope-end" data-tutorial-id="scope-utilities">
+      <button
+        type="button"
+        class="guide-btn"
+        onclick={startTour}
+        aria-label={m.tutorial_guide_label()}
+        title={m.tutorial_guide_label()}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z" />
+        </svg>
+      </button>
       <ThemeMenu />
       <LocaleMenu />
       {#if me}
@@ -286,6 +300,49 @@
     justify-content: flex-end;
     gap: var(--space-1);
   }
+  /* Guided-tour launcher — same quiet icon-button treatment as Theme/Locale. */
+  .guide-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-fg-muted);
+    padding: var(--space-1);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      color var(--motion-duration-fast) var(--motion-ease-standard),
+      background var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .guide-btn:hover,
+  .guide-btn:focus-visible {
+    color: var(--color-accent);
+    background: var(--color-surface-hover);
+    outline: none;
+  }
+  .guide-btn:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .guide-btn svg {
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .guide-btn svg path {
+    fill: currentColor;
+    stroke: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .guide-btn {
+      transition: none;
+    }
+  }
+
   /* Hairline divider between the theme/language toggles and the sign-out. */
   .utility-sep {
     width: 1px;

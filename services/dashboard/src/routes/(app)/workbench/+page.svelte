@@ -13,7 +13,11 @@
   import { pushUrl, urlState } from '$lib/state/url.svelte';
   import { defaultPresentationForPillar, getPillar } from '$lib/presentations';
   import { clearDraft } from '$lib/workbench/scope-editor-draft';
-  import { setCleanBaseline, isWorkbenchDirty } from '$lib/workbench/dirty.svelte';
+  import {
+    setCleanBaseline,
+    isWorkbenchDirty,
+    isLeaveGuardSuppressed
+  } from '$lib/workbench/dirty.svelte';
   import {
     stripDeepLink,
     NON_STATE_PARAMS
@@ -178,6 +182,7 @@
 
   beforeNavigate((nav) => {
     if (confirmedLeave) return; // our own post-confirm navigation
+    if (isLeaveGuardSuppressed()) return; // guided tour: ephemeral, self-restoring
     if (!nav.to) return;
     const from = nav.from?.url.pathname;
     const to = nav.to.url.pathname;
