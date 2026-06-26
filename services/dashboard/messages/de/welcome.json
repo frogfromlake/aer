@@ -16,6 +16,23 @@
   "about_what_title": "Was AĒR ist",
   "about_what_body": "Ein Makroskop für gesellschaftliche Diskurse. AĒR beobachtet Diskurse, nicht Menschen: Es verdichtet die öffentlichen Beiträge bewusst gewählter Beobachtungspunkte zu aggregierten, prüfbaren Metriken. Es erfasst keine Verhaltensdaten, keine sozialen Graphen, keine Geräte-Fingerabdrücke und baut keine digitalen Zwillinge — das ist strukturell, keine bloße Richtlinie. Wo eine institutionelle Quelle ihre Autorinnen und Autoren nennt, ist das öffentliche, dokumentierte Rede im Amt: AĒR kann eine Kennzahl darauf zurückführen, fügt dahinter aber kein verborgenes Profil zusammen.",
 
+  "about_flow_title": "Wie AĒR funktioniert",
+  "about_flow_lede": "Von einer öffentlichen Webseite bis zu einer Zahl, die Sie hinterfragen können — in sechs Schritten, ohne Blackbox. Jeder Schritt übergibt seine Arbeit über gemeinsamen Speicher an den nächsten, nie über eine verborgene Direktleitung — so bleibt der gesamte Weg nachprüfbar.",
+  "about_flow_collect_title": "Sammeln",
+  "about_flow_collect_body": "Ein Crawler besucht höflich öffentliche Nachrichten- und Institutionsseiten und speichert jede Seite genau so, wie sie veröffentlicht wurde.",
+  "about_flow_ingest_title": "Rohseite bewahren",
+  "about_flow_ingest_body": "Jede Seite wird wortgetreu und unverändert abgelegt — ein prüfbares Original, zu dem wir jederzeit zurückkehren können.",
+  "about_flow_analyse_title": "Lesen & messen",
+  "about_flow_analyse_body": "Ein Worker liest jeden Text: Er erkennt die Sprache und misst Signale wie den Tonfall und die genannten Personen, Orte und Organisationen.",
+  "about_flow_refine_title": "In Zahlen überführen",
+  "about_flow_refine_body": "Der bereinigte Text und die gemessenen Zahlen werden getrennt abgelegt — bereit, gezählt und verglichen zu werden.",
+  "about_flow_serve_title": "Auf Anfrage übergeben",
+  "about_flow_serve_body": "Ein einziges Tor reicht diese Zahlen an das Dashboard weiter, wann immer Sie eine Frage stellen — und nichts anderes verlässt das System.",
+  "about_flow_explore_title": "Hier erkunden",
+  "about_flow_explore_body": "Sie lesen und vergleichen alles in diesem Dashboard — und jede Zahl lässt sich bis zur ursprünglichen Seite zurückverfolgen.",
+  "about_flow_layer_label": "Schicht",
+  "about_flow_caption": "Roh → bereinigt → gemessen: AĒR bewahrt drei Schichten (Bronze · Silver · Gold), damit das ursprüngliche Material stets neben dem fertigen Ergebnis steht.",
+
   "about_method_title": "Wie es beobachtet",
   "about_method_body": "AĒR wählt das Beobachtete nach diskursiver Funktion — wer die Grenzen des Sagbaren steckt, wer Macht legitimiert, wer Zugehörigkeit stiftet, wer widerspricht — statt nach institutionellem Etikett, sodass Quellen aus verschiedenen Gesellschaften nebeneinandergestellt werden können, ohne sie in die Kategorien einer einzigen Gesellschaft zu pressen. Interkulturelle Äquivalenz wird nie vorausgesetzt: Sie ist durch ein explizites Register abgesichert, das leer bleibt, bis Forschende sie freigeben — auf expliziten Stufen (temporal, Abweichung, absolut), durch Begutachtung validiert —, und ein Vergleich ohne Freigabe wird verweigert, nicht still gezeichnet. Was das Instrument nicht sehen kann — Erhebungslücken, strukturell fehlende Felder, demografische blinde Flecken — wandert als offengelegter Negativraum mit den Daten, nie still zu einer Null verfälscht.",
 
@@ -33,6 +50,13 @@
 
   "about_future_title": "Wohin es geht",
   "about_future_body": "Geplant ist das Wachstum über viele Sonden und Sprachen hinweg — und die Kalibrierung der Linse gemeinsam mit den Geistes- und Sozialwissenschaften. Wenn dich das anspricht, sind die Arbeitspapiere eine offene Einladung.",
+
+  "about_author_title": "Wer dahinter steckt",
+  "about_author_body": "AĒR wird von einer einzelnen Person gebaut und gepflegt — ein unabhängiges, offenes Projekt und vorerst ein Proof of Concept, kein fertiges Produkt. Es entstand aus einem einfachen Wunsch: den öffentlichen Diskurs ehrlich zu betrachten, mit einem Instrument, das offen sagt, was es nicht sehen kann. Wenn es Ihnen nützt oder Ihnen etwas auffällt, das sich verbessern lässt, würde ich mich aufrichtig über eine Nachricht freuen.",
+  "about_author_name": "Fabian Quist",
+  "about_author_role": "Unabhängige Entwicklung & Pflege",
+  "about_author_email_label": "E-Mail",
+  "about_author_repo_label": "Quellcode auf GitHub",
 
   "about_links_title": "Weiterlesen",
   "about_link_reflection": "Zur Reflexion →"

@@ -14,6 +14,10 @@
   import { onMount, tick } from 'svelte';
   import { urlState, setUrl } from '$lib/state/url.svelte';
   import { m } from '$lib/paraglide/messages.js';
+  import DataFlowDiagram from './DataFlowDiagram.svelte';
+
+  const AUTHOR_EMAIL = 'fabianquist@posteo.de';
+  const AUTHOR_REPO = 'https://github.com/frogfromlake/aer';
 
   const url = $derived(urlState());
   const isOpen = $derived(url.about === 'open');
@@ -95,6 +99,14 @@
           <h3>{m.about_what_title()}</h3>
           <p>{m.about_what_body()}</p>
         </section>
+        <!-- The plain-language pipeline: how a public web page becomes a
+             questionable number. A diagram, so a non-technical reader can see the
+             whole flow at a glance before the deeper conceptual sections. -->
+        <section class="about-block about-flow-block">
+          <h3>{m.about_flow_title()}</h3>
+          <p>{m.about_flow_lede()}</p>
+          <DataFlowDiagram />
+        </section>
         <!-- The methodological signature (WP-001 function-over-form · WP-004
              equivalence registry / juxtaposition · WP-003/007 negative space) —
              the rigor showcase for a research audience. -->
@@ -125,6 +137,33 @@
         <section class="about-block">
           <h3>{m.about_future_title()}</h3>
           <p>{m.about_future_body()}</p>
+        </section>
+        <!-- Author + contact: a warm, minimal close. The repo link is the one
+             external destination in the panel. -->
+        <section class="about-block about-author">
+          <h3>{m.about_author_title()}</h3>
+          <p>{m.about_author_body()}</p>
+          <div class="author-card">
+            <div class="author-id">
+              <span class="author-name">{m.about_author_name()}</span>
+              <span class="author-role">{m.about_author_role()}</span>
+            </div>
+            <div class="author-contacts">
+              <a class="author-contact" href={`mailto:${AUTHOR_EMAIL}`}>
+                <span class="author-contact-label">{m.about_author_email_label()}</span>
+                <span class="author-contact-value">{AUTHOR_EMAIL}</span>
+              </a>
+              <a
+                class="author-contact"
+                href={AUTHOR_REPO}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="author-contact-label">{m.about_author_repo_label()}</span>
+                <span class="author-contact-value">github.com/frogfromlake/aer ↗</span>
+              </a>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -258,6 +297,83 @@
   .about-state {
     border-left: 2px solid var(--color-border-strong, var(--color-border));
     padding-left: var(--space-4);
+  }
+
+  /* The pipeline diagram block — a quiet framed panel so the visual reads as a
+     distinct "here's how it works" inset within the prose. */
+  .about-flow-block {
+    padding: var(--space-5);
+    background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .about-flow-block > p {
+    margin-bottom: var(--space-5);
+  }
+
+  /* Author + contact card. */
+  .about-author {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-5);
+  }
+  .author-card {
+    margin-top: var(--space-4);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .author-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .author-name {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-fg);
+  }
+  .author-role {
+    font-size: var(--font-size-xs);
+    color: var(--color-fg-subtle);
+  }
+  .author-contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .author-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-elevated);
+    text-decoration: none;
+  }
+  .author-contact:hover,
+  .author-contact:focus-visible {
+    border-color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .author-contact-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+  }
+  .author-contact-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
   }
 
   .about-footer {

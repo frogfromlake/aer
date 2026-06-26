@@ -16,6 +16,23 @@
   "about_what_title": "What AĒR is",
   "about_what_body": "A macroscope for societal discourse. AĒR watches discourse, not people: it condenses the public output of deliberately chosen observation points into aggregate, auditable metrics. It collects no behavioural metadata, no social graphs, no device fingerprints, and builds no digital twins — that is structural, not a matter of policy. Where an institutional source names its authors, that is public, on-the-record speech in an official role: AĒR can attribute a metric to it, but assembles no hidden profile behind it.",
 
+  "about_flow_title": "How AĒR works",
+  "about_flow_lede": "From a public web page to a number you can question — in six steps, with no black box. Each step hands its work to the next through shared storage, never a hidden direct line, so the whole trail stays inspectable.",
+  "about_flow_collect_title": "Collect",
+  "about_flow_collect_body": "A crawler politely visits public news and institutional websites and saves each page exactly as it was published.",
+  "about_flow_ingest_title": "Keep the raw page",
+  "about_flow_ingest_body": "Every page is stored verbatim and untouched — an auditable original we can always return to.",
+  "about_flow_analyse_title": "Read & measure",
+  "about_flow_analyse_body": "A worker reads each text: it detects the language and measures signals such as tone and the people, places and organisations named.",
+  "about_flow_refine_title": "Turn into numbers",
+  "about_flow_refine_body": "The cleaned-up text and the measured numbers are stored separately, ready to be counted and compared.",
+  "about_flow_serve_title": "Hand over on request",
+  "about_flow_serve_body": "A single gateway passes those numbers to the dashboard whenever you ask a question — and nothing else leaves the system.",
+  "about_flow_explore_title": "Explore it here",
+  "about_flow_explore_body": "You read and compare everything in this dashboard — and every number can be traced back to the original page it came from.",
+  "about_flow_layer_label": "Layer",
+  "about_flow_caption": "Raw → cleaned → measured: AĒR keeps three layers (named Bronze · Silver · Gold) so the original evidence always sits next to the finished result.",
+
   "about_method_title": "How it observes",
   "about_method_body": "AĒR chooses what it watches by discursive function — who sets the bounds of the sayable, who legitimates power, who builds belonging, who contests — rather than by institutional label, so sources from different societies can be set alongside one another without being forced into one society's categories. Cross-cultural equivalence is never assumed: it is gated by an explicit registry that stays empty until a researcher grants it — at explicit levels (temporal, deviation, absolute), validated by review — and a comparison without a grant is refused, not quietly drawn. What the instrument cannot see — collection gaps, structurally-absent fields, demographic blind spots — travels with the data as disclosed negative space, never quietly coerced into a zero.",
 
@@ -33,6 +50,13 @@
 
   "about_future_title": "Where it is going",
   "about_future_body": "The plan is to grow across many probes and languages, and to calibrate the lens together with the social sciences and humanities. If that resonates with you, the Working Papers are an open invitation.",
+
+  "about_author_title": "Who's behind it",
+  "about_author_body": "AĒR is built and maintained by one person — an independent, open project, and for now a proof of concept rather than a finished product. It grew from a simple wish: to look at public discourse honestly, with an instrument that is candid about what it cannot see. If it is useful to you, or you spot something worth improving, I would genuinely like to hear from you.",
+  "about_author_name": "Fabian Quist",
+  "about_author_role": "Independent developer & maintainer",
+  "about_author_email_label": "Email",
+  "about_author_repo_label": "Source code on GitHub",
 
   "about_links_title": "Read further",
   "about_link_reflection": "Open the Reflection surface →"
