@@ -255,6 +255,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # postgres:18 moved its default data dir to a major-version-specific path
+      # (/var/lib/postgresql/18/docker) and HARD-REFUSES to start when a volume
+      # is mounted at the legacy /var/lib/postgresql/data without this override
+      # ("there appears to be PostgreSQL data in ... (unused mount/volume)").
+      # Pinning PGDATA back to the mounted path keeps the established layout, so
+      # a FRESH volume initialises cleanly and existing volumes keep working.
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
