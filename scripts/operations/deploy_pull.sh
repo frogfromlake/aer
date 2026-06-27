@@ -32,6 +32,27 @@ echo "==> Recreating the stack (waiting for every healthcheck to pass)"
 # so a broken deploy fails the SSH command → fails the GitHub Actions job →
 # surfaces immediately instead of silently shipping an unhealthy stack.
 docker compose --profile dashboard up -d --remove-orphans --wait --wait-timeout 300
+
+# Observability config (Prometheus alert rules, Grafana provisioning of dashboards
+# + alert rules) is BIND-MOUNTED, not baked into images — so the `up --wait` above
+# does NOT recreate prometheus/grafana when only a mounted file changed, and a
+# tweaked alert rule would silently never load. If this release touched
+# infra/observability/, recreate just those two readers so the new config applies.
+# A per-box state file records the last-deployed commit to scope this to releases
+# that really changed that config (a missing/unknown previous state recreates, the
+# safe default). The file is untracked + survives `git checkout --force`.
+STATE_FILE=".aer-deployed-sha"
+NEW_SHA="$(git rev-parse HEAD)"
+PREV_SHA="$( [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || true )"
+if [[ -n "$PREV_SHA" ]] && git cat-file -e "$PREV_SHA" 2>/dev/null \
+   && git diff --quiet "$PREV_SHA" "$NEW_SHA" -- infra/observability/; then
+  echo "==> infra/observability/ unchanged since last deploy — no prometheus/grafana reload needed"
+else
+  echo "==> infra/observability/ changed (or first deploy) — reloading prometheus + grafana (bind-mounted config)"
+  docker compose --profile dashboard up -d --no-deps --force-recreate prometheus grafana
+fi
+echo "$NEW_SHA" > "$STATE_FILE"
+
 docker compose --profile dashboard ps
 
 echo "==> Deploy of ${TAG} complete — all services healthy."

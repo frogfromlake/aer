@@ -219,6 +219,18 @@ tracks releases, not a branch).
 > cache makes later builds that don't touch the worker a fast cache hit. The
 > box-side pull + recreate is always **minutes** (it builds nothing).
 
+> **Observability config note:** Prometheus alert rules and Grafana provisioning
+> (`infra/observability/`) are **bind-mounted, not baked into images**, so a plain
+> `up --wait` does *not* recreate prometheus/grafana when only those files change —
+> a tweaked alert rule would silently never load. `deploy_pull.sh` handles this:
+> after the stack is healthy it diffs `infra/observability/` against the
+> last-deployed commit (recorded in the untracked `.aer-deployed-sha`) and, if it
+> changed, runs `up -d --no-deps --force-recreate prometheus grafana` to load the
+> new config. So an alerting/dashboard change ships with a normal release tag — no
+> manual restart. (For a *config-only* change you don't want to cut a release for,
+> the lightweight path is on the box: `git checkout origin/main -- infra/observability/`
+> then `docker compose up -d --force-recreate prometheus grafana`.)
+
 ### Manual fallback (CD unavailable / out-of-band deploy)
 
 ```bash

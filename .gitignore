@@ -87,3 +87,8 @@ infra/wikidata-index/data/
 
 # Deploy-prep guide (local only, not project docs)
 aer_deploy_tasks.md
+
+# Per-box deploy state — last-deployed commit SHA, written by
+# scripts/operations/deploy_pull.sh to scope the prometheus/grafana config
+# reload. Created on the box at runtime, never committed.
+.aer-deployed-sha
