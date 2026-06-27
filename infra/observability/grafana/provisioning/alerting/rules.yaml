@@ -87,7 +87,10 @@ groups:
       - uid: aer_high_proc_latency
         title: HighEventProcessingLatency
         condition: C
-        for: 5m
+        # for: 1h — p95 is PER-DOCUMENT (BERT NER/topic/sentiment), so > 5s is
+        # normal crawl-burst load that self-resolves in ~25 min; only a sustained
+        # hour signals a real backlog. Kept in lockstep with alert.rules.yml.
+        for: 1h
         labels:
           severity: warning
         annotations:

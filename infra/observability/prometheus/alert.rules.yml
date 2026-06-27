@@ -29,8 +29,15 @@ groups:
           description: "bronze-quarantine bucket contains {{ $value }} objects, exceeding the threshold of 50."
 
       - alert: HighEventProcessingLatency
+        # for: 1h (not 5m) — event_processing_duration is PER-DOCUMENT end-to-end
+        # (BERT NER + BERTopic + sentiment), so a p95 > 5s is normal load during a
+        # 6-hourly crawl burst and self-resolves in ~25 min. Only a *sustained*
+        # hour of high p95 means the pipeline genuinely cannot drain (real
+        # backlog). CrawlStale + DLQOverflow are the fast data-integrity signals;
+        # this is the slow "is the worker keeping up" one. Kept in lockstep with
+        # the Grafana mirror (grafana/provisioning/alerting/rules.yaml).
         expr: histogram_quantile(0.95, rate(event_processing_duration_seconds_bucket[5m])) > 5
-        for: 5m
+        for: 1h
         labels:
           severity: warning
         annotations:
