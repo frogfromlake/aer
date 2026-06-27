@@ -18,6 +18,14 @@ services:
   analysis-worker:
     image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-analysis-worker:${IMAGE_TAG:-latest}
     build: !reset null
+    # CI runners have 4 vCPU; compose.yaml pins cpus "6.00" for the 8-vCPU prod
+    # box, which Docker rejects on the runner ("range of CPUs is 0.01 to 4.00").
+    # The smoke does a tiny synthetic ingest (not a real crawl), so cap it low —
+    # memory (11264M) merges through from the base, harmless on the 16 GB runner.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
 
   dashboard:
     image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-dashboard:${IMAGE_TAG:-latest}
