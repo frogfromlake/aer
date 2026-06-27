@@ -18,37 +18,29 @@
 name: E2E Smoke (Nightly)
 
 on:
-  # PARKED (Phase 136, 2026-06-14): the nightly cron is disabled until the
-  # Iteration-13 image-publish pipeline lands. Today the smoke runs
-  # `docker compose up --build`, which rebuilds the 10+ GB analysis-worker
-  # image from scratch (compose has `build:` and no published `image:` for the
-  # core services) and times out at ~25 min; the smoke script also still
-  # asserts the retired RSS flow (Phase 122 migrated to web-crawling). Re-enable
-  # this cron once the stack pulls pre-built GHCR images (Iteration 13 / Phase
-  # 149) AND the script is rewritten to the web-crawler path. Until then the
-  # workflow is manual-dispatch only — no permanently-red scheduled run.
-  #   schedule:
-  #     - cron: '30 2 * * *'
+  # Re-enabled (Phase 150, M5). The parking reasons are resolved: the smoke now
+  # PULLS the pre-built GHCR service images (compose.ci-images.yaml overlay,
+  # defaulted in e2e_smoke_test.sh) instead of `up --build`, so the ~10 GB worker
+  # rebuild + ~25 min timeout are gone. The Step-3 synthetic ingest (RssAdapter,
+  # still registered in the worker) is a deliberate deterministic wiring probe,
+  # not a stale crawler — no rewrite was needed.
+  schedule:
+    - cron: '30 2 * * *'
 
-  # Manual trigger — for pre-release verification or post-merge confidence
-  # checks on a non-trivial change.
+  # Manual trigger — for pre-release verification or post-merge confidence checks.
   workflow_dispatch:
 
-  # Path-trigger ALSO PARKED (Phase 137): while the smoke is broken (heavy
-  # build / stale RSS script — see the cron note above), a push to main that
-  # touched these paths fired this workflow and produced a red run on main.
-  # Re-enable together with the cron once the Iteration-13 image-publish
-  # pipeline + script rewrite land. Until then: manual workflow_dispatch only.
-  #  push:
-  #    branches: [ "main" ]
-  #    paths:
-  #      - 'compose.yaml'
-  #      - 'compose.prod.yaml'
-  #      - 'infra/**'
-  #      - 'scripts/build/e2e_smoke_test.sh'
-  #      - 'scripts/build/e2e_helpers.sh'
-  #      - 'scripts/build/e2e_fixtures/**'
-  #      - '.github/workflows/e2e_smoke_nightly.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'compose.yaml'
+      - 'compose.prod.yaml'
+      - 'compose.ci-images.yaml'
+      - 'infra/**'
+      - 'scripts/build/e2e_smoke_test.sh'
+      - 'scripts/build/e2e_helpers.sh'
+      - 'scripts/build/e2e_fixtures/**'
+      - '.github/workflows/e2e_smoke_nightly.yml'
 
 jobs:
   e2e-smoke:

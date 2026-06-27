@@ -11,6 +11,14 @@ if [[ -f .env ]]; then
     set -a; source .env; set +a
 fi
 
+# --- Pull pre-built images instead of building (Phase 150, M5) ---
+# The smoke pulls the pre-built ghcr.io/<owner>/aer-<svc> images via a CI image
+# overlay rather than a local build (a ~10 GB worker rebuild that timed the job
+# out). Default the overlay so every `docker compose` call below — up, logs,
+# down — is consistent; a .env-provided COMPOSE_FILE still wins. Local runs need
+# a `docker login ghcr.io` with a read:packages token.
+export COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml:compose.ci-images.yaml}"
+
 # --- Config ---
 BFF_URL="http://localhost:8080/api/v1"
 BFF_API_KEY="${BFF_API_KEY:-}"
@@ -57,13 +65,13 @@ cleanup() {
 trap cleanup EXIT
 
 # ── Step 1: Start full stack and wait for health ─────────────────────────
-log_step "Step 1: Starting full Docker Compose stack (waiting for health)"
-# The dashboard image build copies services/bff-api/api/openapi.bundle.yaml
-# into its build stage. The bundle is a generated artifact (gitignored), so
-# regenerate it here to keep `docker compose up --build` hermetic on fresh
-# checkouts (CI, first-time devs).
-make openapi-bundle
-docker compose up --build --wait -d
+log_step "Step 1: Starting full Docker Compose stack (pulling pre-built images, waiting for health)"
+# Pull the pre-built GHCR service images (COMPOSE_FILE points at the CI image
+# overlay, set above) instead of a local build — no 10 GB worker rebuild, no
+# 25-min timeout. The images already bake the OpenAPI bundle, so neither
+# `make openapi-bundle` nor `--build` is needed.
+docker compose pull
+docker compose up --wait -d
 log_ok "Stack started. All services are healthy!"
 
 # ── Step 2: Start fixture HTTP server ────────────────────────────────────

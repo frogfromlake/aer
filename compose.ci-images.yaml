@@ -1,0 +1,24 @@
+# CI-only overlay (Phase 150, M5) — the nightly smoke PULLS the pre-built GHCR
+# service images instead of building them locally (a ~10 GB analysis-worker
+# rebuild that timed the job out at ~25 min). It mirrors the four `image:` refs
+# from compose.prod.yaml but WITHOUT the prod ACME / Traefik-host overlay (the
+# smoke has no real domain or TLS). Activated by COMPOSE_FILE=compose.yaml:compose.ci-images.yaml
+# (defaulted in scripts/build/e2e_smoke_test.sh). `!reset` drops the base
+# `build:` so the stack is pull-only. GHCR_OWNER/IMAGE_TAG come from the CI .env
+# (defaults: frogfromlake / latest).
+services:
+  ingestion-api:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-ingestion-api:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  bff-api:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-bff-api:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  analysis-worker:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-analysis-worker:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  dashboard:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-dashboard:${IMAGE_TAG:-latest}
+    build: !reset null
