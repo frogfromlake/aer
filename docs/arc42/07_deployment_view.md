@@ -247,7 +247,7 @@ make openapi-bundle
 docker compose -f compose.yaml -f compose.prod.yaml --profile dashboard up -d --build
 ```
 
-`make preflight` (SEC-045) is the authoritative pre-deploy gate for the production `.env` — it checks `APP_ENV=production`, every required secret, and `DASHBOARD_HOST` / `BFF_PUBLIC_BASE_URL` / `ACME_EMAIL` / `ADMIN_BOOTSTRAP_EMAIL` coherence. A full step-by-step first-deploy runbook (provisioning → deploy → first admin → tested restore → timers) is tracked for **Phase 151**; until then this is the minimal prod bring-up.
+`make preflight` (SEC-045) is the authoritative pre-deploy gate for the production `.env` — it checks `APP_ENV=production`, every required secret, and `DASHBOARD_HOST` / `BFF_PUBLIC_BASE_URL` / `ACME_EMAIL` / `ADMIN_BOOTSTRAP_EMAIL` coherence. The `--build` invocation above is the **bootstrap** path (build the four images locally, once). The **routine** deploy path is tag-driven CD: the box **pulls** pre-built GHCR images (`compose.prod.yaml` sets `image:` + `!reset`s `build:`), driven by `.github/workflows/release-images.yml` on a `vX.Y.Z` tag. The full step-by-step choreography — provisioning → first admin → tested restore → timers → routine releases → rollback, plus the fresh-machine build findings — lives in the [Production Deploy Runbook](../operations/deploy_runbook.md).
 
 ## 7.8 Exposed Ports (Localhost)
 
