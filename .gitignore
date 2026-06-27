@@ -21,6 +21,12 @@ __pycache__/
 venv/
 env/
 .env
+# Phase 155 / ADR-046: local Docker-secrets staging dir (stage_secrets_local.sh
+# writes the .env secrets here for `make up`). Never commit — it holds secrets.
+.aer-secrets/
+# Phase 155 / D9: generated non-secret runtime env (gen_runtime_env.sh). Derived
+# from .env; regenerated on every `make up` / deploy.
+.env.runtime
 services/analysis-worker/.venv
 crawlers/web-crawler/.audit-venv/
 # Phase 122g: backup files written by `aer-audit-source` when an

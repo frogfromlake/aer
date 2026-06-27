@@ -1,0 +1,23 @@
+# prod_config_audit.manifest — expected effective config on a PRODUCTION stack
+# (Phase 155 / ADR-046). `scripts/operations/config_audit.sh` reads this and
+# asserts each `<service> <ENV_VAR> <expected>` against the RUNNING container's
+# `printenv`. It only enforces when the stack is APP_ENV=production, so it is a
+# no-op against a dev stack (where these flags are deliberately relaxed).
+#
+# This is the DETECTION layer behind the 2026-06-27 incident: a hand-built prod
+# .env silently missed REVISION_DIFF_EXTRACTION_ENABLED + TOPIC_EXTRACTION_ENABLED,
+# so compose's `:-false` defaults won, the revision/topic surfaces were empty in
+# a live demo, and nothing logged an error. This check fails `make preflight` on
+# any such drift before it reaches a demo.
+#
+# Format: one `service ENV_VAR expected_value` per line; '#'/blank ignored.
+
+# --- analysis-worker: every extraction loop + Wayback CDX must be ON in prod ---
+analysis-worker CORPUS_EXTRACTION_ENABLED true
+analysis-worker BASELINE_EXTRACTION_ENABLED true
+analysis-worker TOPIC_EXTRACTION_ENABLED true
+analysis-worker WAYBACK_CDX_ENABLED true
+analysis-worker REVISION_DIFF_EXTRACTION_ENABLED true
+
+# --- bff-api: security-critical flags ---
+bff-api BFF_SECURE_COOKIES true

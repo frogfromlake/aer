@@ -66,6 +66,7 @@ from internal.corpus_revision_io import RevisionDiffConfig
 from internal.reattempt import ReAttemptConfig, enrichment_reattempt_loop
 from internal.wayback_reattempt import WaybackReAttemptTask
 from internal.models.probe_scope import ProbeLanguageScope
+from internal.secret_files import load_file_secrets
 from internal.wayback import WaybackSnapshotFetcher
 
 load_dotenv()
@@ -664,6 +665,10 @@ async def main(config: WorkerConfig | None = None):  # pragma: no cover
     # active trace-id and uses the env-appropriate renderer.
     configure_logging()
 
+    # Phase 155 / ADR-046: resolve the <KEY>_FILE convention (Docker secrets on
+    # tmpfs) before validating — a credential supplied as a file overrides the
+    # env/.env value. No-op when no _FILE var is set (backward-compatible).
+    load_file_secrets(REQUIRED_ENV_VARS)
     validate_required_env()
 
     tracer = init_telemetry(config.otel_endpoint, config.otel_sample_rate)

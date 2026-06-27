@@ -14,6 +14,24 @@
 
 set -eu
 
+# Phase 155 / ADR-046: resolve the <VAR>_FILE convention (Docker secrets on
+# tmpfs) for the password secrets before the guards below. No-op when unset
+# (backward-compatible). Usernames/host/db are not secrets and stay env vars.
+resolve_file_secrets() {
+  for _v in "$@"; do
+    eval "_f=\${${_v}_FILE:-}"
+    [ -n "$_f" ] || continue
+    if [ ! -r "$_f" ]; then
+      echo "Fatal: ${_v}_FILE is set ($_f) but unreadable" >&2
+      exit 1
+    fi
+    IFS= read -r _val < "$_f" || true
+    export "${_v}=${_val}"
+  done
+  unset _v _f _val
+}
+resolve_file_secrets PGPASSWORD BFF_DB_PASSWORD BFF_AUTH_DB_PASSWORD
+
 : "${PGHOST:?PGHOST is required}"
 : "${PGUSER:?PGUSER is required}"
 : "${PGPASSWORD:?PGPASSWORD is required}"

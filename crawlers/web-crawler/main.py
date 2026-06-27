@@ -32,6 +32,7 @@ from internal.discovery.sitemap import DiscoveredUrl, discover as discover_sitem
 from internal.fetch.scrapy_spider import build_crawler_process, queue_source_crawl
 from internal.ingestion.client import IngestionClient
 from internal.state.dedup import CrawlerState
+from internal.secret_files import load_file_secrets
 from internal.state.discovery_runs import (
     DiscoveryRunRecord,
     DiscoveryRunsWriter,
@@ -487,6 +488,10 @@ def _discover_for_source(
 def cli(argv: list[str] | None = None) -> int:
     """CLI entrypoint for the web crawler: run one probe's configured sources
     end-to-end against the ingestion API. Returns a process exit code."""
+    # Phase 155 / ADR-046: resolve the <KEY>_FILE convention (Docker secrets on
+    # tmpfs) before the argparse defaults / PG DSN read these env vars. No-op
+    # when no _FILE var is set (backward-compatible).
+    load_file_secrets(["INGESTION_API_KEY", "POSTGRES_PASSWORD"])
     parser = argparse.ArgumentParser(
         prog="aer-web-crawler",
         description="AĒR Phase-122 web crawler — one binary, every news-website probe.",

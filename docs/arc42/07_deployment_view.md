@@ -280,7 +280,7 @@ These ports are not exposed in the default stack. `make debug-up` starts a `soca
 | `9001` | MinIO | Web console (also accessible via Traefik HTTPS) |
 | `9002` | ClickHouse | Native protocol |
 
-Credentials for all services are defined in the `.env` file (see `.env.example` for defaults).
+Non-secret configuration for all services is defined in the `.env` file (see `.env.example` for defaults). **Secrets are not in the production `.env` (Phase 155 / ADR-046):** they are injected at deploy time into a tmpfs as Docker secrets and read via the `<VAR>_FILE` convention — see §8.5.2 and the [Deploy Runbook Part F](../operations/deploy_runbook.md).
 
 ## 7.9 CI/CD Pipeline
 

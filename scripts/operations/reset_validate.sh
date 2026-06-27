@@ -55,6 +55,12 @@ if [[ -f "$ENV_FILE" ]]; then
     unset _line
 fi
 
+# Phase 155 / ADR-046: in production, secrets are staged to a tmpfs dir at deploy
+# time and override any .env value loaded above. No-op when the dir is absent.
+# shellcheck source=scripts/operations/_secret_lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/_secret_lib.sh"
+load_secret_dir
+
 GREEN='\033[38;5;76m'
 RED='\033[38;5;196m'
 GOLD='\033[38;5;214m'

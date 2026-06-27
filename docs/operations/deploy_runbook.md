@@ -18,9 +18,11 @@
   `up -d --wait` (health-gated). One `git tag` ships a release.
 - **Images are private** (`ghcr.io/<owner>/aer-{ingestion-api,bff-api,analysis-worker,dashboard}`);
   the box authenticates pulls with a read-only `read:packages` token.
-- **Secrets** live in a root-owned `chmod 600` `/opt/aer/.env`, escrowed off-box in
-  a password manager. Removing the standing `.env` (deploy-time injection + Docker
-  secrets) is the deliberate end-state tracked in **ROADMAP Phase 155**.
+- **Secrets are off-box (Phase 155 / ADR-046).** They live in **GitHub Actions
+  Environment Secrets**; the deploy job injects them into the box's tmpfs
+  (`/run/aer-secrets`, RAM-only) as Docker secrets at deploy time — never written
+  to the persistent disk. The box `.env` holds only **non-secret** config. See
+  **Part F** for the one-time setup, the deploy flow, and reboot recovery.
 - Single box, prod overlay (`compose.prod.yaml`), Traefik TLS, the dashboard is
   profile-gated (`--profile dashboard`).
 
@@ -61,11 +63,17 @@ systemctl enable --now docker
 git clone https://github.com/<owner>/aer.git /opt/aer
 cd /opt/aer
 cp .env.example .env
-chmod 600 .env            # root-owned, 0600 — the only standing secret file
+chmod 600 .env            # root-owned, 0600 — non-secret config (see below)
 ```
 
-Fill in **`.env`** with real values (every `REPLACE-ME` placeholder). The
-load-bearing production keys (see `.env.example` for the full annotated list):
+> **Phase 155 / ADR-046 — secrets are NOT in `.env`.** The box `.env` holds only
+> **non-secret** config (hosts, `APP_ENV`, `COMPOSE_FILE`, `IMAGE_TAG`, ACME email,
+> feature flags). Every credential is a **GitHub Actions Environment Secret**,
+> injected to the box's tmpfs at deploy. Do **Part F** (one-time) before the first
+> tag, and leave the `REPLACE-ME` secret lines out of the box `.env`.
+
+Fill in **`.env`** with real **non-secret** values (every non-secret `REPLACE-ME`).
+The load-bearing production keys (see `.env.example` for the full annotated list):
 
 - `APP_ENV=production`
 - `COMPOSE_FILE=compose.yaml:compose.prod.yaml` — activates the prod overlay
@@ -331,6 +339,83 @@ but knowing them helps when a fresh box or fork misbehaves.
 - **Secrets off-box (Phase 155)** — the standing `.env` is the interim posture; the
   deploy-time-injection + Docker-secrets rearchitecture is tracked in ROADMAP
   Phase 155.
+
+---
+
+## Part F — Secrets off-box (Phase 155 / ADR-046)
+
+Secrets are **not** stored on the box. They live in **GitHub Actions Environment
+Secrets**; the deploy job streams them over SSH into the box's tmpfs
+(`/run/aer-secrets`, RAM-only) as Docker secrets, mounted at `/run/secrets/*` and
+read via the `<VAR>_FILE` convention. Nothing plaintext touches the persistent
+disk (`docker inspect` shows only `*_FILE` paths). `infra/secrets/secrets.manifest`
+is the canonical secret list.
+
+### F.1 One-time setup (before the first Phase-155 deploy)
+
+1. **Create a GitHub `production` Environment** (repo → Settings → Environments)
+   and add **one Environment Secret per name** in `infra/secrets/secrets.manifest`
+   (all except the `(derived)` `DB_URL`). The required set:
+   `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
+   `INGESTION_MINIO_ACCESS_KEY`/`INGESTION_MINIO_SECRET_KEY`,
+   `WORKER_MINIO_ACCESS_KEY`/`WORKER_MINIO_SECRET_KEY`,
+   `BFF_MINIO_ACCESS_KEY`/`BFF_MINIO_SECRET_KEY`,
+   `POSTGRES_PASSWORD`, `BFF_DB_PASSWORD`, `BFF_AUTH_DB_PASSWORD`,
+   `CLICKHOUSE_PASSWORD`, `INGESTION_API_KEY`, `BFF_API_KEY`,
+   `GF_SECURITY_ADMIN_PASSWORD`, `RESTIC_PASSWORD`. Optional (leave unset if
+   unused): `SMTP_PASSWORD`, `GF_SMTP_PASSWORD`. Use the **same values** currently
+   in the box `.env`.
+2. **Set the repo variable `STAGE_SECRETS=true`** (repo → Settings → Variables).
+   The deploy job's staging step is a no-op until this is set, so the change is
+   safe to merge ahead of time. (Optionally set repo *variables* `POSTGRES_USER`
+   / `POSTGRES_DB` if they differ from `aer_admin` / `aer_metadata`.)
+3. **Remove the secret lines from the box `/opt/aer/.env`.** Keep the non-secret
+   config (`APP_ENV`, `COMPOSE_FILE`, `IMAGE_TAG`, `GHCR_OWNER`, the `*_HOST`s,
+   ACME email, feature flags). Keep the file root-owned `chmod 600`.
+4. Keep **`RESTIC_PASSWORD`** escrowed off-box in a password manager — losing it
+   makes the encrypted backups unrecoverable, by design.
+5. **Disable unattended reboots** on the box (e.g. `sudo systemctl disable --now
+   unattended-upgrades` or set `Unattended-Upgrade::Automatic-Reboot "false";`) so
+   a reboot only happens when you trigger it — see F.4.
+
+### F.2 Deploying (unchanged for you)
+
+Cut a tag exactly as before — `git tag vX.Y.Z && git push origin vX.Y.Z`. The CD
+job now does **checkout → stage secrets to tmpfs → `deploy_pull.sh`** in one run:
+it stages the GitHub secrets onto the box *before* `compose up`, regenerates the
+non-secret `.env.runtime` (D9), brings the stack up health-gated, then runs the
+**config-audit drift gate** (a drift fails the deploy). No secret ever lands on
+the disk or in a log.
+
+### F.3 Verifying
+
+```bash
+ssh root@<box> 'ls -l /run/aer-secrets | head'          # 0444 files, RAM-backed
+ssh root@<box> 'cd /opt/aer && make config-audit'        # no drift on the live box
+# Fortress check — only *_FILE paths, never a value:
+ssh root@<box> 'docker inspect aer_postgres --format "{{range .Config.Env}}{{println .}}{{end}}" | grep -i password'
+```
+
+After the first Phase-155 deploy, **re-run the tested-restore drill** (Part A.8 /
+backup_restore.md) once — backup/restore now read their credentials from tmpfs.
+
+### F.4 Reboot recovery
+
+A reboot clears the tmpfs, so the stack stays down until you **re-stage** — this
+is the deliberate "no standing secrets" fortress trade-off. To recover, **re-run
+the deploy** (re-run the last `release-images.yml` run, or push the current tag),
+which re-stages the secrets and brings the stack back up. Because unattended
+reboots are disabled (F.1.5), a reboot is operator-initiated, so re-staging is
+expected. For the blind spot where the box reboots unattended *and* Grafana (which
+itself needs a secret) cannot deliver the in-stack `TargetDown` alert, add an
+**external** uptime monitor against `https://<your-apex>/api/v1/healthz`.
+
+### F.5 Local development
+
+`make up` auto-stages: `stage_secrets_local.sh` writes your local `.env` secrets to
+`./.aer-secrets` (gitignored) and `gen_runtime_env.sh` writes `.env.runtime`, so
+the local compose uses the identical Docker-secrets + env_file wiring as prod. No
+manual step.
 
 ---
 

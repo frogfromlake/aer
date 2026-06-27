@@ -1,6 +1,29 @@
 #!/bin/sh
 set -e
 
+# Phase 155 / ADR-046: resolve the <VAR>_FILE convention (Docker secrets on
+# tmpfs). For each name, if <name>_FILE points at a readable file, export the
+# var from the file's first line. No-op when unset (backward-compatible with the
+# plain env vars). Uses POSIX `read`, not `cat` — the minio/mc image is minimal.
+resolve_file_secrets() {
+  for _v in "$@"; do
+    eval "_f=\${${_v}_FILE:-}"
+    [ -n "$_f" ] || continue
+    if [ ! -r "$_f" ]; then
+      echo "Fatal: ${_v}_FILE is set ($_f) but unreadable" >&2
+      exit 1
+    fi
+    IFS= read -r _val < "$_f" || true
+    export "${_v}=${_val}"
+  done
+  unset _v _f _val
+}
+resolve_file_secrets \
+  MINIO_ROOT_USER MINIO_ROOT_PASSWORD \
+  INGESTION_MINIO_ACCESS_KEY INGESTION_MINIO_SECRET_KEY \
+  WORKER_MINIO_ACCESS_KEY WORKER_MINIO_SECRET_KEY \
+  BFF_MINIO_ACCESS_KEY BFF_MINIO_SECRET_KEY
+
 # Wait for MinIO to be ready
 echo "Waiting for MinIO at ${MINIO_ENDPOINT}..."
 # The 'mc alias set' command returns a non-zero exit code if the server is unreachable

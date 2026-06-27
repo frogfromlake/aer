@@ -188,6 +188,12 @@ flowchart TB
 *(Backend services publish no host ports by default — `make debug-up` opens them
 for local debugging. The canonical deployment view is [Arc42 §7](docs/arc42/07_deployment_view.md).)*
 
+*Secrets are **off-box** ([ADR-046](docs/arc42/09_architecture_decisions.md)): the
+production box stores no plaintext credentials. They live in GitHub Actions
+Environment Secrets and are injected at deploy time into a tmpfs (`/run/secrets/*`),
+read via the `<VAR>_FILE` convention — never written to the persistent disk. See
+[deploy_runbook Part F](docs/operations/deploy_runbook.md).*
+
 ### Authentication flow
 
 The whole app is **invite-only** and session-gated ([ADR-040](docs/arc42/09_architecture_decisions.md)) —

@@ -24,6 +24,12 @@ else
   echo "IMAGE_TAG=${TAG}" >> .env
 fi
 
+# Phase 155 / D9 — regenerate the non-secret .env.runtime (mounted via env_file:)
+# from the box .env, so a new non-secret config var is forwarded by construction.
+# Secrets are NOT here (they are staged to tmpfs and read via _FILE).
+echo "==> Generating .env.runtime (non-secret config for env_file)"
+bash scripts/operations/gen_runtime_env.sh
+
 echo "==> Pulling pre-built images for ${TAG}"
 docker compose --profile dashboard pull
 
@@ -54,5 +60,13 @@ fi
 echo "$NEW_SHA" > "$STATE_FILE"
 
 docker compose --profile dashboard ps
+
+# Phase 155 / ADR-046 — config drift gate. Audit the freshly-deployed stack's
+# effective per-service env against the checked-in prod manifest. A non-zero exit
+# (drift) fails this script → fails the deploy → surfaces immediately, instead of
+# shipping a box where e.g. REVISION_DIFF_EXTRACTION_ENABLED silently reverted to
+# false (the 2026-06-27 incident).
+echo "==> Auditing effective config against the prod manifest (drift gate)"
+bash scripts/operations/config_audit.sh
 
 echo "==> Deploy of ${TAG} complete — all services healthy."

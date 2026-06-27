@@ -4,6 +4,24 @@
 
 set -e
 
+# Phase 155 / ADR-046: resolve the <VAR>_FILE convention (Docker secrets on
+# tmpfs). If CLICKHOUSE_PASSWORD_FILE points at a readable file, export the
+# password from it. No-op when unset (backward-compatible with the env var).
+resolve_file_secrets() {
+  for _v in "$@"; do
+    eval "_f=\${${_v}_FILE:-}"
+    [ -n "$_f" ] || continue
+    if [ ! -r "$_f" ]; then
+      echo "Fatal: ${_v}_FILE is set ($_f) but unreadable" >&2
+      exit 1
+    fi
+    IFS= read -r _val < "$_f" || true
+    export "${_v}=${_val}"
+  done
+  unset _v _f _val
+}
+resolve_file_secrets CLICKHOUSE_PASSWORD
+
 CLICKHOUSE_HOST="${CLICKHOUSE_HOST:-clickhouse}"
 CLICKHOUSE_PORT="${CLICKHOUSE_PORT:-9000}"
 CLICKHOUSE_USER="${CLICKHOUSE_USER:-default}"

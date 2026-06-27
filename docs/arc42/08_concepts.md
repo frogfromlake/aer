@@ -192,7 +192,9 @@ GitHub Actions Secrets carry only values that are actually secrets. Non-secret d
 - `POSTGRES_DB` / `CLICKHOUSE_USER` / `CLICKHOUSE_DB` / `GF_SECURITY_ADMIN_USER` → `.env.example` defaults; not overridden in CI.
 - `DB_URL` is **synthesised** in the workflow from `POSTGRES_USER` + `POSTGRES_PASSWORD`, identical in shape to the boot-time validation in `services/ingestion-api`. It is *not* a separate secret.
 
-Adding a new boot-validated credential is a three-step change: (a) add it to `.env.example` with a `REPLACE-ME` placeholder, (b) add the boot-time check in the consuming service, (c) splice it into the nightly E2E workflow's `.env` setup step. Anything that is *not* secret material — role names, hostnames — must remain in workflow `env:` blocks, never as Secrets.
+Adding a new boot-validated credential is a four-step change: (a) add it to `.env.example` with a `REPLACE-ME` placeholder, (b) add the boot-time check in the consuming service, (c) splice it into the nightly E2E workflow's `.env` setup step, **(d) add it to `infra/secrets/secrets.manifest` and the deploy job's `emit` list, teach the consumer the `<VAR>_FILE` convention, and add a `secrets:` entry to its service in `compose.yaml`** (Phase 155 / ADR-046). Anything that is *not* secret material — role names, hostnames — must remain in workflow `env:` blocks / `.env.runtime`, never as Secrets.
+
+**Runtime delivery (Phase 155 / ADR-046).** At *runtime* the same secrets are delivered to the box as **Docker secrets on tmpfs**, not env vars: the CD job stages them from the GitHub Environment Secrets into `/run/aer-secrets` (RAM-only), Compose mounts them at `/run/secrets/<NAME>`, and each consumer reads `<VAR>_FILE` (Go `pkg/secretfile`, the worker/crawler `secret_files`, the shell init resolvers) or the third-party image's native `*_FILE`/`*__FILE`. `DB_URL` is synthesised on the box (percent-encoded) — still not a stored secret. The 1:1 manifest (`infra/secrets/secrets.manifest`) is the SoT shared by the GitHub secrets, the staging script, and the compose `secrets:` block. No plaintext secret survives on the box's persistent disk (it is never written to `config.v2.json`).
 
 ## 8.6 Observability
 
@@ -378,7 +380,9 @@ The central `Makefile` is the single interface for all developer operations. It 
 
 ### 8.9.3 Configuration Management
 
-All runtime configuration flows through environment variables, sourced from a single `.env` file (copied from `.env.example`). Go services load it via `viper` with `AutomaticEnv()` and `.env` file fallback. Python services use `python-dotenv` and `os.getenv()` with sensible defaults. Docker Compose interpolates the same `.env` file for container environment variables. This guarantees a single source of truth for all configuration across all runtimes.
+All **non-secret** runtime configuration flows through environment variables, sourced from a single `.env` file (copied from `.env.example`). Go services load it via `viper` with `AutomaticEnv()` and `.env` file fallback. Python services use `python-dotenv` and `os.getenv()` with sensible defaults. Docker Compose interpolates the same `.env` file for container environment variables. This guarantees a single source of truth for all configuration across all runtimes.
+
+**Secrets are delivered separately (Phase 155 / ADR-046).** In production, credentials are not in the box `.env` — they are injected at deploy time into a tmpfs as Docker secrets and read via the `<VAR>_FILE` convention (see §8.5.2). Non-secret config the application services consume is also forwarded via a generated `.env.runtime` mounted with `env_file:` (the `gen_runtime_env.sh` output), so a new non-secret var is forwarded by construction. Locally the single `.env` still carries both — `make up` auto-stages the secrets to `./.aer-secrets` so the wiring matches production.
 
 ## 8.10 Extractor Registration Pattern
 

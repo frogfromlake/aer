@@ -36,6 +36,12 @@ load_env() {
 }
 load_env "$(cd "$(dirname "$0")/../.." && pwd)/.env"
 
+# Phase 155 / ADR-046: in production, secrets are staged to a tmpfs dir at deploy
+# time and override any .env value loaded above. No-op when the dir is absent.
+# shellcheck source=scripts/operations/_secret_lib.sh
+. "$(dirname "$0")/_secret_lib.sh"
+load_secret_dir
+
 : "${CLICKHOUSE_USER:?}"
 : "${CLICKHOUSE_PASSWORD:?}"
 : "${CLICKHOUSE_DB:?}"

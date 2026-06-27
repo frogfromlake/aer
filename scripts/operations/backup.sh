@@ -57,6 +57,13 @@ load_env() {
 }
 load_env "$(cd "$(dirname "$0")/../.." && pwd)/.env"
 
+# Phase 155 / ADR-046: in production, secrets are staged to a tmpfs dir at deploy
+# time and override any .env value loaded above. No-op when the dir is absent
+# (local dev / pre-migration box).
+# shellcheck source=scripts/operations/_secret_lib.sh
+. "$(dirname "$0")/_secret_lib.sh"
+load_secret_dir
+
 # --- required configuration (fail fast, never silently skip a store) ---------
 : "${RESTIC_REPOSITORY:?set RESTIC_REPOSITORY, e.g. sftp:u123456@u123456.your-storagebox.de:/home/aer-backups (path MUST be under /home — a Storage Box only allows writes there; an absolute /aer-backups fails restic init with SSH_FX_FAILURE)}"
 : "${RESTIC_PASSWORD:?set RESTIC_PASSWORD (client-side encryption key — ESCROW OFF-BOX; losing it = unrecoverable backups)}"

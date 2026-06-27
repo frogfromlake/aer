@@ -23,6 +23,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/spf13/viper"
 
+	"github.com/frogfromlake/aer/pkg/secretfile"
 	"github.com/frogfromlake/aer/services/bff-api/internal/auth"
 	"github.com/frogfromlake/aer/services/bff-api/internal/storage"
 )
@@ -44,6 +45,12 @@ func run() error {
 	v.SetDefault("POSTGRES_PORT", "5432")
 	v.SetDefault("POSTGRES_DB", "aer_metadata")
 	v.SetDefault("BFF_INVITE_TTL_SECONDS", 259200)
+
+	// Phase 155 / ADR-046: resolve the BFF_AUTH_DB_PASSWORD_FILE convention
+	// (Docker secrets on tmpfs) before reading it; no-op when unset.
+	if err := secretfile.Apply(v, "BFF_AUTH_DB_PASSWORD"); err != nil {
+		return err
+	}
 
 	email := v.GetString("ADMIN_BOOTSTRAP_EMAIL")
 	authUser := v.GetString("BFF_AUTH_DB_USER")

@@ -141,8 +141,11 @@ services:
     container_name: aer_minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Phase 155 / ADR-046: root creds via MinIO's native *_FILE support
+      # (Docker secrets on tmpfs); the plain env MUST be absent or MinIO would
+      # prefer it over the file.
+      MINIO_ROOT_USER_FILE: /run/secrets/MINIO_ROOT_USER
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/MINIO_ROOT_PASSWORD
       MINIO_NOTIFY_NATS_ENABLE_aer: "on"
       MINIO_NOTIFY_NATS_ADDRESS_aer: "nats:4222"
       MINIO_NOTIFY_NATS_SUBJECT_aer: "aer.lake.bronze"
@@ -152,6 +155,9 @@ services:
       # internal, zero-trust aer-backend network (never published to the host),
       # mirroring the unauthenticated /metrics endpoints on the Go services.
       MINIO_PROMETHEUS_AUTH_TYPE: "public"
+    secrets:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -188,14 +194,25 @@ services:
         condition: service_healthy
     environment:
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-      - INGESTION_MINIO_ACCESS_KEY=${INGESTION_MINIO_ACCESS_KEY}
-      - INGESTION_MINIO_SECRET_KEY=${INGESTION_MINIO_SECRET_KEY}
-      - WORKER_MINIO_ACCESS_KEY=${WORKER_MINIO_ACCESS_KEY}
-      - WORKER_MINIO_SECRET_KEY=${WORKER_MINIO_SECRET_KEY}
-      - BFF_MINIO_ACCESS_KEY=${BFF_MINIO_ACCESS_KEY}
-      - BFF_MINIO_SECRET_KEY=${BFF_MINIO_SECRET_KEY}
+      # Phase 155 / ADR-046: Docker secrets on tmpfs, resolved by setup.sh's
+      # _FILE resolver.
+      - MINIO_ROOT_USER_FILE=/run/secrets/MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/MINIO_ROOT_PASSWORD
+      - INGESTION_MINIO_ACCESS_KEY_FILE=/run/secrets/INGESTION_MINIO_ACCESS_KEY
+      - INGESTION_MINIO_SECRET_KEY_FILE=/run/secrets/INGESTION_MINIO_SECRET_KEY
+      - WORKER_MINIO_ACCESS_KEY_FILE=/run/secrets/WORKER_MINIO_ACCESS_KEY
+      - WORKER_MINIO_SECRET_KEY_FILE=/run/secrets/WORKER_MINIO_SECRET_KEY
+      - BFF_MINIO_ACCESS_KEY_FILE=/run/secrets/BFF_MINIO_ACCESS_KEY
+      - BFF_MINIO_SECRET_KEY_FILE=/run/secrets/BFF_MINIO_SECRET_KEY
+    secrets:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+      - INGESTION_MINIO_ACCESS_KEY
+      - INGESTION_MINIO_SECRET_KEY
+      - WORKER_MINIO_ACCESS_KEY
+      - WORKER_MINIO_SECRET_KEY
+      - BFF_MINIO_ACCESS_KEY
+      - BFF_MINIO_SECRET_KEY
     volumes:
       - ./infra/minio/setup.sh:/setup.sh
     entrypoint: /bin/sh /setup.sh
@@ -253,7 +270,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Phase 155 / ADR-046: superuser password via postgres' native *_FILE
+      # (Docker secret on tmpfs).
+      POSTGRES_PASSWORD_FILE: /run/secrets/POSTGRES_PASSWORD
       POSTGRES_DB: ${POSTGRES_DB}
       # postgres:18 moved its default data dir to a major-version-specific path
       # (/var/lib/postgresql/18/docker) and HARD-REFUSES to start when a volume
@@ -262,6 +281,8 @@ services:
       # Pinning PGDATA back to the mounted path keeps the established layout, so
       # a FRESH volume initialises cleanly and existing volumes keep working.
       PGDATA: /var/lib/postgresql/data
+    secrets:
+      - POSTGRES_PASSWORD
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -296,12 +317,17 @@ services:
     environment:
       - PGHOST=postgres
       - PGUSER=${POSTGRES_USER}
-      - PGPASSWORD=${POSTGRES_PASSWORD}
+      # Phase 155 / ADR-046: Docker secrets on tmpfs, resolved by init-roles.sh.
+      - PGPASSWORD_FILE=/run/secrets/POSTGRES_PASSWORD
       - PGDATABASE=${POSTGRES_DB}
       - BFF_DB_USER=${BFF_DB_USER}
-      - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
+      - BFF_DB_PASSWORD_FILE=/run/secrets/BFF_DB_PASSWORD
       - BFF_AUTH_DB_USER=${BFF_AUTH_DB_USER}
-      - BFF_AUTH_DB_PASSWORD=${BFF_AUTH_DB_PASSWORD}
+      - BFF_AUTH_DB_PASSWORD_FILE=/run/secrets/BFF_AUTH_DB_PASSWORD
+    secrets:
+      - POSTGRES_PASSWORD
+      - BFF_DB_PASSWORD
+      - BFF_AUTH_DB_PASSWORD
     volumes:
       - ./infra/postgres/init-roles.sh:/init-roles.sh:ro
     entrypoint: /bin/sh /init-roles.sh
@@ -318,9 +344,13 @@ services:
     restart: unless-stopped
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      # Phase 155 / ADR-046: password via clickhouse-server's native *_FILE
+      # (Docker secret on tmpfs).
+      CLICKHOUSE_PASSWORD_FILE: /run/secrets/CLICKHOUSE_PASSWORD
       CLICKHOUSE_DB: ${CLICKHOUSE_DB}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    secrets:
+      - CLICKHOUSE_PASSWORD
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       # Phase 154 — enable the built-in Prometheus endpoint (port 9363,
@@ -363,7 +393,10 @@ services:
     environment:
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      # Phase 155 / ADR-046: Docker secret on tmpfs, resolved by migrate.sh.
+      - CLICKHOUSE_PASSWORD_FILE=/run/secrets/CLICKHOUSE_PASSWORD
+    secrets:
+      - CLICKHOUSE_PASSWORD
     networks:
       - aer-backend
 
@@ -376,6 +409,11 @@ services:
       context: .
       dockerfile: services/ingestion-api/Dockerfile
     container_name: aer_ingestion_api
+    # Phase 155 / D9: non-secret runtime config (generated by gen_runtime_env.sh).
+    # env_file is the base layer; the `environment:` below overrides/adds literals.
+    # A new non-secret var lands in .env.runtime and is forwarded by construction.
+    env_file:
+      - .env.runtime
     restart: unless-stopped
     # Graceful shutdown grace must exceed INGESTION_SHUTDOWN_TIMEOUT_SECONDS (65s)
     # + WriteTimeout (60s); Docker's default 10s would SIGKILL mid-drain.
@@ -384,16 +422,23 @@ services:
       - APP_ENV=${APP_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
       - INGESTION_PORT=8081
-      - DB_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      # Phase 155 / ADR-046: Docker secrets on tmpfs (DB_URL synthesised at stage
+      # time from POSTGRES_PASSWORD), resolved by the service's _FILE loader.
+      - DB_URL_FILE=/run/secrets/DB_URL
       - MINIO_ENDPOINT=minio:9000
-      - INGESTION_MINIO_ACCESS_KEY=${INGESTION_MINIO_ACCESS_KEY}
-      - INGESTION_MINIO_SECRET_KEY=${INGESTION_MINIO_SECRET_KEY}
+      - INGESTION_MINIO_ACCESS_KEY_FILE=/run/secrets/INGESTION_MINIO_ACCESS_KEY
+      - INGESTION_MINIO_SECRET_KEY_FILE=/run/secrets/INGESTION_MINIO_SECRET_KEY
       - MINIO_USE_SSL=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
       - MIGRATIONS_PATH=/migrations
-      - INGESTION_API_KEY=${INGESTION_API_KEY}
+      - INGESTION_API_KEY_FILE=/run/secrets/INGESTION_API_KEY
       - INGESTION_BRONZE_BUCKET=${INGESTION_BRONZE_BUCKET:-bronze}
+    secrets:
+      - DB_URL
+      - INGESTION_MINIO_ACCESS_KEY
+      - INGESTION_MINIO_SECRET_KEY
+      - INGESTION_API_KEY
     networks:
       - aer-backend
     depends_on:
@@ -489,7 +534,10 @@ services:
     environment:
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      # Phase 155 / ADR-046: Docker secret on tmpfs, resolved by the script.
+      - CLICKHOUSE_PASSWORD_FILE=/run/secrets/CLICKHOUSE_PASSWORD
+    secrets:
+      - CLICKHOUSE_PASSWORD
     networks:
       - aer-backend
 
@@ -510,6 +558,9 @@ services:
         # the build — so this never weakens the supply-chain guarantee.
         SENTIWS_URL: ${SENTIWS_URL:-https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip}
     container_name: aer_analysis_worker
+    # Phase 155 / D9: non-secret runtime config base layer (see gen_runtime_env.sh).
+    env_file:
+      - .env.runtime
     restart: unless-stopped
     # Graceful shutdown: the worker drains for up to WORKER_SHUTDOWN_TIMEOUT_SECONDS
     # (65s) on SIGTERM, closing ClickHouse + Postgres pools. Docker's DEFAULT grace
@@ -542,12 +593,14 @@ services:
       - OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
       - MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
       - MINIO_ENDPOINT=minio:9000
-      - WORKER_MINIO_ACCESS_KEY=${WORKER_MINIO_ACCESS_KEY}
-      - WORKER_MINIO_SECRET_KEY=${WORKER_MINIO_SECRET_KEY}
+      # Phase 155 / ADR-046: Docker secrets on tmpfs, resolved by the worker's
+      # _FILE loader (internal/secret_files).
+      - WORKER_MINIO_ACCESS_KEY_FILE=/run/secrets/WORKER_MINIO_ACCESS_KEY
+      - WORKER_MINIO_SECRET_KEY_FILE=/run/secrets/WORKER_MINIO_SECRET_KEY
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_PASSWORD_FILE=/run/secrets/CLICKHOUSE_PASSWORD
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
       # Storage timeouts named as security defaults in CLAUDE.md. Without
       # these, the worker silently falls back to code defaults — patches
@@ -557,7 +610,7 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/POSTGRES_PASSWORD
       - POSTGRES_DB=${POSTGRES_DB}
       - WORKER_BRONZE_BUCKET=${WORKER_BRONZE_BUCKET:-bronze}
       - WORKER_SILVER_BUCKET=${WORKER_SILVER_BUCKET:-silver}
@@ -629,6 +682,11 @@ services:
       # layer (~10 s recompile cost on container recreation, not worth
       # a named volume).
       - NUMBA_CACHE_DIR=/hf-cache/numba
+    secrets:
+      - WORKER_MINIO_ACCESS_KEY
+      - WORKER_MINIO_SECRET_KEY
+      - CLICKHOUSE_PASSWORD
+      - POSTGRES_PASSWORD
     volumes:
       - wikidata_data:/data/wikidata:ro
     networks:
@@ -696,18 +754,26 @@ services:
       dockerfile: crawlers/web-crawler/Dockerfile
     image: aer-web-crawler:local
     container_name: aer_web_crawler
+    # Phase 155 / D9: non-secret runtime config base layer (see gen_runtime_env.sh).
+    env_file:
+      - .env.runtime
     profiles: ["crawlers"]
     restart: "no"
     environment:
       - INGESTION_URL=http://ingestion-api:8081/api/v1/ingest
       - SOURCES_URL=http://ingestion-api:8081/api/v1/sources
-      - INGESTION_API_KEY=${INGESTION_API_KEY}
+      # Phase 155 / ADR-046: Docker secrets on tmpfs, resolved by the crawler's
+      # _FILE loader (internal/secret_files).
+      - INGESTION_API_KEY_FILE=/run/secrets/INGESTION_API_KEY
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/POSTGRES_PASSWORD
       - POSTGRES_DB=${POSTGRES_DB}
       - WEB_CRAWLER_USER_AGENT=${WEB_CRAWLER_USER_AGENT:-AerWebCrawler/0.1 (+https://aer.example/about; mailto:contact@example)}
+    secrets:
+      - INGESTION_API_KEY
+      - POSTGRES_PASSWORD
     networks:
       - aer-backend
     depends_on:
@@ -730,6 +796,9 @@ services:
       context: .
       dockerfile: services/bff-api/Dockerfile
     container_name: aer_bff_api
+    # Phase 155 / D9: non-secret runtime config base layer (see gen_runtime_env.sh).
+    env_file:
+      - .env.runtime
     restart: unless-stopped
     # Graceful shutdown grace must exceed BFF_SHUTDOWN_TIMEOUT_SECONDS (65s) +
     # WriteTimeout (60s); Docker's default 10s would SIGKILL mid-drain.
@@ -749,9 +818,11 @@ services:
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=9000
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      # Phase 155 / ADR-046: Docker secrets on tmpfs, resolved by the BFF's
+      # _FILE loader (pkg/secretfile).
+      - CLICKHOUSE_PASSWORD_FILE=/run/secrets/CLICKHOUSE_PASSWORD
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
-      - BFF_API_KEY=${BFF_API_KEY}
+      - BFF_API_KEY_FILE=/run/secrets/BFF_API_KEY
       - BFF_METRICS_CACHE_TTL_SECONDS=${BFF_METRICS_CACHE_TTL_SECONDS:-60}
       # BFF reads source metadata directly from the Postgres `sources`
       # table via a dedicated read-only role (Phase 87). The role is
@@ -760,12 +831,12 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB}
       - BFF_DB_USER=${BFF_DB_USER}
-      - BFF_DB_PASSWORD=${BFF_DB_PASSWORD}
+      - BFF_DB_PASSWORD_FILE=/run/secrets/BFF_DB_PASSWORD
       - BFF_SOURCES_CACHE_TTL_SECONDS=${BFF_SOURCES_CACHE_TTL_SECONDS:-60}
       # Access control (Phase 134 / ADR-040). Auth write role (required) + the
       # session / argon2 / WebAuthn tuning. BFF_AUTH_DB_* are boot-validated.
       - BFF_AUTH_DB_USER=${BFF_AUTH_DB_USER}
-      - BFF_AUTH_DB_PASSWORD=${BFF_AUTH_DB_PASSWORD}
+      - BFF_AUTH_DB_PASSWORD_FILE=/run/secrets/BFF_AUTH_DB_PASSWORD
       - BFF_SECURE_COOKIES=${BFF_SECURE_COOKIES:-true}
       - BFF_SESSION_IDLE_SECONDS=${BFF_SESSION_IDLE_SECONDS:-28800}
       - BFF_SESSION_ABSOLUTE_SECONDS=${BFF_SESSION_ABSOLUTE_SECONDS:-604800}
@@ -781,8 +852,8 @@ services:
       # MinIO read-only access for L5 Evidence article-detail (Phase 101).
       - MINIO_ENDPOINT=minio:9000
       - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
-      - BFF_MINIO_ACCESS_KEY=${BFF_MINIO_ACCESS_KEY}
-      - BFF_MINIO_SECRET_KEY=${BFF_MINIO_SECRET_KEY}
+      - BFF_MINIO_ACCESS_KEY_FILE=/run/secrets/BFF_MINIO_ACCESS_KEY
+      - BFF_MINIO_SECRET_KEY_FILE=/run/secrets/BFF_MINIO_SECRET_KEY
       - BFF_K_ANONYMITY_THRESHOLD=${BFF_K_ANONYMITY_THRESHOLD:-10}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
       - OTEL_TRACE_SAMPLE_RATE=${OTEL_TRACE_SAMPLE_RATE:-1.0}  # Production recommendation: 0.1
@@ -806,13 +877,23 @@ services:
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      # Phase 155 / ADR-046: Docker secret on tmpfs (optional — empty file when
+      # email is not configured; the BFF then falls back to the LogSender).
+      - SMTP_PASSWORD_FILE=/run/secrets/SMTP_PASSWORD
       - SMTP_FROM_ADDRESS=${SMTP_FROM_ADDRESS:-}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-AĒR}
       # SEC-033 — first-admin seeding runs INSIDE this container on a prod box
       # (`docker compose exec bff-api /app/bootstrap-admin`); carry the target
       # email here so the baked-in tool reads it without a host .env.
       - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL:-}
+    secrets:
+      - CLICKHOUSE_PASSWORD
+      - BFF_API_KEY
+      - BFF_DB_PASSWORD
+      - BFF_AUTH_DB_PASSWORD
+      - BFF_MINIO_ACCESS_KEY
+      - BFF_MINIO_SECRET_KEY
+      - SMTP_PASSWORD
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bff-api.rule=PathPrefix(`/api`)"
@@ -974,7 +1055,9 @@ services:
     restart: unless-stopped
     environment:
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      # Phase 155 / ADR-046: admin password via Grafana's native __FILE provider
+      # (double underscore), Docker secret on tmpfs.
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/GF_SECURITY_ADMIN_PASSWORD
       # SEC-037 — alert DELIVERY. Grafana unified alerting is the SoT for who gets
       # alerted (D4: no extra Alertmanager container). The provisioned email
       # contact point sends via Grafana's own SMTP, pointed at the same Brevo relay
@@ -984,12 +1067,16 @@ services:
       - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
       - GF_SMTP_HOST=${GF_SMTP_HOST:-smtp-relay.brevo.com:587}
       - GF_SMTP_USER=${GF_SMTP_USER:-}
-      - GF_SMTP_PASSWORD=${GF_SMTP_PASSWORD:-}
+      # Phase 155 / ADR-046: optional — empty secret file when alert email is off.
+      - GF_SMTP_PASSWORD__FILE=/run/secrets/GF_SMTP_PASSWORD
       - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-}
       - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-AĒR Alerts}
       - GF_SMTP_STARTTLS_POLICY=${GF_SMTP_STARTTLS_POLICY:-MandatoryStartTLS}
       - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
       - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://localhost:3000}
+    secrets:
+      - GF_SECURITY_ADMIN_PASSWORD
+      - GF_SMTP_PASSWORD
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOST}`)"
@@ -1122,6 +1209,52 @@ services:
     image: mcr.microsoft.com/playwright:v1.59.1-noble
     profiles: ["test"]
     command: ["true"]
+
+# Phase 155 / ADR-046 — Docker secrets sourced from a host directory. In
+# production that directory is /run/aer-secrets (a tmpfs: RAM-only, gone on
+# reboot, never on the persistent disk); the CD job stages it from GitHub
+# Environment Secrets before `compose up` (scripts/operations/stage_secrets.sh).
+# Locally, `make up` stages ./.aer-secrets from .env (stage_secrets_local.sh) and
+# sets AER_SECRETS_DIR. Naming is 1:1: secret <NAME> → file <DIR>/<NAME> →
+# container /run/secrets/<NAME> → consumer reads <NAME>_FILE (or its native
+# *_FILE / Grafana __FILE). SoT for the full list: infra/secrets/secrets.manifest.
+secrets:
+  MINIO_ROOT_USER:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/MINIO_ROOT_USER
+  MINIO_ROOT_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/MINIO_ROOT_PASSWORD
+  INGESTION_MINIO_ACCESS_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/INGESTION_MINIO_ACCESS_KEY
+  INGESTION_MINIO_SECRET_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/INGESTION_MINIO_SECRET_KEY
+  WORKER_MINIO_ACCESS_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/WORKER_MINIO_ACCESS_KEY
+  WORKER_MINIO_SECRET_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/WORKER_MINIO_SECRET_KEY
+  BFF_MINIO_ACCESS_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/BFF_MINIO_ACCESS_KEY
+  BFF_MINIO_SECRET_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/BFF_MINIO_SECRET_KEY
+  POSTGRES_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/POSTGRES_PASSWORD
+  BFF_DB_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/BFF_DB_PASSWORD
+  BFF_AUTH_DB_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/BFF_AUTH_DB_PASSWORD
+  DB_URL:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/DB_URL
+  CLICKHOUSE_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/CLICKHOUSE_PASSWORD
+  INGESTION_API_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/INGESTION_API_KEY
+  BFF_API_KEY:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/BFF_API_KEY
+  GF_SECURITY_ADMIN_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/GF_SECURITY_ADMIN_PASSWORD
+  GF_SMTP_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/GF_SMTP_PASSWORD
+  SMTP_PASSWORD:
+    file: ${AER_SECRETS_DIR:-/run/aer-secrets}/SMTP_PASSWORD
 
 volumes:
   minio_data:

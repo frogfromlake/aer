@@ -57,7 +57,7 @@ make up
 make debug-up
 ```
 
-All credentials are defined in `.env` (copy from `.env.example` on first setup). The variable names referenced below correspond to the keys in that file.
+All credentials are defined in `.env` (copy from `.env.example` on first setup) for **local development**. The variable names referenced below correspond to the keys in that file. **In production (Phase 155 / ADR-046) the box `.env` holds no secrets** — they are injected at deploy time into a tmpfs as Docker secrets and read via the `<VAR>_FILE` convention (see deploy_runbook Part F). The names are identical; only the delivery differs.
 
 ### Required Boot Secrets (Phase 75)
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/frogfromlake/aer/pkg/secretfile"
 	"github.com/spf13/viper"
 )
 
@@ -76,6 +77,16 @@ func Load() (*Config, error) {
 	v.SetConfigFile(".env")
 	v.SetConfigType("env")
 	_ = v.ReadInConfig() // Ignore missing .env in production
+
+	// Phase 155 / ADR-046: resolve the <KEY>_FILE convention (Docker secrets on
+	// tmpfs) before unmarshalling, so a credential supplied as a file overrides
+	// the env/.env value. No-op when no _FILE var is set (backward-compatible).
+	if err := secretfile.Apply(v,
+		"INGESTION_API_KEY", "DB_URL",
+		"INGESTION_MINIO_ACCESS_KEY", "INGESTION_MINIO_SECRET_KEY",
+	); err != nil {
+		return nil, err
+	}
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {

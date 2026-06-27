@@ -22,11 +22,11 @@ A token-bucket rate limiter (`golang.org/x/time/rate`) has been implemented as `
 | :--- | :--- |
 | **Severity** | Medium |
 | **Affected Component** | All services, `compose.yaml` |
-| **Status** | Accepted (for current deployment model) |
+| **Status** | **Resolved (Phase 155 — ADR-046)** |
 
-All credentials (database passwords, API keys, MinIO secrets, Grafana admin credentials, ACME email) are stored in a plaintext `.env` file at the repository root. The file is excluded from version control via `.gitignore`, but it resides unencrypted on disk. This is acceptable for a single-operator VPS/homelab deployment but becomes a security liability in multi-user, team, or cloud environments.
+Historically all credentials (database passwords, API keys, MinIO secrets, Grafana admin credentials) were stored in a plaintext `.env` file, which Compose interpolated into each service's `environment:` — so the secrets *also* landed in Docker's on-disk container config (`/var/lib/docker/containers/*/config.v2.json`) in plaintext. Encrypting the `.env` would not have fixed that second copy: env-var secrets are written to `config.v2.json` regardless. A leaked or snapshotted disk therefore yielded every credential.
 
-**Mitigation plan:** For future scaling, migrate to Docker Secrets (Swarm), HashiCorp Vault, or SOPS-encrypted `.env` files. The current architecture is prepared for this — all services consume credentials via environment variables, making the switch transparent.
+**Resolution (Phase 155 / ADR-046).** Secrets are no longer stored on the box. They live in GitHub Actions Environment Secrets and are injected at deploy time into a tmpfs directory (`/run/aer-secrets`, RAM-only, gone on reboot); Compose mounts them as Docker secrets under `/run/secrets/*`, and each consumer reads them via the `<VAR>_FILE` convention (or the third-party images' native `*_FILE`). `docker inspect` / `config.v2.json` now contain only `*_FILE` paths — no plaintext secret persists on disk. Boot-time validation, least-privilege roles, and the no-secret-in-image rule are preserved. The reboot trade-off (manual re-stage) is mitigated operationally per ADR-046 §7.
 
 ---
 

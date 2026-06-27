@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/frogfromlake/aer/pkg/secretfile"
 	"github.com/spf13/viper"
 )
 
@@ -187,6 +188,18 @@ func Load() (*Config, error) {
 	v.SetConfigFile(".env")
 	v.SetConfigType("env")
 	_ = v.ReadInConfig()
+
+	// Phase 155 / ADR-046: resolve the <KEY>_FILE convention (Docker secrets on
+	// tmpfs) before unmarshalling. The _FILE form overrides env/.env; no-op when
+	// unset (backward-compatible). Usernames/role names stay env vars — only the
+	// actual secrets carry a _FILE variant (arc42 §8.5.2).
+	if err := secretfile.Apply(v,
+		"BFF_API_KEY", "CLICKHOUSE_PASSWORD", "BFF_DB_PASSWORD",
+		"BFF_MINIO_ACCESS_KEY", "BFF_MINIO_SECRET_KEY",
+		"BFF_AUTH_DB_PASSWORD", "SMTP_PASSWORD",
+	); err != nil {
+		return nil, err
+	}
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {

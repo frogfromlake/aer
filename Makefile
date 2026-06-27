@@ -1,4 +1,4 @@
-.PHONY: help up dev down stop restart
+.PHONY: help up dev down stop restart stage-secrets-local
 .PHONY: infra-clean infra-clean-postgres infra-clean-minio infra-clean-clickhouse reset reset-state reset-validate
 .PHONY: services-up services-down services-restart services-clean
 .PHONY: ingestion-up ingestion-down ingestion-restart
@@ -6,7 +6,7 @@
 .PHONY: bff-up bff-down bff-restart bff-image-build create-admin docs-build
 .PHONY: debug-up debug-down
 .PHONY: swagger-up swagger-down
-.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-python lint-go lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check backup preflight
+.PHONY: logs tidy codegen openapi-bundle openapi-lint observability-validate test test-go test-go-pkg test-python test-e2e cover cover-go cover-python lint lint-python lint-go lint-go-pkg audit audit-go audit-python build-services crawl crawl-probe0 crawl-probe1 audit-source audit-probe setup deps-refresh deps-refresh-fast scaffold-metric-validity scaffold-metric-validity-check backup preflight config-audit
 .PHONY: fe-install fe-dev fe-preview fe-lint fe-lint-fix fe-format fe-typecheck fe-test fe-test-e2e fe-test-e2e-update fe-build fe-bundle-size fe-lighthouse fe-codegen fe-check codegen-ts
 .PHONY: fe-image-build fe-image-size frontend-up frontend-down frontend-restart backend-up backend-down backend-rebuild backend-restart
 
@@ -51,12 +51,20 @@ COMPOSE_DASHBOARD_PROFILE := --profile dashboard
 # Always-on debug port forwarder for host-side tooling (psql, mc, curl).
 COMPOSE_DEBUG_PROFILE := --profile debug
 
+# Phase 155 / ADR-046 — local Docker-secrets staging. compose.yaml sources every
+# secret from $(AER_SECRETS_DIR)/<NAME>; locally that is ./.aer-secrets
+# (gitignored), populated from .env by `make stage-secrets-local` (a prerequisite
+# of the bring-up targets). In production the CD job stages /run/aer-secrets
+# (tmpfs) instead — see docs/operations/deploy_runbook.md.
+AER_SECRETS_DIR ?= $(CURDIR)/.aer-secrets
+export AER_SECRETS_DIR
+
 # `openapi-bundle` is a prerequisite so a FRESH clone builds the dashboard image
 # cleanly: services/bff-api/api/openapi.bundle.yaml is generated + .gitignored,
 # and the dashboard Dockerfile COPYs it. Without this, `make up` on a machine
 # that has never run codegen fails the dashboard build with "openapi.bundle.yaml:
 # not found". The bundle is cheap to regenerate and stays in sync with the spec.
-up: openapi-bundle
+up: openapi-bundle stage-secrets-local
 	@echo -e "$(BOLD)$(GRAY)--- STARTING FULL STACK (containerized) ---$(RESET)"
 	@docker compose $(COMPOSE_DEBUG_PROFILE) $(COMPOSE_DASHBOARD_PROFILE) up -d --wait
 	@echo ""
@@ -74,6 +82,15 @@ down:
 stop: down
 
 restart: down up
+
+# Phase 155 / ADR-046 — prepare the local compose secret + config inputs from
+# .env: stage the secrets into $(AER_SECRETS_DIR) (Docker-secrets wiring) and
+# generate the non-secret .env.runtime (D9 env_file). A prerequisite of the
+# bring-up targets; idempotent and fast. Production does the equivalent via the
+# CD job (stage_secrets.sh) + deploy_pull.sh (gen_runtime_env.sh).
+stage-secrets-local:
+	@bash scripts/operations/stage_secrets_local.sh
+	@bash scripts/operations/gen_runtime_env.sh
 
 # ---------------------------------------------------------------------------
 # Dev vs. prod (Phase 137 — make the boundary obvious).
@@ -96,7 +113,7 @@ dev: up swagger-up
 #   make backend-up && make fe-dev
 # Skips the dashboard container so Vite owns the browser-facing surface
 # on :5173 with a /api proxy → https://localhost (Traefik).
-backend-up:
+backend-up: stage-secrets-local
 	@echo -e "$(BOLD)$(GRAY)--- STARTING BACKEND (no dashboard container) ---$(RESET)"
 	@docker compose $(COMPOSE_DEBUG_PROFILE) up -d --wait
 	@echo ""
@@ -108,7 +125,7 @@ backend-down:
 	@docker compose $(COMPOSE_DEBUG_PROFILE) down --remove-orphans
 	@echo -e "$(SYMBOL_STOP) $(GRAY)Backend stopped.$(RESET)"
 
-backend-rebuild:
+backend-rebuild: stage-secrets-local
 	@echo -e "$(BOLD)$(GRAY)--- REBUILDING BACKEND (no dashboard container) ---$(RESET)"
 	@docker compose $(COMPOSE_DEBUG_PROFILE) up -d --build --force-recreate --wait
 	@echo ""
@@ -121,7 +138,7 @@ backend-restart: backend-down backend-up
 # 1. INFRASTRUCTURE & OBSERVABILITY
 # ==========================================
 
-infra-up:
+infra-up: stage-secrets-local
 	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ONLY ---$(RESET)"
 	@docker compose up -d --wait \
 		traefik nats nats-init minio minio-init postgres clickhouse clickhouse-init \
@@ -230,7 +247,7 @@ reset: reset-state reset-validate
 # disk pressure, see `docs/operations/operations_playbook.md`
 # "Build cache headroom" for the clean escalation path.
 
-ingestion-up:
+ingestion-up: stage-secrets-local
 	@docker compose up -d --wait ingestion-api
 
 ingestion-down:
@@ -249,17 +266,17 @@ ingestion-restart:
 	@docker compose build ingestion-api
 	@docker compose up -d --no-deps --wait ingestion-api
 
-worker-up:
+worker-up: stage-secrets-local
 	@docker compose up -d --wait analysis-worker
 
 worker-down:
 	@docker compose stop analysis-worker 2>/dev/null || true
 
-worker-restart:
+worker-restart: stage-secrets-local
 	@docker compose build analysis-worker
 	@docker compose up -d --no-deps --wait analysis-worker
 
-bff-up:
+bff-up: stage-secrets-local
 	@docker compose up -d --wait bff-api
 
 bff-image-build:
@@ -362,6 +379,13 @@ preflight:
 		echo -e "\033[1m\033[38;5;196mERROR:\033[0m .env not found. Copy .env.example to .env and fill in production values first."; exit 1; \
 	fi
 	@./scripts/operations/preflight.sh
+
+# Phase 155 / ADR-046 — config drift detection. Audits the RUNNING stack's
+# effective per-service env against infra/config/prod_config_audit.manifest.
+# No-op unless the stack is APP_ENV=production. Auto-run by deploy_pull.sh after
+# every deploy; run by hand any time to verify the live box has not drifted.
+config-audit:
+	@./scripts/operations/config_audit.sh
 
 swagger-up:
 	@echo -e "$(SYMBOL_INFO) $(CYAN)Bundling OpenAPI specs for Swagger UI...$(RESET)"
