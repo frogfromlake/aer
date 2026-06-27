@@ -563,7 +563,7 @@ services:
       - WORKER_SILVER_BUCKET=${WORKER_SILVER_BUCKET:-silver}
       # Phase 102 / 115 / 120 corpus-loop cadences. Production defaults
       # match .env.example (1h corpus interval over the full 365-day
-      # Gold-entities window per Phase 131a, 24h baseline, weekly
+      # Gold-entities window per Phase 131a, 24h baseline, daily
       # topic). The dev-mode .env overrides INTERVAL only — the
       # window must stay at the Gold-TTL to avoid the Phase-131a
       # BUG-1.5 regression (entity-bearing articles outside a narrow
@@ -578,7 +578,7 @@ services:
       - BASELINE_EXTRACTION_WINDOW_SECONDS=${BASELINE_EXTRACTION_WINDOW_SECONDS:-7776000}
       - BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS=${BASELINE_EXTRACTION_INITIAL_DELAY_SECONDS:-300}
       - TOPIC_EXTRACTION_ENABLED=${TOPIC_EXTRACTION_ENABLED:-false}
-      - TOPIC_EXTRACTION_INTERVAL_SECONDS=${TOPIC_EXTRACTION_INTERVAL_SECONDS:-604800}
+      - TOPIC_EXTRACTION_INTERVAL_SECONDS=${TOPIC_EXTRACTION_INTERVAL_SECONDS:-86400}
       - TOPIC_EXTRACTION_WINDOW_SECONDS=${TOPIC_EXTRACTION_WINDOW_SECONDS:-2592000}
       - TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS=${TOPIC_EXTRACTION_INITIAL_DELAY_SECONDS:-600}
       - TOPIC_EXTRACTION_SWEEP_TIMEOUT_SECONDS=${TOPIC_EXTRACTION_SWEEP_TIMEOUT_SECONDS:-1800}
