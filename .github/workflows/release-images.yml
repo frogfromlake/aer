@@ -122,3 +122,31 @@ jobs:
           # the three small Go/Node images → the fast type=gha cache.
           cache-from: ${{ matrix.service.registry_cache && format('type=registry,ref=ghcr.io/{0}/{1}:buildcache', github.repository_owner, matrix.service.image) || format('type=gha,scope={0}', matrix.service.image) }}
           cache-to: ${{ matrix.service.registry_cache && format('type=registry,mode=max,ref=ghcr.io/{0}/{1}:buildcache', github.repository_owner, matrix.service.image) || format('type=gha,mode=max,scope={0}', matrix.service.image) }}
+
+  # M4 — after all four images are published, deploy to the production box: SSH
+  # in, check out the release tag, and run the on-box pull/recreate script
+  # (scripts/operations/deploy_pull.sh). Runs ONLY on a vX.Y.Z tag — a manual
+  # workflow_dispatch builds images but never auto-deploys prod. The box pulls
+  # the private images with its own read-only token (docker login, one-time);
+  # this job only needs the dedicated deploy SSH key.
+  deploy:
+    name: Deploy to production box
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH (dedicated deploy key + pinned host key)
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy ${{ github.ref_name }} to the box
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes \
+            "root@${{ secrets.DEPLOY_HOST }}" \
+            "set -e; cd /opt/aer; git fetch --tags --prune --quiet origin; git checkout --quiet 'tags/${TAG}'; bash scripts/operations/deploy_pull.sh '${TAG}'"
