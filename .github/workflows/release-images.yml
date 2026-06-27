@@ -148,6 +148,9 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
+          # --force on fetch+checkout so a re-tagged (force-moved) release can
+          # update the box's local tag instead of failing with "would clobber
+          # existing tag"; no --quiet so any git error is visible in the log.
           ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes \
             "root@${{ secrets.DEPLOY_HOST }}" \
-            "set -e; cd /opt/aer; git fetch --tags --prune --quiet origin; git checkout --quiet 'tags/${TAG}'; bash scripts/operations/deploy_pull.sh '${TAG}'"
+            "set -e; cd /opt/aer; git fetch --force --tags --prune origin; git checkout --force 'tags/${TAG}'; bash scripts/operations/deploy_pull.sh '${TAG}'"
