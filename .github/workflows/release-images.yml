@@ -59,6 +59,12 @@ jobs:
             build_args: |
               SENTIWS_URL=${{ vars.SENTIWS_URL || 'https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip' }}
             free_disk: true
+            # The model-bake layer is too large for the 10 GB type=gha repo cap
+            # (it would evict the other services). A registry cache (a GHCR
+            # :buildcache image) has no such cap and persists reliably, so a
+            # release that doesn't touch the worker reuses the baked layer and
+            # skips the ~50 min download entirely.
+            registry_cache: true
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -112,5 +118,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.service.build_args }}
-          cache-from: type=gha,scope=${{ matrix.service.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service.image }}
+          # Worker → registry cache (no 10 GB cap, persists the model layer);
+          # the three small Go/Node images → the fast type=gha cache.
+          cache-from: ${{ matrix.service.registry_cache && format('type=registry,ref=ghcr.io/{0}/{1}:buildcache', github.repository_owner, matrix.service.image) || format('type=gha,scope={0}', matrix.service.image) }}
+          cache-to: ${{ matrix.service.registry_cache && format('type=registry,mode=max,ref=ghcr.io/{0}/{1}:buildcache', github.repository_owner, matrix.service.image) || format('type=gha,mode=max,scope={0}', matrix.service.image) }}

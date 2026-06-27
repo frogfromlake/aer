@@ -10,6 +10,21 @@
 # prod-specific log driver is ever needed, re-add an explicit cap, never an
 # unbounded driver.
 services:
+  # Phase 150 (M2) — the production box PULLS pre-built GHCR images instead of
+  # building on the prod host. Each service pins ghcr.io/<owner>/aer-<svc>:<tag>
+  # and `!reset`s the base `build:` so an accidental `up --build` on the box
+  # fails loudly instead of silently rebuilding (the secrets/fortress intent).
+  # Images are published by .github/workflows/release-images.yml on a vX.Y.Z tag.
+  # GHCR_OWNER + IMAGE_TAG come from .env (defaults: frogfromlake / latest). The
+  # web-crawler + wikidata-index images keep their own references in compose.yaml.
+  ingestion-api:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-ingestion-api:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  analysis-worker:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-analysis-worker:${IMAGE_TAG:-latest}
+    build: !reset null
+
   traefik:
     command:
       - "--providers.docker=true"
@@ -49,6 +64,8 @@ services:
       - "traefik.enable=false"
 
   bff-api:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-bff-api:${IMAGE_TAG:-latest}
+    build: !reset null
     labels:
       # SEC-040 — scope the router to the canonical app host. A Host-less
       # catch-all answers for ANY Host header (incl. the raw IP / a stray
@@ -65,6 +82,8 @@ services:
       # machine-only credential sent directly to the BFF on the backend network.
 
   dashboard:
+    image: ghcr.io/${GHCR_OWNER:-frogfromlake}/aer-dashboard:${IMAGE_TAG:-latest}
+    build: !reset null
     labels:
       # SEC-040 — same host scoping for the static frontend catch-all.
       - "traefik.enable=true"
