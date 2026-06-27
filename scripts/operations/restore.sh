@@ -69,6 +69,13 @@ CH_NAME="$(tar -tf "$CH_TAR" | head -1 | cut -d/ -f1)"
 # Stream the tar straight into the clickhouse_backups volume: the archive holds
 # <CH_NAME>/..., so extracting it under /backups yields /backups/<CH_NAME>/.
 dc exec -T clickhouse sh -c "mkdir -p /backups && cd /backups && tar -xf -" < "$CH_TAR"
+# RESTORE DATABASE fails ("table already exists") against a populated target.
+# This script is DESTRUCTIVE by contract (RESTORE_CONFIRM=yes) and pg_restore
+# above already uses --clean, so mirror that for ClickHouse: drop the database
+# first so RESTORE recreates it cleanly. Works whether the target is empty (fresh
+# DR / throwaway stack) OR holds stale/corrupt data (in-place recovery, test drill).
+dc exec -T clickhouse clickhouse-client -u "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+  -q "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
 dc exec -T clickhouse clickhouse-client -u "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
   -q "RESTORE DATABASE ${CLICKHOUSE_DB} FROM Disk('backups', '${CH_NAME}')"
 # Collapse any duplicate ReplacingMergeTree parts before the pipeline resumes.

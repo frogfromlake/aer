@@ -40,9 +40,31 @@ them simultaneously. The backup ships them **off-box**, **encrypted**, **in-EU**
 ## 3. Host prerequisites (one-time, at deploy)
 
 1. **Install restic** on the production host (`apt-get install restic`).
-2. **SSH to the Storage Box:** generate/upload an SSH key for the Storage Box and
-   add its host key to `~/.ssh/known_hosts` so the `sftp:` restic repo resolves
-   non-interactively. Test: `ssh u123456@u123456.your-storagebox.de`.
+2. **SSH key to the Storage Box (port 23).** Hetzner Storage Boxes speak SSH/SFTP
+   on **port 23** (not 22), drop you in **`/home`**, and offer no interactive shell
+   — so test with `sftp`, not `ssh`, and keep the restic path **under `/home`**
+   (an absolute `:/aer-backups` fails `restic init` with `SSH_FX_FAILURE`).
+   ```bash
+   ssh-keygen -t ed25519 -f /root/.ssh/storagebox -N ""          # no passphrase → non-interactive
+   # upload the public key (prompts for the Storage Box password once):
+   printf '%s\n' '-mkdir .ssh' '-chmod 700 .ssh' \
+     'put /root/.ssh/storagebox.pub .ssh/authorized_keys' 'chmod 600 .ssh/authorized_keys' \
+     | sftp -P 23 u123456@u123456.your-storagebox.de
+   # make restic reach it non-interactively (Port 23 + key) via ~/.ssh/config:
+   cat >> /root/.ssh/config <<'CFG'
+
+   Host u123456.your-storagebox.de
+       User u123456
+       Port 23
+       IdentityFile /root/.ssh/storagebox
+       IdentitiesOnly yes
+   CFG
+   chmod 600 /root/.ssh/config
+   ssh-keyscan -p 23 u123456.your-storagebox.de >> /root/.ssh/known_hosts 2>/dev/null
+   # verify passwordless (must NOT prompt for a password):
+   printf 'pwd\nbye\n' | sftp u123456@u123456.your-storagebox.de
+   ```
+   Then set `RESTIC_REPOSITORY=sftp:u123456@u123456.your-storagebox.de:/home/aer-backups`.
 3. **Create the heartbeat dir:** `sudo mkdir -p /var/lib/aer/textfile` (node-exporter
    reads it via `--collector.textfile.directory=/host/var/lib/aer/textfile`).
 4. **Set the backup secrets** in `.env` (see `.env.example` → "OFF-BOX BACKUPS"):
