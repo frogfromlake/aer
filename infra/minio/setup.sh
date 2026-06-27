@@ -20,7 +20,11 @@ mc_idempotent() {
     return 0
   fi
   case "$out" in
-    *already*|*Already*|*exists*|*attached*|*in\ effect*)
+    # "overlapping": `mc event add` is NOT idempotent — re-adding the SAME NATS
+    # notification rule fails with "...overlapping prefixes... for the same event
+    # types", which is precisely the already-configured case (seen on every
+    # re-run of minio-init after the first successful provisioning). Tolerate it.
+    *already*|*Already*|*exists*|*attached*|*in\ effect*|*overlapping*)
       echo "  (idempotent no-op: $out)"
       return 0 ;;
     *)
