@@ -137,11 +137,15 @@ test.describe('Atmosphere — probe descent into the Dossier overlay (Phase 123a
   });
 });
 
-test.describe('Atmosphere — Phase 110 scope contract', () => {
-  test('primer link in the scope bar routes to /reflection/primer/globe', async ({ page }) => {
+// The "How to read the globe" primer was deliberately removed from the Atmosphere
+// chrome (see AtmosphereChrome/AtmosphereSurface) and now lives on the Reflection
+// landing. This guards its CURRENT home — reachability of the globe primer route —
+// by href, because the link label is i18n (assert on the stable route, not text).
+test.describe('Reflection — globe primer', () => {
+  test('the globe primer link is reachable from the Reflection landing', async ({ page }) => {
     await mockBff(page);
-    await page.goto('/');
-    const link = page.getByRole('link', { name: /how to read the globe/i });
+    await page.goto('/reflection');
+    const link = page.locator('a[href="/reflection/primer/globe"]');
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('href', '/reflection/primer/globe');
   });
