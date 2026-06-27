@@ -1,0 +1,116 @@
+name: Release — Build & Push Service Images to GHCR
+
+# Phase 150 — CD pipeline foundation (M1). On a version tag (vX.Y.Z) this builds
+# the four AĒR service images and pushes them to GHCR, so the production box
+# *pulls* pre-built images (`docker compose pull`) instead of building on the
+# prod host. Mirrors web-crawler-build.yml / wikidata_index_rebuild.yml; the
+# web-crawler + wikidata-index images keep their own publish workflows.
+#
+# Trigger model (operator decision, Phase 150): TAG / release-driven — cutting a
+# tag is a deliberate "release this" act, never an accidental every-commit
+# deploy. workflow_dispatch allows a manual re-run against the current ref
+# (produces only sha + latest tags, since the semver patterns need a vX.Y.Z tag).
+#
+# Worker note: services/analysis-worker bakes ~3-5 GB of HF/BERTopic weights via
+# its hf-prefetch stage. CI has no persistent buildkit cache mount, so the prefetch
+# LAYER is cached through type=gha instead; the runner is also slimmed first to
+# give the bake disk headroom. If the gha cache ever thrashes (10 GB repo cap),
+# move the worker's cache-to/from to type=registry.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & push ${{ matrix.service.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - image: aer-ingestion-api
+            dockerfile: services/ingestion-api/Dockerfile
+            build_args: ""
+            free_disk: false
+          - image: aer-bff-api
+            dockerfile: services/bff-api/Dockerfile
+            build_args: ""
+            free_disk: false
+          - image: aer-dashboard
+            dockerfile: services/dashboard/Dockerfile
+            # PUBLIC_* are inlined at build time by the SvelteKit static adapter
+            # (ADR-020). PUBLIC_OTLP_ENDPOINT comes from an optional repo variable
+            # (empty → browser trace emission disabled).
+            build_args: |
+              PUBLIC_DEPLOYMENT_ENVIRONMENT=production
+              PUBLIC_OTLP_ENDPOINT=${{ vars.PUBLIC_OTLP_ENDPOINT }}
+            free_disk: false
+          - image: aer-analysis-worker
+            dockerfile: services/analysis-worker/Dockerfile
+            # SENTIWS_URL: set the repo variable to a byte-identical fallback
+            # (e.g. an Internet-Archive snapshot) if the Leipzig mirror is down.
+            build_args: |
+              SENTIWS_URL=${{ vars.SENTIWS_URL || 'https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip' }}
+            free_disk: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Free disk space (worker model bake needs headroom)
+        if: ${{ matrix.service.free_disk }}
+        run: |
+          # No external action (repo pins everything) — reclaim the big
+          # preinstalled toolchains the AĒR build never touches (~20+ GB).
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Set up Python (for the OpenAPI bundle)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate OpenAPI bundle (gitignored; Dockerfiles COPY it)
+        run: |
+          python -m pip install --quiet pyyaml
+          make openapi-bundle
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.service.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=long
+            type=raw,value=latest
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.service.build_args }}
+          cache-from: type=gha,scope=${{ matrix.service.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.image }}
