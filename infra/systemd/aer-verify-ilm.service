@@ -1,0 +1,26 @@
+# Phase 150 — scheduled ILM (data-retention) enforcement check (paired with
+# aer-verify-ilm.timer).
+#
+# verify_ilm.sh is host-orchestrated (it runs `docker compose exec/run` against
+# the live ClickHouse + minio-init), so it runs as a HOST timer, like aer-backup.
+# It writes the aer_ilm_* heartbeat that the ILMCheckStale / ILMViolation alerts
+# read, turning "TTLs are configured" into "TTLs are verified enforcing, live".
+# Install:
+#   1. Edit WorkingDirectory below to the repo path on the box (default /opt/aer).
+#   2. Ensure /var/lib/aer/textfile exists (the node-exporter textfile dir, shared
+#      with aer-backup) and CLICKHOUSE_*/MINIO_ROOT_* are in .env.
+#   3. sudo cp infra/systemd/aer-verify-ilm.{service,timer} /etc/systemd/system/
+#   4. sudo systemctl daemon-reload && sudo systemctl enable --now aer-verify-ilm.timer
+[Unit]
+Description=AĒR ILM TTL-enforcement check (MinIO buckets + ClickHouse Gold)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/aer
+Environment=COMPOSE_FILE=compose.yaml:compose.prod.yaml
+# verify_ilm.sh self-loads .env and writes the aer_ilm_* heartbeat metric on
+# every run (success or fail), so ILMCheckStale stays accurate.
+ExecStart=/usr/bin/env bash scripts/operations/verify_ilm.sh
+TimeoutStartSec=1800

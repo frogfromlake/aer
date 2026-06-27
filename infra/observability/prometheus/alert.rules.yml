@@ -166,3 +166,93 @@ groups:
         annotations:
           summary: "No documents processed in 6 hours (corpus frozen)"
           description: "The worker is up but has processed zero events for 6h — the crawl has likely stopped. The dashboard keeps serving aging Gold that looks current."
+
+  # Phase 150 — live capacity & growth guardrails. These fire on signals that
+  # ALREADY exist natively (Phase 154 added the worker JetStream-lag gauge + the
+  # ClickHouse-native endpoint + the minio/clickhouse scrape jobs), so the
+  # SEC-052-remainder exporters (cadvisor/nats-exporter) are NOT needed for them
+  # (Occam): worker RSS comes from prometheus_client's default process collector,
+  # backlog from nats_consumer_pending, object-store capacity from the minio job.
+  # Kept in lockstep with the Grafana mirror (grafana/.../alerting/rules.yaml).
+  - name: aer_capacity
+    rules:
+      # Worker falling behind ingestion: JetStream messages pending delivery to the
+      # durable consumer (main.py sets nats_consumer_pending from num_pending). A
+      # crawl burst spikes this then drains within the hour; >1000 sustained for a
+      # full hour means the pool genuinely cannot keep up — distinct from CrawlStale
+      # (zero throughput). Tuned long to avoid per-crawl noise (the
+      # HighEventProcessingLatency lesson).
+      - alert: WorkerBacklogGrowing
+        expr: nats_consumer_pending > 1000
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker backlog not draining"
+          description: "{{ $value }} JetStream messages pending for the worker consumer for over 1h — ingestion is outpacing processing. Check worker CPU/memory + crawl volume; see the scale runbook."
+
+      # Worker RSS approaching its memory cap. Phase 148c measured a ~9.3 GiB peak
+      # against the 11 GiB (11264M) limit; >90% (~10.1 GiB) sustained means the
+      # 148c headroom is shrinking and a BERTopic fit may stall at the ceiling.
+      # The 11811160064 constant MUST track compose.yaml's analysis-worker
+      # deploy.resources.limits.memory (there is no cadvisor on the box to read the
+      # cgroup limit dynamically).
+      - alert: WorkerMemoryHigh
+        expr: process_resident_memory_bytes{job="analysis-worker"} / 11811160064 > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker RSS above 90% of its 11 GiB cap"
+          description: "Worker RSS is {{ $value | humanizePercentage }} of the 11 GiB limit for 15m. The 148c headroom is shrinking; at the cap the container OOMs (→ WorkerDown). Investigate corpus size / the topic embedding + co-occurrence window."
+
+      # A poison message is a document that fails processing even after NATS
+      # redelivery (terminated to avoid an infinite redeliver loop). Any non-zero
+      # rate is worth a look — usually a source-format change breaking an adapter.
+      - alert: WorkerPoisonMessages
+        expr: increase(analysis_worker_poison_messages_total[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker hit a poison message"
+          description: "{{ $value }} message(s) failed processing past redelivery in the last hour. A source's structure likely changed — check worker logs + the bronze-quarantine DLQ."
+
+      # MinIO's own view of usable capacity (distinct from the host-fs DiskSpaceLow;
+      # on this single box they track the same disk, but this survives a future move
+      # of MinIO to its own volume and catches object-store fill explicitly).
+      - alert: MinIOCapacityLow
+        expr: |
+          minio_cluster_capacity_usable_free_bytes
+            / minio_cluster_capacity_usable_total_bytes < 0.15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO usable capacity below 15%"
+          description: "MinIO reports {{ $value | humanizePercentage }} usable capacity free. Bronze/Silver ILM should bound growth — if this keeps falling, ILM may not be pruning (run scripts/operations/verify_ilm.sh)."
+
+      # ILM enforcement heartbeat — verify_ilm.sh (aer-verify-ilm.timer) checks that
+      # MinIO objects + ClickHouse rows are actually expired at their TTL and writes
+      # aer_ilm_* via the node-exporter textfile collector (same pattern as
+      # backup.sh). Absent/old metric = the check stopped.
+      - alert: ILMCheckStale
+        expr: absent(aer_ilm_last_check_timestamp_seconds) or time() - aer_ilm_last_check_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ILM TTL-enforcement check not running"
+          description: "verify_ilm.sh has not reported in over 26h (or never) — TTL enforcement is no longer being verified live. Check the aer-verify-ilm systemd timer."
+
+      # violations>0 = data older than its TTL is lingering (ILM not enforcing →
+      # unbounded growth + a DSGVO-retention breach). The strong "verified live, not
+      # just configured" signal the phase requires.
+      - alert: ILMViolation
+        expr: aer_ilm_violations > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data older than its ILM TTL is lingering"
+          description: "verify_ilm.sh found {{ $value }} TTL violation(s) — MinIO objects or ClickHouse rows past their retention are not being pruned. Check the MinIO lifecycle config + ClickHouse TTL merges before storage grows unbounded."

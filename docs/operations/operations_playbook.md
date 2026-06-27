@@ -19,26 +19,27 @@
 6. [NATS JetStream (Event Broker)](#nats-jetstream-event-broker)
 7. [Observability Stack](#observability-stack)
     - [Grafana](#grafana-dashboards-traces) · [Prometheus](#prometheus-metrics-alerting) · [Tempo](#tempo-distributed-tracing) · [OpenTelemetry Collector](#opentelemetry-collector)
-8. [Application Services](#application-services)
+8. [Capacity & Growth Guardrails (Phase 150)](#capacity-growth-guardrails-phase-150)
+9. [Application Services](#application-services)
     - [Ingestion API (Go)](#ingestion-api-go)
     - [BFF API (Go)](#bff-api-go) — incl. [Metric Provenance Config](#metric-provenance-config) *touchpoint*
     - [Analysis Worker (Python)](#analysis-worker-python) — incl. `BiasContext` *touchpoint*
     - [Web Crawl Operations (Phase 122)](#web-crawl-operations-phase-122)
-9. [Configuration & Documentation Files](#configuration-documentation-files)
+10. [Configuration & Documentation Files](#configuration-documentation-files)
     - [Cultural Calendar Files](#cultural-calendar-files) — *touchpoint*
     - [Probe Dossier](#probe-dossier) — *touchpoint*
-10. [Arc42 Documentation Server](#arc42-documentation-server)
-11. [Dashboard / Frontend Iteration](#dashboard-frontend-iteration)
-12. [Testing](#testing)
-13. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
-14. [Full system reset (one-shot)](#full-system-reset-one-shot)
-15. [Volume Management](#volume-management)
-16. [Network Architecture](#network-architecture)
-17. [Scientific Touchpoints Index](#scientific-touchpoints-index)
-18. [Routine Operations (`make` targets)](#routine-operations-make-targets)
-19. [One-shot Operations](#one-shot-operations)
-20. [Deleted scripts — for the historical record](#deleted-scripts-for-the-historical-record)
-21. [Quick Reference Card](#quick-reference-card)
+11. [Arc42 Documentation Server](#arc42-documentation-server)
+12. [Dashboard / Frontend Iteration](#dashboard-frontend-iteration)
+13. [Testing](#testing)
+14. [Dependency Refresh (Supply-Chain Baseline)](#dependency-refresh-supply-chain-baseline)
+15. [Full system reset (one-shot)](#full-system-reset-one-shot)
+16. [Volume Management](#volume-management)
+17. [Network Architecture](#network-architecture)
+18. [Scientific Touchpoints Index](#scientific-touchpoints-index)
+19. [Routine Operations (`make` targets)](#routine-operations-make-targets)
+20. [One-shot Operations](#one-shot-operations)
+21. [Deleted scripts — for the historical record](#deleted-scripts-for-the-historical-record)
+22. [Quick Reference Card](#quick-reference-card)
 
 Sections marked *touchpoint* are points at which scientific judgment enters the pipeline. Each touchpoint links to the corresponding workflow in the [Scientific Operations Guide](scientific_operations_guide.md), and that guide links back here for the exact commands. The mapping is consolidated in the [Scientific Touchpoints Index](#scientific-touchpoints-index) below.
 
@@ -853,6 +854,141 @@ Start every investigation at the **AER Pipeline Overview** dashboard, then drill
 | **A trace stops at the Ingestion span (no worker span)** | Expected if the document was filtered before the worker; otherwise check the MinIO→NATS hop. | Verify the Bronze object carries a `traceparent` in its `UserMetadata` and the worker is consuming (`nats_consumer_pending`). |
 
 If telemetry itself looks dark: confirm `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318` (in-network host, not `localhost`), that the OTel Collector is up, and that `OTEL_TRACE_SAMPLE_RATE` is not `0`.
+
+---
+
+## Capacity & Growth Guardrails (Phase 150)
+
+AĒR runs on a single box (Hetzner CX43 — 8 vCPU / 16 GB / one disk). The data layer
+must not silently fill its disk or fall behind the crawl. These guardrails turn the
+Phase-148 capacity model into **live, alerting signals** plus a scale procedure. All
+of them ride on metrics that **already exist natively** (Phase 154 added the worker
+JetStream-lag gauge + the ClickHouse-native endpoint; `prometheus_client` exposes the
+worker's RSS for free) — so no extra exporter container is needed (see "Exporters" at
+the end). Rules live in `infra/observability/prometheus/alert.rules.yml` (group
+`aer_capacity`), mirrored in `grafana/provisioning/alerting/rules.yaml`; change a
+threshold in **both** and run `make observability-validate`.
+
+### Alert → response
+
+These are all `warning` severity (review when convenient — `WorkerDown`,
+`DiskSpaceCritical`, `BackupFailed`, and the TLS-critical alerts are the wake-me-up
+`critical` set). Each fires only on a **sustained** condition, so a normal 6-hourly
+crawl burst does not trip it.
+
+| Alert | Means | First response |
+| :---- | :---- | :------------- |
+| **WorkerBacklogGrowing** (`nats_consumer_pending > 1000` for 1h) | The worker pool cannot drain ingestion — backlog is not clearing within the hour. Distinct from `CrawlStale` (zero throughput). | Check `WorkerMemoryHigh` + Event Processing Duration p95. Levers, cheapest first: raise `WORKER_COUNT` (if CPU headroom), reduce crawl cadence (the `aer-crawl` timer), or narrow the topic/co-occurrence window. If it persists after tuning → the box is at its throughput limit (see "Scale to the next probe tier"). |
+| **WorkerMemoryHigh** (worker RSS > 90% of the 11 GiB cap for 15m) | The Phase-148c memory headroom (~9.3 GiB measured peak) is shrinking; at the cap the container OOMs (→ `WorkerDown`). | Confirm corpus size growth. The two RAM drivers (WP-005 / 148c) are the full-corpus topic E5 embedding and the co-occurrence 1-year window — both scale with corpus. Levers: the Silver `raw_text` storage lever, the topic embedding-cache / window-streaming work (ROADMAP), or raise `deploy.resources.limits.memory` **only if** the host has spare RAM (keep the `WorkerMemoryHigh` `11811160064` constant in lockstep with `compose.yaml`). |
+| **WorkerPoisonMessages** (`increase(...[1h]) > 0`) | A document failed processing even after NATS redelivery — usually a source's HTML/feed structure changed and broke an adapter. | Read the worker logs for the failing object; inspect it in `bronze-quarantine` (MinIO section). Fix the adapter or the source's `sources.yaml`; the document replays from archived Bronze once fixed. |
+| **MinIOCapacityLow** (usable capacity < 15% for 15m) | Object storage is filling. On this single box it tracks the host disk (so `DiskSpaceLow` likely fires too), but it isolates the object-store dimension. | Run `verify_ilm.sh` (below) — if it reports a violation, ILM is not pruning. Otherwise the corpus is genuinely growing: reduce crawl scope or scale the disk. |
+| **ILMCheckStale** (no `verify_ilm.sh` report in 26h) | The retention-enforcement check stopped running — TTLs are no longer being verified live. | Check the `aer-verify-ilm` systemd timer (`systemctl status aer-verify-ilm.timer`); run the script by hand to confirm it works. |
+| **ILMViolation** (`aer_ilm_violations > 0`) | Data older than its TTL is lingering — a MinIO lifecycle scan or a ClickHouse TTL merge is not pruning. Unbounded growth **and** a DSGVO right-to-erasure breach. | Run `verify_ilm.sh` to see which layer; check the MinIO bucket lifecycle (`mc ilm rule ls`) and ClickHouse TTL (`SHOW CREATE TABLE`, force a merge with `OPTIMIZE ... FINAL` if a merge is stuck). |
+
+### Verifying ILM enforcement (TTLs actually pruning)
+
+`scripts/operations/verify_ilm.sh` is the "verified live, not just configured" check.
+It is **read-only** — it never deletes; it reports whether the configured TTLs are
+actually pruning, against the real data:
+
+- **ClickHouse Gold** — counts rows older than their TTL (+grace) in `metrics`,
+  `entities`, `entity_links`, `language_detections` (anchor `timestamp`),
+  `entity_cooccurrences`, `topic_assignments` (anchor `window_start`). The
+  longer-retention resolution MVs are intentionally excluded.
+- **MinIO** — `mc find --older-than` on `bronze` (90 d), `silver` (365 d),
+  `bronze-quarantine` (30 d).
+
+Lazy expiry (MinIO's scanner, ClickHouse background merges) means freshly-expired
+data lingers briefly, so each TTL carries `ILM_GRACE_DAYS` (default 2). The script
+writes `aer_ilm_violations` + `aer_ilm_last_check_timestamp_seconds` to the
+node-exporter textfile dir (the `ILMCheckStale` / `ILMViolation` alerts read these)
+and exits non-zero on a violation.
+
+```bash
+# on the box, on demand:
+bash scripts/operations/verify_ilm.sh
+
+# continuous (daily, writes the heartbeat the alerts watch):
+sudo cp infra/systemd/aer-verify-ilm.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now aer-verify-ilm.timer
+```
+
+> On a freshly-deployed box the check trivially passes (no data is older than any
+> TTL yet) — its value is **forward**: it proves enforcement keeps working as the
+> corpus ages past the first 90/365-day boundary.
+
+### "Data grew faster than expected" — triage
+
+1. **Is ILM pruning?** Run `verify_ilm.sh`. A violation means growth is a *retention*
+   bug (lifecycle/TTL not firing), not real volume — fix that first, it is free.
+2. **Which layer is growing?** Bronze (raw HTML, 90 d) is the largest by far. Check
+   per-bucket size: `mc du src/bronze src/silver` (MinIO section). ClickHouse:
+   `SELECT table, formatReadableSize(sum(bytes)) FROM system.parts WHERE active GROUP BY table` (ClickHouse section).
+3. **Is it crawl volume or a single runaway source?** Compare per-source counts
+   (`SELECT source, count() FROM aer_gold.metrics GROUP BY source`). A single source
+   ballooning = tighten its `sources.yaml` discovery scope; broad growth = a real
+   capacity decision (next section).
+
+### "Scale to the next probe tier" — the single-box limit
+
+The Phase-148 model sizes the box for the current probe set. The **trigger to scale**
+is any of `WorkerBacklogGrowing`, `WorkerMemoryHigh`, or the disk alerts firing
+*persistently after the cheap levers are exhausted* (worker count, crawl cadence,
+window narrowing, the `raw_text` storage lever). Occam order:
+
+1. **Tune first (no new cost).** `WORKER_COUNT`, crawl cadence, the analytical-window
+   cutoff, the Silver `raw_text` lever (~3× MinIO win, see Stage-B notes). Most
+   "we're full" situations are a retention or tuning issue, not a hardware wall.
+2. **Vertical scale (the single-box Occam step).** Resize the Hetzner box to more
+   RAM/CPU (CX43 → a CCX line or a larger CX). The stack is image-pull-based (Phase
+   150 CD), so the move is: snapshot/backup → resize in the Hetzner console → boot →
+   `deploy_pull.sh <tag>`. Raise the worker `memory`/`cpus` limits to match (keep the
+   `WorkerMemoryHigh` constant in lockstep). No architecture change.
+3. **Horizontal split (deferred — only when vertical is exhausted).** Moving a
+   datastore (ClickHouse / MinIO) or the worker pool off-box is a real architecture
+   change (network posture, backup, the no-direct-HTTP rule still holds via NATS +
+   MinIO). Not warranted at single-probe-tier scale; revisit per the Phase-148 model
+   when vertical headroom is genuinely gone.
+
+The hundreds-of-probes ambition scales on the per-source-class backbone (validation
+labour, not box size, is the real bottleneck) — a single box serves the current tiers;
+the trigger above is the honest "this box is full" signal.
+
+### Validating the guardrails (a drill)
+
+To confirm an alert actually fires (not just that the rule parses), force its
+condition on the box and watch Grafana → Alerting → the `aer_capacity` group go
+`Pending` → `Firing` (and a mail arrive):
+
+- **ILMViolation / ILMCheckStale** — the safest drill (no load needed): write a
+  violation to the textfile by hand and let node-exporter pick it up, e.g.
+  `printf 'aer_ilm_violations 1\n' | sudo tee /var/lib/aer/textfile/aer_ilm.prom`
+  (then restore it by re-running `verify_ilm.sh`). For `ILMCheckStale`, stop the timer
+  and wait (or temporarily lower the rule's `26 * 3600`).
+- **MinIOCapacityLow / DiskSpaceLow** — temporarily lower the rule threshold (e.g.
+  `< 0.95`) and `make observability-validate` + reload Prometheus/Grafana; confirm it
+  fires, then revert. Lowering the threshold is safer than filling a production disk.
+- **WorkerBacklogGrowing / WorkerMemoryHigh** — lower the threshold (or shorten `for:`)
+  the same way, or generate load with a large crawl; confirm `Firing`, then revert.
+
+Document the drill date in this section's history when you run it on the box.
+
+### Exporters (cadvisor / nats-exporter / postgres_exporter) — scope note
+
+The Phase-150 plan listed three dedicated exporters (SEC-052 remainder). **Two are now
+superseded by Phase-154 native metrics** and were deliberately NOT added (Occam — no
+redundant containers): **cadvisor** (per-container memory/restart) is unneeded because
+the worker's RSS comes from `prometheus_client`'s default process collector
+(`WorkerMemoryHigh`) and every other container has a hard `mem_limit`; **nats-exporter**
+is unneeded because the worker's `nats_consumer_pending` already gives the JetStream
+backlog (`WorkerBacklogGrowing`) and `TargetDown` covers NATS-down. The one genuine gap
+is **postgres_exporter** (connection-pool saturation early-warning) — deferred pending
+operator sign-off because it needs a **new read-only monitoring credential** (a
+`pg_monitor` role + DSN secret), which is a security-posture decision, not an
+autonomous one. Until then PostgreSQL failure is caught by `TargetDown` on the
+bff/ingestion targets. Re-open by adding the role to `postgres-init-roles`, the DSN to
+`.env`, the exporter container (digest-pinned), a scrape job, and a
+`PostgresConnectionsHigh` alert.
 
 ---
 

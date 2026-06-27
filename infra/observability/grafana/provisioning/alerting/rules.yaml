@@ -437,3 +437,197 @@ groups:
                   reducer: { type: count, params: [] }
                   evaluator: { type: gt, params: [0] }
                   operator: { type: and }
+
+  # Phase 150 — live capacity & growth guardrails. Mirror of the aer_capacity
+  # group in ../../prometheus/alert.rules.yml (same PromQL, thresholds, severities)
+  # — keep the two in lockstep BY HAND.
+  - orgId: 1
+    name: aer_capacity
+    folder: AER Alerts
+    interval: 1m
+    rules:
+      - uid: aer_worker_backlog
+        title: WorkerBacklogGrowing
+        condition: C
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker backlog not draining"
+          description: "Over 1000 JetStream messages pending for the worker consumer for 1h — ingestion outpaces processing. Check worker CPU/memory + crawl volume; see the scale runbook."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: nats_consumer_pending > 1000
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_worker_memory_high
+        title: WorkerMemoryHigh
+        condition: C
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker RSS above 90% of its 11 GiB cap"
+          description: "Worker RSS sustained above 90% of the 11 GiB limit. The Phase-148c headroom is shrinking; at the cap the container OOMs (→ WorkerDown). Investigate corpus size + the topic/co-occurrence windows."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: process_resident_memory_bytes{job="analysis-worker"} / 11811160064 > 0.90
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_worker_poison
+        title: WorkerPoisonMessages
+        condition: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Analysis-worker hit a poison message"
+          description: "One or more documents failed processing past NATS redelivery in the last hour. A source's structure likely changed — check worker logs + the bronze-quarantine DLQ."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: increase(analysis_worker_poison_messages_total[1h]) > 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_minio_capacity_low
+        title: MinIOCapacityLow
+        condition: C
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO usable capacity below 15%"
+          description: "MinIO reports under 15% usable capacity free. Bronze/Silver ILM should bound growth — if it keeps falling, ILM may not be pruning (run scripts/operations/verify_ilm.sh)."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: minio_cluster_capacity_usable_free_bytes / minio_cluster_capacity_usable_total_bytes < 0.15
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_ilm_check_stale
+        title: ILMCheckStale
+        condition: C
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ILM TTL-enforcement check not running"
+          description: "verify_ilm.sh has not reported in over 26h (or never) — TTL enforcement is no longer being verified live. Check the aer-verify-ilm systemd timer."
+        noDataState: Alerting
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: absent(aer_ilm_last_check_timestamp_seconds) or time() - aer_ilm_last_check_timestamp_seconds > 26 * 3600
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+
+      - uid: aer_ilm_violation
+        title: ILMViolation
+        condition: C
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data older than its ILM TTL is lingering"
+          description: "verify_ilm.sh found a TTL violation — MinIO objects or ClickHouse rows past their retention are not being pruned. Check the MinIO lifecycle config + ClickHouse TTL merges before storage grows unbounded."
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: aer_ilm_violations > 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: classic_conditions
+              conditions:
+                - type: query
+                  query: { params: [A] }
+                  reducer: { type: count, params: [] }
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
