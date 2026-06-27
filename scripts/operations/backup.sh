@@ -160,7 +160,14 @@ echo "==> Uploading encrypted snapshot to ${RESTIC_REPOSITORY}"
 restic backup --tag aer --host aer-prod "$STAGING"
 
 echo "==> Pruning snapshots older than ${RETENTION_DAYS}d"
-restic forget --tag aer --keep-within "${RETENTION_DAYS}d" --prune
+# --group-by host (NOT the default host,paths): each run stages into a fresh
+# mktemp dir, so the backup path differs every time. With the default grouping
+# every run would form its own single-snapshot group, and --keep-within would
+# then keep "the newest in the group = itself" forever — silently breaking the
+# 35d retention (the DSGVO right-to-erasure bound, D2) and growing the repo
+# unbounded. Grouping by host alone collapses all aer-prod snapshots into one
+# group so the age policy actually prunes.
+restic forget --tag aer --group-by host --keep-within "${RETENTION_DAYS}d" --prune
 
 write_success_metric
 status=0
