@@ -20,6 +20,17 @@
 
   let users = $state<authApi.AdminUser[]>([]);
   let loadError = $state<string | null>(null);
+  // Phase 150(c): surface failed user-management actions instead of silently
+  // no-op'ing. A stale-admin tab (403) or expired session (401) used to drop
+  // the click on the floor; now it shows an accessible notice.
+  let actionError = $state<string | null>(null);
+
+  function reportActionFailure(res: { status: number }) {
+    actionError =
+      res.status === 401 || res.status === 403
+        ? m.account_admin_action_unauthorized()
+        : m.account_admin_action_failed();
+  }
 
   let inviteEmail = $state('');
   let inviteRole = $state('researcher');
@@ -65,16 +76,31 @@
   }
 
   async function suspend(id: string) {
-    if ((await authApi.adminSuspend(id)).ok) await loadUsers();
+    const res = await authApi.adminSuspend(id);
+    if (res.ok) {
+      actionError = null;
+      await loadUsers();
+    } else {
+      reportActionFailure(res);
+    }
   }
   async function reactivate(id: string) {
-    if ((await authApi.adminReactivate(id)).ok) await loadUsers();
+    const res = await authApi.adminReactivate(id);
+    if (res.ok) {
+      actionError = null;
+      await loadUsers();
+    } else {
+      reportActionFailure(res);
+    }
   }
   async function resetFor(id: string) {
     const res = await authApi.adminResetPassword(id);
     if (res.ok) {
+      actionError = null;
       lastLink = res.data.link;
       lastDelivered = res.data.delivered ?? null;
+    } else {
+      reportActionFailure(res);
     }
   }
 
@@ -146,6 +172,7 @@
   <section class="block">
     <h3>{m.account_admin_users_heading()}</h3>
     {#if loadError}<AuthNotice variant="error">{loadError}</AuthNotice>{/if}
+    {#if actionError}<AuthNotice variant="error">{actionError}</AuthNotice>{/if}
     <div class="table" role="table" aria-label={m.account_admin_users_table_label()}>
       <div class="row head-row" role="row">
         <span role="columnheader">{m.account_admin_users_col_email()}</span>

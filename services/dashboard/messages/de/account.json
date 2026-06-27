@@ -82,6 +82,8 @@
   "account_admin_users_reactivate": "Reaktivieren",
   "account_admin_users_suspend": "Sperren",
   "account_admin_users_reset_password": "Passwort zurücksetzen",
+  "account_admin_action_unauthorized": "Ihre Sitzung ist abgelaufen oder Sie haben keine Administratorberechtigung mehr. Melden Sie sich erneut an und versuchen Sie es noch einmal.",
+  "account_admin_action_failed": "Die Aktion ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
 
   "account_analyses_title": "Gespeicherte Analysen",
   "account_analyses_search_placeholder": "Nach Name, Beschreibung oder Eigentümer suchen…",

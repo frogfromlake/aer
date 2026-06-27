@@ -82,6 +82,8 @@
   "account_admin_users_reactivate": "Reactivate",
   "account_admin_users_suspend": "Suspend",
   "account_admin_users_reset_password": "Reset password",
+  "account_admin_action_unauthorized": "Your session expired or you no longer have administrator permission. Sign in again, then retry.",
+  "account_admin_action_failed": "The action failed. Please try again.",
 
   "account_analyses_title": "Saved analyses",
   "account_analyses_search_placeholder": "Search name, description or owner…",
