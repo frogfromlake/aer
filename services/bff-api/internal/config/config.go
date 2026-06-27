@@ -26,6 +26,8 @@ type Config struct {
 	APIKey              string  `mapstructure:"BFF_API_KEY"`
 	RateLimitRPS        float64 `mapstructure:"RATE_LIMIT_RPS"`
 	RateLimitBurst      int     `mapstructure:"RATE_LIMIT_BURST"`
+	RateLimitAuthRPS    float64 `mapstructure:"RATE_LIMIT_AUTH_RPS"`
+	RateLimitAuthBurst  int     `mapstructure:"RATE_LIMIT_AUTH_BURST"`
 	QueryRowLimit       int     `mapstructure:"BFF_QUERY_ROW_LIMIT"`
 	MetricsCacheTTLSecs int     `mapstructure:"BFF_METRICS_CACHE_TTL_SECONDS"`
 	// ShutdownTimeoutSeconds is the grace period the HTTP server has to drain
@@ -136,6 +138,11 @@ func Load() (*Config, error) {
 	v.SetDefault("CORS_ALLOWED_ORIGINS", "*")
 	v.SetDefault("RATE_LIMIT_RPS", 100)
 	v.SetDefault("RATE_LIMIT_BURST", 200)
+	// SEC-014 — pre-auth (/auth/*) per-client budget. Tighter than the general
+	// budget because it is the brute-force surface; still generous enough for a
+	// human fat-fingering a password (burst 5, then 1 req/s).
+	v.SetDefault("RATE_LIMIT_AUTH_RPS", 1)
+	v.SetDefault("RATE_LIMIT_AUTH_BURST", 5)
 	v.SetDefault("BFF_QUERY_ROW_LIMIT", 10000)
 	v.SetDefault("BFF_METRICS_CACHE_TTL_SECONDS", 60)
 	v.SetDefault("BFF_SHUTDOWN_TIMEOUT_SECONDS", 65)

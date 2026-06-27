@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -17,12 +18,22 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 })
 
+// testClientLimiter builds a per-client limiter whose general and strict budgets
+// are identical, so the single-budget tests below (which hit non-/auth/ paths
+// from one peer IP) exercise it exactly like the old shared limiter did.
+func testClientLimiter(rps rate.Limit, burst int) *clientRateLimiter {
+	return newClientRateLimiter(
+		rateBudget{rps: rps, burst: burst},
+		rateBudget{rps: rps, burst: burst},
+		time.Minute, time.Minute,
+	)
+}
+
 // --- rateLimiter ---
 
 func TestRateLimiter_AllowsRequestsWithinBurst(t *testing.T) {
 	// burst=3: the first three requests must all pass through
-	limiter := rate.NewLimiter(rate.Limit(1), 3)
-	h := rateLimiter(limiter)(okHandler)
+	h := rateLimiter(testClientLimiter(rate.Limit(1), 3))(okHandler)
 
 	for i := range 3 {
 		rec := httptest.NewRecorder()
@@ -35,8 +46,7 @@ func TestRateLimiter_AllowsRequestsWithinBurst(t *testing.T) {
 
 func TestRateLimiter_Returns429WhenBurstExhausted(t *testing.T) {
 	// burst=1, rate=0: the second request must be rejected
-	limiter := rate.NewLimiter(rate.Limit(0), 1)
-	h := rateLimiter(limiter)(okHandler)
+	h := rateLimiter(testClientLimiter(rate.Limit(0), 1))(okHandler)
 
 	// first request consumes the single token
 	first := httptest.NewRecorder()
@@ -54,8 +64,7 @@ func TestRateLimiter_Returns429WhenBurstExhausted(t *testing.T) {
 }
 
 func TestRateLimiter_429HasJSONBodyAndContentType(t *testing.T) {
-	limiter := rate.NewLimiter(rate.Limit(0), 0) // no tokens ever
-	h := rateLimiter(limiter)(okHandler)
+	h := rateLimiter(testClientLimiter(rate.Limit(0), 0))(okHandler) // no tokens ever
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -83,14 +92,97 @@ func TestRateLimiter_PassesThroughToNextHandler(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	limiter := rate.NewLimiter(rate.Limit(100), 10)
-	h := rateLimiter(limiter)(downstream)
+	h := rateLimiter(testClientLimiter(rate.Limit(100), 10))(downstream)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if !called {
 		t.Error("downstream handler was not called")
+	}
+}
+
+func TestRateLimiter_PerClientIsolation(t *testing.T) {
+	// SEC-014: one client exhausting its budget must NOT rate-limit a different
+	// client — the whole point of keying the limiter by IP.
+	h := rateLimiter(testClientLimiter(rate.Limit(0), 1))(okHandler)
+
+	reqFrom := func(ip string) int {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = ip + ":1234"
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := reqFrom("10.0.0.1"); code != http.StatusOK {
+		t.Fatalf("client A first request: expected 200, got %d", code)
+	}
+	if code := reqFrom("10.0.0.1"); code != http.StatusTooManyRequests {
+		t.Fatalf("client A second request: expected 429, got %d", code)
+	}
+	// client B has its own bucket and must still pass
+	if code := reqFrom("10.0.0.2"); code != http.StatusOK {
+		t.Errorf("client B: expected 200 (separate per-IP budget), got %d", code)
+	}
+}
+
+func TestRateLimiter_PreAuthUsesStrictBudget(t *testing.T) {
+	// SEC-014: /auth/* draws on the tighter strict bucket, exhausted independently
+	// of the generous general budget.
+	limiter := newClientRateLimiter(
+		rateBudget{rps: rate.Limit(100), burst: 100}, // generous general
+		rateBudget{rps: rate.Limit(0), burst: 1},     // strict: a single token
+		time.Minute, time.Minute,
+	)
+	h := rateLimiter(limiter)(okHandler)
+
+	authReq := func() int {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+		req.RemoteAddr = "10.0.0.9:1234"
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := authReq(); code != http.StatusOK {
+		t.Fatalf("first /auth/ request: expected 200, got %d", code)
+	}
+	if code := authReq(); code != http.StatusTooManyRequests {
+		t.Errorf("second /auth/ request: expected 429 (strict budget), got %d", code)
+	}
+
+	// a non-/auth/ path from the same IP draws on the still-full general bucket
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/probes", nil)
+	req.RemoteAddr = "10.0.0.9:1234"
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("general path: expected 200 (budget separate from strict), got %d", rec.Code)
+	}
+}
+
+func TestClientRateLimiter_EvictsIdleBuckets(t *testing.T) {
+	// SEC-014: the per-IP map must not grow without bound — idle buckets are
+	// evicted once a client has been silent beyond idleTTL.
+	c := newClientRateLimiter(
+		rateBudget{rps: rate.Limit(1), burst: 1},
+		rateBudget{rps: rate.Limit(1), burst: 1},
+		10*time.Minute, time.Hour, // long sweep so the background loop never fires mid-test
+	)
+	c.allow("10.0.0.1", false) // first request creates the bucket
+	if got := len(c.clients); got != 1 {
+		t.Fatalf("expected 1 tracked client after first request, got %d", got)
+	}
+	// not yet idle past the TTL → retained
+	c.evictIdle(time.Now())
+	if got := len(c.clients); got != 1 {
+		t.Fatalf("expected the active bucket retained, got %d", got)
+	}
+	// advance the clock past idleTTL → evicted
+	c.evictIdle(time.Now().Add(11 * time.Minute))
+	if got := len(c.clients); got != 0 {
+		t.Errorf("expected idle bucket evicted, got %d remaining", got)
 	}
 }
 

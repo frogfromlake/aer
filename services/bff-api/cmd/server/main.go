@@ -11,12 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -337,9 +339,18 @@ func main() {
 		r.Use(mw.RequestLogger("bff-api"))
 		r.Use(mw.PrometheusMetrics("bff-api"))
 
-		// Rate Limiting: token-bucket limiter; rejects excess requests with 429
-		limiter := rate.NewLimiter(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-		r.Use(rateLimiter(limiter))
+		// Rate Limiting (SEC-014): PER-CLIENT token-bucket limiter keyed by the
+		// SEC-003 client IP, so one abusive caller exhausts only its own budget
+		// instead of 429-ing every user via a single shared limiter. Pre-auth
+		// /auth/* requests draw on a separate, tighter per-IP budget (the
+		// brute-force surface). Idle buckets are evicted so unique source IPs
+		// cannot grow the map without bound.
+		clientLimiter := newClientRateLimiter(
+			rateBudget{rps: rate.Limit(cfg.RateLimitRPS), burst: cfg.RateLimitBurst},
+			rateBudget{rps: rate.Limit(cfg.RateLimitAuthRPS), burst: cfg.RateLimitAuthBurst},
+			clientLimiterIdleTTL, clientLimiterSweepInterval,
+		)
+		r.Use(rateLimiter(clientLimiter))
 
 		// Access control (Phase 134 / ADR-040): every request must carry a
 		// valid session cookie OR a valid X-API-Key (the demoted machine
@@ -485,12 +496,115 @@ func openAuthPool(ctx context.Context, cfg *config.Config) (*sql.DB, error) {
 	return db, nil
 }
 
-// rateLimiter returns a middleware that enforces a token-bucket rate limit.
-// Requests exceeding the limit are rejected immediately with 429 Too Many Requests.
-func rateLimiter(limiter *rate.Limiter) func(http.Handler) http.Handler {
+// clientLimiterIdleTTL / clientLimiterSweepInterval bound the per-client limiter
+// map: an IP's buckets are dropped after it has been idle for the TTL, and the
+// background sweep runs on the interval. The map therefore tracks only
+// recently-active source IPs, never every IP ever seen.
+const (
+	clientLimiterIdleTTL       = 10 * time.Minute
+	clientLimiterSweepInterval = 5 * time.Minute
+)
+
+// rateBudget is one token-bucket configuration (steady-state rps + burst).
+type rateBudget struct {
+	rps   rate.Limit
+	burst int
+}
+
+// clientRateLimiter enforces a PER-CLIENT (per-IP) token-bucket rate limit
+// (SEC-014). A single shared rate.Limiter let one noisy caller exhaust the whole
+// app's request budget and 429 everyone; keying the limiter by the SEC-003 client
+// IP contains the blast radius to the abuser. Pre-auth /auth/* requests draw on a
+// separate, tighter per-IP bucket (the brute-force surface). A background sweep
+// evicts idle buckets so unique source IPs cannot grow the map without bound.
+type clientRateLimiter struct {
+	mu      sync.Mutex
+	clients map[string]*clientBuckets
+	general rateBudget
+	strict  rateBudget
+	idleTTL time.Duration
+}
+
+// clientBuckets holds one source IP's two token buckets plus its last-seen time
+// (for eviction).
+type clientBuckets struct {
+	general  *rate.Limiter
+	strict   *rate.Limiter
+	lastSeen time.Time
+}
+
+// newClientRateLimiter builds a per-client limiter and starts its eviction sweep.
+func newClientRateLimiter(general, strict rateBudget, idleTTL, sweep time.Duration) *clientRateLimiter {
+	c := &clientRateLimiter{
+		clients: make(map[string]*clientBuckets),
+		general: general,
+		strict:  strict,
+		idleTTL: idleTTL,
+	}
+	go c.sweepLoop(sweep)
+	return c
+}
+
+// sweepLoop periodically evicts idle per-IP buckets on the given interval.
+func (c *clientRateLimiter) sweepLoop(every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for range ticker.C {
+		c.evictIdle(time.Now())
+	}
+}
+
+// evictIdle drops every per-IP bucket whose last request predates now-idleTTL,
+// bounding the map to recently-active source IPs.
+func (c *clientRateLimiter) evictIdle(now time.Time) {
+	cutoff := now.Add(-c.idleTTL)
+	c.mu.Lock()
+	for ip, b := range c.clients {
+		if b.lastSeen.Before(cutoff) {
+			delete(c.clients, ip)
+		}
+	}
+	c.mu.Unlock()
+}
+
+// allow reports whether a request from ip is within budget; strict selects the
+// tighter pre-auth bucket. Buckets are created on first sight of an IP.
+func (c *clientRateLimiter) allow(ip string, strict bool) bool {
+	c.mu.Lock()
+	b := c.clients[ip]
+	if b == nil {
+		b = &clientBuckets{
+			general: rate.NewLimiter(c.general.rps, c.general.burst),
+			strict:  rate.NewLimiter(c.strict.rps, c.strict.burst),
+		}
+		c.clients[ip] = b
+	}
+	b.lastSeen = time.Now()
+	limiter := b.general
+	if strict {
+		limiter = b.strict
+	}
+	c.mu.Unlock()
+	return limiter.Allow()
+}
+
+// rateLimiter returns a middleware enforcing the per-client limit. Requests over
+// budget get an immediate 429. The client IP comes from the SEC-003 ClientIP
+// middleware (right-most XFF, port stripped); if absent it falls back to the TCP
+// peer with the port stripped, so a missing context value can neither collapse
+// every caller into one key nor bypass the limit.
+func rateLimiter(limiter *clientRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !limiter.Allow() {
+			ip := auth.ClientIPFromContext(r.Context())
+			if ip == "" {
+				ip = r.RemoteAddr
+				if host, _, err := net.SplitHostPort(ip); err == nil {
+					ip = host
+				}
+			}
+			strict := strings.HasPrefix(r.URL.Path, "/api/v1/auth/")
+			if !limiter.allow(ip, strict) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_, _ = w.Write([]byte(`{"error":"rate limit exceeded"}`))

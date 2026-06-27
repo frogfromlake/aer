@@ -90,6 +90,8 @@ func TestLoad_AppliesDefaults(t *testing.T) {
 		{"ClickHouseDB", cfg.ClickHouseDB, "aer_gold"},
 		{"OTelSampleRate", cfg.OTelSampleRate, 1.0},
 		{"RateLimitBurst", cfg.RateLimitBurst, 200},
+		{"RateLimitAuthRPS", cfg.RateLimitAuthRPS, 1.0},
+		{"RateLimitAuthBurst", cfg.RateLimitAuthBurst, 5},
 		{"QueryRowLimit", cfg.QueryRowLimit, 10000},
 		{"ShutdownTimeoutSeconds", cfg.ShutdownTimeoutSeconds, 65},
 		{"ConfigDir", cfg.ConfigDir, "configs"},
