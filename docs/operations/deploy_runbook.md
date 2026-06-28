@@ -83,7 +83,6 @@ The load-bearing production keys (see `.env.example` for the full annotated list
 - `SMTP_HOST/PORT/USERNAME/PASSWORD` + `SMTP_FROM_ADDRESS` (transactional email)
 - `GHCR_OWNER=<owner>` · `IMAGE_TAG=latest` (the CD deploy pins the released tag)
 - `RESTIC_REPOSITORY` (path **under `/home`**) · `RESTIC_PASSWORD` (escrow off-box!)
-- `SENTIWS_URL=` — only if the Leipzig mirror is down at build time (see Part D)
 - all datastore + MinIO + session secrets
 
 ### A.3 GHCR access (private images)
@@ -307,9 +306,11 @@ but knowing them helps when a fresh box or fork misbehaves.
    (else `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`).
 3. **GHCR access** — `aer-wikidata-index` and the four service images are private;
    the box needs `docker login ghcr.io` with a `read:packages` token (Part A.3).
-4. **SentiWS mirror** — the worker fetches SentiWS at build; the Leipzig mirror was
-   down. Override `SENTIWS_URL` (build arg / repo variable) with a SHA-identical
-   fallback (e.g. an Internet-Archive snapshot). The hash is pinned in the Dockerfile.
+4. **SentiWS lexicon** — no longer fetched at build. The SentiWS zip is vendored
+   into the repo (`services/analysis-worker/vendor/`) and COPYed by the worker
+   Dockerfile, because both upstream Leipzig hosts (old mirror + new download page)
+   went offline. No `SENTIWS_URL` override is needed anymore; the SHA256 is still
+   pinned and verified in the Dockerfile.
 5. **Postgres 18 `PGDATA`** — `postgres:18` hard-refuses the legacy
    `/var/lib/postgresql/data` mount on a fresh volume unless `PGDATA` is set back to
    it (pinned in `compose.yaml`).

@@ -303,14 +303,14 @@ On `SIGTERM`, both services call `http.Server.Shutdown` with a drain deadline so
 
 ### 8.7.5 Container Hardening (Phase 84)
 
-All three service images are built from digest-pinned base images (`FROM image:tag@sha256:…`) and run as a non-root user (`uid 10001`, group `aer`) via `USER aer`. Multi-stage builds keep the runtime image minimal — only the compiled binary, CA certificates, and (for the worker) the pre-downloaded SentiWS lexicon ride along into the final layer.
+All three service images are built from digest-pinned base images (`FROM image:tag@sha256:…`) and run as a non-root user (`uid 10001`, group `aer`) via `USER aer`. Multi-stage builds keep the runtime image minimal — only the compiled binary, CA certificates, and (for the worker) the vendored SentiWS lexicon ride along into the final layer.
 
 | Control | Mechanism |
 | :--- | :--- |
 | Reproducible base images | `FROM image:tag@sha256:digest` in every Dockerfile |
 | Non-root execution | `USER aer` (uid 10001) with `/usr/sbin/nologin` shell |
 | No build toolchain in runtime | Multi-stage `FROM builder AS …` + `COPY --from=builder` |
-| Verified third-party downloads | `SENTIWS_SHA256` pin in worker Dockerfile, verified via `sha256sum -c` |
+| Verified third-party data | `SENTIWS_SHA256` pin in worker Dockerfile verifies the vendored SentiWS zip via `sha256sum -c` |
 | Hash-locked Python deps | `services/analysis-worker/requirements.lock.txt` + `pip install --require-hashes` |
 
 Rotating the pinned hashes is a deliberate, auditable operation — not something any individual `docker pull` can drift. See §8.7.6 for the runbook.

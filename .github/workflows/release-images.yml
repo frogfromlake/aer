@@ -54,10 +54,9 @@ jobs:
             free_disk: false
           - image: aer-analysis-worker
             dockerfile: services/analysis-worker/Dockerfile
-            # SENTIWS_URL: set the repo variable to a byte-identical fallback
-            # (e.g. an Internet-Archive snapshot) if the Leipzig mirror is down.
-            build_args: |
-              SENTIWS_URL=${{ vars.SENTIWS_URL || 'https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip' }}
+            # SentiWS is vendored into the repo (services/analysis-worker/vendor/)
+            # and COPYed by the Dockerfile — no SENTIWS_URL build arg / network
+            # fetch (both upstream Leipzig hosts are offline). SHA256-pinned still.
             free_disk: true
             # The model-bake layer is too large for the 10 GB type=gha repo cap
             # (it would evict the other services). A registry cache (a GHCR

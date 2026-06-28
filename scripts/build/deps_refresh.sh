@@ -11,8 +11,9 @@
 #   2. Regenerate services/analysis-worker/requirements.lock.txt inside
 #      the Python image the worker actually builds from, so the hash set
 #      is byte-compatible with `pip install --require-hashes`.
-#   3. Recompute SENTIWS_SHA256 by downloading the URL declared in the
-#      worker Dockerfile and hashing it locally.
+#   3. Recompute SENTIWS_SHA256 from the vendored SentiWS zip
+#      (services/analysis-worker/vendor/) — no network fetch; both upstream
+#      Leipzig hosts are offline and the lexicon is committed to the repo.
 #   4. Rebuild all images (`docker compose build --no-cache`) and run the
 #      full end-to-end smoke test so the new baseline is proven green
 #      before it lands in a commit.
@@ -291,30 +292,24 @@ fi
 # ---------------------------------------------------------------------------
 # Step 3 — Recompute SENTIWS_SHA256.
 #
-# The SentiWS URL is parsed back out of the Dockerfile so that when it
-# changes upstream, the maintainer only needs to edit one place (the
-# Dockerfile) and rerun this script.
+# The lexicon is vendored (services/analysis-worker/vendor/SentiWS_v2.0.zip), so
+# the hash is computed straight from that committed file — no network fetch (both
+# upstream Leipzig hosts are offline). To update SentiWS, replace the vendored zip
+# and rerun this script; it recomputes the hash and rewrites the Dockerfile ARG.
 # ---------------------------------------------------------------------------
 log_step "STEP 3/4 — Recomputing SentiWS lexicon hash"
 
-SENTIWS_URL="$(
-    grep -m1 -oE 'https://downloads\.wortschatz-leipzig\.de/etc/SentiWS/SentiWS[^ ]+\.zip' "$WORKER_DF" \
-        || true
-)"
-if [[ -z "$SENTIWS_URL" ]]; then
-    log_err "SentiWS URL not found in $WORKER_DF (expected wortschatz-leipzig download)"
+# SentiWS is vendored into the repo (both upstream Leipzig hosts are offline), so
+# recompute the hash from the committed file instead of downloading it. To bump to
+# a NEW upstream version, replace the vendored zip first, then run this.
+SENTIWS_VENDOR="services/analysis-worker/vendor/SentiWS_v2.0.zip"
+if [[ ! -f "$SENTIWS_VENDOR" ]]; then
+    log_err "vendored SentiWS not found: $SENTIWS_VENDOR"
     exit 4
 fi
-log_info "downloading $SENTIWS_URL"
+log_info "hashing vendored $SENTIWS_VENDOR"
 
-TMP_ZIP="$(mktemp --suffix=.zip)"
-trap 'rm -f "$TMP_ZIP"' EXIT
-if ! curl -fsSL -o "$TMP_ZIP" "$SENTIWS_URL"; then
-    log_err "curl failed for $SENTIWS_URL"
-    exit 4
-fi
-
-NEW_SENTIWS_HASH="$(sha256sum "$TMP_ZIP" | awk '{print $1}')"
+NEW_SENTIWS_HASH="$(sha256sum "$SENTIWS_VENDOR" | awk '{print $1}')"
 OLD_SENTIWS_HASH="$(
     grep -m1 -E '^ARG[[:space:]]+SENTIWS_SHA256=' "$WORKER_DF" \
         | sed -E 's/^ARG[[:space:]]+SENTIWS_SHA256=//'

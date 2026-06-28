@@ -1662,7 +1662,7 @@ cd services/dashboard && pnpm exec playwright test -g "some title" --headed   # 
 
 ## Dependency Refresh (Supply-Chain Baseline)
 
-Phase 84 pinned the stack's external dependencies to specific hashes: every `FROM` line in `services/*/Dockerfile` uses `image:tag@sha256:digest`, `services/analysis-worker/requirements.lock.txt` is generated with `pip-compile --generate-hashes --require-hashes`, and the SentiWS lexicon download is guarded by `SENTIWS_SHA256`. This is how we keep the supply chain reproducible, but it means those hashes are frozen in time and must be rotated deliberately. Phase 88 turns that rotation into a single command.
+Phase 84 pinned the stack's external dependencies to specific hashes: every `FROM` line in `services/*/Dockerfile` uses `image:tag@sha256:digest`, `services/analysis-worker/requirements.lock.txt` is generated with `pip-compile --generate-hashes --require-hashes`, and the vendored SentiWS lexicon is guarded by `SENTIWS_SHA256`. This is how we keep the supply chain reproducible, but it means those hashes are frozen in time and must be rotated deliberately. Phase 88 turns that rotation into a single command.
 
 > **Fast path (Phase 137).** The full `make deps-refresh` rebuilds every image with `--no-cache` (multi-GB, ~20–40 min). For the everyday case use **`make deps-refresh-fast`** (= `deps_refresh.sh --skip-build`): it rotates the base-image digests, the pip lock, and the SentiWS hash but skips the local no-cache rebuild + e2e — **CI validates the new pins on push**, so you only pay the local rebuild when you actually need to test the image build itself.
 
@@ -1698,7 +1698,7 @@ The target delegates to `scripts/build/deps_refresh.sh`, which runs four steps, 
 
 1. **Base image digest refresh.** Every `FROM image:tag@sha256:…` line across all three service Dockerfiles is deduplicated by image reference. Each unique `image:tag` is `docker pull`ed once, the new digest is resolved via `docker image inspect`, and the old digest is rewritten in place. Shared base images (alpine, python, golang) stay in lockstep across Dockerfiles by construction.
 2. **`requirements.lock.txt` regeneration.** `pip-compile --generate-hashes --allow-unsafe` runs inside the *exact* Python image the worker builds from (read back out of the freshly-updated worker Dockerfile), guaranteeing the hash set is byte-compatible with `pip install --require-hashes` at build time. `pip-tools` is pinned via `PIP_TOOLS_VERSION` in `.tool-versions`.
-3. **SentiWS hash recomputation.** The script greps the SentiWS URL out of `services/analysis-worker/Dockerfile`, downloads it with curl, runs `sha256sum`, and rewrites `ARG SENTIWS_SHA256=…` in place. Changing the lexicon URL is therefore a one-line Dockerfile edit — rerun `make deps-refresh` and the hash follows.
+3. **SentiWS hash recomputation.** The SentiWS lexicon is vendored into the repo (`services/analysis-worker/vendor/SentiWS_v2.0.zip`) — both upstream Leipzig hosts went offline, so it is committed rather than fetched at build time. The script `sha256sum`s the vendored file and rewrites `ARG SENTIWS_SHA256=…` in place. Updating the lexicon is therefore a drop-in file replace — swap the vendored zip, rerun `make deps-refresh`, and the hash follows.
 4. **No-cache rebuild + e2e smoke test.** `docker compose build --no-cache` forces every image to reproduce from the new baseline, then `make test-e2e` asserts the full ingestion → worker → BFF pipeline still answers correctly. A failure here means *revert, investigate, do not commit*.
 
 On a clean baseline (nothing upstream moved since the last run), the script produces zero file changes and `git diff` is empty. That property is load-bearing — it's how CI can one day run `make deps-refresh --skip-build` on a scheduled job and only open a PR when the diff is non-empty.
@@ -1731,11 +1731,13 @@ Do not edit `requirements.lock.txt` by hand; the build will reject it at `pip in
 3. Step 2 will also rerun pip-compile against the new Python image (if the Python tag moved) — review the lockfile diff carefully.
 4. Commit.
 
-### Changing the SentiWS download URL
+### Updating the vendored SentiWS lexicon
 
-1. Edit the URL in the `wget` line of `services/analysis-worker/Dockerfile`. Leave the `SENTIWS_SHA256` value alone.
-2. Run `make deps-refresh`. Step 3 will download the new URL, sha256sum it, and rewrite the hash.
-3. Commit both the URL change and the hash change together.
+SentiWS is vendored into the repo (`services/analysis-worker/vendor/SentiWS_v2.0.zip`) and COPYed by the worker Dockerfile — there is no download URL anymore (both upstream Leipzig hosts are offline). Attribution + provenance live in `services/analysis-worker/vendor/README.md`.
+
+1. Replace `services/analysis-worker/vendor/SentiWS_v2.0.zip` with the new file (leave the `SENTIWS_SHA256` value alone — it is rewritten next).
+2. Run `make deps-refresh`. Step 3 will `sha256sum` the vendored file and rewrite the hash.
+3. Update the attribution in `vendor/README.md` if the version/license changed, then commit the new zip together with the hash change.
 
 ### Trivy triage after a refresh
 

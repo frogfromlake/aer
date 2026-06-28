@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/hf-build-cache,id=aer-analysis-worker-hf-models \
     && cp -a /hf-build-cache/. /hf-cache/
 
 # ---------------------------------------------------------------------------
-# Stage 2: builder — Python deps (pip) + SentiWS lexicon download.
+# Stage 2: builder — Python deps (pip) + vendored SentiWS lexicon (COPYed, not fetched).
 #
 # Digest pinned for reproducibility (Phase 84).
 # Upstream: https://hub.docker.com/_/python — python:3.14.3-slim-bookworm
@@ -78,18 +78,20 @@ COPY services/analysis-worker/requirements.lock.txt .
 RUN --mount=type=cache,target=/root/.cache/pip,id=aer-analysis-worker-pip \
     pip install --prefix=/install --require-hashes -r requirements.lock.txt
 
-# Download SentiWS lexicon (CC-BY-SA 4.0, Leipzig University).
-# Hash-pinned (Phase 84) — supply-chain integrity for a build-time download.
-# SENTIWS_URL is overridable (compose build arg / .env) so a byte-identical
-# fallback mirror (e.g. an Internet Archive snapshot) can be used when the
-# canonical Leipzig server is down; the SHA256 check below guarantees integrity
-# regardless of source. The wget is retried (flaky academic mirror).
+# SentiWS German sentiment lexicon (CC-BY-SA 4.0, Leipzig University — Remus,
+# Quasthoff & Heyer 2010). VENDORED into the repo
+# (services/analysis-worker/vendor/SentiWS_v2.0.zip, ~95 KB) because BOTH upstream
+# hosts are offline: the old downloads.wortschatz-leipzig.de mirror AND the new
+# wortschatz.uni-leipzig.de download page. A build-time download is therefore no
+# longer reliable anywhere (local, CI, box). Vendoring removes the network
+# dependency entirely and makes the build fully reproducible; the SHA256 check
+# below still runs as an integrity defence against repo tampering. To update the
+# lexicon: replace the vendored zip and run `make deps-refresh` (Step 3 recomputes
+# this hash from the file). Attribution + license: vendor/README.md.
 ARG SENTIWS_SHA256=4dd6ce99a44b5122c04fe0e7ca36db1f94d738201095edabb0a16cc98f160b91
-ARG SENTIWS_URL=https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip
-RUN apt-get update && apt-get install -y --no-install-recommends unzip wget \
+COPY services/analysis-worker/vendor/SentiWS_v2.0.zip /tmp/sentiws.zip
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
     && mkdir -p /sentiws \
-    && wget -q --tries=5 --waitretry=10 --timeout=30 --retry-connrefused \
-        -O /tmp/sentiws.zip "${SENTIWS_URL}" \
     && echo "${SENTIWS_SHA256}  /tmp/sentiws.zip" | sha256sum -c - \
     && unzip /tmp/sentiws.zip -d /sentiws \
     && rm /tmp/sentiws.zip \
