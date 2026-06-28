@@ -141,8 +141,15 @@ backend-restart: backend-down backend-up
 infra-up: stage-secrets-local
 	@echo -e "$(BOLD)$(GRAY)--- STARTING INFRASTRUCTURE ONLY ---$(RESET)"
 	@docker compose up -d --wait \
-		traefik nats nats-init minio minio-init postgres clickhouse clickhouse-init \
+		traefik nats minio postgres clickhouse \
 		otel-collector tempo prometheus grafana docs
+	@# Init containers run to completion (exit 0). They are NOT in the --wait set
+	@# above: `docker compose up --wait` treats an explicitly-named, exited service
+	@# as a failure (Compose v5 is strict about this), which made this target report
+	@# Error 1 despite a healthy stack. Start them, then `compose wait` for their
+	@# exit codes — that honours a clean exit 0 and only fails on a real error.
+	@docker compose up -d nats-init minio-init clickhouse-init
+	@docker compose wait nats-init minio-init clickhouse-init >/dev/null
 	@echo -e "$(SYMBOL_SUCCESS) Docs:       $(CYAN)http://localhost:8000$(RESET)"
 	@echo -e "$(GRAY)  Backend application services are NOT started by this target — use 'make up' or 'make backend-up'.$(RESET)"
 

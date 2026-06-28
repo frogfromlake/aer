@@ -101,6 +101,12 @@ services:
   grafana:
     labels: !override
       - "traefik.enable=false"
+    # Alert email recipient is mandatory on the box: fail `compose up` loudly if
+    # ALERT_EMAIL_TO is unset/empty rather than silently inheriting the base dev
+    # placeholder (which would misroute real disk-fill / service-down alerts). The
+    # base value keeps local dev booting; this `:?` guard restores fail-fast in prod.
+    environment:
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:?ALERT_EMAIL_TO must be set on the box — alert email recipient}
 
   # SEC-064 — harden the MkDocs services for production. The base compose runs a
   # dev livereload server with the WHOLE repo bind-mounted (`.:/docs`), which (a)

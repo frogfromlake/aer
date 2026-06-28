@@ -549,14 +549,9 @@ services:
     build:
       context: .
       dockerfile: services/analysis-worker/Dockerfile
-      args:
-        # SentiWS lexicon source. Default = the canonical Leipzig mirror; that
-        # academic server has occasional outages. When it is down, set
-        # SENTIWS_URL in .env to a byte-identical fallback (e.g. an Internet
-        # Archive snapshot of the same file). The SHA256 pin in the Dockerfile
-        # verifies integrity regardless of source — a wrong/mutated file fails
-        # the build — so this never weakens the supply-chain guarantee.
-        SENTIWS_URL: ${SENTIWS_URL:-https://downloads.wortschatz-leipzig.de/etc/SentiWS/SentiWS_v2.0.zip}
+      # SentiWS is vendored into the repo (services/analysis-worker/vendor/) and
+      # COPYed in the Dockerfile — no SENTIWS_URL build arg / network fetch, both
+      # upstream hosts being offline. The Dockerfile's SHA256 pin still guards it.
     container_name: aer_analysis_worker
     # Phase 155 / D9: non-secret runtime config base layer (see gen_runtime_env.sh).
     env_file:
@@ -815,6 +810,13 @@ services:
       - APP_ENV=${APP_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
       - BFF_PORT=8080
+      # Container-topology value: the image copies the bundled configs to
+      # /app/configs (WORKDIR /app), so this is fixed by the image layout, NOT a
+      # host setting. Pin it here so it always wins over .env.runtime (D9 env_file),
+      # which would otherwise forward a developer's host-relative BFF_CONFIG_DIR
+      # (e.g. services/bff-api/configs, for running the binary from the repo root)
+      # into the container and break metric_provenance/content/probes loading.
+      - BFF_CONFIG_DIR=configs
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=9000
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
@@ -1072,7 +1074,13 @@ services:
       - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-}
       - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-AĒR Alerts}
       - GF_SMTP_STARTTLS_POLICY=${GF_SMTP_STARTTLS_POLICY:-MandatoryStartTLS}
-      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
+      # Default to a placeholder recipient so the provisioned alerting contact
+      # point validates and Grafana boots in local dev (an EMPTY addresses field
+      # makes Grafana refuse to start: "could not find addresses in settings").
+      # The address is harmless here — GF_SMTP_ENABLED=false keeps email send inert
+      # in dev. In production the prod overlay overrides this with a `:?` guard so a
+      # missing recipient fails loudly instead of silently using this placeholder.
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-alerts@example.com}
       - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://localhost:3000}
     secrets:
       - GF_SECURITY_ADMIN_PASSWORD
@@ -1128,7 +1136,15 @@ services:
       - "--collector.textfile.directory=/host/var/lib/aer/textfile"
     pid: host
     volumes:
-      - "/:/host:ro,rslave"
+      # Read-only host root for disk-fill + the backup-heartbeat textfile. A plain
+      # bind (no rslave propagation) is used deliberately: AĒR runs on a single-disk
+      # box, so every filesystem that matters is already mounted at container start —
+      # rslave's only benefit (seeing filesystems mounted *after* start) is moot here.
+      # It also breaks portability: on WSL2 the host `/` is a private mount, and
+      # `ro,rslave` then fails with "path / is mounted on / but it is not a shared
+      # mount". Plain `ro` works identically on the box (covers `/` fill + the
+      # /host/var/lib/aer/textfile heartbeat) and lets the stack come up locally.
+      - "/:/host:ro"
     networks:
       - aer-backend
     deploy:
