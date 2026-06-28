@@ -8,6 +8,9 @@
 apiVersion: 1
 
 contactPoints:
+  # Critical alerts (disk <5%, backup failed, cert expiring, service down): mailed
+  # immediately, plus a "resolved" mail when they clear so the operator knows the
+  # incident is over.
   - orgId: 1
     name: aer-email
     receivers:
@@ -19,3 +22,18 @@ contactPoints:
           # group summary so a disk-fill storm is one mail, not fifty.
           singleEmail: false
         disableResolveMessage: false
+
+  # Warning alerts (RAM near cap, disk <15%, ILM heartbeat, etc.): same mailbox,
+  # but NO "resolved" mails — a worker that hits 90% RAM and recovers on every run
+  # would otherwise send two mails per run. Paired with the 24h repeat in
+  # policies.yaml, each warning mails at most once a day. Saves the Brevo quota
+  # (shared with user invites/resets, Phase 153) for what actually matters.
+  - orgId: 1
+    name: aer-email-warning
+    receivers:
+      - uid: aer_email_warning_receiver
+        type: email
+        settings:
+          addresses: ${ALERT_EMAIL_TO}
+          singleEmail: false
+        disableResolveMessage: true

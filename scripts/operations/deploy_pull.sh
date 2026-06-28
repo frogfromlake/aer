@@ -69,4 +69,15 @@ docker compose --profile dashboard ps
 echo "==> Auditing effective config against the prod manifest (drift gate)"
 bash scripts/operations/config_audit.sh
 
+# Reclaim disk from superseded image versions. Each release leaves the previous
+# tag's images behind; over many deploys they fill the box (the 2026-06-28 disk
+# alert was ~30 GB of stale images + build cache). `image prune -af` removes only
+# images no running container references — the just-deployed stack is untouched,
+# and an older tag is re-pullable from GHCR for a rollback. NOTE: this is image
+# prune ONLY — never `builder prune`/`buildx prune` (Hard Rule 7: that evicts the
+# HuggingFace model cache mount). The box pulls images and never builds, so it has
+# no build cache to grow anyway.
+echo "==> Reclaiming disk from superseded images (image prune, not build cache)"
+docker image prune -af >/dev/null 2>&1 || true
+
 echo "==> Deploy of ${TAG} complete — all services healthy."

@@ -1,19 +1,25 @@
 # SEC-037 — notification policy. How alerts are grouped + routed to the contact
-# point. Single default policy: everything goes to the email contact point,
-# grouped by alertname so repeated firings of the same rule coalesce. Critical
-# alerts get a tighter repeat interval so they keep nagging until resolved.
+# points. Two tiers (Phase 155 follow-up, 2026-06-28):
+#   • default (warnings) → aer-email-warning, repeat once every 24h, no "resolved"
+#     mails. A continuously-firing warning (disk <15%, ILM stale, worker RAM) then
+#     mails at most once a day instead of every 4h — so the Brevo quota (shared
+#     with user invites/resets) is not eaten by alert noise.
+#   • severity=critical → aer-email, repeat every 1h, with "resolved" mails. The
+#     wake-me-up tier (disk <5%, backup failed/never, cert expiring, service down).
+# Grouped by alertname so repeated firings of one rule coalesce into one mail.
 apiVersion: 1
 
 policies:
   - orgId: 1
-    receiver: aer-email
+    receiver: aer-email-warning
     group_by: ["alertname"]
-    group_wait: 30s
-    group_interval: 5m
-    repeat_interval: 4h
+    group_wait: 1m
+    group_interval: 10m
+    repeat_interval: 24h
     routes:
       - receiver: aer-email
         matchers:
           - severity = critical
         group_wait: 10s
+        group_interval: 5m
         repeat_interval: 1h
