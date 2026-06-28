@@ -19,6 +19,13 @@ fi
 # a `docker login ghcr.io` with a read:packages token.
 export COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml:compose.ci-images.yaml}"
 
+# --- Docker-secrets dir (Phase 155 / D9) ---
+# compose.yaml resolves per-service secrets from ${AER_SECRETS_DIR:-/run/aer-secrets}.
+# Export a writable in-repo path so the staging step below and every `docker
+# compose` call agree, and do it BEFORE the teardown trap so its logs/down
+# interpolate the same way. A caller-provided AER_SECRETS_DIR still wins.
+export AER_SECRETS_DIR="${AER_SECRETS_DIR:-$(pwd)/.aer-secrets}"
+
 # --- Config ---
 BFF_URL="http://localhost:8080/api/v1"
 BFF_API_KEY="${BFF_API_KEY:-}"
@@ -63,6 +70,17 @@ cleanup() {
     exit $FINAL_EXIT
 }
 trap cleanup EXIT
+
+# ── Step 0: Stage Docker secrets + generate .env.runtime (Phase 155 / D9) ──
+# compose.yaml mounts per-service secrets from $AER_SECRETS_DIR and loads an
+# `env_file: .env.runtime`; both are generated, not committed. Locally `make up`
+# / `infra-up` run these via the stage-secrets-local target — this script drives
+# `docker compose` directly, so it must stage them itself or compose fails with
+# ".env.runtime not found" (and, next, missing secret files). Both scripts read
+# the .env created by the CI workflow step (or a local .env).
+log_step "Step 0: Staging Docker secrets + runtime env (Phase 155 / D9)"
+bash "$(dirname "$0")/../operations/stage_secrets_local.sh"
+bash "$(dirname "$0")/../operations/gen_runtime_env.sh"
 
 # ── Step 1: Start full stack and wait for health ─────────────────────────
 log_step "Step 1: Starting full Docker Compose stack (pulling pre-built images, waiting for health)"
