@@ -4,8 +4,13 @@
 #     mails. A continuously-firing warning (disk <15%, ILM stale, worker RAM) then
 #     mails at most once a day instead of every 4h — so the Brevo quota (shared
 #     with user invites/resets) is not eaten by alert noise.
+#   • alertname=~"Backup.*" → aer-email, repeat every 12h. Backup alerts are
+#     critical, but a single-operator box does not need to be told hourly that the
+#     off-box backup is failing — once every 12h keeps awareness without spamming
+#     the (Brevo-limited) inbox during a multi-day outage. Listed FIRST so it wins
+#     over the generic critical route below for a backup alert.
 #   • severity=critical → aer-email, repeat every 1h, with "resolved" mails. The
-#     wake-me-up tier (disk <5%, backup failed/never, cert expiring, service down).
+#     wake-me-up tier (disk <5%, cert expiring, service down).
 # Grouped by alertname so repeated firings of one rule coalesce into one mail.
 apiVersion: 1
 
@@ -17,6 +22,12 @@ policies:
     group_interval: 10m
     repeat_interval: 24h
     routes:
+      - receiver: aer-email
+        matchers:
+          - alertname =~ "Backup.*"
+        group_wait: 30s
+        group_interval: 10m
+        repeat_interval: 12h
       - receiver: aer-email
         matchers:
           - severity = critical

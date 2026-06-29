@@ -112,17 +112,26 @@ done
 # whose expiry lifecycle is not pruning.
 minio_check() {
   local bucket="$1" ttl="$2" cutoff=$(( $2 + GRACE_DAYS )) out n
-  out="$(dc run --rm --no-deps -T --entrypoint /bin/sh minio-init -c "
+  # Resolve the MinIO root creds from the *_FILE / mounted secret INSIDE the
+  # container (Phase 155 — the plain env var is gone, and --entrypoint bypasses
+  # setup.sh's resolver). A run failure (auth/connection) must NOT read as a clean
+  # pass — that would make the ILM heartbeat lie; count it as an unverified
+  # violation so the truth surfaces instead of a false green.
+  if out="$(dc run --rm --no-deps -T --entrypoint /bin/sh minio-init -c "
     set -eu
-    mc alias set src \"http://\${MINIO_ENDPOINT:-minio:9000}\" \"\$MINIO_ROOT_USER\" \"\$MINIO_ROOT_PASSWORD\" >/dev/null
+    mc alias set src \"http://\${MINIO_ENDPOINT:-minio:9000}\" \"\$(cat \"\${MINIO_ROOT_USER_FILE:-/run/secrets/MINIO_ROOT_USER}\")\" \"\$(cat \"\${MINIO_ROOT_PASSWORD_FILE:-/run/secrets/MINIO_ROOT_PASSWORD}\")\" >/dev/null
     mc find \"src/${bucket}\" --older-than ${cutoff}d
-  " 2>/dev/null || true)"
-  n="$(printf '%s\n' "$out" | grep -c . || true)"
-  if [ "${n:-0}" -gt 0 ]; then
-    echo "  ✗ MinIO ${bucket}: ${n} objects older than ${ttl}d (+${GRACE_DAYS}d grace) — lifecycle not pruning"
-    violations=$(( violations + 1 ))
+  " 2>/dev/null)"; then
+    n="$(printf '%s\n' "$out" | grep -c . || true)"
+    if [ "${n:-0}" -gt 0 ]; then
+      echo "  ✗ MinIO ${bucket}: ${n} objects older than ${ttl}d (+${GRACE_DAYS}d grace) — lifecycle not pruning"
+      violations=$(( violations + 1 ))
+    else
+      echo "  ✓ MinIO ${bucket}: no objects past ${ttl}d"
+    fi
   else
-    echo "  ✓ MinIO ${bucket}: no objects past ${ttl}d"
+    echo "  ✗ MinIO ${bucket}: check could not run (auth/connection) — NOT verified"
+    violations=$(( violations + 1 ))
   fi
 }
 minio_check "bronze" 90

@@ -154,10 +154,14 @@ dc exec -T clickhouse rm -rf "/backups/${CH_BACKUP_NAME}"
 # --- 3. MinIO bronze + silver (logical mirror via mc, in-network) ------------
 echo "==> Mirroring MinIO bronze + silver"
 mkdir -p "$STAGING/minio"
+# Read the MinIO root creds from the mounted Docker secret INSIDE the container.
+# Phase 155 / ADR-046: minio-init carries MINIO_ROOT_USER only as *_FILE (+ the
+# /run/secrets mount); the plain env var is gone, and the `--entrypoint /bin/sh`
+# override bypasses setup.sh's own _FILE resolver — so resolve it here.
 dc run --rm --no-deps -T -v "$STAGING/minio:/mirror" \
   --entrypoint /bin/sh minio-init -c '
     set -eu
-    mc alias set src "http://${MINIO_ENDPOINT:-minio:9000}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+    mc alias set src "http://${MINIO_ENDPOINT:-minio:9000}" "$(cat "${MINIO_ROOT_USER_FILE:-/run/secrets/MINIO_ROOT_USER}")" "$(cat "${MINIO_ROOT_PASSWORD_FILE:-/run/secrets/MINIO_ROOT_PASSWORD}")" >/dev/null
     mc mirror --overwrite --remove src/bronze /mirror/bronze
     mc mirror --overwrite --remove src/silver /mirror/silver
   '
