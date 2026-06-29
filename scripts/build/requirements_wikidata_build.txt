@@ -8,5 +8,5 @@
 # rationale.
 PyYAML==6.0.2
 pyoxigraph==0.4.11
-requests==2.32.3
+requests==2.33.0
 tenacity==9.0.0
