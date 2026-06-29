@@ -18,6 +18,12 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=/opt/aer
 Environment=COMPOSE_FILE=compose.yaml:compose.prod.yaml
+# systemd runs services without $HOME, so restic cannot locate a cache dir and
+# logs "unable to open cache: neither $XDG_CACHE_HOME nor $HOME are defined",
+# then re-reads EVERY file each run ("no parent snapshot found"). Pin an explicit
+# restic cache so backups go incremental (parent-snapshot detection) instead of
+# full-scan each night. restic creates the dir on first use.
+Environment=RESTIC_CACHE_DIR=/var/cache/restic
 # backup.sh self-loads .env (RESTIC_*, POSTGRES_*, …) and writes the
 # BackupStale/Failed heartbeat metric on every run, success or fail.
 ExecStart=/usr/bin/env bash scripts/operations/backup.sh
