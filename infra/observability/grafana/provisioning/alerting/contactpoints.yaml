@@ -1,10 +1,10 @@
-# SEC-037 — Grafana unified-alerting contact point. Where alerts are delivered.
+# SEC-037 — Grafana unified-alerting contact points. Where alerts are delivered.
 #
-# A single email contact point pointed at the operator (ALERT_EMAIL_TO, supplied
-# via env — never hardcoded, the repo is public). Grafana sends through its own
-# SMTP (GF_SMTP_* in compose.yaml), which targets the same Brevo relay as the app
-# (Phase 153). In dev (GF_SMTP_ENABLED=false) the contact point still exists and
-# alerts show in the UI; only the email send is inert.
+# Alerts are delivered to ntfy (free push, see aer-ntfy below) so they no longer
+# consume the Brevo email quota (reserved for user invites/resets, Phase 153).
+# The email contact points are kept as an inert fallback. All recipient addresses
+# / URLs come from env (ALERT_EMAIL_TO / NTFY_ALERT_URL) — never hardcoded, the
+# repo is public.
 apiVersion: 1
 
 contactPoints:
@@ -36,4 +36,28 @@ contactPoints:
         settings:
           addresses: ${ALERT_EMAIL_TO}
           singleEmail: false
+        disableResolveMessage: true
+
+  # ntfy push (free, no email quota). Grafana POSTs the alert to the private ntfy
+  # topic URL (NTFY_ALERT_URL, env — the topic name is the shared secret, so it is
+  # never committed). Two receivers mirror the email tiers: critical/backup send a
+  # "resolved" push, warnings do not (no recover-spam). Same topic, both.
+  - orgId: 1
+    name: aer-ntfy
+    receivers:
+      - uid: aer_ntfy_receiver
+        type: webhook
+        settings:
+          url: ${NTFY_ALERT_URL}
+          httpMethod: POST
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: aer-ntfy-warning
+    receivers:
+      - uid: aer_ntfy_warning_receiver
+        type: webhook
+        settings:
+          url: ${NTFY_ALERT_URL}
+          httpMethod: POST
         disableResolveMessage: true

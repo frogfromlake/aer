@@ -1,34 +1,34 @@
-# SEC-037 — notification policy. How alerts are grouped + routed to the contact
-# points. Two tiers (Phase 155 follow-up, 2026-06-28):
-#   • default (warnings) → aer-email-warning, repeat once every 24h, no "resolved"
-#     mails. A continuously-firing warning (disk <15%, ILM stale, worker RAM) then
-#     mails at most once a day instead of every 4h — so the Brevo quota (shared
-#     with user invites/resets) is not eaten by alert noise.
-#   • alertname=~"Backup.*" → aer-email, repeat every 12h. Backup alerts are
-#     critical, but a single-operator box does not need to be told hourly that the
-#     off-box backup is failing — once every 12h keeps awareness without spamming
-#     the (Brevo-limited) inbox during a multi-day outage. Listed FIRST so it wins
-#     over the generic critical route below for a backup alert.
-#   • severity=critical → aer-email, repeat every 1h, with "resolved" mails. The
-#     wake-me-up tier (disk <5%, cert expiring, service down).
-# Grouped by alertname so repeated firings of one rule coalesce into one mail.
+# SEC-037 — notification policy. Alerts now go to ntfy push (free), not email, so
+# they no longer consume the Brevo quota. Three tiers (2026-06-29):
+#   • default (warnings) → aer-ntfy-warning, repeat once every 24h, no "resolved"
+#     push. A continuously-firing warning (disk <15%, ILM stale, worker RAM) pushes
+#     at most once a day.
+#   • alertname=~"Backup.*" → aer-ntfy, repeat every 24h, alerts grouped together
+#     so BackupFailed + BackupStale arrive as ONE push, not two. (Before this they
+#     were 2 critical alerts × 1h = ~2 mails/hour — far too noisy. Once a day is
+#     plenty to learn the off-box backup needs attention.) Listed FIRST so it wins
+#     over the generic critical route below.
+#   • severity=critical → aer-ntfy, repeat every 1h, with "resolved" push. The
+#     genuine wake-me-up tier (disk <5%, cert expiring, service down) — rare.
 apiVersion: 1
 
 policies:
   - orgId: 1
-    receiver: aer-email-warning
+    receiver: aer-ntfy-warning
     group_by: ["alertname"]
     group_wait: 1m
     group_interval: 10m
     repeat_interval: 24h
     routes:
-      - receiver: aer-email
+      - receiver: aer-ntfy
         matchers:
           - alertname =~ "Backup.*"
-        group_wait: 30s
-        group_interval: 10m
-        repeat_interval: 12h
-      - receiver: aer-email
+        # group WITHOUT alertname so the redundant Backup* alerts coalesce into one.
+        group_by: ["grafana_folder"]
+        group_wait: 1m
+        group_interval: 30m
+        repeat_interval: 24h
+      - receiver: aer-ntfy
         matchers:
           - severity = critical
         group_wait: 10s

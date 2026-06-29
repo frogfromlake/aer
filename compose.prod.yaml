@@ -107,6 +107,7 @@ services:
     # base value keeps local dev booting; this `:?` guard restores fail-fast in prod.
     environment:
       - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:?ALERT_EMAIL_TO must be set on the box — alert email recipient}
+      - NTFY_ALERT_URL=${NTFY_ALERT_URL:?NTFY_ALERT_URL must be set on the box — ntfy push topic URL for alerts}
 
   # SEC-064 — harden the MkDocs services for production. The base compose runs a
   # dev livereload server with the WHOLE repo bind-mounted (`.:/docs`), which (a)

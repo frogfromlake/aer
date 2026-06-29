@@ -1081,6 +1081,10 @@ services:
       # in dev. In production the prod overlay overrides this with a `:?` guard so a
       # missing recipient fails loudly instead of silently using this placeholder.
       - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-alerts@example.com}
+      # ntfy push topic URL for alerts (the topic name is the shared secret, so
+      # it is supplied via env, never committed). Dev default is a harmless unused
+      # public topic so the webhook contact point provisions with a valid URL.
+      - NTFY_ALERT_URL=${NTFY_ALERT_URL:-https://ntfy.sh/aer-dev-placeholder}
       - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://localhost:3000}
     secrets:
       - GF_SECURITY_ADMIN_PASSWORD
